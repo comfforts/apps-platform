@@ -27,6 +27,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "docs/05_evaluation_strategy.md",
             "docs/06_threat_model.md",
             "docs/README.md",
+            "docs/repository_extraction_handoff.md",
             "docs/repository_layout.md",
             "docs/runbooks/README.md",
             "docs/runbooks/repository_extraction.md",
@@ -294,12 +295,24 @@ class ProjectAuthorityTest(unittest.TestCase):
         runbook = (
             PROJECT_ROOT / "docs/runbooks/repository_extraction.md"
         ).read_text(encoding="utf-8")
+        handoff = (
+            PROJECT_ROOT / "docs/repository_extraction_handoff.md"
+        ).read_text(encoding="utf-8")
         normalized = " ".join(runbook.split())
+        normalized_handoff = " ".join(handoff.split())
 
         self.assertIn("[Runbook index](runbooks/README.md)", index)
         self.assertIn(
             "[Repository extraction runbook](runbooks/repository_extraction.md)",
             index,
+        )
+        self.assertIn(
+            "[Repository extraction handoff](repository_extraction_handoff.md)",
+            index,
+        )
+        self.assertIn(
+            "[repository extraction handoff](../repository_extraction_handoff.md)",
+            runbook,
         )
         self.assertIn("no action is authorized merely because a runbook exists", runbook_index)
         for boundary in (
@@ -330,6 +343,25 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("git push --mirror", runbook)
         self.assertNotIn("terraform apply", runbook)
         self.assertNotIn("gcloud ", runbook)
+
+        for evidence in (
+            "f5f7cef84a0d7e2850e496f8ce56f3afdb7944c6",
+            "66ae90b2760c44f4142236ac96c472ab1e748c60",
+            "d120aa3c5608dce78000a014d7bc12fd5a25555b",
+            "a12da61450c0ca970d8b8662841a5462771c72ee",
+            "Git 2.50.1 (Apple Git-155)",
+            "all 189 tests",
+            "Credential-free project checks",
+            "Secret scanning through Secret Protection and push protection are enabled",
+            "Code scanning uses CodeQL default setup",
+            "canonical authority cutover and checkpoint 5 source-repository cleanup pending",
+            "pull request, required-check readback, merge, and explicit owner cutover declaration pending",
+            "Source-tree and CI-wrapper cleanup | Not approved and not started",
+            "The source-repository copy remains canonical",
+            "AP-M7 and every later provider or application slice remain outside this extraction",
+        ):
+            self.assertIn(evidence, normalized_handoff)
+        self.assertNotIn("Status: canonical", handoff)
 
     def test_ap_m3_authorities_have_complete_unique_identifiers(self) -> None:
         plan = (PROJECT_ROOT / "docs/04_implementation_plan.md").read_text(

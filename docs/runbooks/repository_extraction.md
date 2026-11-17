@@ -158,6 +158,9 @@ infrastructure, state, DNS, identity, deployment, or access.
 
 ## Evidence and failure handling
 
+The current secret-free checkpoint evidence is recorded in the
+[repository extraction handoff](../repository_extraction_handoff.md).
+
 The secret-free handoff records:
 
 - source repository, source revision, source subtree identifier, split revision, and split tree;

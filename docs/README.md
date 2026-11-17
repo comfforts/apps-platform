@@ -41,8 +41,10 @@ cutover; source-repository cleanup remains a later, separate checkpoint.
 11. [Runbook index](runbooks/README.md) owns subordinate, explicitly approved operator procedures.
 12. [Repository extraction runbook](runbooks/repository_extraction.md) defines the history,
     verification, mutation, and authority-cutover gates for the dedicated repository.
-13. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
-14. [Terraform-and-workflow handoff](../prompts/starting_prompt.md) provides a bounded entry point
+13. [Repository extraction handoff](repository_extraction_handoff.md) records the secret-free
+    checkpoint evidence and remaining canonical-cutover boundary.
+14. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
+15. [Terraform-and-workflow handoff](../prompts/starting_prompt.md) provides a bounded entry point
     for proposing AP-M7 authority only after repository reconciliation merges and the owner
     declares the canonical cutover.
 

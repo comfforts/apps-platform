@@ -1,21 +1,22 @@
 # App Platform repository layout
 
-Status: authoritative; AP-M6 runtime, repository-extraction procedure, and extraction-owned root
-check recorded; no extraction, provider operation, or infrastructure implemented
+Status: authoritative dedicated-root layout; initial extraction and repository settings complete;
+reconciliation, canonical cutover, and source-repository cleanup pending; no provider operation or
+infrastructure implemented
 
-The project is organized as an extractable repository root. Canonical platform files remain under
-`apps-platform/` while colocated so a later history-preserving subtree extraction can make this
-directory the new repository root.
+The project is organized at the dedicated repository root produced by the history-preserving
+subtree extraction. Paths remain project-relative so repository identity does not alter platform
+contracts, verification, or ownership boundaries.
 
 ## Current layout
 
 | Path | Owner |
 | --- | --- |
 | `AGENTS.md` | Platform engineering workflow and authority routing |
-| `.github/workflows/` | Credential-free dedicated-root checks; inert as workflows while this project remains a subtree |
+| `.github/workflows/` | Credential-free dedicated-root checks |
 | `README.md` | Project overview, operational status, and local entry points |
 | `GLOSSARY.md` | Canonical platform vocabulary |
-| `docs/` | Platform design authority and future runbooks/evidence indexes |
+| `docs/` | Platform design authority, runbooks, and evidence indexes |
 | `docs/runbooks/` | Subordinate operator procedures requiring their own explicit approvals |
 | `prompts/` | Bounded task entry points that link to authoritative documents |
 | `integrations/` | Inactive application-adoption inputs with no consuming-app authority |
@@ -43,29 +44,30 @@ These locations may be created only by their approved slice:
 
 The reservation is not authorization to scaffold empty modules or imply later capabilities. AP-M6
 may extend only `edge/` and implementation-owned registration test inputs through its ordered work
-packages. AP-M7 may create only the planned Terraform and workflow paths after AP-M6 merges. Live
-evidence bundles remain in the private provider evidence store rather than the repository.
+packages. AP-M7 may create only the planned Terraform and workflow paths after repository
+reconciliation merges and the owner declares the canonical cutover. Live evidence bundles remain
+in the private provider evidence store rather than the repository.
 
-## Colocation exceptions
+## Repository-transition boundary
 
-The containing repository may have only temporary integration files outside this subtree:
+The source repository may retain only temporary integration files outside this dedicated root:
 
-- short authority-boundary notes in the parent `AGENTS.md`, `README.md`, documentation index, and
+- short authority-boundary notes in its `AGENTS.md`, `README.md`, documentation index, and
   repository-layout document; and
-- a path-scoped GitHub Actions wrapper that delegates to `make -C apps-platform check`.
+- its path-scoped GitHub Actions wrapper.
 
-Those files are not App Platform authority and will not be included by subtree extraction. The
-canonical root workflow is stored inside this subtree and becomes active only when extraction makes
-it repository-root `.github/workflows/check.yml`. Repository settings remain explicit operator
-actions after the initial push.
+Those files are not dedicated-repository authority. Until the reconciliation pull request merges
+and the owner explicitly declares the canonical cutover, the source-repository copy remains
+authoritative and platform changes stop in both locations. Removing or replacing that copy and its
+CI wrapper is a later, separately approved source-repository change.
 
-## Extraction rules
+## Dedicated-repository rules
 
-- Do not create a nested `.git` directory while colocated.
-- Keep canonical code, contracts, documentation, tests, prompts, and evidence inside this subtree.
-- Use project-relative paths so `make check` works before and after extraction.
+- Keep platform code, contracts, documentation, tests, prompts, and evidence at this repository
+  root.
+- Use project-relative paths and run `make check` from the dedicated repository root.
 - Keep Terraform state, credentials, saved plans, caches, and authenticated artifacts outside Git.
 - Follow the reviewed [repository extraction runbook](runbooks/repository_extraction.md) before any
-  split, push, repository-setting change, authority cutover, or parent-tree removal.
+  remaining reconciliation, authority-cutover, or source-repository cleanup action.
 - A path move is complete only when every contract consumer, test, command, document, and workflow
   resolves to the new location.

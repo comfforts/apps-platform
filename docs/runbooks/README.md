@@ -6,10 +6,10 @@ Runbooks translate accepted App Platform authority into explicit human-operated 
 not replace requirements, accepted architecture decisions, system design, implementation plans, or
 evaluation gates. Every external mutation still requires the approval named by its runbook.
 
-- [Repository extraction](repository_extraction.md) preserves the `apps-platform/` tree and its Git
-  history while establishing `https://github.com/comfforts/apps-platform.git` as a future dedicated
-  repository. It performs no cloud, DNS, identity, Terraform, deployment, or Application Adoption
-  action.
+- [Repository extraction](repository_extraction.md) governs the history-preserving extraction that
+  established `https://github.com/comfforts/apps-platform.git` and the remaining reconciliation,
+  canonical-cutover, and source-repository-cleanup checkpoints. It performs no cloud, DNS,
+  identity, Terraform, deployment, or Application Adoption action.
 
 Runbooks never contain credentials, Terraform state, saved plans, authenticated browser state, or
 unredacted provider output. A failed or incomplete procedure stops for inspection and does not

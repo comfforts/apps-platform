@@ -1,7 +1,8 @@
 # App Platform engineering instructions
 
-These instructions govern work under `apps-platform/`. While this project is colocated, the parent
-repository's security, source-control, and destructive-action guardrails also apply.
+These instructions govern work in the dedicated App Platform repository. The security,
+source-control, secret-handling, and destructive-action guardrails in this file apply to every
+change in the repository.
 
 ## Before modifying the platform
 
@@ -38,8 +39,10 @@ repository's security, source-control, and destructive-action guardrails also ap
   adapter logic tested through deterministic fakes and process-local loopback. It authorizes no
   Terraform, external network, credential lookup, provider call, cloud or repository mutation,
   deployment, Live claim, or Application Adoption.
-- Keep canonical platform implementation, contracts, tests, prompts, and evidence inside this
-  subtree so repository extraction preserves them.
+- Keep platform implementation, contracts, tests, prompts, and evidence inside this dedicated
+  repository. Extraction does not make Finance Assistant authority applicable here, and this
+  repository does not become canonical until the reconciliation pull request merges and the owner
+  explicitly declares the cutover.
 
 ## Branch and review workflow
 
@@ -56,7 +59,7 @@ repository's security, source-control, and destructive-action guardrails also ap
 
 ## Verification
 
-- Run `make check` from this directory or `make -C apps-platform check` from the parent repository.
+- Run `make check` from the dedicated repository root.
 - Keep `check` credential-free, deterministic, and non-mutating. Cloud plans, applies, DNS changes,
   identity changes, and live qualification require separate explicit operator targets.
 - Store no credentials, Terraform state, saved plans, authenticated browser state, or unredacted

@@ -241,12 +241,13 @@ qualification evidence schema remain system-design and evaluation decisions.
 ### Consequences
 
 - Platform implementation can proceed and be evaluated independently of Finance Assistant.
-- Fixture runtime and state must remain separable from Platform State even while colocated.
+- Fixture runtime and state must remain separable from Platform State across repository
+  transitions.
 - Platform qualification proves the platform contracts and controls, not compatibility with every
   application.
 - Finance Assistant migration will require a later Finance Assistant-owned slice and evidence.
 - History-preserving repository extraction must retain the fixtures and their deterministic checks
-  so qualification does not depend on the containing repository.
+  so qualification does not depend on the source-repository layout.
 
 ## ADR-005 · Qualify the first Live topology on GCP with Cloud Run attachments
 
@@ -452,9 +453,9 @@ exclusive ownership even if those resources initially share a GCP project. Long-
 account keys or routine workstation applies would also weaken the binding between reviewed source,
 the proposed plan, and the resulting provider change.
 
-The dedicated GitHub repository identity is not yet known because extraction has not occurred.
-Planning can select the authority model, but no Workload Identity Federation binding or live apply
-may be enabled until the repository and workflow subjects are exact.
+The dedicated GitHub repository identity is `comfforts/apps-platform`. Extraction and repository
+protection do not create infrastructure authority: no Workload Identity Federation binding or live
+apply may be enabled until a later approved slice defines and reviews the exact workflow subjects.
 
 ### Decision
 

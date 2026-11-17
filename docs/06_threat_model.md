@@ -427,9 +427,9 @@ provider changes are drift and never become configuration authority.
 extraction-safe checks. `L` covers revision binding, workload identity, least privilege, drift
 readback, plan review, and audit records.
 
-**Residual risk:** Protected-main, exact-plan binding, and Workload Identity Federation are selected
-but unavailable before repository extraction and infrastructure implementation. The same owner may
-review and apply, so retained evidence and drift readback remain important compensating controls.
+**Residual risk:** Protected-main is configured, while exact-plan binding and Workload Identity
+Federation remain unavailable before infrastructure implementation. The same owner may review and
+apply, so retained evidence and drift readback remain important compensating controls.
 
 ### AP-TM-012 · Availability and cost abuse
 
@@ -509,7 +509,7 @@ pass:
 | OAuth client values, session-store realization, KMS/JWKS resources, and identity IAM bindings for the selected trust profile | Infrastructure implementation |
 | Provider configuration/readback for the selected runtime limits and observed multi-instance abuse behavior | Terraform implementation and Live qualification |
 | Terraform modules, exact bucket and resource names, ingress realization, and IAM bindings for the selected GCP topology | Infrastructure implementation |
-| Dedicated repository identity, workflow subjects, branch protection, protected environment, and federation bindings | Repository extraction and Live mutation |
+| Exact protected workflow subjects, protected environment, and federation bindings | Infrastructure implementation and Live mutation |
 | Configuration-bucket, candidate-revision, traffic-pointer, DNS/TLS, readback, and rollback realization | Infrastructure implementation and Live qualification |
 | Exact log/evidence bucket names, IAM, exclusions, retention rules, and provider audit behavior for the selected profile | Infrastructure implementation and Live evidence collection |
 | Terraform enforcement of selected budgets, scaling caps, labels, image retention, and approved billable resources | Infrastructure implementation and Live qualification |

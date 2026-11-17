@@ -1,7 +1,8 @@
 # Repository extraction runbook
 
-Status: approved preparation procedure; no extraction, push, repository-setting change, authority
-cutover, or parent-tree removal has occurred
+Status: approved transition procedure; extraction checkpoints 1 through 3 are complete;
+reconciliation, authority cutover, and source-tree cleanup remain pending and require their named
+approvals
 
 This runbook moves the separately governed App Platform tree into its dedicated GitHub repository
 without flattening its history, importing Finance Assistant authority, or creating two active
@@ -12,7 +13,7 @@ AP-QR-004, AP-QR-006, ADR-004, ADR-007, AP-TM-010, AP-TM-011, and AP-TM-014.
 
 | Role | Repository |
 | --- | --- |
-| Current containing repository | `https://github.com/hankgalt/ai_finance_assitant.git` |
+| Source repository | `https://github.com/hankgalt/ai_finance_assitant.git` |
 | Dedicated target repository | `https://github.com/comfforts/apps-platform.git` |
 | Target visibility | Public |
 | Target default branch | `main` |

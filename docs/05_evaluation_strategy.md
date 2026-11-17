@@ -28,16 +28,14 @@ only. Fixture (`F`), Live (`L`), and Adoption (`A`) evidence remain unavailable.
 
 ### Evaluation environment
 
-The gate runs from the App Platform project root before and after repository extraction. While the
-project is colocated, either of these entry points is authoritative:
+The gate runs from the dedicated App Platform repository root:
 
 ```bash
 make check
-make -C apps-platform check
 ```
 
-One invocation from the appropriate root is sufficient when both resolve to the same project-local
-target. The command must:
+The command remains project-relative, so history-preserving extraction does not change its
+behavior. It must:
 
 - require only a supported Python 3 interpreter and the Python standard library;
 - perform no package installation or network access;
@@ -311,11 +309,11 @@ on the separately authorized AP-M4 implementation.
 
 ### Evaluation environment
 
-AP-EVAL-M4 runs from the App Platform project root using the same extraction-safe entry points:
+AP-EVAL-M4 runs from the dedicated App Platform repository root using the same project-local entry
+point:
 
 ```bash
 make check
-make -C apps-platform check
 ```
 
 `make check` must include `fixture-check` after governance and contract checks. The complete command
@@ -563,14 +561,13 @@ evidence remain unavailable.
 
 ### Evaluation environment
 
-AP-EVAL-M5 runs through the existing project-local entry points:
+AP-EVAL-M5 runs through the project-local entry point:
 
 ```bash
 make check
-make -C apps-platform check
 ```
 
-One invocation from the appropriate root is sufficient. The complete command must remain Python
+The complete command must remain Python
 standard-library-only, credential-free, deterministic, network-free, and non-mutating. It may read
 committed source but may not run Terraform, a provider CLI, DNS lookup, socket, browser, OAuth flow,
 authenticated workflow, or cloud plan. It must create no committed artifact and must return nonzero
@@ -807,8 +804,8 @@ The gate runs from the App Platform root in an already synchronized `uv.lock` en
 make check
 ```
 
-While colocated, `make -C apps-platform check` is equivalent. Dependency synchronization is a
-separate setup action and is not part of the gate. The check command performs no installation,
+Dependency synchronization is a separate setup action and is not part of the gate. The check
+command performs no installation,
 package-index request, DNS resolution, external network call, credential lookup, metadata-server
 call, browser action, provider access, repository mutation, or external state change.
 
@@ -826,9 +823,8 @@ declarations, frozen transitive lock, package metadata, ignored environment arti
 project-relative commands. A temporary history-independent copy must run the complete gate without
 the parent application package or repository layout.
 
-The path-scoped containing-repository workflow may synchronize the frozen environment while the
-projects are colocated, but no canonical runtime code or configuration may live outside
-`apps-platform/`.
+The dedicated-root workflow may synchronize the frozen environment, but no platform runtime code
+or configuration may live outside this repository root.
 
 #### AP-EVAL-M6-02 · Runtime limits and closed parsing
 

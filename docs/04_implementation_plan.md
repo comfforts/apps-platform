@@ -222,7 +222,7 @@ AP-M3 is accepted only when all of the following are true:
 7. `make check` passes without a credential, network call, paid provider, browser, cloud account, or
    external mutation.
 8. Project-relative contract loading and a temporary-copy validation test demonstrate that the
-   contract layer does not depend on the containing repository.
+   contract layer does not depend on the source-repository layout.
 9. The change contains no fixture runtime, infrastructure, Terraform state, saved plan, DNS,
    identity configuration, credential, or Finance Application Adoption change.
 10. Status and handoff documents describe contract behavior as implemented only after its tests
@@ -804,8 +804,8 @@ configuration. Owner acceptance of its exact values is required before AP-M6-W2.
 
 Add `pyproject.toml`, `uv.lock`, the smallest functional `edge/` package, an ASGI application
 factory, typed runtime settings and adapter bundle, a closed-default request result, and the
-project-local test target. Update only the existing path-scoped parent CI wrapper needed to
-synchronize the frozen environment while the project is colocated.
+project-local test target. Keep the extraction-owned root workflow synchronized with the frozen
+environment.
 
 The external module interface remains `create_app(runtime_configuration, adapters)`. Internal
 interfaces are not re-exported. Tests call the ASGI interface and prove that dependency setup is
@@ -874,6 +874,8 @@ After AP-EVAL-M6 passes, update `README.md`, `docs/README.md`, `prompts/starting
 index, governance assertions, and the secret-free pull-request handoff. Record only locally
 implemented runtime behavior. Leave provider deployment, Terraform, Live, and Adoption claims
 unavailable and route the next task to AP-M7 only after the AP-M6 pull request merges.
+If repository extraction is in progress, its reconciliation merge and explicit canonical cutover
+must also complete first.
 
 ### Ordered delivery
 
@@ -967,14 +969,15 @@ tests. AP-M7 may perform local formatting, validation, and credential-free tests
 initialize a backend, run an authenticated plan, create a credential, call GCP, mutate repository
 settings, or deploy.
 
-Exact globally unique bucket names, dedicated repository and workflow subjects, DNS zone resource,
+Exact globally unique bucket names, protected workflow subjects and environment, DNS zone resource,
 OAuth client references, notification destination, and initial Registration Set values are operator
-inputs resolved through reviewed configuration rather than reusable module assumptions.
+inputs resolved through reviewed configuration rather than reusable module assumptions. The
+repository identity is fixed as `comfforts/apps-platform`; it creates no federation authority.
 
 ### AP-M8 · Non-production qualification deployment
 
-After repository extraction and AP-M6/AP-M7 merges, use separately approved operator actions to
-configure repository protection and federation, bootstrap backends, run authenticated plans,
+After the repository reconciliation and AP-M7 merge, use separately approved operator actions to
+configure protected environments and federation, bootstrap backends, run authenticated plans,
 deploy the platform and Fixture Application resources, and perform the separately approved
 `apps-staging.comfforts.com` DNS/TLS action. Deployment evidence proves only that named resources
 exist and read back; it does not make AP-EVAL-M9 pass.
@@ -1079,7 +1082,7 @@ The following exact inputs remain required at their named later boundary:
 
 | Input | Required before |
 | --- | --- |
-| Dedicated GitHub organization, repository, workflow subjects, protected environment, and repository settings | AP-M7 federation implementation and AP-M8 deployment |
+| Exact protected workflow subjects, protected environment, and federation bindings for `comfforts/apps-platform` | AP-M7 federation implementation and AP-M8 deployment |
 | Globally unique state, configuration, log, and evidence bucket names | AP-M7 environment configuration |
 | DNS managed-zone resource and exact separately approved record transaction | AP-M7 environment configuration and AP-M8 DNS action |
 | OAuth client identifiers, redirect registration, secret references, and owner notification destination | AP-M7 environment configuration and AP-M8 deployment |

@@ -27,6 +27,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "docs/05_evaluation_strategy.md",
             "docs/06_threat_model.md",
             "docs/README.md",
+            "docs/repository_extraction_handoff.md",
             "docs/repository_layout.md",
             "docs/runbooks/README.md",
             "docs/runbooks/repository_extraction.md",
@@ -217,7 +218,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("docs/06_threat_model.md", instructions)
         self.assertIn("contracts/README.md", instructions)
         self.assertIn("docs/repository_layout.md", instructions)
-        self.assertIn("make -C apps-platform check", instructions)
+        self.assertIn("Run `make check` from the dedicated repository root", instructions)
+        self.assertNotIn("make -C apps-platform check", instructions)
         self.assertIn("one bounded slice per pull request", instructions)
         self.assertIn("leave each change uncommitted until approval", instructions)
         self.assertIn("Merge it before starting the next documented slice", instructions)
@@ -259,19 +261,31 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("planning consistency only", normalized_index)
         self.assertIn("Integration draft", index)
         self.assertIn(
-            "AP-M6 runtime, repository-extraction procedure, and extraction-owned root check recorded",
+            "authoritative dedicated-root layout",
             normalized_layout,
         )
         self.assertIn(
-            "no extraction, provider operation, or infrastructure implemented",
+            "reconciliation, canonical cutover, and source-repository cleanup pending",
             normalized_layout,
         )
         self.assertIn("`contracts/`", layout)
         self.assertIn("`fixtures/`", layout)
         self.assertIn("Version 1 schemas", layout)
         self.assertIn("three independent Fixture Applications", layout)
-        self.assertIn("history-preserving subtree extraction", layout)
-        self.assertIn("Do not create a nested `.git`", layout)
+        self.assertIn("history-preserving subtree extraction", normalized_layout)
+        self.assertIn("run `make check` from the dedicated repository root", layout)
+
+        for current_entry_point in (
+            PROJECT_ROOT / "AGENTS.md",
+            PROJECT_ROOT / "README.md",
+            PROJECT_ROOT / "docs/README.md",
+            PROJECT_ROOT / "docs/repository_layout.md",
+            PROJECT_ROOT / "docs/05_evaluation_strategy.md",
+            PROJECT_ROOT / "prompts/starting_prompt.md",
+        ):
+            contents = current_entry_point.read_text(encoding="utf-8")
+            self.assertNotIn("make -C apps-platform check", contents)
+            self.assertNotIn("temporarily colocated", contents)
 
     def test_repository_extraction_runbook_preserves_history_and_authority(self) -> None:
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
@@ -281,12 +295,24 @@ class ProjectAuthorityTest(unittest.TestCase):
         runbook = (
             PROJECT_ROOT / "docs/runbooks/repository_extraction.md"
         ).read_text(encoding="utf-8")
+        handoff = (
+            PROJECT_ROOT / "docs/repository_extraction_handoff.md"
+        ).read_text(encoding="utf-8")
         normalized = " ".join(runbook.split())
+        normalized_handoff = " ".join(handoff.split())
 
         self.assertIn("[Runbook index](runbooks/README.md)", index)
         self.assertIn(
             "[Repository extraction runbook](runbooks/repository_extraction.md)",
             index,
+        )
+        self.assertIn(
+            "[Repository extraction handoff](repository_extraction_handoff.md)",
+            index,
+        )
+        self.assertIn(
+            "[repository extraction handoff](../repository_extraction_handoff.md)",
+            runbook,
         )
         self.assertIn("no action is authorized merely because a runbook exists", runbook_index)
         for boundary in (
@@ -317,6 +343,25 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("git push --mirror", runbook)
         self.assertNotIn("terraform apply", runbook)
         self.assertNotIn("gcloud ", runbook)
+
+        for evidence in (
+            "f5f7cef84a0d7e2850e496f8ce56f3afdb7944c6",
+            "66ae90b2760c44f4142236ac96c472ab1e748c60",
+            "d120aa3c5608dce78000a014d7bc12fd5a25555b",
+            "a12da61450c0ca970d8b8662841a5462771c72ee",
+            "Git 2.50.1 (Apple Git-155)",
+            "all 189 tests",
+            "Credential-free project checks",
+            "Secret scanning through Secret Protection and push protection are enabled",
+            "Code scanning uses CodeQL default setup",
+            "canonical authority cutover and checkpoint 5 source-repository cleanup pending",
+            "pull request, required-check readback, merge, and explicit owner cutover declaration pending",
+            "Source-tree and CI-wrapper cleanup | Not approved and not started",
+            "The source-repository copy remains canonical",
+            "AP-M7 and every later provider or application slice remain outside this extraction",
+        ):
+            self.assertIn(evidence, normalized_handoff)
+        self.assertNotIn("Status: canonical", handoff)
 
     def test_ap_m3_authorities_have_complete_unique_identifiers(self) -> None:
         plan = (PROJECT_ROOT / "docs/04_implementation_plan.md").read_text(
@@ -579,11 +624,11 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Leave Finance Assistant requirements, code, infrastructure, Terraform state, DNS",
             "An Integration Draft is not Application Adoption",
             "credential-free, deterministic, and non-mutating",
-            "updated `main` after the AP-M6 pull request has merged",
+            "updated `main` after the AP-M6 and repository-reconciliation pull requests have merged",
             "propose AP-M7, the smallest Terraform-and-workflow implementation-authority slice",
             "Treat absent detailed work packages, configuration contracts, evaluation commands",
             "Do not initialize a Terraform backend",
-            "AP-M7 belongs on a new bounded branch and pull request after AP-M6 merges",
+            "AP-M7 belongs on a new bounded branch and pull request only after AP-M6 and the repository-reconciliation pull requests merge",
         ):
             self.assertIn(boundary, normalized_prompt)
         self.assertNotIn("### AP-PR-", prompt)
@@ -616,7 +661,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         for later_slice in (
             "Networked provider runtime — locally implemented",
-            "Terraform and workflow implementation — next after merge",
+            "Terraform and workflow implementation — next after canonical cutover",
             "Non-production qualification deployment — later",
             "Live qualification — later",
             "Finance Application Adoption — later and independent",
@@ -749,7 +794,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Python 3.12-or-newer Starlette/Uvicorn runtime",
             "exact header, body, timeout, concurrency, stream, rate, and rejection behavior",
             "Owner acceptance of its exact values is required before AP-M6-W2",
-            "Dedicated GitHub organization, repository, workflow subjects",
+            "repository identity is fixed as `comfforts/apps-platform`",
             "Globally unique state, configuration, log, and evidence bucket names",
             "These are unavailable inputs, not permission to query a provider",
         ):

@@ -14,9 +14,10 @@ networked Shared Edge and production-adapter logic through deterministic fakes a
 loopback. Live (`L`) and Adoption (`A`) evidence remain unavailable. No deployed Shared Edge,
 provider identity, Terraform configuration, cloud resource, DNS change,
 application migration, or production credential is implemented.
-Repository extraction is governed by a reviewed preparation runbook, and its extraction-owned root
-check is prepared inside this project. No extraction has been executed; the colocated tree remains
-authoritative until its explicit cutover gate passes.
+Repository extraction is governed by a reviewed runbook. The initial history-preserving extraction,
+root check, and dedicated-repository settings are complete. The source-repository copy remains
+authoritative until this reconciliation pull request merges and the owner explicitly declares the
+cutover; source-repository cleanup remains a later, separate checkpoint.
 
 ## Current reading order and authority
 
@@ -35,13 +36,17 @@ authoritative until its explicit cutover gate passes.
    and the future AP-M7 through AP-M9 claim boundaries.
 9. [Version 1 contract index](../contracts/README.md) owns machine interfaces subordinate to the
    requirements, accepted decisions, and system design.
-10. [Repository layout](repository_layout.md) defines capability ownership and extraction rules.
+10. [Repository layout](repository_layout.md) defines dedicated-root capability ownership and
+    repository-transition rules.
 11. [Runbook index](runbooks/README.md) owns subordinate, explicitly approved operator procedures.
 12. [Repository extraction runbook](runbooks/repository_extraction.md) defines the history,
     verification, mutation, and authority-cutover gates for the dedicated repository.
-13. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
-14. [Terraform-and-workflow handoff](../prompts/starting_prompt.md) provides a bounded entry point
-    for proposing AP-M7 authority only after AP-M6 merges.
+13. [Repository extraction handoff](repository_extraction_handoff.md) records the secret-free
+    checkpoint evidence and remaining canonical-cutover boundary.
+14. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
+15. [Terraform-and-workflow handoff](../prompts/starting_prompt.md) provides a bounded entry point
+    for proposing AP-M7 authority only after repository reconciliation merges and the owner
+    declares the canonical cutover.
 
 AP-M3 Contract behavior, AP-M4 Fixture behavior, and AP-M5 planning authority are merged and pass
 their deterministic gates. AP-M6-W1 through AP-M6-W11 are implemented locally, and the complete
@@ -75,7 +80,7 @@ Each numbered item is a separate bounded branch and pull request. Start it from 
 small reviewable commits, merge it, and only then begin the next item.
 
 1. **Governance foundation — complete:** standalone project root, authority routing, extraction
-   boundary, local checks, and path-scoped parent workflow.
+   boundary, local checks, and extraction-owned root workflow.
 2. **Requirements and decisions — complete:** product/quality requirements, accepted ownership,
    admission and fixture-first ADRs, handoff prompt, and inactive Finance integration package.
 3. **System design and versioned contracts — complete:** AP-M3 defines the logical platform, threat
@@ -94,12 +99,12 @@ small reviewable commits, merge it, and only then begin the next item.
    locked dependency policy, exact request profile, eleven work packages, and ten deterministic
    gates. The default gate passes with deterministic fakes and process-local loopback. This is
    repository implementation evidence only: AP-M6 performs no Terraform, cloud mutation,
-   deployment, Live qualification, or Application Adoption. Its pull request must merge before the
-   next slice begins.
-7. **Terraform and workflow implementation — next after merge:** AP-M7 must first refine its
-   detailed implementation and evaluation authority on a separate owner-approved branch. It may
-   then implement reviewed configuration and static gates only; it performs no authenticated plan
-   or apply.
+   deployment, Live qualification, or Application Adoption. Repository reconciliation must merge
+   and the owner must declare the canonical cutover before the next slice begins.
+7. **Terraform and workflow implementation — next after canonical cutover:** AP-M7 must first
+   refine its detailed implementation and evaluation authority on a separate owner-approved branch.
+   It may then implement reviewed configuration and static gates only; it performs no authenticated
+   plan or apply.
 8. **Non-production qualification deployment — later:** AP-M8 may bootstrap and deploy only through
    separately approved protected operator actions after repository extraction and AP-M7 merge.
 9. **Live qualification — later:** AP-M9 must execute the approved Live gates against the exact

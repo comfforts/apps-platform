@@ -9,9 +9,9 @@ configured hostname. The current governance foundation implements no runtime or 
 
 ## Colocated Project
 
-A standalone project whose canonical files temporarily live under another repository directory.
-It has its own authority, tooling, tests, and extraction path and is not a module of the containing
-application.
+A repository-transition term for a standalone project whose canonical files temporarily lived
+under another repository directory before extraction. It had its own authority, tooling, tests,
+and extraction path and was not a module of the containing application.
 
 ## Shared Edge
 

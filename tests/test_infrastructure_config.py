@@ -33,6 +33,7 @@ EXAMPLE_KINDS = {
     "fixture-authenticated.synthetic.v1.json": "fixture",
     "fixture-public.synthetic.v1.json": "fixture",
     "fixture-restricted.synthetic.v1.json": "fixture",
+    "operator-input-manifest.synthetic.v1.json": "operator-input-manifest",
     "platform.synthetic.v1.json": "platform",
     "workflow-apply.synthetic.v1.json": "workflow",
     "workflow-destroy.synthetic.v1.json": "workflow",

@@ -57,6 +57,20 @@ state, provider response, repository setting, or network resource.
 value. Violations are stable `contracts.validation.Violation` values ordered by JSON Pointer, code,
 and message. No accepted value is returned with a violation.
 
+`load_operator_manifest_chain(paths)` and `validate_operator_manifest_chain(revisions)` expose the
+AP-M8-W2 chain interface. They accept revisions in predecessor order and return either the complete
+immutable values plus their canonical SHA-256 digests or ordered violations and no trusted digest.
+Canonicalization sorts closed set-like inputs while preserving the append-only generated-fact
+order. `MANIFEST_CHAIN_INVALID` means revision numbering, predecessor binding, immutable inputs,
+fresh approval, or the generated-fact prefix is inconsistent.
+
+The chain interface permits only the source revision, source-bound evidence prefix, approval
+reference, predecessor digest, and newly appended generated facts to vary. All repository,
+environment, resource, identity, backend, registration, and ownership selections remain immutable
+within one manifest chain. The implementation reads only the explicit bounded local documents; it
+does not inspect Git, an environment variable, a credential, a repository setting, Terraform, or a
+provider.
+
 Semantic policy enforces:
 
 - the four exclusive state owners and distinct state buckets;
@@ -72,6 +86,10 @@ Semantic policy enforces:
   root targets; and
 - rejection of credential, secret value, restricted-member, state-address, saved-plan, provider-
   response, private-key, token, `.tfstate`, `.tfplan`, and `terraform_remote_state` material.
+- exact AP-M8 non-production source, five protected environment classes, workflow-to-identity
+  agreement, operation/environment separation, four state buckets, five state lineages, platform
+  resource references, three synthetic qualification applications, and append-only generated
+  facts.
 
 ## Terraform boundary
 

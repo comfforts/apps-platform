@@ -1,0 +1,143 @@
+{
+  "contract_version": 1,
+  "configuration_kind": "operator-input-manifest",
+  "configuration_class": "synthetic",
+  "manifest_id": "ap-m8-qualification-deployment",
+  "revision": 1,
+  "predecessor_manifest_digest": null,
+  "approval_reference": "owner-approval:synthetic-ap-m8-w2-revision-1",
+  "source": {
+    "repository": "comfforts/apps-platform",
+    "repository_id": "123456789",
+    "repository_owner": "comfforts",
+    "repository_owner_id": "987654321",
+    "protected_main_ref": "refs/heads/main",
+    "source_revision": "0000000000000000000000000000000000000000"
+  },
+  "environment": {
+    "environment_id": "qualification",
+    "project_id": "comfforts-platform-non-prod",
+    "project_number": "455651441682",
+    "region": "us-west1",
+    "hostname": "apps-staging.comfforts.com"
+  },
+  "repository_controls": {
+    "protected_environments": {
+      "plan": "synthetic-ap-m8-plan",
+      "apply": "synthetic-ap-m8-apply",
+      "dns": "synthetic-ap-m8-dns",
+      "evidence": "synthetic-ap-m8-evidence",
+      "recovery": "synthetic-ap-m8-recovery"
+    },
+    "workflow_references": [
+      {
+        "operation": "plan",
+        "target_id": "platform",
+        "environment_class": "plan",
+        "workflow_path": ".github/workflows/ap-m8-plan-platform.yml"
+      }
+    ]
+  },
+  "federation": {
+    "pool_resource": "projects/455651441682/locations/global/workloadIdentityPools/synthetic-ap-m8",
+    "provider_resource": "projects/455651441682/locations/global/workloadIdentityPools/synthetic-ap-m8/providers/synthetic-github",
+    "provider_audience": "//iam.googleapis.com/projects/455651441682/locations/global/workloadIdentityPools/synthetic-ap-m8/providers/synthetic-github",
+    "operation_identities": [
+      {
+        "operation": "plan",
+        "target_id": "platform",
+        "environment_class": "plan",
+        "workflow_path": ".github/workflows/ap-m8-plan-platform.yml",
+        "service_account_resource": "projects/comfforts-platform-non-prod/serviceAccounts/synthetic-plan-platform@comfforts-platform-non-prod.iam.gserviceaccount.com",
+        "impersonation_principal": "principalSet://iam.googleapis.com/projects/455651441682/locations/global/workloadIdentityPools/synthetic-ap-m8/attribute.workflow_ref/comfforts/apps-platform/.github/workflows/ap-m8-plan-platform.yml@refs/heads/main",
+        "permissions": [
+          "storage.objects.get"
+        ],
+        "resource_scopes": [
+          "buckets/synthetic-platform-state/objects/platform"
+        ]
+      }
+    ]
+  },
+  "state": {
+    "buckets": [
+      {
+        "bucket_role": "platform-state",
+        "bucket_name": "synthetic-platform-state"
+      },
+      {
+        "bucket_role": "fixture-public-state",
+        "bucket_name": "synthetic-fixture-public-state"
+      },
+      {
+        "bucket_role": "fixture-authenticated-state",
+        "bucket_name": "synthetic-fixture-authenticated-state"
+      },
+      {
+        "bucket_role": "fixture-restricted-state",
+        "bucket_name": "synthetic-fixture-restricted-state"
+      }
+    ],
+    "lineages": [
+      {
+        "root_target": "bootstrap",
+        "bucket_role": "platform-state",
+        "backend_prefix": "bootstrap",
+        "access_binding_reference": "synthetic-bootstrap-access"
+      },
+      {
+        "root_target": "platform",
+        "bucket_role": "platform-state",
+        "backend_prefix": "platform",
+        "access_binding_reference": "synthetic-platform-access"
+      },
+      {
+        "root_target": "fixture-public",
+        "bucket_role": "fixture-public-state",
+        "backend_prefix": "fixtures/fixture-public",
+        "access_binding_reference": "synthetic-fixture-public-access"
+      },
+      {
+        "root_target": "fixture-authenticated",
+        "bucket_role": "fixture-authenticated-state",
+        "backend_prefix": "fixtures/fixture-authenticated",
+        "access_binding_reference": "synthetic-fixture-authenticated-access"
+      },
+      {
+        "root_target": "fixture-restricted",
+        "bucket_role": "fixture-restricted-state",
+        "backend_prefix": "fixtures/fixture-restricted",
+        "access_binding_reference": "synthetic-fixture-restricted-access"
+      }
+    ],
+    "recovery_policy": {
+      "noncurrent_version_retention_days": 90,
+      "newer_versions_to_retain": 20
+    }
+  },
+  "platform_resources": {
+    "configuration_bucket": "synthetic-platform-configuration",
+    "log_bucket": "synthetic-platform-logs",
+    "evidence_bucket": "synthetic-platform-evidence",
+    "artifact_repository": "projects/comfforts-platform-non-prod/locations/us-west1/repositories/synthetic-platform",
+    "signing_key_resource": "projects/comfforts-platform-non-prod/locations/us-west1/keyRings/synthetic-platform/cryptoKeys/synthetic-signing",
+    "managed_zone_resource": "projects/comfforts-platform-non-prod/managedZones/synthetic-comfforts",
+    "dns_record_name": "apps-staging.comfforts.com.",
+    "oauth_client_id": "synthetic-client.apps.googleusercontent.com",
+    "oauth_redirect_uri": "https://apps-staging.comfforts.com/_platform/auth/callback",
+    "oauth_client_secret_version": "projects/comfforts-platform-non-prod/secrets/synthetic-oauth-client/versions/1",
+    "billing_account_reference": "billingAccounts/123456-ABCDEF-987654",
+    "notification_destination": "projects/comfforts-platform-non-prod/notificationChannels/123456789",
+    "evidence_bundle_prefix": "ap-eval-m8/0000000000000000000000000000000000000000/synthetic-evaluation/"
+  },
+  "registration_inputs": {
+    "registration_set_path": "registrations/qualification/synthetic-registration-set.v1.json",
+    "restricted_members_source": "registrations/qualification/synthetic-registration-set.v1.json",
+    "application_ids": [
+      "fixture-public",
+      "fixture-authenticated",
+      "fixture-restricted"
+    ]
+  },
+  "generated_facts": []
+}

@@ -118,6 +118,18 @@
       "maxLength": 512,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@+-]{1,510}[A-Za-z0-9]$"
     },
+    "providerAudience": {
+      "type": "string",
+      "minLength": 80,
+      "maxLength": 512,
+      "pattern": "^//iam\\.googleapis\\.com/projects/455651441682/locations/global/workloadIdentityPools/[a-z][a-z0-9-]{1,30}[a-z0-9]/providers/[a-z][a-z0-9-]{1,30}[a-z0-9]$"
+    },
+    "generatedFactValue": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,511}$"
+    },
     "repositoryPath": {
       "type": "string",
       "minLength": 5,
@@ -386,7 +398,7 @@
           "$ref": "#/$defs/resourceName"
         },
         "provider_audience": {
-          "$ref": "#/$defs/resourceName"
+          "$ref": "#/$defs/providerAudience"
         },
         "operation_identities": {
           "type": "array",
@@ -641,7 +653,7 @@
           "$ref": "#/$defs/canonicalName"
         },
         "value": {
-          "$ref": "#/$defs/resourceName"
+          "$ref": "#/$defs/generatedFactValue"
         }
       }
     }

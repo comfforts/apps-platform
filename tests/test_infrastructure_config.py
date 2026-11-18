@@ -232,7 +232,7 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                 violations = validate_configuration(value, kind)
                 self.assertIn("CONFIGURATION_POLICY_INVALID", {item.code for item in violations})
 
-    def test_w3_adds_no_root_variables_resources_or_backend_blocks(self) -> None:
+    def test_w4_adds_only_the_approved_bootstrap_root_and_internal_module(self) -> None:
         terraform_root = PROJECT_ROOT / "infrastructure" / "terraform"
         terraform_files = sorted(
             path.relative_to(terraform_root).as_posix()
@@ -242,18 +242,32 @@ class InfrastructureConfigurationTest(unittest.TestCase):
             terraform_files,
             sorted(
                 (
+                    "bootstrap/main.tf",
+                    "bootstrap/outputs.tf",
+                    "bootstrap/variables.tf",
                     "bootstrap/versions.tf",
                     "fixtures/fixture-authenticated/versions.tf",
                     "fixtures/fixture-public/versions.tf",
                     "fixtures/fixture-restricted/versions.tf",
+                    "modules/state-bucket/main.tf",
+                    "modules/state-bucket/outputs.tf",
+                    "modules/state-bucket/variables.tf",
                     "platform/versions.tf",
                 )
             ),
         )
-        for relative_path in terraform_files:
+        for relative_path in (
+            "fixtures/fixture-authenticated/versions.tf",
+            "fixtures/fixture-public/versions.tf",
+            "fixtures/fixture-restricted/versions.tf",
+            "platform/versions.tf",
+        ):
             contents = (terraform_root / relative_path).read_text(encoding="utf-8")
             self.assertNotIn('variable "', contents)
             self.assertNotIn('resource "', contents)
+            self.assertNotIn('backend "', contents)
+        for relative_path in terraform_files:
+            contents = (terraform_root / relative_path).read_text(encoding="utf-8")
             self.assertNotIn('backend "', contents)
 
     def test_configuration_layer_runs_unchanged_from_an_extracted_copy(self) -> None:

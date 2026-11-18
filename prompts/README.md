@@ -5,9 +5,9 @@ platform documentation required for its task instead of copying requirements, de
 acceptance criteria.
 
 - [Terraform-and-workflow handoff](starting_prompt.md) starts a new chat from updated `main` after
-  AP-M7-W3 is owner-accepted and committed. The extraction handoff records AP-M6, reconciliation,
+  AP-M7-W4 is owner-accepted and committed. The extraction handoff records AP-M6, reconciliation,
   canonical cutover, and source cleanup as complete. The prompt loads the approved Contract,
-  Fixture, planning, local-runtime, and AP-M7 authority boundaries before AP-M7-W4.
+  Fixture, planning, local-runtime, and AP-M7 authority boundaries before AP-M7-W5.
 
 The handoff prompt authorizes only the next named AP-M7 work package after owner approval. It does
 not authorize backend initialization, an authenticated plan or apply, a cloud or DNS mutation,

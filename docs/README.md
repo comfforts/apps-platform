@@ -1,8 +1,8 @@
 # App Platform documentation
 
-Version 1.5 | Status: AP-M6 locally implemented and passing its deterministic repository gate;
-AP-M7-W3 versioned non-secret configuration contracts implemented; Terraform resource
-configuration, provider operation, deployment, Live, and Adoption qualification unavailable
+Version 1.6 | Status: AP-M6 locally implemented and passing its deterministic repository gate;
+AP-M7-W4 static backend-bootstrap root implemented and passing mocked-provider plans; backend
+operation, provider operation, deployment, Live, and Adoption qualification unavailable
 
 This directory is the design authority for Comfforts App Platform. AP-M3 supplies Contract (`C`)
 evidence through the logical design, threat boundary, Version 1 schemas, deterministic compiler,
@@ -46,7 +46,7 @@ sole App Platform authority; the extraction supplied no Terraform, cloud, or app
     evidence for all five completed extraction checkpoints and the canonical repository boundary.
 14. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
 15. [Terraform-and-workflow handoff](../prompts/starting_prompt.md) provides a bounded entry point
-    for continuing with AP-M7-W4 only after the owner accepts and commits AP-M7-W3.
+    for continuing with AP-M7-W5 only after the owner accepts and commits AP-M7-W4.
 
 AP-M3 Contract behavior, AP-M4 Fixture behavior, and AP-M5 planning authority are merged and pass
 their deterministic gates. AP-M6-W1 through AP-M6-W11 are implemented locally, and the complete
@@ -101,14 +101,16 @@ small reviewable commits, merge it, and only then begin the next item.
    repository implementation evidence only: AP-M6 performs no Terraform, cloud mutation,
    deployment, Live qualification, or Application Adoption. Repository extraction, reconciliation,
    canonical cutover, and source cleanup are complete.
-7. **Terraform and workflow implementation — configuration contracts implemented:** AP-M7-W1
+7. **Terraform and workflow implementation — backend bootstrap implemented statically:** AP-M7-W1
    defines the root interfaces, configuration contracts, work packages, and deterministic
    AP-EVAL-M7 gate. AP-M7-W2 implements exact CLI/provider constraints, committed root locks,
    ignored local dependencies, and disposable-copy offline format/init/validate checks. AP-M7-W3
    implements five closed Version 1 configuration schema families, synthetic examples, and bounded
-   deterministic loading and semantic policy. AP-M7-W4 is next after owner acceptance of W3. Later
-   packages may implement reviewed static Terraform resources and inert workflow templates only;
-   AP-M7 performs no authenticated plan or apply.
+   deterministic loading and semantic policy. AP-M7-W4 implements one internal state-bucket module,
+   the bootstrap root, four exclusive state owners, recovery controls, and typed backend references
+   tested only through plan-mode mocked providers. AP-M7-W5 is next after owner acceptance of W4.
+   Later packages may implement reviewed static Terraform resources and inert workflow templates
+   only; AP-M7 performs no authenticated plan or apply.
 8. **Non-production qualification deployment — later:** AP-M8 may bootstrap and deploy only through
    separately approved protected operator actions after repository extraction and AP-M7 merge.
 9. **Live qualification — later:** AP-M9 must execute the approved Live gates against the exact

@@ -1,8 +1,8 @@
 # App Platform repository layout
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
-complete; AP-M7-W3 versioned non-secret configuration contracts implemented; no Terraform resource
-configuration, provider operation, cloud resource, or deployment implemented
+complete; AP-M7-W4 static backend-bootstrap root implemented; no backend or provider operation,
+cloud resource, IAM binding, deployment, or qualification performed
 
 The project is organized at the dedicated repository root produced by the history-preserving
 subtree extraction. Paths remain project-relative so repository identity does not alter platform
@@ -30,8 +30,10 @@ contracts, verification, or ownership boundaries.
 | `.gitignore` | Platform-local generated, secret, state, and build exclusions |
 | `infrastructure/tools/` | AP-M7 credential-free local dependency setup and disposable-copy offline validation |
 | `infrastructure/config/` | AP-M7-W3 closed Version 1 schemas, synthetic examples, bounded loader, and semantic policy |
-| `infrastructure/terraform/{bootstrap,platform,fixtures/*}/versions.tf` | Exact root-local Terraform and provider constraints; no resource configuration |
+| `infrastructure/terraform/{bootstrap,platform,fixtures/*}/versions.tf` | Exact root-local Terraform and provider constraints |
 | `infrastructure/terraform/{bootstrap,platform,fixtures/*}/.terraform.lock.hcl` | Identical committed provider selections and signed package checksums |
+| `infrastructure/terraform/bootstrap/` | AP-M7-W4 deep bootstrap root, typed configuration interface, and plan-only mocked-provider tests |
+| `infrastructure/terraform/modules/state-bucket/` | AP-M7-W4 internal private, versioned, recovery-bounded state-bucket implementation |
 
 ## Approved AP-M7 capability locations
 
@@ -41,20 +43,21 @@ These locations may be created only by their approved slice:
 | --- | --- |
 | `registrations/` | Future reviewed Live Registration Sets; Fixture registrations remain under `fixtures/` |
 | `infrastructure/config/` | AP-M7-W3 versioned non-secret configuration contracts; implemented with no operator values or Terraform resources |
-| `infrastructure/terraform/bootstrap/` | Backend-bootstrap root; W2 foundation present, resource configuration begins only in W4 |
-| `infrastructure/terraform/platform/` | Shared Edge Platform State root; W2 foundation present, resource configuration begins only in W5 |
-| `infrastructure/terraform/fixtures/<application-id>/` | Independently owned Fixture Application State root; W2 foundation present for the three approved fixtures, resource configuration begins only in W6 through W8 |
-| `infrastructure/terraform/modules/` | AP-M7 reusable modules with no environment or state ownership of their own |
+| `infrastructure/terraform/bootstrap/` | AP-M7-W4 static backend resource owner; implemented without backend initialization or IAM principals |
+| `infrastructure/terraform/platform/` | Shared Edge Platform State root; W2 foundation present, resource configuration begins in W6 through W8 |
+| `infrastructure/terraform/fixtures/<application-id>/` | Independently owned Fixture Application State roots; W2 foundation present, resource configuration begins in W5 |
+| `infrastructure/terraform/modules/` | Internal state-bucket module implemented in W4; later modules remain work-package-owned and own no environment or state |
 | `infrastructure/workflows/` | AP-M7 inert operator-workflow templates; never executable GitHub workflows |
 | `catalog/` | Root application catalogue implementation |
 | `artifacts/` | Secret-free reviewed evidence indexes and digests, never raw Live evidence bundles |
 
-The W2 foundation and W3 contracts are not authorization to scaffold empty modules, add resource
-blocks, or imply later capabilities. AP-M7 may create its remaining named paths only in work-
-package order. It may add only reviewed static configuration, synthetic examples, inert workflow
-templates, and deterministic tests. Executable cloud workflows, credentials, state, plans,
-provider calls, and Live evidence remain prohibited. Live evidence bundles remain in the private
-provider evidence store rather than the repository.
+The W2 foundation, W3 contracts, and W4 bootstrap configuration are
+not authorization to scaffold empty modules for later packages or imply later capabilities. AP-M7
+may create its remaining named paths only in work-package order. It may add only reviewed static
+configuration, synthetic examples, inert workflow templates, and deterministic tests. Executable
+cloud workflows, credentials, state, saved plans, provider calls, and Live evidence remain
+prohibited. Live evidence bundles remain in the private provider evidence store rather than the
+repository.
 
 ## Completed repository-transition boundary
 

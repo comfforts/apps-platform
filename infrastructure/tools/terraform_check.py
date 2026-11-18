@@ -15,6 +15,7 @@ from infrastructure.tools import terraform_setup
 
 PROJECT_ROOT = terraform_setup.PROJECT_ROOT
 TERRAFORM_SOURCE = PROJECT_ROOT / "infrastructure" / "terraform"
+CONFIG_SOURCE = PROJECT_ROOT / "infrastructure" / "config"
 
 _CREDENTIAL_VARIABLES = {
     "GOOGLE_APPLICATION_CREDENTIALS",
@@ -113,15 +114,17 @@ def _environment(data_directory: Path) -> dict[str, str]:
 
 
 def validate_foundation() -> tuple[str, ...]:
-    """Format, initialize without a backend, and validate every root offline."""
+    """Format, initialize, validate, and run plan-only mocked tests offline."""
 
     manifest = _manifest()
     _verify_local_dependencies(manifest)
 
     with tempfile.TemporaryDirectory(prefix="apps-platform-terraform-") as temporary_name:
         temporary = Path(temporary_name)
-        copied = temporary / "terraform"
+        copied_infrastructure = temporary / "infrastructure"
+        copied = copied_infrastructure / "terraform"
         shutil.copytree(TERRAFORM_SOURCE, copied)
+        shutil.copytree(CONFIG_SOURCE, copied_infrastructure / "config")
         formatting_environment = _environment(temporary / "format-data")
         _run(
             [
@@ -157,6 +160,17 @@ def validate_foundation() -> tuple[str, ...]:
                 cwd=copied_root,
                 environment=environment,
             )
+            if (copied_root / "tests").is_dir():
+                _run(
+                    [
+                        str(terraform_setup.TERRAFORM),
+                        "test",
+                        "-no-color",
+                        "-test-directory=tests",
+                    ],
+                    cwd=copied_root,
+                    environment=environment,
+                )
             validated.append(relative.as_posix())
 
         if list(temporary.rglob("*.tfstate")) or list(temporary.rglob("*.tfplan")):

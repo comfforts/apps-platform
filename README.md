@@ -8,8 +8,9 @@ completion events are implemented locally. AP-M4 remains Fixture-qualified and A
 planning-validated. AP-M6 supplies repository implementation evidence only. AP-M7 Terraform-and-
 workflow implementation authority is defined. AP-M7-W2 implements the pinned Terraform foundation,
 and AP-M7-W3 implements only the Version 1 non-secret configuration schemas, synthetic examples,
-and deterministic loader and semantic policy. No Terraform resource configuration, cloud resource,
-deployment, Live evidence, or Application Adoption is implemented or qualified.
+and deterministic loader and semantic policy. AP-M7-W4 implements static backend-bootstrap and
+state-bucket configuration with plan-only mocked-provider tests. No backend was initialized, no
+cloud resource was created, and no deployment, Live evidence, or Application Adoption is qualified.
 
 Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
 history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
@@ -92,8 +93,10 @@ loopback-only networking, history-independent extraction, dependency locking, re
 prior regressions. AP-M6-W11 reconciles this status. AP-M7-W1 defines the detailed Terraform-and-
 workflow implementation authority. AP-M7-W2 implements its pinned, credential-free Terraform
 foundation and deterministic offline root validation. AP-M7-W3 implements the five closed
-configuration contract families without adding root variables or resources. After owner acceptance
-of AP-M7-W3, AP-M7-W4 is the next work package; AP-M7 remains one separate branch and pull request.
+configuration contract families. AP-M7-W4 implements the deep bootstrap root and internal hardened
+state-bucket module without an IAM principal, backend operation, or provider call. After owner
+acceptance of AP-M7-W4, AP-M7-W5 is the next work package; AP-M7 remains one separate branch and
+pull request.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
 preserved their history. The separately reviewed source cleanup removed the historical colocated

@@ -1,7 +1,7 @@
 # AP-M7 infrastructure configuration contracts
 
-Version 1 | Status: AP-M7-W3 implemented; synthetic repository examples only; no operator
-configuration, Terraform resource configuration, backend, provider operation, or deployment
+Version 1 | Status: AP-M7-W3 implemented and AP-M7-W4 backend interface consumed; synthetic
+repository examples only; no operator configuration, backend, provider operation, or deployment
 
 This directory defines the closed, non-secret inputs for later AP-M7 Terraform roots and inert
 workflow templates. The schemas and loader are subordinate to the platform requirements, accepted
@@ -52,8 +52,8 @@ Semantic policy enforces:
 
 ## Terraform boundary
 
-AP-M7-W3 adds no root variables or resources. AP-M7-W4 through AP-M7-W8 must introduce root
-variables together with their owning implementation and duplicate every applicable security-
-critical schema type and validation. The deterministic gate must reject any disagreement. No root
-may consume another root's backend or `terraform_remote_state`; reviewed cross-state-reference
-documents are the only exchange shape.
+AP-M7-W4 introduces the bootstrap root's single `backend_configuration` variable together with its
+owning implementation and duplicates every applicable security-critical backend schema type and
+validation. AP-M7-W5 through AP-M7-W8 must do the same for their interfaces. The deterministic gate
+rejects disagreement. No root may consume another root's backend or `terraform_remote_state`;
+reviewed cross-state-reference documents are the only exchange shape.

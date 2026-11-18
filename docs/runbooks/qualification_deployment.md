@@ -14,7 +14,7 @@ Decisions: ADR-001, ADR-004, ADR-007
 
 Threats: AP-TM-004, AP-TM-005, AP-TM-007 through AP-TM-014
 
-Plan: AP-M8-W1, AP-M8-W3 through AP-M8-W10
+Plan: AP-M8-W1, AP-M8-W3 through AP-M8-W12
 
 ## Checkpoint rule
 
@@ -69,7 +69,7 @@ repair restores the baseline before AP-M8 continues and may not introduce an app
 
 ### Environment classes
 
-AP-M8 uses four distinct protected GitHub Environment classes. Their exact real names are
+AP-M8 uses five distinct protected GitHub Environment classes. Their exact real names are
 AP-M8-W2 operator inputs and may not use a synthetic example value:
 
 | Class | Permitted authority | Required protections |
@@ -77,6 +77,7 @@ AP-M8-W2 operator inputs and may not use a synthetic example value:
 | Plan | Authenticated provider and state reads needed for one advisory or exact-main plan | Exact `main` deployment branch; explicit owner review for every job; no environment secret |
 | Apply | Same-job application of one exact reviewed plan for one root, or one immutable artifact/configuration publication | Exact `main` deployment branch; fresh explicit owner review for every job; no environment secret |
 | DNS | The exact qualification-hostname record transaction only | Exact `main` deployment branch; fresh explicit owner review; no environment secret; no authority over another record or zone |
+| Evidence | Root-scoped readback, create-only redacted operation records, and final bundle verification | Exact `main` deployment branch; fresh explicit owner review; no environment secret; no provider mutation, state write, overwrite, or deletion |
 | Recovery | One separately approved rollback, force-unlock, or destroy operation | Exact `main` deployment branch; fresh operation-specific owner review; no environment secret; no reused approval |
 
 The same person may trigger and approve in this owner-operated demo, but GitHub must still create a
@@ -161,6 +162,8 @@ and one exact workload-identity impersonation binding for every enabled cell in 
 | Artifact publish | Apply | Create immutable digest-addressed packages only in the reviewed qualification Artifact Registry repository and read back their digests; no repository administration, overwrite, tag movement, or deletion |
 | Generation publish | Apply | Create and read back only the exact `generations/<n>/compiled.json` object with a zero-generation precondition; no overwrite, deletion, mutable pointer, or other object access |
 | Qualification DNS | DNS | Submit and read back only the reviewed `apps-staging.comfforts.com` A-record transaction in the exact managed zone; no other record or zone mutation |
+| Root readback | Evidence | Read one selected root's backend and owned provider metadata and create only its exact redacted evidence record; no lock, state, or provider-resource mutation |
+| Evidence finalize | Evidence | Read only the exact evaluation bundle prefix, verify hashes/schema/completeness, and create only the final manifest, checksum file, and verdict with no-overwrite preconditions; no backend or provider-resource access |
 | Rollback | Recovery | Read and write the selected root's backend and perform only the reviewed rollback plan for that root |
 | Force-unlock | Recovery | Inspect the selected root's lock and remove only the exact approved lock identifier; no provider-resource mutation |
 | Destroy | Recovery | Read and write the selected root's backend and delete only the exact reviewed resources owned by that root through one reviewed destroy plan |
@@ -171,6 +174,12 @@ principal are present in the operator manifest. Unused rollback, force-unlock, a
 retain no binding. Import,
 state push, backend migration, federation administration, IAM administration, and project-wide
 administration remain outside this matrix and require later break-glass authority if ever needed.
+
+Every successful or failed operation identity may additionally create only its one schema-valid,
+redacted operation record at the exact pre-approved evidence-bundle path. It cannot list another
+evaluation prefix, overwrite or delete a record, or read evidence written by another operation.
+This evidence-write permission is part of that operation's reviewed scope, not general evidence-
+bucket access.
 
 Workload identities receive no owner, editor, IAM administrator, service-account administrator,
 project IAM administrator, billing administrator, or user-managed-key permission. They cannot
@@ -534,3 +543,77 @@ qualified**.
 No failure enables broader IAM, provider retry, cleanup, state push, force-unlock, import, destroy,
 manual console repair, alternate image, mutable tag, replacement registration, or a skipped
 readback. Each requires its own pre-authorized operation or a new owner-approved recovery record.
+
+## AP-M8-W11 deployment readback and evidence
+
+Readback never reuses an apply identity. After the DNS/TLS checkpoint, each fixed root-readback
+workflow uses its own Evidence-class identity to read only that root's state metadata and owned
+provider resources, reduce the result in runner-temporary restricted storage, scan it for prohibited
+data, and create its one redacted readback record. Artifact, generation, and DNS workflows produce
+their target-specific readback records through their already scoped identities. No workflow reads
+another root's backend or retains raw provider output.
+
+The expected inventory is the accepted manifest chain plus the exact approved plan summaries. For
+each root and target, W11 compares:
+
+- source, manifest, configuration, plan, workflow-run, image, Registration Generation,
+  configuration-object, and predecessor-chain digests;
+- backend bucket/prefix, lineage digest, serial, default workspace, lock result, state-address
+  inventory digest, owner, and recovery-input status;
+- provider resource types and canonical references, project/region, labels, deletion protection,
+  ingress, scale limits, retention, budget thresholds, approved services, and owner;
+- direct and inherited IAM roles, workload-principal resource references, key absence, and exact
+  root or publication scope;
+- Artifact Registry packages/digests, configuration object name/generation/digests, candidate
+  revision/image/traffic metadata, three attachment references, reserved IPv4 address, A record,
+  TTL, recursive answers, and managed-certificate state; and
+- the expected, state, and provider inventories as sorted sets with every missing, extra,
+  duplicate, cross-owned, drifted, or unapproved item reported.
+
+The authoritative evidence bundle uses the Version 1 AP-EVAL-M8 schema and exact private
+`ap-eval-m8/<source-revision>/<evaluation-id>/` prefix defined by
+[the evaluation strategy](../05_evaluation_strategy.md). Operation and readback objects are created
+once and hash-chain to their predecessor. A failed operation still writes its redacted failure
+record when safe to do so; if evidence writing itself fails, the gate fails and the absence is
+recorded by the next owner-controlled recovery record rather than reconstructed.
+
+W11 records no raw state, lineage value, state attribute, plan, lock payload, provider/API response,
+credential, token, generated credential file, environment dump, browser state, screenshot, raw log,
+assertion, session, restricted member, identity claim, email, IP address, user agent, payload,
+application data, signed URL, or recovery copy. The private bundle is owner-readable, retained for
+30 days, and not exported. Git may later contain only the approved secret-free index fields.
+
+Any inventory disagreement, unrecognized field, prohibited datum, missing record, hash mismatch,
+unexpected warning, expired/mis-scoped access policy, or unrecorded operation fails W11. It is not
+redacted away, waived, or converted to a limitation. W11 performs no HTTP runtime request,
+rollback, restoration, cleanup, drift injection, force-unlock, state push, import, destroy, or
+provider repair.
+
+## AP-M8-W12 qualification-deployment verdict and AP-M9 handoff
+
+The finalization workflow uses the dedicated Evidence identity to read only the exact bundle
+prefix. In an ephemeral mode-`0700` directory it renders the final evidence manifest and sorted
+record checksums from the approved operator-manifest chain, then runs the committed
+`infrastructure.deployment.verify_evidence` command with the exact source, evidence-manifest digest,
+and absent verdict-output path. It create-only writes `manifest.v1.json`, `checksums.sha256`, and
+`verdict.v1.json`, reads back all three digests, and derives the bundle digest from the canonical
+checksum-file/verdict-digest tuple. It cannot query or mutate a provider, read state, alter an
+earlier record, or finalize a second source/manifest chain.
+
+All ten AP-EVAL-M8 gates are mandatory. The verdict reports actual `pass`, `fail`, `blocked`, and
+`skip` totals, the first causal failure, every attempted operation, and every unavailable later
+claim. A dependent gate not run after failure is `blocked`; an otherwise reachable gate not run is
+a mandatory skip and fails the verdict. AP-M9, cross-project, Finance, and Adoption claims are
+`unavailable` limitations outside the mandatory counts.
+
+W12 passes only when every AP-EVAL-M8 gate passes, all records and checksums are complete and
+unique, inventories agree, prohibited-data scans pass, the mandatory skip count is zero, and the
+final verdict object reads back with its expected digest. A partial deployment produces only a
+failed bundle. A screenshot, manual attestation, console view, prior run, waived discrepancy,
+document review, or expired bundle cannot create a pass.
+
+The truthful passing handoff names the exact deployed revision and calls it **deployed and not
+Live-qualified**. It may propose AP-M9 only after the AP-M8 implementation/evidence reconciliation
+pull request merges. It does not start AP-M9, invoke a runtime, declare rollback or recovery proven,
+activate Finance Assistant or an Integration Draft, authorize a real application, or claim
+Application Adoption.

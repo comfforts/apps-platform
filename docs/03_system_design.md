@@ -1,8 +1,8 @@
 # App Platform system design
 
-Version 1.2 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, approved
+Version 1.3 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, approved
 AP-M7 Terraform configuration profile, and proposed AP-M8 protected-source, federated-identity,
-backend-bootstrap, state-lineage, and qualification-deployment sequencing profiles;
+backend-bootstrap, state-lineage, qualification-deployment sequencing, and evidence profiles;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -523,8 +523,9 @@ default workflow permissions, secret scanning, push protection, and the no-bypas
 no-deletion rules remain enabled. AP-M8 stops rather than weakening one of those controls to make a
 deployment job run.
 
-Four distinct protected GitHub Environment classes separate authenticated plan, routine apply and
-immutable publication, qualification DNS, and exceptional recovery authority. Their real names
+Five distinct protected GitHub Environment classes separate authenticated plan, routine apply and
+immutable publication, qualification DNS, readback/evidence, and exceptional recovery authority.
+Their real names
 remain operator inputs. Every class accepts
 only the exact `main` deployment branch, requires a new explicit owner review for each job, and
 contains no environment secret. The plan review cannot approve an apply; an apply review cannot
@@ -572,6 +573,13 @@ separate fixed workflow and identity. Artifact publication can create only immut
 the qualification repository. Generation publication can create and read back only the exact
 generation object under a no-overwrite precondition. DNS can change only the reviewed qualification
 A record. None inherits a Terraform root's backend or resource authority.
+
+Each root also has a separate Evidence-class readback identity with read-only access to only that
+root's state metadata and provider resources and create-only access to its exact redacted record
+path. One finalizer identity can read only the exact bundle prefix and create its final manifest,
+checksum file, and verdict under no-overwrite preconditions; it cannot access state or provider
+resources. Every other operation may
+create only its own redacted operation record and cannot list or read another operation's evidence.
 
 No workload identity may administer federation, IAM, its own service account, another operation
 identity, another root, billing, or an application-owned resource. Owner, editor, project-IAM,
@@ -696,6 +704,50 @@ candidate reachable but leaves it deployed and not Live-qualified. AP-M9 owns ru
 origin-isolation, failure, availability, and cost qualification. Future generation changes retain
 ADR-008 staging and explicit pointer-change authority rather than inheriting this initial-deployment
 exception.
+
+### AP-M8 deployment-evidence profile
+
+AP-M8 evidence is an append-only, source-bound deployment/readback record, not a new evidence class
+and not Live evidence. The authoritative bundle remains private in the qualification project's
+evidence bucket for 30 days under one `ap-eval-m8/<source-revision>/<evaluation-id>/` prefix. It
+contains one manifest, hash-chained operation records, target-scoped readback records, one final
+verdict, and sorted checksums. Git may retain only an approved secret-free historical index or
+bundle digest.
+
+The Version 1 evidence schema is closed and machine-verified. It binds the repository/source,
+operator-manifest predecessor chain, contracts/tools/workflows, protected environments and
+operation identities, approvals, exact sequence, plans, images, Registration Generation,
+configuration object, state-lineage and inventory digests, provider/IAM/resource inventories,
+DNS/TLS metadata, retention, outcomes, failures, limitations, and unavailable later claims.
+Records use canonical non-secret resource references and hashes rather than raw state, plan, or
+provider material.
+
+Each root is reduced separately by its readback identity. The reducer uses restricted ephemeral
+storage, compares expected/state/provider inventories, emits only its closed record, scans
+prohibited data, and create-only publishes it. The finalizer has no state or provider access; it
+validates schema, unique identifiers, sequence, predecessor hashes, checksums, required gates,
+source/manifest agreement, and prohibited-data results, then create-only writes the final manifest,
+checksum file, and verdict.
+The checksum file covers only the manifest and operation/readback records. The bundle digest
+combines its digest with the separately read-back verdict digest and therefore contains no self-
+reference.
+
+Raw state, lineage values, state attributes, plans, locks, credentials, tokens, generated
+credential files, environment dumps, provider/API responses, browser state, screenshots, logs,
+assertions, sessions, restricted members, identity claims, email addresses, IP addresses, user
+agents, request/response data, application data, signed URLs, and recovery copies are prohibited.
+A missing or prohibited record fails rather than being reconstructed, waived, or silently omitted.
+
+Every AP-EVAL-M8 gate is mandatory. Outcomes are `pass`, `fail`, or `blocked`; the verdict also
+reports the mandatory skip count, which must be zero. A dependent stage after failure is `blocked`
+with its causal record. AP-M9, cross-project, Finance, and Adoption claims remain `unavailable`
+limitations, not successful AP-M8 gates. Only ten complete passing gates may call the exact source
+deployed and not Live-qualified.
+
+The exact schema fields, gate claims, verifier command, redaction rules, retention, and pass/fail/
+skip semantics are owned by [AP-EVAL-M8](05_evaluation_strategy.md). The subordinate
+[qualification-deployment runbook](runbooks/qualification_deployment.md) owns collection and
+finalization. This profile creates no evidence bucket object, identity, provider read, or verdict.
 
 ### AP-M7 Terraform configuration profile
 
@@ -1191,7 +1243,8 @@ This design intentionally does not implement:
 
 - the AP-M8 Version 2 phase contract, production composition entry points, container definitions,
   provider-backed qualification Registration Set, executable workflows, operation records,
-  repository-bound federation, backend objects, state-transfer commands, or IAM grants;
+  AP-EVAL-M8 evidence schema/verifier, repository-bound federation, backend objects, state-transfer
+  commands, or IAM grants;
 - OAuth client registration values, Firestore session configuration, KMS key versions, secret
   versions, credentials, or IAM bindings for the selected identity profile;
 - a deployed live catalogue or Shared Edge runtime, provider-qualified `gcp-cloud-run-v1`
@@ -1227,6 +1280,9 @@ AP-M8 backend-bootstrap and state-lineage profile without creating a bucket, sta
 Version 1.2 proposes the AP-M8 repository-support dependency break, exact initial-deployment order,
 dark-candidate boundary, separate DNS/TLS checkpoint, and partial-failure stops without building,
 publishing, deploying, or activating anything.
+Version 1.3 proposes the closed deployment-evidence bundle, root-scoped reducers, isolated
+finalizer, redaction boundary, mandatory outcomes, and truthful AP-M9 handoff without collecting
+evidence or reading a provider.
 None supplies provider, network, identity, deployment, or Live evidence. Adoption qualification
 remains a later application-owned gate.
 
@@ -1247,4 +1303,5 @@ remains a later application-owned gate.
 | AP-M8 protected source, environments, federation, and operation identities | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003 through AP-QR-006 | ADR-001, ADR-004, ADR-007 |
 | AP-M8 backend bootstrap, migration, and state lineage | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003 through AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
 | AP-M8 deployment support, sequencing, dark candidate, and DNS/TLS boundary | AP-PR-001 through AP-PR-005, AP-PR-007 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-005, ADR-007 through ADR-009 |
+| AP-M8 deployment readback, evidence, and truthful handoff | AP-PR-001 through AP-PR-009; AP-QR-003 through AP-QR-006 | ADR-001, ADR-004, ADR-007 through ADR-009 |
 | Observability, evidence, incidents, and cost | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007, AP-PR-008; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-004, ADR-009 |

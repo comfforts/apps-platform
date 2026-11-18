@@ -1362,9 +1362,9 @@ checks`, CodeQL thresholds, full action pins, read-only default permissions, dep
 controls, and the credential-free check workflow. A missing or weakened baseline control stops the
 package.
 
-Under a separate repository-setting approval, create only the reviewed plan, apply, DNS, and
-recovery GitHub Environment classes. Each accepts exact `main`, requires a fresh owner review for
-every job, contains no secret, and produces the exact environment-bound OIDC subject. No
+Under a separate repository-setting approval, create only the reviewed plan, apply, DNS, Evidence,
+and recovery GitHub Environment classes. Each accepts exact `main`, requires a fresh owner review
+for every job, contains no secret, and produces the exact environment-bound OIDC subject. No
 environment approval transfers to another class or operation. The
 [qualification-deployment runbook](runbooks/qualification_deployment.md) owns the setting profile,
 proposed-change table, readback fields, and stop conditions. AP-M8-W3 does not render or invoke an
@@ -1381,9 +1381,11 @@ SHA verified by the workflow.
 
 Plan, apply, rollback, force-unlock, and destroy identities are distinct for every enabled root.
 Artifact publish, generation publish, and qualification DNS also have distinct identities and
-fixed targets, with no backend permission. Each receives only its exact state, owned-resource,
-repository, object, or record permissions; unused exceptional identities have no binding. Workload
-identities cannot administer federation, IAM, themselves, billing, another root, or an application.
+fixed targets, with no backend permission. Each root has a distinct readback identity, and one
+finalizer identity can read only the exact evidence prefix and create its no-overwrite verdict.
+Each receives only its exact state, owned-resource, repository, object, record, or evidence-prefix
+permissions; unused exceptional identities have no binding. Workload identities cannot administer
+federation, IAM, themselves, billing, another root, or an application.
 Keys, wildcard subjects, broad primitive roles, credentials longer than one hour, implicit
 credential sources, and name-only repository trust are prohibited. Readback must prove mappings,
 conditions, key absence, impersonation principals, direct and inherited roles, and scopes before
@@ -1485,17 +1487,26 @@ candidate reachable but leaves it deployed and not Live-qualified.
 
 #### AP-M8-W11 · Deployment readback and evidence
 
-Reconcile the exact source, configuration, plan, state, provider, IAM, resource, generation,
-traffic, DNS/TLS, ownership, and approved-service inventories. Produce only the approved redacted,
-hashed, access-controlled, retention-bounded deployment/readback record; discrepancies remain
-failures rather than omitted or skipped evidence.
+Use distinct root-scoped readback identities to reconcile the exact source, manifest chain,
+configuration, plan, state-lineage, provider, IAM, resource, image, generation, traffic, DNS/TLS,
+ownership, protection, label, budget, retention, and approved-service inventories. Each workflow
+reduces temporary raw material to one schema-valid create-only record, scans prohibited data, and
+hash-chains the record without reading another root. Produce the Version 1 AP-EVAL-M8 private
+bundle under its exact source/evaluation prefix with owner-only access and 30-day retention;
+discrepancies and failed operations remain explicit failures rather than omitted or skipped
+evidence. Git may retain only the approved secret-free index or digest.
 
 #### AP-M8-W12 · Qualification-deployment gate and AP-M9 handoff
 
-Run the complete AP-EVAL-M8 gate for the exact revision and environment, record actual pass, fail,
-and skip outcomes, and reconcile truthful repository status. A passing result may route the next
-task to an AP-M9 proposal only after merge; it may not claim Live qualification or authorize an
-Application Adoption.
+Use the dedicated Evidence identity to read only the exact bundle prefix, run the committed
+credential-free final verifier in ephemeral storage, and create-only publish/read back the final
+manifest, checksum file, and verdict. Derive the bundle digest from the checksum-file and verdict
+digests. Run all ten AP-EVAL-M8 gates for one exact source/manifest chain and record actual pass,
+fail, blocked, and skip outcomes, the causal failure, checksums, limitations, and unavailable later
+claims. A pass requires complete unique records, agreeing inventories, successful prohibited-data
+scans, zero failures/blocked gates/mandatory skips, and the expected verdict digest. Reconcile
+truthful repository status only after that result; a passing result may route the next task to an
+AP-M9 proposal after merge but may not claim Live qualification or authorize Application Adoption.
 
 ### Ordered delivery
 
@@ -1543,8 +1554,8 @@ AP-M8 is accepted only when all of the following are true:
 AP-M8 crosses from static configuration into protected repository, identity, state, provider, and
 DNS control planes. Exact-source binding, least privilege, state isolation, explicit checkpoints,
 stop-on-partial-failure behavior, and redacted readback reduce but do not eliminate those risks.
-Evidence rules and AP-EVAL-M8 remain incomplete until the later AP-M8-W1 authority commits; that
-incompleteness is a hard block on AP-M8-W2.
+The evidence rules and AP-EVAL-M8 gate are proposal authority; deterministic governance enforcement
+and final handoff reconciliation remain incomplete and block AP-M8-W2.
 
 No credential, token, assertion, session, restricted identity, application payload, state content,
 saved plan, raw provider response, browser state, or unredacted log may enter Git or the retained
@@ -1553,10 +1564,11 @@ coarse operation outcomes are not secrets but remain bounded to the approved rec
 
 ### Limitations and unresolved authority
 
-The protected-control, backend, and deployment-sequencing profiles are still proposal authority,
-not implemented controls. AP-M8-W1 does not yet complete the evidence schema or AP-EVAL-M8 gate.
-Those are required authority increments, not implementation tasks and not optional skips. Until
-every AP-M8-W1 increment is accepted together, AP-M8-W2 through AP-M8-W12 cannot start.
+The protected-control, backend, deployment-sequencing, and AP-EVAL-M8 profiles are proposal
+authority, not implemented controls. AP-M8-W1 still requires deterministic governance enforcement
+and final handoff reconciliation. Those are required authority increments, not implementation tasks
+or optional skips. Until every AP-M8-W1 increment is accepted together, AP-M8-W2 through AP-M8-W12
+cannot start.
 
 AP-M8 deployment cannot prove visitor or application behavior, direct-origin denial, real login,
 assertion verification, load, availability, multi-instance behavior, rollback time, recovery,

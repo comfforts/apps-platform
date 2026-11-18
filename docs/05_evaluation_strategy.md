@@ -1,13 +1,14 @@
 # App Platform evaluation strategy
 
-Version 0.5 | Status: deterministic evaluation authority through AP-M7; future AP-M8 and AP-M9
-claim boundaries
+Version 0.6 | Status: deterministic evaluation authority through AP-M7 and proposed AP-EVAL-M8
+qualification-deployment authority; AP-EVAL-M9 remains a future claim boundary
 
-This document preserves how delivery items 3 through 6 are evaluated and now defines AP-EVAL-M7 for
-delivery item 7, the Terraform-and-workflow implementation. AP-EVAL-M7 qualifies only committed
-configuration and inert templates through deterministic static tests with mocked providers.
-AP-EVAL-M8 and AP-EVAL-M9 remain future claim boundaries. No gate through AP-EVAL-M7 qualifies a
-deployed Shared Edge, provider identity, cloud resource, consuming application, or Live behavior.
+This document preserves how delivery items 3 through 7 are evaluated and proposes AP-EVAL-M8 for
+the non-production qualification deployment. AP-EVAL-M7 qualifies only committed configuration and
+inert templates through deterministic static tests with mocked providers. AP-EVAL-M8 can record
+deployment and readback only after its complete authority is accepted and every operator checkpoint
+passes. AP-EVAL-M9 remains future Live authority. No gate through AP-EVAL-M8 qualifies a consuming
+application or runtime behavior.
 
 Plan: [App Platform implementation plan](04_implementation_plan.md)
 
@@ -1154,20 +1155,269 @@ AP-EVAL-M9.
 ## Future evaluation boundaries
 
 The following sections constrain later authorities. They do not authorize implementation or
-provide a passing result. Each later milestone must refine its environment, commands, fixtures,
-expected results, evidence schema, pass/fail semantics, and exact source revision before work begins.
+provide a passing result. AP-M8 is fully specified below as proposal authority but remains future
+until the complete AP-M8-W1 change is accepted and merged. AP-M9 must refine its commands,
+fixtures, expected results, evidence schema, pass/fail semantics, and exact deployed revision before
+Live work begins.
 
 ### AP-EVAL-M8 · Qualification-deployment gate
 
-AP-EVAL-M8 is an explicit operator gate executed only from protected, merged source after repository
-extraction and owner approval. It may configure repository protection and federation, bootstrap
-backends, run authenticated plans, apply exact approved roots, deploy the Shared Edge and Fixture
-Applications, and perform the separately approved qualification DNS/TLS action.
+#### Evaluation claim
 
-A passing result proves only that the named revision and environment resources exist, state and
-provider inventories agree, no unapproved resource changed, and deployment/readback evidence is
-redacted and retained. Any partial apply stops for inspection. A deployment result cannot qualify
-routing, identity, direct-origin denial, rollback, cost behavior, or application adoption.
+A passing AP-EVAL-M8 result proves only that the exact protected-main revision was deployed into
+project `comfforts-platform-non-prod` (`455651441682`) in `us-west1` through the approved operation
+sequence; its five Terraform state lineages and provider inventories agree with their declared
+owners; its immutable images and Registration Generation are bound to the initial Shared Edge
+candidate; its new `apps-staging.comfforts.com` A record and managed certificate read back as
+approved; and no unapproved resource or authority changed.
+
+AP-EVAL-M8 is deployment/readback evidence, not a fifth evidence class and not Live (`L`) evidence.
+A deployment result cannot qualify routing, identity, direct-origin denial, rollback, cost behavior,
+or application adoption.
+It does not invoke an application route or status endpoint and does not qualify catalogue or proxy
+behavior, Visitor identity, admission, sessions, assertions, direct-origin denial, failure
+isolation, rollback execution or time, recovery, availability, load, cost delivery, incident
+response, cross-project attachment, Finance Assistant, or Application Adoption.
+
+#### Evaluation environment and command boundary
+
+The gate begins only after the complete AP-M8-W1 authority is accepted and merged and the exact
+protected-main source revision has passed:
+
+```bash
+make terraform-setup
+make check
+```
+
+Those commands remain credential-free and provide only AP-EVAL-M3 through AP-EVAL-M7 regression
+evidence. Every authenticated AP-EVAL-M8 step runs through its fixed protected-main
+`workflow_dispatch` file, reviewed environment, and operation identity. There is no routine local
+apply, provider-console substitution, pull-request apply, reusable unlisted workflow, or command
+that selects a root, identity, environment, repository, ref, or operation at runtime.
+
+AP-M8-W6 must implement one credential-free final verifier with this interface:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m infrastructure.deployment.verify_evidence \
+  --bundle <private-read-only-bundle-directory> \
+  --manifest-digest sha256:<64-lowercase-hex> \
+  --source-revision <40-lowercase-hex> \
+  --verdict-output <new-ephemeral-verdict-file>
+```
+
+The evidence-finalization workflow copies only the exact private bundle prefix into an ephemeral
+mode-`0700` runner directory, renders the final manifest and sorted record checksums from the exact
+approved operator-manifest chain, and runs the verifier with an absent output path. After a pass or
+fail verdict is produced, it create-only publishes the manifest, checksum file, and verdict, reads
+back their digests, and removes the local copy and generated credential. The CLI rejects an extra
+file, missing operation, hash mismatch, duplicate identifier, unknown schema field, unexpected
+status, prohibited datum, source/manifest mismatch, pre-existing verdict output, or incomplete gate.
+It performs no provider query or mutation. The complete `make check` gate tests it against
+synthetic pass and failure bundles without a credential, network, or real operator value.
+
+Provider and state readback occur before finalization through one fixed readback workflow per root
+and fixed target-specific artifact, generation, and DNS workflows. Each command consumes exact
+reviewed configuration, writes raw state/plan/provider output only to runner-temporary restricted
+storage, reduces it to the approved schema, scans the result for prohibited data, and create-only
+publishes its redacted operation record. A raw response, state, plan, lock payload, generated
+credential, environment dump, or shell transcript never enters the evidence bundle.
+
+#### Evidence bundle and schema
+
+The authoritative bundle is private in the AP-M7 evidence bucket under exactly one
+`ap-eval-m8/<source-revision>/<evaluation-id>/` prefix. Uniform access, public-access prevention,
+owner-only read, no external sink, and the 30-day retention policy apply. The bundle is append-only
+while operations run and contains only:
+
+```text
+manifest.v1.json
+operations/<sequence>-<operation-id>.v1.json
+readback/<target-id>.v1.json
+verdict.v1.json
+checksums.sha256
+```
+
+`manifest.v1.json` records the schema/evaluation identifiers; repository and exact source;
+project, number, region, and hostname; operator-manifest predecessor chain and digests; contract,
+compiler, Terraform, provider, and workflow versions; environment/workflow/operation-identity
+resource references; immutable image, Registration Generation, configuration-object, and plan
+digests; expected sequence and target inventory; bundle prefix; creation/expiry timestamps; and
+the prohibited-data policy version.
+
+Each operation record contains a unique operation and workflow-run identifier, fixed target,
+environment class, source and manifest digests, approval-event reference and timestamp, start/end
+timestamps, input and output digests, expected and observed coarse change summaries, redacted
+readback hash, predecessor-record hash, outcome, failure category, limitations, and the next-stage
+decision. It contains no approval comment or retained human identity beyond the provider's
+non-secret immutable event reference.
+
+Each readback record contains only the target's declared owner; resource types and canonical
+non-secret resource references; project/region; required labels and protection states; sorted state-
+address and provider-resource inventory digests; state-lineage digest and serial; backend prefix;
+IAM role and workload-principal resource references; artifact/configuration/DNS/TLS metadata where
+applicable; expected/observed comparison outcomes; and prohibited-data scan result. It never
+contains state attributes, lineage values, secret values, identity claims, visitor/application
+data, assertions, sessions, restricted members, raw logs, payloads, IP addresses, or user agents.
+
+`verdict.v1.json` records all ten gate outcomes, totals for pass/fail/blocked/skip, the first
+failure and causal chain, complete operation/readback/checksum inventories, security and privacy
+limitations, unavailable AP-M9 and Adoption claims, the digest of `checksums.sha256`, finalizer
+workflow/run reference, and exact finalizer command outcome. `checksums.sha256` covers the manifest,
+operation records, and readback records in sorted path order; it covers neither itself nor the
+later verdict. After verdict readback, the final workflow computes the bundle digest from the
+canonical tuple of checksum-file digest and verdict-object digest, avoiding a self-referential
+hash.
+
+Git may later retain only an owner-approved secret-free index containing the evidence identifier,
+source revision, evaluation outcome, bundle digest, expiry timestamp, and historical-status label.
+The bundle, object contents, GCS access URL, signed URL, credentials, and raw outputs remain outside
+Git. Expiry or deletion of evidence never converts an unavailable or failed gate into a pass.
+
+#### Gate structure
+
+##### AP-EVAL-M8-01 · Authority, source, and regression integrity
+
+Verify the accepted AP-M8 authority revision precedes every operator action; repository identity,
+protected default branch, exact clean deployed source, complete required checks, CodeQL and secret
+controls, full action pins, tool/provider locks, operator-manifest chain, expected sequence, and
+private evidence destination. AP-EVAL-M3 through AP-EVAL-M7 must pass at the deployed source.
+
+##### AP-EVAL-M8-02 · Protected environments, federation, and operation identities
+
+Read back the Plan, Apply, DNS, Evidence, and Recovery environment protections and absence of
+secrets; Workload Identity Pool/provider issuer, audience, mappings, conditions, and state; exact
+repository/owner numeric bindings; protected ref, workflow, event, environment, and source claims;
+service-account key absence; and every operation's direct/inherited roles and resource scopes.
+Reject a bypass, wildcard, alternate workflow/ref/event, broad primitive role, cross-root scope,
+unused exceptional binding, or Finance/production/real-application principal.
+
+##### AP-EVAL-M8-03 · Backends, lineages, locks, and recovery inputs
+
+Verify four private versioned state buckets and five fixed prefixes; conditional root access;
+default-workspace-only operation; bootstrap migration lineage and serial invariants; one lineage for
+each applied non-bootstrap root; native-lock behavior; recovery-version availability; retention,
+public-access prevention, deletion protection, labels, and no cross-root read. Record hashes and
+inventories only and execute no restore, force-unlock, push, import, or destroy.
+
+##### AP-EVAL-M8-04 · Source-bound artifacts and publication
+
+Verify the Shared Edge and Fixture runtime images were built from the exact source, pinned base
+images, frozen dependencies, reviewed non-root definitions, and create-only publication. Registry
+readback must agree on immutable digests and package ownership with no mutable deployment tag,
+unapproved package, overwrite, deletion, external registry, retained build credential, or cleanup
+execution.
+
+##### AP-EVAL-M8-05 · Platform foundation and controls
+
+Reconcile the Platform foundation same-job plan, state, and provider inventories for configuration
+storage, Artifact Registry, edge runtime/caller identities, KMS/Firestore, log/evidence controls,
+budget/notification configuration, labels, approved services, and typed platform reference. Prove
+the foundation phase created no Shared Edge, load balancer, certificate, DNS record, generation
+object, or Fixture resource.
+
+##### AP-EVAL-M8-06 · Fixture roots and attachment ownership
+
+For public, authenticated, then restricted fixtures, reconcile the fresh same-job plan, independent
+state lineage, provider inventory, application owner, runtime identity, immutable image, ingress,
+edge-caller IAM intent, limits, labels, and canonical `gcp-cloud-run-v1` attachment reference.
+Reject shared state, cross-fixture IAM, Platform ownership of Application State, public direct-
+origin intent, or a root applied after an earlier fixture failure. Do not invoke the runtimes.
+
+##### AP-EVAL-M8-07 · Registration Generation and dark candidate binding
+
+Verify the provider-backed initial Registration Set and no-predecessor declaration, deterministic
+compiler output, create-only configuration object and object generation, content/generation
+digests, three actual attachment references, edge image, source, contract versions, candidate
+revision, state/provider ownership, load-balancer/address/certificate intent, and 100-percent
+Cloud Run pointer to the only revision. Confirm foundation resources are unchanged and the DNS
+record was absent throughout candidate apply. This proves a dark initial candidate only, not
+runtime activation behavior or a successor-generation pointer change.
+
+##### AP-EVAL-M8-08 · Qualification DNS and TLS readiness
+
+Verify the separately approved transaction created only the `apps-staging.comfforts.com` A record
+with TTL 1,800 and the candidate's exact reserved IPv4 address. Authoritative provider readback and
+independent recursive answers must agree, and the Google-managed certificate must report active for
+that hostname. Reject an AAAA, wildcard, existing/production/Finance record change, alternate
+address, zone mutation, timeout, or omitted cached-answer limitation. Make no HTTP application
+request.
+
+##### AP-EVAL-M8-09 · Complete ownership and no-unapproved-change reconciliation
+
+Compare the approved expected inventory with sorted Terraform state-address, provider-resource,
+IAM, image, generation, DNS/TLS, label, protection, and enabled-service inventories for every owner.
+Every item must have one owner and every expected item must exist exactly once. Reject drift,
+replacement, destroy, extra/missing resource, unknown API/service, provider default, cross-owner
+management, unrecorded retry, cleanup, or discrepancy hidden by hashing.
+
+##### AP-EVAL-M8-10 · Evidence privacy, truthful verdict, and handoff
+
+Verify the append-only operation chain, all required record/checksum/schema fields, 30-day private
+retention, owner-only access, prohibited-data scans, actual command outcomes, failures, limitations,
+blocked stages, and zero mandatory skips. The final verdict calls the environment only deployed and
+not Live-qualified, leaves every AP-M9 and Adoption claim unavailable, and confirms Finance
+Assistant and existing hostnames/resources were unchanged.
+
+#### Threat coverage boundary
+
+| Threats | AP-EVAL-M8 deployment/readback claim |
+| --- | --- |
+| AP-TM-001 through AP-TM-003 | The exact reviewed complete Registration Set, immutable object, candidate, and three attachment references agree without a runtime-routing claim |
+| AP-TM-004 through AP-TM-006 | Provider identity/secret references and ownership read back as configured; Visitor, session, assertion, entitlement, and direct-origin behavior remain AP-M9 |
+| AP-TM-007 through AP-TM-009 | Source/plan/generation binding, ordered operations, root lineages, typed references, locks, state/provider ownership, and cross-root denial agree |
+| AP-TM-010 | Private retention, schema minimization, hashing, prohibited-data scans, no external export, and no raw operational material pass |
+| AP-TM-011 | Protected source, pins, manifests, workflow subjects, immutable publication, operation chain, and exact finalizer pass |
+| AP-TM-012 | Selected limits, labels, retention, approved-service inventory, and budget configuration read back without an availability or hard-spend claim |
+| AP-TM-013 | Partial failure, blocked-stage, no-automatic-follow-on, and discrepancy reporting are complete; rollback/recovery remain unexecuted |
+| AP-TM-014 | Only synthetic qualification fixtures exist; Finance, production, real applications, Integration Drafts, and Adoption remain unchanged |
+
+#### Pass, fail, and skip semantics
+
+All ten AP-EVAL-M8 gates are mandatory. `pass` requires complete exact readback for that gate.
+`fail` records any mismatch, command error, timeout, prohibited data, unexpected warning, missing
+record, hash/schema error, unapproved change, or false claim. After the first failure, a dependent
+gate that cannot safely run is `blocked` with the causal gate and operation record; it is not
+silently omitted or called a skip.
+
+The mandatory skip count must be zero. An operator choice not to run a reachable mandatory gate is
+a failure. AP-M9, cross-project, Finance, and Adoption behaviors are recorded as `unavailable`
+limitations outside AP-EVAL-M8's mandatory-gate counts, not skips. A failed or partial deployment
+retains a failed evidence bundle and never receives a passing index. No manual attestation,
+screenshot, console view, document review, prior run, waived discrepancy, or expired record can
+substitute for a mandatory result.
+
+AP-EVAL-M8 passes only when all ten gates pass for one exact source/manifest chain, all required
+operations and readbacks have unique identifiers and valid hashes, every expected inventory agrees,
+there are zero failures, blocked gates, errors, unexpected warnings, prohibited findings, and
+mandatory skips, and the final create-only verdict reads back with the expected digest.
+
+#### Required evaluation evidence
+
+The private bundle records the schema-approved source, authority, manifest, configuration,
+workflow, environment, identity, plan, image, generation, object, state-lineage, provider, IAM,
+resource, DNS/TLS, approval-event, command, timing, ownership, retention, security/privacy,
+limitation, outcome, and checksum fields described above. Every attempted operation is present,
+including failures and reversals. The final result reports actual pass/fail/blocked/skip counts and
+the first causal failure.
+
+Raw Terraform state or plans, provider/API responses, credentials, OIDC/access tokens, generated
+credential files, environment dumps, browser state, screenshots, logs, assertions, sessions,
+restricted members, identity claims, email addresses, IP addresses, user agents, request/response
+data, application data, signed URLs, and recovery copies are prohibited. The W6 schema and verifier
+must fail a bundle that contains them or an unrecognized field.
+
+#### Limitations
+
+AP-EVAL-M8 does not exercise runtime HTTP, catalogue, routes, mounts, forwarding, admission, OAuth,
+session, logout, assertion, JWKS, application verification, direct-origin denial, failure injection,
+streaming, limits, scaling, availability, load, cost delivery, incident response, drift injection,
+rollback, restoration, cleanup, or Application Adoption. Provider readback is evidence that the
+selected configuration exists, not proof of its runtime behavior. Those claims remain AP-M9 or a
+later application-owned gate.
+
+This section is proposal authority only until the complete AP-M8-W1 change is owner-accepted and
+merged. It creates no schema, workflow, identity, credential, bucket object, provider action,
+resource, DNS record, certificate, evidence bundle, or passing result.
 
 ### AP-EVAL-M9 · Live-qualification gate
 

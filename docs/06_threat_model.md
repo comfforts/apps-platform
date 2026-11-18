@@ -1,8 +1,8 @@
 # App Platform threat model
 
-Version 1.2 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
+Version 1.3 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
 AP-M7 infrastructure-configuration controls, and proposed AP-M8 protected-source, federated-
-identity, backend-bootstrap, state-lineage, and deployment-sequencing controls;
+identity, backend-bootstrap, state-lineage, deployment-sequencing, and evidence controls;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -707,6 +707,56 @@ partial-failure table are in the subordinate
 each later checkpoint is separately approved, this profile supplies no executable or provider
 authority.
 
+## AP-M8 deployment-evidence controls
+
+AP-M8-W1 proposes these AP-M8-W11/W12 and AP-EVAL-M8 controls without reading a provider or
+creating evidence:
+
+- **AP-TM-001 through AP-TM-006:** Evidence binds the complete provider-backed Registration Set,
+  configuration object, candidate, images, attachment references, and provider resource metadata
+  but makes no catalogue, routing, identity, assertion, direct-origin, or authorization behavior
+  claim. Those claims remain explicitly unavailable until AP-M9 exercises them.
+- **AP-TM-007:** One exact source and append-only manifest chain bind every operation, plan,
+  artifact, root, readback, approval reference, and verdict. Unique identifiers, predecessor hashes,
+  sorted checksums, create-only records, and a no-overwrite final verdict expose omission,
+  substitution, replay, or reordering. An expired or earlier bundle cannot qualify a later source.
+- **AP-TM-008 and AP-TM-009:** Each root has its own readback identity and reducer; no reducer reads
+  another backend. Artifact, generation, and DNS records remain target-scoped. The finalizer can
+  read only one bundle prefix and has no state/provider access. Expected, state, provider, IAM, and
+  owner inventories must agree exactly and cannot hide cross-owner drift behind an aggregate hash.
+- **AP-TM-010:** A closed schema, field allow-list, prohibited-data scan, ephemeral mode-`0700`
+  reduction, private owner-only bucket, 30-day retention, no external sink, and minimal optional Git
+  index exclude raw state, plans, locks, credentials, tokens, provider responses, logs, screenshots,
+  visitor/application data, identity claims, signed URLs, and recovery copies. A scan or evidence-
+  write failure fails closed.
+- **AP-TM-011:** Fixed protected-main readback/finalization workflows, exact environment and
+  identity bindings, full action pins, source/manifest comparison, immutable schema/tool versions,
+  deterministic synthetic verifier tests, and no runtime-selected target constrain evidence
+  fabrication. The final verifier performs no provider query and rejects unknown files or fields.
+- **AP-TM-012:** Evidence records selected scaling, retention, labels, approved services, artifact-
+  retention policy, and budget thresholds only as configuration/readback. It cannot turn them into
+  availability, hard-spend, cleanup, or notification-delivery proof.
+- **AP-TM-013:** A failed operation still produces a redacted failed record when safe. Dependent
+  gates are `blocked` with the causal record; a reachable unrun gate is a mandatory skip and fails.
+  Missing, malformed, expired, prohibited, hash-mismatched, or incomplete evidence is never waived,
+  reconstructed, or called a limitation. Recovery and rollback stay unexecuted.
+- **AP-TM-014:** The bundle names only the canonical repository, non-production qualification
+  project/hostname, and three synthetic fixtures. Finance, production, real applications,
+  Integration Drafts, cross-project behavior, and Adoption remain unavailable and unchanged.
+
+The authoritative bundle is append-only under one private
+`ap-eval-m8/<source-revision>/<evaluation-id>/` prefix. Per-operation create-only permissions do not
+permit listing or reading another record. Root readback identities cannot write state or provider
+resources. The finalizer may read that exact prefix and create only `manifest.v1.json`,
+`checksums.sha256`, and `verdict.v1.json` with no-overwrite preconditions; it cannot read a backend
+or repair a discrepancy.
+
+AP-EVAL-M8 passes only with ten mandatory passes and zero failures, blocked gates, unexpected
+warnings, prohibited findings, or mandatory skips. Its only positive status claim is deployed and
+not Live-qualified. The exact schema, verifier, gates, and allowed fields are in
+[the evaluation strategy](05_evaluation_strategy.md); collection and failure handling are in the
+[qualification-deployment runbook](runbooks/qualification_deployment.md).
+
 ## Unresolved security decisions
 
 The following decisions must be approved by their owning later slice before the named evidence can
@@ -718,6 +768,7 @@ pass:
 | Provider configuration/readback for the selected runtime limits and observed multi-instance abuse behavior | AP-M8 deployment and AP-M9 Live qualification |
 | Exact repository and owner numeric identifiers, protected workflow refs and environment names, federation resources, operation service accounts, permission sets, scopes, and IAM bindings | AP-M8-W2 operator-input acceptance before AP-M8-W3 or AP-M8-W4 |
 | Exact bucket names, root-prefix permission bindings, backend-renderer implementation, and initial owner credential scope | AP-M8-W2 acceptance and AP-M8-W5 repository preparation before backend mutation |
+| Exact Evidence environment, root-readback/finalizer identities, bundle identifier/prefix, schema/verifier implementation, and create-only record permissions | AP-M8-W2/AP-M8-W4 acceptance and AP-M8-W6 implementation before AP-M8-W11 |
 | Backend initialization and bootstrap-lineage migration | AP-M8-W5 operator checkpoint |
 | Non-bootstrap lineage, provider ingress and IAM realization, and direct-origin denial | AP-M8 deployment and AP-M9 Live qualification |
 | Configuration-object publication, candidate revision, traffic pointer, DNS/TLS, readback, and rollback execution | AP-M8 deployment and AP-M9 Live qualification |

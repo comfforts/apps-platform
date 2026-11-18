@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:comfforts:app-platform:infrastructure-config:workflow:v1",
+  "title": "Workflow Configuration Version 1",
+  "description": "Non-secret source-bound authority input for one future protected operator workflow.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "configuration_kind",
+    "configuration_class",
+    "operation",
+    "repository",
+    "source_revision",
+    "protected_main_ref",
+    "protected_environment",
+    "protected_subject",
+    "root_target",
+    "plan_digest",
+    "destructive_target"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": 1
+    },
+    "configuration_kind": {
+      "const": "workflow"
+    },
+    "configuration_class": {
+      "enum": [
+        "operator",
+        "synthetic"
+      ]
+    },
+    "operation": {
+      "enum": [
+        "plan",
+        "apply",
+        "rollback",
+        "force-unlock",
+        "destroy"
+      ]
+    },
+    "repository": {
+      "const": "comfforts/apps-platform"
+    },
+    "source_revision": {
+      "$ref": "#/$defs/sourceRevision"
+    },
+    "protected_main_ref": {
+      "const": "refs/heads/main"
+    },
+    "protected_environment": {
+      "$ref": "#/$defs/environmentName"
+    },
+    "protected_subject": {
+      "$ref": "#/$defs/protectedSubject"
+    },
+    "root_target": {
+      "$ref": "#/$defs/rootTarget"
+    },
+    "plan_digest": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/digest"
+        }
+      ]
+    },
+    "destructive_target": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/destructiveTarget"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "sourceRevision": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 40,
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 71,
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "environmentName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{1,62}[A-Za-z0-9]$"
+    },
+    "protectedSubject": {
+      "type": "string",
+      "minLength": 50,
+      "maxLength": 256,
+      "pattern": "^repo:comfforts/apps-platform:environment:[A-Za-z][A-Za-z0-9_-]{1,62}[A-Za-z0-9]$"
+    },
+    "rootTarget": {
+      "enum": [
+        "bootstrap",
+        "platform",
+        "fixture-public",
+        "fixture-authenticated",
+        "fixture-restricted"
+      ]
+    },
+    "targetId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{1,126}[A-Za-z0-9]$"
+    },
+    "destructiveTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "root_target",
+        "target_id",
+        "confirmation_digest"
+      ],
+      "properties": {
+        "operation": {
+          "enum": [
+            "force-unlock",
+            "destroy"
+          ]
+        },
+        "root_target": {
+          "$ref": "#/$defs/rootTarget"
+        },
+        "target_id": {
+          "$ref": "#/$defs/targetId"
+        },
+        "confirmation_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  }
+}

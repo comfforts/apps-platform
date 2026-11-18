@@ -481,17 +481,22 @@ def _walk_schema_references(
         _walk_schema_references(option, current_schema_id, registry)
 
 
-def load_contract_schemas(
-    schema_directory: Path | None = None,
+def load_schema_registry(
+    schema_directory: Path,
+    schema_files: tuple[str, ...],
 ) -> dict[str, dict[str, Any]]:
-    """Load the reviewed local schema registry without remote resolution."""
+    """Load one explicit bounded local schema registry without remote resolution."""
 
-    directory = schema_directory or SCHEMA_DIRECTORY
     registry: dict[str, dict[str, Any]] = {}
 
-    for filename in SCHEMA_FILES:
-        schema = json.loads((directory / filename).read_text(encoding="utf-8"))
-        schema_id = schema["$id"]
+    for filename in schema_files:
+        loaded = load_json_document(schema_directory / filename)
+        if loaded.violations or not isinstance(loaded.value, dict):
+            raise ContractSchemaError(f"schema file is not bounded JSON: {filename}")
+        schema = loaded.value
+        schema_id = schema.get("$id")
+        if not isinstance(schema_id, str) or not schema_id:
+            raise ContractSchemaError(f"schema identifier is missing: {filename}")
         if schema_id in registry:
             raise ContractSchemaError(f"duplicate schema identifier: {schema_id}")
         _validate_schema_profile(schema, schema_id)
@@ -500,6 +505,14 @@ def load_contract_schemas(
     for schema_id, schema in registry.items():
         _walk_schema_references(schema, schema_id, registry)
     return registry
+
+
+def load_contract_schemas(
+    schema_directory: Path | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Load the reviewed local contract-schema registry without remote resolution."""
+
+    return load_schema_registry(schema_directory or SCHEMA_DIRECTORY, SCHEMA_FILES)
 
 
 def _pointer(path: str, token: str | int) -> str:

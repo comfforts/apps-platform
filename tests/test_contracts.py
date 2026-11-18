@@ -193,7 +193,9 @@ class ContractSchemaTest(unittest.TestCase):
         self.assertIn("contract-check:", makefile)
         self.assertIn("fixture-check:", makefile)
         self.assertIn("runtime-check:", makefile)
-        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 4)
+        self.assertIn("terraform-check:", makefile)
+        self.assertIn("terraform-setup:", makefile)
+        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 6)
 
     def test_contract_layer_runs_from_an_extracted_project_copy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

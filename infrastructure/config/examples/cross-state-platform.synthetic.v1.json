@@ -1,0 +1,15 @@
+{
+  "contract_version": 1,
+  "configuration_kind": "cross-state-reference",
+  "configuration_class": "synthetic",
+  "reference": {
+    "reference_kind": "platform",
+    "state_owner": "platform",
+    "owner_id": "app-platform",
+    "project_number": "123456789012",
+    "region": "us-west1",
+    "platform_issuer": "https://apps.example.invalid/_platform",
+    "public_key_reference": "https://apps.example.invalid/.well-known/jwks.json",
+    "edge_caller_principal": "serviceAccount:synthetic-edge-caller@synthetic-platform.iam.gserviceaccount.com"
+  }
+}

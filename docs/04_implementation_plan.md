@@ -1,14 +1,16 @@
 # App Platform implementation plan
 
-Version 0.4 | Status: implementation-plan authority through AP-M6; no Terraform, deployment, or
-Live qualification authority
+Version 0.5 | Status: implementation-plan authority through AP-M7; no backend initialization,
+provider operation, deployment, or Live qualification authority
 
 This document preserves delivery item 3, the system-design-and-versioned-contracts slice, delivery
 item 4, the deterministic-fixtures slice, and delivery item 5, the infrastructure-planning slice.
-It now owns delivery item 6, the networked-provider-runtime slice. AP-M6 may implement and locally
-test a listening Shared Edge and production provider adapters through deterministic fakes. It does
-not authorize Terraform configuration, a cloud call, credential, provider resource, DNS or identity
-mutation, deployment, Live qualification, or Application Adoption.
+It owns delivery item 6, the networked-provider-runtime slice, and now defines delivery item 7, the
+Terraform-and-workflow implementation slice. AP-M7 may implement and statically validate reviewed
+Terraform configuration and inert workflow templates. It does not authorize backend initialization,
+an authenticated plan or apply, a cloud call, credential, federation or repository-setting change,
+provider resource, DNS or identity mutation, deployment, Live qualification, or Application
+Adoption.
 
 Requirements: AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006
 
@@ -956,27 +958,287 @@ evidence.
 AP-M6: they preserve explicit adoption and exclusive state ownership and do not authorize state or
 application mutation.
 
+## AP-M7 · Terraform and workflow implementation
+
+### Outcome
+
+AP-M7 implements the selected non-production topology as statically verifiable Terraform
+configuration behind three root-module interfaces:
+
+```text
+bootstrap(backend_configuration) -> backend_reference_set
+fixture_application(fixture_configuration, platform_reference) -> attachment_reference
+platform(platform_configuration, attachment_references, registration_generation)
+    -> platform_reference_set
+```
+
+The roots hide provider resources behind typed configuration and reference contracts. Reusable
+modules are internal and own no environment or state. Passing AP-EVAL-M7 proves only committed
+configuration shape, policy, and workflow-template behavior. It creates no state, plan, identity,
+provider resource, deployment, Live evidence, or Application Adoption.
+
+### Scope
+
+AP-M7 includes:
+
+- Terraform 1.17.2 and `hashicorp/google` 8.11.0 constraints, committed cross-platform provider
+  locks, and an explicit provider-mirror setup boundary;
+- Version 1 backend, platform, fixture, cross-state-reference, and workflow configuration schemas
+  with synthetic examples and duplicate Terraform root validation;
+- one backend-bootstrap root, one Platform State root, and one root for each of the three Fixture
+  Applications;
+- internal reusable modules for state buckets, one Fixture Application, the platform identity and
+  generation foundation, the Shared Edge and hostname-level forwarding intent, and bounded
+  observability, evidence, retention, labels, scaling, and cost controls;
+- typed non-secret outputs and reviewed inputs without `terraform_remote_state`, backend-object
+  reads, or cross-owner credentials;
+- inert templates for advisory plan, exact-main apply, rollback, force-unlock, and destroy
+  authorities; and
+- formatting, offline validation, mocked-provider plan tests, policy tests, extraction tests, secret
+  and state exclusion, and all prior regression gates under AP-EVAL-M7.
+
+AP-M7 excludes:
+
+- `terraform init` against any backend, authenticated plan or apply, local or remote state, saved
+  plan, backend migration, import, force-unlock, state push, rollback execution, or destroy;
+- a credential, secret value, OIDC token, Workload Identity Federation pool or binding, service-
+  account key, GitHub environment, repository secret, variable, setting, or executable cloud
+  workflow;
+- a provider, metadata-server, registry, DNS, browser, or external network request during the
+  default gate;
+- resource creation, IAM mutation, identity configuration, image publication, DNS record, traffic
+  change, deployment, readback, Live claim, or Application Adoption; and
+- any Finance Assistant requirement, code, infrastructure, state, hostname, identity, access,
+  deployment, migration, or integration activation.
+
+### Dependencies and fixed inputs
+
+| Dependency | Required state | AP-M7 treatment |
+| --- | --- | --- |
+| AP-M3 through AP-M6 | Merged and passing | Preserve contracts, Fixture evidence, runtime behavior, and every regression gate |
+| Repository extraction | Checkpoints 1 through 5 complete | Use only canonical dedicated-root paths and repository identity `comfforts/apps-platform` |
+| Terraform toolchain | Owner-approved in AP-M7-W1 | Pin Terraform 1.17.2 and `hashicorp/google` 8.11.0; never upgrade during the gate |
+| Provider access | Unavailable and prohibited | Use committed schemas, synthetic values, mocked providers, and a pre-populated filesystem mirror only |
+| Qualification environment | Fixed planning facts | Project `comfforts-platform-non-prod` (`455651441682`), `us-west1`, and `apps-staging.comfforts.com` remain reviewed configuration rather than module defaults |
+| Operator-specific values | Unresolved | Require explicit typed values; never query, generate, or infer them |
+| Deployment and Live evidence | Deferred to AP-M8 and AP-M9 | Create no executable mutation path or operational claim |
+
+The unresolved operator values are globally unique state, configuration, log, and evidence bucket
+names; protected workflow subjects and environment; managed-zone resource; immutable edge and
+fixture image digests; OAuth client and Secret Manager version references; billing-account and
+notification-destination references; and the initial Live Registration Set. These are unavailable
+inputs, not permission to query a provider or copy a value from Finance Assistant. The repository
+identity is fixed as `comfforts/apps-platform`; that fact creates no federation or mutation
+authority.
+
+### Work packages
+
+#### AP-M7-W1 · Infrastructure implementation authority
+
+Update `AGENTS.md`, `README.md`, `docs/README.md`, `docs/03_system_design.md`, this plan,
+`docs/05_evaluation_strategy.md`, `docs/06_threat_model.md`, `docs/repository_layout.md`, the AP-M7
+prompt and prompt index, and governance assertions to approve:
+
+- the three deep root-module interfaces and internal reusable-module seams;
+- the exact Terraform and provider versions, configuration contracts, and offline setup boundary;
+- the root ownership, cross-state reference, workflow-template, and operator-input rules; and
+- AP-M7-W2 through AP-M7-W11, AP-EVAL-M7-01 through AP-EVAL-M7-10, evidence, and exclusions.
+
+This package creates no `infrastructure/` path, Terraform file, provider lock, Make target,
+workflow template, credential, or cloud configuration. Owner acceptance of its exact profile is
+required before AP-M7-W2.
+
+#### AP-M7-W2 · Pinned Terraform foundation
+
+Add `.terraform-version`, exact root constraints, root-specific `.terraform.lock.hcl` files,
+provider-mirror setup tooling, ignored cache policy, and the temporary-copy offline validation
+harness. Extend the dedicated check workflow only to install the pinned CLI, verify its checksum,
+populate the locked provider mirror during setup, and then run the unchanged credential-free
+`make check` interface.
+
+Setup may access only the official Terraform release and provider registries and writes only
+ignored dependency data. The gate itself performs no installation or network access and fails on a
+missing tool, mirror entry, checksum, platform lock, or unexpected provider.
+
+#### AP-M7-W3 · Versioned configuration contracts
+
+Add Version 1 JSON Schemas, synthetic examples, loaders, and semantic policy checks for backend,
+platform, fixture, cross-state-reference, and workflow configuration. Define exact required fields,
+closed additional properties, canonical resource-reference forms, state-owner classes, immutable
+image digests, Secret Manager references, protected subjects, destructive targets, and prohibited
+secret or state material.
+
+Examples use reserved synthetic values and cannot be selected as operator configuration. Root
+variables must mirror security-critical schema types and validations; disagreement between schema
+and Terraform fails the gate.
+
+#### AP-M7-W4 · Backend bootstrap root
+
+Implement the internal state-bucket module and the bootstrap root for one platform-state bucket and
+one state bucket per Fixture Application. Enforce uniform bucket-level access, public-access
+prevention, object versioning, noncurrent recovery retention of at least 90 days and 20 newer
+versions, ownership labels, explicit access intent, and minimal non-secret bucket references.
+
+The root owns only backend resources. Tests use mocked provider plans and never initialize,
+migrate, read, write, lock, unlock, or destroy a backend.
+
+#### AP-M7-W5 · Fixture Application roots
+
+Implement one deep Fixture Application module and independent roots for `fixture-public`,
+`fixture-authenticated`, and `fixture-restricted`. Each root owns exactly one Cloud Run runtime,
+runtime identity, direct-ingress restriction, edge-caller grant intent, scaling caps, labels, and
+typed `gcp-cloud-run-v1` attachment reference. It accepts platform issuer, audience, caller, and
+public-key references as data without managing Platform State.
+
+No fixture root owns a load balancer, platform identity, another fixture, application data,
+feature entitlement, backend bucket, or registration activation.
+
+#### AP-M7-W6 · Platform identity and generation foundation
+
+Implement the Platform State configuration bucket, immutable compiled-generation object shape,
+Firestore session database settings, KMS signing key and rotation intent, Secret Manager reference
+inputs, edge runtime identity, edge caller identity, and minimal typed platform references. Secret
+values never enter Terraform variables or state; AP-M7 configures only references and access
+intent.
+
+No root compiles an unreviewed Registration Set, uploads a real generation, creates an OAuth secret,
+or activates a candidate revision during AP-M7.
+
+#### AP-M7-W7 · Shared Edge and hostname forwarding
+
+Implement the platform-owned Cloud Run edge, immutable revision-binding inputs, global reserved
+address, HTTPS load balancer, Google-managed certificate intent, HTTP-to-HTTPS redirect, one
+serverless backend, edge-only IAM, and 100-percent traffic configuration for one explicit candidate.
+The provider URL map contains no application prefixes. Scaling, timeout, concurrency, ingress, and
+identity settings match the approved runtime profile.
+
+The root creates no DNS record and cannot import, mutate, discover, or destroy an application-owned
+runtime. Synthetic plan tests prove exact resource ownership and closed direct-origin intent.
+
+#### AP-M7-W8 · Observability, evidence, retention, and cost controls
+
+Implement the dedicated seven-day log bucket and exclusion intent, 30-day evidence bucket,
+owner-readable access intent, USD 20 budget notification thresholds, required resource labels,
+zero-minimum and maximum-instance caps, Artifact Registry retention intent, and prohibited-service
+policy. Billing-account reference, notification destination, and globally unique names remain
+required operator inputs.
+
+No budget event mutates resources, no raw provider or runtime payload becomes evidence, and no
+cleanup policy performs an owner-unapproved deletion.
+
+#### AP-M7-W9 · Inert workflow authority templates
+
+Add non-executable templates under `infrastructure/workflows/` for advisory plan, exact-main apply,
+rollback, force-unlock, and destroy. Enforce SHA-pinned actions, read-only default permissions,
+explicit OIDC permission only where required, protected-main and environment placeholders,
+root-scoped concurrency, exact source and plan digest binding, explicit targets, same-job plan/apply,
+no uploaded saved plan, stop-on-partial-failure, and retained secret-free outcome metadata.
+
+Templates cannot be placed under `.github/workflows/`, name a real federation provider or service
+account, read a secret, or become executable in AP-M7. AP-M8 must separately approve and realize
+every repository and cloud value.
+
+#### AP-M7-W10 · Terraform qualification gate
+
+Implement AP-EVAL-M7-01 through AP-EVAL-M7-10 in behavior-named tests and the default `make check`
+dependency chain. Run formatting, temporary-copy offline initialization with `-backend=false` and
+locked filesystem mirror, validation, explicit plan-only mocked-provider tests, static policy,
+configuration examples, extraction, prohibited-file scanning, and all prior regressions.
+
+The gate fails on an apply-mode Terraform test, provider access, implicit download, backend access,
+credential lookup, live operator value, executable mutation workflow, skipped root, or false
+deployed claim.
+
+#### AP-M7-W11 · Infrastructure record and AP-M8 handoff
+
+After AP-EVAL-M7 passes, update repository status, documentation index, prompt handoff, governance
+assertions, and the secret-free pull-request record. Record only static Terraform-and-workflow
+implementation. Leave backend initialization, federation, repository settings, provider resources,
+deployment, Live, and Adoption unavailable and route the next task to AP-M8 only after merge.
+
+### Ordered delivery
+
+AP-M7 proceeds in work-package order. Each package is a separately reviewable commit and adds its
+tests with its behavior. No package may defer failing policy tests to AP-M7-W10, introduce a live
+operator value, or create an executable cloud mutation path because a template is already known.
+
+### Acceptance criteria
+
+AP-M7 is accepted only when all of the following are true:
+
+1. The owner has accepted AP-M7-W1's exact root interfaces, toolchain, configuration contracts,
+   work packages, static gate, and exclusions.
+2. Bootstrap, Platform State, and each Fixture Application State are independent roots with one
+   declared owner and no overlapping managed resource.
+3. Reusable modules own no environment or state and remain hidden behind the root interfaces.
+4. Typed non-secret references are the only cross-state exchange; no root reads another backend or
+   uses `terraform_remote_state`.
+5. Root variables and Version 1 configuration schemas reject missing, extra, malformed, secret,
+   state-bearing, placeholder, cross-owner, or unbounded inputs.
+6. Mocked plans enforce topology, direct-origin restriction, identity separation, immutable
+   generation binding, scaling, retention, labels, approved services, and cost controls.
+7. Workflow templates keep plan, apply, rollback, unlock, and destroy authorities explicit,
+   source-bound, root-scoped, and inert.
+8. `make check` passes from a temporary dedicated-root copy without credentials, backend access,
+   external network, provider APIs, repository mutation, or mandatory skips after explicit setup.
+9. The branch contains no state, saved plan, credential, secret value, authenticated artifact,
+   executable cloud workflow, provider result, deployment, DNS change, or Live evidence.
+10. Finance Assistant and every Integration Draft remain unchanged and inactive.
+
+An unlocked provider, implicit registry access, reusable module with state ownership, cross-state
+read, synthetic value accepted as deployable, default-apply Terraform test, workflow capable of
+mutation, or operational claim fails AP-M7.
+
+### Required evidence
+
+The pull-request handoff records branch and AP-M6/governance merge base, evaluated and final
+revisions, AP-M7 work-package commits and paths, Terraform and provider versions, lock digests,
+toolchain checksums, setup and gate commands, working directory, duration, test totals and outcomes,
+identifier and threat coverage, configuration examples, security/privacy impact, limitations, and
+unresolved AP-M8 inputs. It confirms that evaluation used only mocked providers and an offline
+filesystem mirror and that Finance Assistant remained unchanged.
+
+Console output is sufficient. The branch commits no generated report, `.terraform/` directory,
+provider binary, state, saved plan, credential, authenticated artifact, provider response, raw log,
+or Live evidence bundle.
+
+### Security and privacy impact
+
+AP-M7 introduces configuration for resources that will later enforce identity, state, ingress,
+routing, logging, and spend controls. Root isolation, typed references, secret-reference-only
+inputs, plan policy, inert workflows, static tests, and exact locks reduce configuration and supply-
+chain risk. Static success cannot prove IAM enforcement, key custody, direct-origin denial, session
+persistence, provider retention, budget delivery, or recovery.
+
+### Limitations and unresolved inputs
+
+AP-M7 does not initialize or contact a backend, authenticate, plan against GCP, apply, configure
+federation or GitHub environments, publish an image, upload a generation, create a resource, change
+DNS or traffic, exercise a browser, perform provider readback, or collect Live evidence. Operator-
+specific values remain unresolved until AP-M8 reviews them. Provider behavior, direct-origin
+denial, identity custody, multi-instance effects, rollback, recovery, and cost remain AP-M9 evidence.
+
+### Plan trace
+
+| Work packages | Requirements | Decisions | Threats |
+| --- | --- | --- | --- |
+| AP-M7-W1 through AP-M7-W3 | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003, AP-QR-004, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 | AP-TM-003, AP-TM-007, AP-TM-008, AP-TM-010, AP-TM-011, AP-TM-014 |
+| AP-M7-W4, AP-M7-W5 | AP-PR-002, AP-PR-003, AP-PR-007, AP-PR-008; AP-QR-001 through AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-005, ADR-007 | AP-TM-003, AP-TM-004, AP-TM-008 through AP-TM-013 |
+| AP-M7-W6, AP-M7-W7 | AP-PR-001 through AP-PR-005, AP-PR-007, AP-PR-008; AP-QR-001 through AP-QR-006 | ADR-001, ADR-002, ADR-005 through ADR-008 | AP-TM-001 through AP-TM-005, AP-TM-007 through AP-TM-013 |
+| AP-M7-W8, AP-M7-W9 | AP-PR-001, AP-PR-003, AP-PR-007, AP-PR-008; AP-QR-001 through AP-QR-006 | ADR-001, ADR-004, ADR-007 through ADR-009 | AP-TM-007 through AP-TM-013 |
+| AP-M7-W10, AP-M7-W11 | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 | AP-TM-001 through AP-TM-014 |
+
+`AP-PR-006`, `AP-PR-009`, and `AP-TM-014` are negative constraints in AP-M7: infrastructure cannot
+grant a Feature Entitlement, activate an Integration Draft, or claim Application Adoption.
+
 ## Later delivery sequence
 
-AP-M6 authorizes no later work by itself. Each item below requires a new owner-approved branch,
+AP-M7 authorizes no later work by itself. Each item below requires a new owner-approved branch,
 plan refinement, evaluation gate, merge, and clean-main handoff.
-
-### AP-M7 · Terraform and workflow implementation
-
-Implement the bootstrap, platform, and per-fixture roots; reusable modules; static policy checks;
-GitHub workflow templates; extraction inputs; secret references; and deterministic configuration
-tests. AP-M7 may perform local formatting, validation, and credential-free tests only. It does not
-initialize a backend, run an authenticated plan, create a credential, call GCP, mutate repository
-settings, or deploy.
-
-Exact globally unique bucket names, protected workflow subjects and environment, DNS zone resource,
-OAuth client references, notification destination, and initial Registration Set values are operator
-inputs resolved through reviewed configuration rather than reusable module assumptions. The
-repository identity is fixed as `comfforts/apps-platform`; it creates no federation authority.
 
 ### AP-M8 · Non-production qualification deployment
 
-After the repository reconciliation and AP-M7 merge, use separately approved operator actions to
+After the AP-M7 merge, use separately approved operator actions to
 configure protected environments and federation, bootstrap backends, run authenticated plans,
 deploy the platform and Fixture Application resources, and perform the separately approved
 `apps-staging.comfforts.com` DNS/TLS action. Deployment evidence proves only that named resources
@@ -1082,11 +1344,11 @@ The following exact inputs remain required at their named later boundary:
 
 | Input | Required before |
 | --- | --- |
-| Exact protected workflow subjects, protected environment, and federation bindings for `comfforts/apps-platform` | AP-M7 federation implementation and AP-M8 deployment |
-| Globally unique state, configuration, log, and evidence bucket names | AP-M7 environment configuration |
-| DNS managed-zone resource and exact separately approved record transaction | AP-M7 environment configuration and AP-M8 DNS action |
-| OAuth client identifiers, redirect registration, secret references, and owner notification destination | AP-M7 environment configuration and AP-M8 deployment |
-| Initial live Fixture Registration Set, restricted synthetic members, image digests, and attachment resource references | AP-M6/AP-M7 implementation and AP-M8 deployment |
+| Exact protected workflow subjects, protected environment, and federation bindings for `comfforts/apps-platform` | AP-M8 operator-input review and deployment |
+| Globally unique state, configuration, log, and evidence bucket names | AP-M8 operator-input review |
+| DNS managed-zone resource and exact separately approved record transaction | AP-M8 operator-input review and DNS action |
+| OAuth client identifiers, redirect registration, secret references, billing-account reference, and owner notification destination | AP-M8 operator-input review and deployment |
+| Initial live Fixture Registration Set, restricted synthetic members, image digests, and attachment resource references | AP-M8 operator-input review and deployment |
 | Application-specific principals, data, providers, entitlements, state transfer, and cutover | Each Application Adoption |
 
 These are unavailable inputs, not permission to query a provider, copy Finance configuration, or

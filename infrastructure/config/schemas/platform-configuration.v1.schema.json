@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:comfforts:app-platform:infrastructure-config:platform:v1",
+  "title": "Platform Configuration Version 1",
+  "description": "Non-secret reviewed inputs for the Shared Edge Platform State root.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "configuration_kind",
+    "configuration_class",
+    "repository",
+    "project_id",
+    "project_number",
+    "region",
+    "qualification_hostname",
+    "state_owner",
+    "configuration_bucket",
+    "log_bucket",
+    "evidence_bucket",
+    "edge_image_digest",
+    "oauth_client_id",
+    "oauth_client_secret_version",
+    "signing_key_version",
+    "managed_zone_resource",
+    "billing_account_reference",
+    "notification_destination",
+    "registration_generation",
+    "labels"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": 1
+    },
+    "configuration_kind": {
+      "const": "platform"
+    },
+    "configuration_class": {
+      "enum": [
+        "operator",
+        "synthetic"
+      ]
+    },
+    "repository": {
+      "const": "comfforts/apps-platform"
+    },
+    "project_id": {
+      "$ref": "#/$defs/projectId"
+    },
+    "project_number": {
+      "$ref": "#/$defs/projectNumber"
+    },
+    "region": {
+      "$ref": "#/$defs/region"
+    },
+    "qualification_hostname": {
+      "$ref": "#/$defs/hostname"
+    },
+    "state_owner": {
+      "const": "platform"
+    },
+    "configuration_bucket": {
+      "$ref": "#/$defs/bucketName"
+    },
+    "log_bucket": {
+      "$ref": "#/$defs/bucketName"
+    },
+    "evidence_bucket": {
+      "$ref": "#/$defs/bucketName"
+    },
+    "edge_image_digest": {
+      "$ref": "#/$defs/imageDigest"
+    },
+    "oauth_client_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{6,254}[A-Za-z0-9]$"
+    },
+    "oauth_client_secret_version": {
+      "$ref": "#/$defs/secretVersion"
+    },
+    "signing_key_version": {
+      "$ref": "#/$defs/kmsKeyVersion"
+    },
+    "managed_zone_resource": {
+      "$ref": "#/$defs/managedZone"
+    },
+    "billing_account_reference": {
+      "$ref": "#/$defs/billingAccount"
+    },
+    "notification_destination": {
+      "$ref": "#/$defs/notificationChannel"
+    },
+    "registration_generation": {
+      "$ref": "#/$defs/registrationGeneration"
+    },
+    "labels": {
+      "$ref": "#/$defs/labels"
+    }
+  },
+  "$defs": {
+    "projectId": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 30,
+      "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+    },
+    "projectNumber": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 19,
+      "pattern": "^[1-9][0-9]{5,18}$"
+    },
+    "region": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 63,
+      "pattern": "^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])$"
+    },
+    "hostname": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 253,
+      "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z][a-z0-9-]{1,62}$"
+    },
+    "bucketName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$"
+    },
+    "imageDigest": {
+      "type": "string",
+      "minLength": 90,
+      "maxLength": 512,
+      "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]-docker\\.pkg\\.dev/[a-z][a-z0-9-]{4,28}[a-z0-9]/[a-z][a-z0-9_-]{0,126}/[a-z][a-z0-9._-]{0,126}@sha256:[0-9a-f]{64}$"
+    },
+    "secretVersion": {
+      "type": "string",
+      "minLength": 35,
+      "maxLength": 512,
+      "pattern": "^projects/(?:[a-z][a-z0-9-]{4,28}[a-z0-9]|[1-9][0-9]{5,18})/secrets/[A-Za-z][A-Za-z0-9_-]{0,254}/versions/[1-9][0-9]{0,18}$"
+    },
+    "kmsKeyVersion": {
+      "type": "string",
+      "minLength": 60,
+      "maxLength": 512,
+      "pattern": "^projects/(?:[a-z][a-z0-9-]{4,28}[a-z0-9]|[1-9][0-9]{5,18})/locations/[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}/cryptoKeyVersions/[1-9][0-9]{0,18}$"
+    },
+    "managedZone": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 256,
+      "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/managedZones/[a-z][a-z0-9-]{0,61}[a-z0-9]$"
+    },
+    "billingAccount": {
+      "type": "string",
+      "minLength": 36,
+      "maxLength": 36,
+      "pattern": "^billingAccounts/[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$"
+    },
+    "notificationChannel": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 256,
+      "pattern": "^projects/(?:[a-z][a-z0-9-]{4,28}[a-z0-9]|[1-9][0-9]{5,18})/notificationChannels/[1-9][0-9]{0,18}$"
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 71,
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "sourceRevision": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 40,
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "objectName": {
+      "type": "string",
+      "minLength": 27,
+      "maxLength": 128,
+      "pattern": "^generations/[1-9][0-9]{0,9}/compiled\\.json$"
+    },
+    "registrationGeneration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_revision",
+        "generation",
+        "generation_digest",
+        "content_digest",
+        "object_name",
+        "object_generation"
+      ],
+      "properties": {
+        "source_revision": {
+          "$ref": "#/$defs/sourceRevision"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "generation_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "content_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "object_name": {
+          "$ref": "#/$defs/objectName"
+        },
+        "object_generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment",
+        "managed_by",
+        "state_owner"
+      ],
+      "properties": {
+        "environment": {
+          "const": "qualification"
+        },
+        "managed_by": {
+          "const": "terraform"
+        },
+        "state_owner": {
+          "const": "platform"
+        }
+      }
+    }
+  }
+}

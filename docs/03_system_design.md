@@ -1,6 +1,7 @@
 # App Platform system design
 
-Version 0.8 | Status: Fixture-qualified logical design and approved AP-M6 runtime profile;
+Version 0.9 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, and approved
+AP-M7 Terraform configuration profile;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -509,6 +510,70 @@ operator procedures rather than hidden Terraform side effects. A provider error 
 inspection. Manual console changes remain drift and cannot become the reviewed baseline without a
 source change.
 
+### AP-M7 Terraform configuration profile
+
+AP-M7 implements Terraform 1.17.2 configuration with `hashicorp/google` 8.11.0. Every root records
+the exact CLI constraint, exact provider constraint, and a committed provider lock for
+`linux_amd64` and `darwin_arm64`. Provider installation is an explicit setup action into an ignored
+filesystem mirror; the default gate never consults a registry or upgrades a lock.
+
+The external Terraform seam consists of three deep root-module interfaces:
+
+```text
+bootstrap(backend_configuration) -> backend_reference_set
+fixture_application(fixture_configuration, platform_reference) -> attachment_reference
+platform(platform_configuration, attachment_references, registration_generation)
+    -> platform_reference_set
+```
+
+`bootstrap/` owns only backend buckets, access intent, versioning, and recovery policy. One
+`fixtures/<application-id>/` root owns exactly one Fixture Application's runtime and ingress IAM.
+`platform/` owns the Shared Edge, edge identity, session and signing resources, registration-
+generation objects, hostname-level load balancing and certificate intent, observability, evidence,
+and cost controls. DNS record mutation is absent. Each root accepts one typed configuration object
+plus the minimum typed non-secret references it consumes and returns only typed non-secret
+references. Reusable modules are internal implementation: callers and tests use the root
+interfaces, and no module reads another root's state.
+
+Configuration contracts live under `infrastructure/config/` as versioned JSON Schemas with
+synthetic examples for backend, platform, fixture, cross-state-reference, and workflow inputs.
+Terraform variable types and validation duplicate the security-critical constraints at the root
+interface. Committed configuration may contain project, region, resource, image-digest, audience,
+issuer, key-version, and Secret Manager version references, but never secret values, credentials,
+restricted members, state addresses, saved plans, or provider responses. Every cross-state value is
+reviewed data conforming to the reference contract; `terraform_remote_state`, backend-object reads,
+and application credentials are prohibited.
+
+Each non-bootstrap root declares an empty `backend "gcs" {}` block. Bucket and prefix values enter
+only through an operator-reviewed, non-secret backend configuration outside reusable modules.
+Backend initialization, migration, lineage verification, and destruction remain AP-M8 operator
+actions. The bootstrap root starts locally only during that separately approved procedure; AP-M7
+does not initialize it or create local state.
+
+The only executable AP-M7 workflow remains the credential-free repository check. Operator workflow
+designs live under `infrastructure/workflows/` as inert `*.yml.tmpl` files for advisory planning,
+exact-main apply, rollback, force-unlock, and destroy. Static validation requires SHA-pinned actions,
+read-only repository permissions by default, explicit `id-token: write` only in templates that need
+federation, protected-environment and protected-main placeholders, per-root concurrency, exact
+source and plan digest binding, explicit targets, and no persisted plan. AP-M8 must separately
+approve values, repository settings, environments, federation, and activation before any template
+can become an executable cloud workflow.
+
+AP-M7's Terraform tests use only explicit `command = plan` runs and mocked providers. Validation
+runs from a temporary copy with `-backend=false`, committed locks, and the pre-populated filesystem
+mirror. It performs no apply, backend access, credential lookup, metadata-server request, provider
+API call, DNS lookup, repository mutation, or external network request. A missing CLI, mirror,
+provider, lock checksum, operator input, or static assertion fails rather than downloading,
+skipping, or inventing a value.
+
+The fixed environment facts are repository `comfforts/apps-platform`, project
+`comfforts-platform-non-prod` (`455651441682`), region `us-west1`, and qualification hostname
+`apps-staging.comfforts.com`. Globally unique bucket names, protected workflow subjects and
+environment, managed-zone resource, immutable image digests, OAuth client and secret-version
+references, billing-account reference, notification destination, and the initial Live Registration
+Set remain unresolved operator inputs. AP-M7 supplies their typed interfaces and synthetic test
+values only.
+
 ## Failure and rollback behavior
 
 - Schema, semantic, transition, or ownership failure produces ordered violations and no compiled
@@ -766,7 +831,8 @@ the local sink observation degraded and never changes the visitor response.
 The production event adapter writes the typed JSON object through an injected standard logger;
 deterministic tests use an in-memory sink. Neither adapter accepts an arbitrary event mapping.
 Provider log routing, the dedicated bucket, seven-day retention, owner-only access, and absence of
-external export remain AP-M7 through AP-M9 configuration and Live evidence, not AP-M6 behavior.
+external export remain AP-M7 static configuration plus AP-M8 deployment and AP-M9 Live evidence,
+not AP-M6 behavior.
 
 ## Fixture boundary
 
@@ -965,9 +1031,10 @@ satisfy their declared offline gate. AP-M4 supplies the Fixture evidence defined
 Version 0.3 selects the initial GCP Live topology, Version 0.4 selects its identity trust profile,
 Version 0.5 selects state and operator authority, Version 0.6 selects activation, DNS, readback, and
 rollback behavior, Version 0.7 selects observability, evidence, incident, and cost controls, and
-Version 0.8 selects the AP-M6 network module, dependency, and bounded-request profile. None supplies
-Terraform, provider, network, identity, deployment, or Live evidence. Adoption qualification
-remains a later application-owned gate.
+Version 0.8 selects the AP-M6 network module, dependency, and bounded-request profile. Version 0.9
+selects the AP-M7 root interfaces, configuration contracts, pinned toolchain, static verification,
+and inert workflow-template profile. None supplies provider, network, identity, deployment, or Live
+evidence. Adoption qualification remains a later application-owned gate.
 
 ## Design trace
 
@@ -982,4 +1049,5 @@ remains a later application-owned gate.
 | Initial GCP Live topology and Cloud Run attachments | AP-PR-001, AP-PR-002, AP-PR-003, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-002, AP-QR-003, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-005 |
 | AP-M6 network module and bounded-request profile | AP-PR-001 through AP-PR-008; AP-QR-002 through AP-QR-006 | ADR-001 through ADR-006, ADR-008, ADR-009 |
 | Terraform state and operator authority | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
+| AP-M7 Terraform configuration profile | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
 | Observability, evidence, incidents, and cost | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007, AP-PR-008; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-004, ADR-009 |

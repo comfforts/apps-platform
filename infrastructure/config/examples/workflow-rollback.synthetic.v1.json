@@ -1,0 +1,14 @@
+{
+  "contract_version": 1,
+  "configuration_kind": "workflow",
+  "configuration_class": "synthetic",
+  "operation": "rollback",
+  "repository": "comfforts/apps-platform",
+  "source_revision": "0000000000000000000000000000000000000000",
+  "protected_main_ref": "refs/heads/main",
+  "protected_environment": "synthetic-ap-m8",
+  "protected_subject": "repo:comfforts/apps-platform:environment:synthetic-ap-m8",
+  "root_target": "platform",
+  "plan_digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+  "destructive_target": null
+}

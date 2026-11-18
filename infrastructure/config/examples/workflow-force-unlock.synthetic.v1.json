@@ -1,0 +1,19 @@
+{
+  "contract_version": 1,
+  "configuration_kind": "workflow",
+  "configuration_class": "synthetic",
+  "operation": "force-unlock",
+  "repository": "comfforts/apps-platform",
+  "source_revision": "0000000000000000000000000000000000000000",
+  "protected_main_ref": "refs/heads/main",
+  "protected_environment": "synthetic-ap-m8",
+  "protected_subject": "repo:comfforts/apps-platform:environment:synthetic-ap-m8",
+  "root_target": "platform",
+  "plan_digest": null,
+  "destructive_target": {
+    "operation": "force-unlock",
+    "root_target": "platform",
+    "target_id": "synthetic-lock-id",
+    "confirmation_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777"
+  }
+}

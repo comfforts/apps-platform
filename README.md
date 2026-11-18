@@ -1,13 +1,26 @@
 # Comfforts App Platform
 
-Status: AP-M6 is locally implemented and passes its deterministic AP-EVAL-M6 repository gate.
+Status: AP-M7 is locally implemented and passes its deterministic AP-EVAL-M7 repository gate.
 Immutable generation loading, catalogue and routing, Platform Sessions and admission, identity
 assertions and application verification, Cloud Run attachment resolution, bounded HTTP, SSE, and
 WebSocket proxying, read-only status, correlation, adapter-health observations, and redacted
 completion events are implemented locally. AP-M4 remains Fixture-qualified and AP-M5 remains
-planning-validated. AP-M6 supplies repository implementation evidence only.
-No Terraform configuration, cloud resource, deployment, Live evidence, or Application Adoption is
-implemented or qualified.
+planning-validated. AP-M6 and AP-M7 supply repository implementation evidence only. AP-M7-W2
+implements the pinned Terraform foundation,
+and AP-M7-W3 implements only the Version 1 non-secret configuration schemas, synthetic examples,
+and deterministic loader and semantic policy. AP-M7-W4 implements static backend-bootstrap and
+state-bucket configuration. AP-M7-W5 implements three isolated Fixture Application roots, one
+internal runtime module, and typed attachment references with plan-only mocked-provider tests.
+AP-M7-W6 implements the Platform State identity and immutable-generation foundation. AP-M7-W7
+implements the immutable Shared Edge candidate and hostname-forwarding topology. AP-M7-W8
+implements the bounded observability, evidence-retention, artifact-retention, label, scaling, and
+cost-control intent. AP-M7-W9 implements the five inert operator-workflow authority templates, and
+AP-M7-W10 binds AP-EVAL-M7-01 through AP-EVAL-M7-10 and all prior regressions into the default
+credential-free gate. All Terraform roots pass offline initialization, validation, and plan-only
+mocked-provider tests; every workflow template passes static non-mutation policy. AP-M7-W11 records
+this static result and the post-merge handoff boundary. No backend was initialized, provider
+operation performed, cloud resource created, generation uploaded or activated, or deployment,
+Live evidence, or Application Adoption qualified.
 
 Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
 history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
@@ -23,11 +36,13 @@ consuming application adopts them through its own requirements and release proce
 From the dedicated repository root:
 
 ```bash
+make terraform-setup
 make check
 ```
 
-`check` is credential-free and non-mutating. It does not access GCP, DNS, IAP, provider accounts,
-or the live Finance Assistant deployment.
+`terraform-setup` downloads only the checksum-pinned public Terraform CLI and locked provider into
+the ignored project-local cache. `check` is credential-free, offline, and non-mutating. It does not
+access GCP, DNS, IAP, provider accounts, or the live Finance Assistant deployment.
 
 ## Project authority
 
@@ -85,10 +100,39 @@ call, credential, or Live readback is created or qualified.
 AP-M6-W10 enforces the complete AP-EVAL-M6 matrix, including exact numeric boundaries, immutable
 generation and identity paths, fake-provider parity, streaming cancellation and isolation,
 loopback-only networking, history-independent extraction, dependency locking, redaction, and all
-prior regressions. AP-M6-W11 reconciles this status. The next AP-M7 authority proposal may begin
-from updated `main` after this repository-governance closeout merges. AP-M7 must remain a separate
-branch and pull request and still requires owner-approved detailed plan and evaluation authority
-before Terraform or workflow implementation.
+prior regressions. AP-M6-W11 reconciles this status. AP-M7-W1 defines the detailed Terraform-and-
+workflow implementation authority. AP-M7-W2 implements its pinned, credential-free Terraform
+foundation and deterministic offline root validation. AP-M7-W3 implements the five closed
+configuration contract families. AP-M7-W4 implements the deep bootstrap root and internal hardened
+state-bucket module without an IAM principal, backend operation, or provider call. AP-M7-W5
+implements the three deep Fixture Application roots and their internal Cloud Run runtime module,
+runtime identities, protected ingress, edge-only Invoker intent, bounded scaling, required labels,
+non-secret platform references, and typed `gcp-cloud-run-v1` attachment outputs. All provider
+behavior is mocked and plan-only. AP-M7-W6 implements the deep Platform foundation module and root
+for private versioned configuration storage, immutable generation metadata, Firestore Native
+Platform Sessions with TTL and eight-hour application expiry intent, separate edge runtime and
+caller identities, regional software ES256 signing with manual-rotation intent, versioned OAuth
+secret references, least-privilege access intent, and minimal typed platform outputs. AP-M7-W7
+implements the deep Shared Edge module and Platform State composition for one immutable Cloud Run
+candidate, closed direct-origin posture, bounded scaling and timeout profile, typed Fixture
+Application references consumed only as data, one global address and serverless backend, managed-
+certificate intent, hostname-only HTTPS forwarding, and HTTP-to-HTTPS redirect. All provider
+behavior remains mocked and plan-only; no DNS record, application runtime, credential, backend
+operation, provider operation, deployment, or Live evidence exists. AP-M7-W8 adds a regional
+seven-day log bucket, minimized internal sink, and `_Default`-bucket exclusion, private 30-day
+evidence storage, explicit owner-readable access intent, a USD 20 notification-only budget,
+dry-run-first Artifact Registry retention, required-label and runtime-cap policy, and explicit
+prohibited-capability assertions. It uploads no evidence or image, exports no log, and performs no
+automatic budget or cleanup mutation. AP-M7-W9 adds parseable, non-executable advisory-plan,
+exact-main apply, rollback, force-unlock, and destroy templates outside `.github/workflows/`. They
+use only unresolved operator placeholders, full-length action pins, read-only default permissions,
+protected-main/source and plan-digest binding, root concurrency, runner-temporary plans, same-job
+plan/apply, explicit destructive confirmation, and secret-free outcome metadata. AP-M7-W10
+enforces the complete AP-EVAL-M7 matrix, history-independent extraction, offline copy-local provider
+use, plan-only mocked tests for every root, warning and prohibited-artifact failure, and all prior
+regressions. AP-M7-W11 reconciles this static status. Detailed AP-M8 authority may be proposed only
+after the AP-M7 pull request merges to clean `main`; AP-M7 creates no deployment or mutation
+authority.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
 preserved their history. The separately reviewed source cleanup removed the historical colocated

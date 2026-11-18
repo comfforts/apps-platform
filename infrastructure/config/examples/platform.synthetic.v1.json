@@ -1,0 +1,34 @@
+{
+  "contract_version": 1,
+  "configuration_kind": "platform",
+  "configuration_class": "synthetic",
+  "repository": "comfforts/apps-platform",
+  "project_id": "synthetic-platform",
+  "project_number": "123456789012",
+  "region": "us-west1",
+  "qualification_hostname": "apps.example.invalid",
+  "state_owner": "platform",
+  "configuration_bucket": "synthetic-platform-configuration",
+  "log_bucket": "synthetic-platform-logs",
+  "evidence_bucket": "synthetic-platform-evidence",
+  "edge_image_digest": "us-west1-docker.pkg.dev/synthetic-platform/synthetic-images/shared-edge@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "oauth_client_id": "synthetic-client.apps.example.invalid",
+  "oauth_client_secret_version": "projects/synthetic-platform/secrets/synthetic-oauth-secret/versions/1",
+  "signing_key_version": "projects/synthetic-platform/locations/us-west1/keyRings/synthetic-platform/cryptoKeys/synthetic-edge-signing/cryptoKeyVersions/1",
+  "managed_zone_resource": "projects/synthetic-platform/managedZones/synthetic-qualification-zone",
+  "billing_account_reference": "billingAccounts/000000-000000-000000",
+  "notification_destination": "projects/synthetic-platform/notificationChannels/1",
+  "registration_generation": {
+    "source_revision": "0000000000000000000000000000000000000000",
+    "generation": 1,
+    "generation_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "content_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "object_name": "generations/1/compiled.json",
+    "object_generation": 1
+  },
+  "labels": {
+    "environment": "qualification",
+    "managed_by": "terraform",
+    "state_owner": "platform"
+  }
+}

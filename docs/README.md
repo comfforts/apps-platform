@@ -1,7 +1,8 @@
 # App Platform documentation
 
-Version 1.2 | Status: AP-M6 locally implemented and passing its deterministic repository gate;
-provider operation, Terraform, deployment, Live, and Adoption qualification unavailable
+Version 1.12 | Status: AP-M7 locally implemented and passing its deterministic repository gate;
+AP-M7-W11 static implementation record and post-merge handoff reconciled;
+backend operation, provider operation, deployment, Live, and Adoption qualification unavailable
 
 This directory is the design authority for Comfforts App Platform. AP-M3 supplies Contract (`C`)
 evidence through the logical design, threat boundary, Version 1 schemas, deterministic compiler,
@@ -12,8 +13,8 @@ topology, identity, state, operator, lifecycle, evidence, incident, and cost pla
 deterministic planning gate. AP-M6 supplies locally tested repository implementation of the
 networked Shared Edge and production-adapter logic through deterministic fakes and process-local
 loopback. Live (`L`) and Adoption (`A`) evidence remain unavailable. No deployed Shared Edge,
-provider identity, Terraform configuration, cloud resource, DNS change,
-application migration, or production credential is implemented.
+provider identity, cloud resource, DNS change, application migration, or production credential is
+implemented.
 Repository extraction is governed by a reviewed runbook. Its history-preserving extraction, root
 check, dedicated-repository settings, reconciliation merge, explicit canonical-authority cutover,
 and separately reviewed source-repository cleanup are complete. This dedicated repository is the
@@ -30,10 +31,10 @@ sole App Platform authority; the extraction supplied no Terraform, cloud, or app
 5. [System design](03_system_design.md) defines logical modules, interfaces, lifecycle, state
    ownership, selected Live topology, and unresolved implementation inputs.
 6. [Threat model](06_threat_model.md) defines trust zones, threats, controls, and evidence classes.
-7. [AP-M3 through AP-M6 implementation plan](04_implementation_plan.md) owns delivery items 3
-   through 6 and separates runtime, Terraform, deployment, and Live work.
-8. [Evaluation strategy](05_evaluation_strategy.md) defines AP-M3 through AP-M6 deterministic gates
-   and the future AP-M7 through AP-M9 claim boundaries.
+7. [AP-M3 through AP-M7 implementation plan](04_implementation_plan.md) owns delivery items 3
+   through 7 and separates static Terraform, deployment, and Live work.
+8. [Evaluation strategy](05_evaluation_strategy.md) defines AP-M3 through AP-M7 deterministic gates
+   and the future AP-M8 and AP-M9 claim boundaries.
 9. [Version 1 contract index](../contracts/README.md) owns machine interfaces subordinate to the
    requirements, accepted decisions, and system design.
 10. [Repository layout](repository_layout.md) defines dedicated-root capability ownership and
@@ -44,8 +45,8 @@ sole App Platform authority; the extraction supplied no Terraform, cloud, or app
 13. [Repository extraction handoff](repository_extraction_handoff.md) records the secret-free
     evidence for all five completed extraction checkpoints and the canonical repository boundary.
 14. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
-15. [Terraform-and-workflow handoff](../prompts/starting_prompt.md) provides a bounded entry point
-    for proposing AP-M7 authority from updated `main` after this governance closeout merges.
+15. [AP-M8 authority handoff](../prompts/starting_prompt.md) provides a bounded entry point for
+    proposing detailed qualification-deployment authority only after the AP-M7 pull request merges.
 
 AP-M3 Contract behavior, AP-M4 Fixture behavior, and AP-M5 planning authority are merged and pass
 their deterministic gates. AP-M6-W1 through AP-M6-W11 are implemented locally, and the complete
@@ -72,6 +73,12 @@ and verifies exact limits, isolation, and redaction. AP-M6-W11 records only loca
 status and hands the next task to AP-M7 after merge. An absent behavior or later authority must not
 be inferred from planning documents, fixture code, branch history, discussion, or an Integration
 Draft.
+
+AP-M7-W1 through AP-M7-W11 are implemented locally, and the complete AP-EVAL-M7 gate passes.
+That result covers only static Terraform configuration, Version 1 configuration contracts,
+plan-only mocked-provider tests, inert workflow templates, offline extraction, and prior repository
+regressions. It proves no backend, provider, repository-setting, federation, deployment, DNS,
+Live, or Adoption behavior. Detailed AP-M8 authority remains a post-merge, owner-approved task.
 
 ## Incremental delivery sequence
 
@@ -100,10 +107,44 @@ small reviewable commits, merge it, and only then begin the next item.
    repository implementation evidence only: AP-M6 performs no Terraform, cloud mutation,
    deployment, Live qualification, or Application Adoption. Repository extraction, reconciliation,
    canonical cutover, and source cleanup are complete.
-7. **Terraform and workflow implementation — next after governance closeout:** AP-M7 must first
-   refine its detailed implementation and evaluation authority on a separate owner-approved branch
-   after this closeout merges. It may then implement reviewed configuration and static gates only;
-   it performs no authenticated plan or apply.
+7. **Terraform and workflow implementation — locally implemented and statically verified:** AP-M7-W1
+   defines the root interfaces, configuration contracts, work packages, and deterministic
+   AP-EVAL-M7 gate. AP-M7-W2 implements exact CLI/provider constraints, committed root locks,
+   ignored local dependencies, and disposable-copy offline format/init/validate checks. AP-M7-W3
+   implements five closed Version 1 configuration schema families, synthetic examples, and bounded
+   deterministic loading and semantic policy. AP-M7-W4 implements one internal state-bucket module,
+   the bootstrap root, four exclusive state owners, recovery controls, and typed backend references
+   tested only through plan-mode mocked providers. AP-M7-W5 implements one internal Fixture
+   Application module and independent public, authenticated, and restricted roots with runtime
+   identities, internal-only ingress, edge-caller Invoker intent, bounded scaling, non-secret
+   identity references, and typed attachment outputs. AP-M7-W6 implements private versioned
+   configuration storage, immutable generation metadata without object upload, Firestore Native
+   session settings and TTL, separate edge identities, regional software ES256 signing with manual
+   rotation and overlap intent, version-only OAuth secret references, minimal IAM intent, and typed
+   platform outputs. AP-M7-W7 implements one immutable, explicitly selected Cloud Run edge
+   candidate with the approved region, identity, ingress, scale, concurrency, and timeout profile;
+   three typed Fixture Application references consumed only as data; one global address, managed-
+   certificate intent, serverless backend, hostname-level URL map without application prefixes,
+   HTTPS forwarding, and HTTP-to-HTTPS redirect. Static and mocked-plan checks reject DNS, CDN,
+   WAF, arbitrary target URLs, application runtime ownership, direct-origin exposure, and
+   fragmented provider routing. AP-M7-W8 implements a regional seven-day log bucket, minimized
+   internal sink with prohibited-field exclusions, `_Default`-bucket exclusion for Shared Edge
+   revision logs, private 30-day evidence storage, owner-readable access intent, notification-only
+   USD 20 budget thresholds, dry-run-first image retention, required labels, exact runtime caps,
+   and prohibited-capability policy. Static and mocked-plan checks reject external log export, raw
+   evidence objects, public evidence access, automatic budget mutation, active cleanup deletion,
+   and later provider services. AP-M7-W9 implements separate inert advisory-plan, exact-main apply,
+   rollback, force-unlock, and destroy templates under `infrastructure/workflows/`. Static checks
+   enforce full-length action pins, read-only default permissions, protected environment and main
+   placeholders, exact source/plan binding, root concurrency, same-job plan/apply, explicit
+   destructive targets, stop-on-partial-failure behavior, runner-temporary plans, secret-free
+   outcome metadata, and absence from `.github/workflows/`. AP-M7-W10 binds AP-EVAL-M7-01 through
+   AP-EVAL-M7-10 and all prior regression gates into `make check`; it enforces offline copy-local
+   provider use, history-independent extraction, explicit plan-only mocked tests for every root,
+   warning failure, prohibited-artifact scanning, and complete work-package and threat traceability.
+   AP-M7-W11 records only static repository implementation and the post-merge handoff. AP-M7
+   performs no authenticated plan or apply and supplies no provider, deployment, Live, or Adoption
+   evidence.
 8. **Non-production qualification deployment — later:** AP-M8 may bootstrap and deploy only through
    separately approved protected operator actions after repository extraction and AP-M7 merge.
 9. **Live qualification — later:** AP-M9 must execute the approved Live gates against the exact
@@ -131,8 +172,9 @@ Conflicts are resolved in this order:
 Current AP-M3 and AP-M4 authorities authorize the Version 1 contract implementation, deterministic
 in-process Fixture harness, and their Contract and Fixture evidence. AP-M5 authorizes planning, and
 AP-M6 authorizes only local provider-runtime implementation and tests after AP-M6-W1 acceptance.
-Terraform, deployment, Live qualification, and Application Adoption remain separate AP-M7 through
-AP-M9 or application-owned gates.
+AP-M7 authorizes only static Terraform configuration and inert workflow templates after AP-M7-W1
+acceptance. Deployment, Live qualification, and Application Adoption remain separate AP-M8,
+AP-M9, or application-owned gates.
 
 ## Scope labels
 
@@ -166,7 +208,9 @@ requirements or silently specialize the platform around one application.
 
 Passing contract and Fixture tests are revision-scoped Contract and Fixture evidence. Passing
 AP-EVAL-M5 proves planning consistency only. Passing AP-EVAL-M6 proves only the locally tested
-repository implementation named by that gate. None is deployed or operational evidence. Each
-future capability must pass its named gate and, where applicable, retain secret-free Live evidence.
+runtime implementation named by that gate. Passing AP-EVAL-M7 proves only static Terraform,
+configuration-contract, and inert workflow-template implementation at the evaluated revision.
+None is deployed or operational evidence. Each future capability must pass its named gate and,
+where applicable, retain secret-free Live evidence.
 Credentials, Terraform state, saved plans, authenticated browser state, and unredacted external
 payloads are never committed.

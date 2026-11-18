@@ -44,6 +44,12 @@ change in the repository.
   no backend initialization, authenticated plan or apply, credential or federation configuration,
   provider call, repository-setting change, cloud or DNS mutation, deployment, Live claim, or
   Application Adoption.
+- The AP-M8 authority slice may define qualification-deployment work packages, prerequisites,
+  operator checkpoints, and AP-EVAL-M8 only. Until that complete authority is owner-accepted,
+  merged, and separately invoked, it authorizes no repository-setting change, federation or IAM
+  binding, credential use, backend operation, authenticated plan or apply, provider call, image or
+  generation publication, DNS or traffic change, deployment, recovery action, Live claim, or
+  Application Adoption.
 - Keep platform implementation, contracts, tests, prompts, and evidence inside this dedicated
   canonical repository. Extraction does not make Finance Assistant authority applicable here. The
   completed source-repository cleanup does not transfer Finance Assistant requirements, behavior,

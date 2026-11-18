@@ -2,8 +2,10 @@
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
 complete; AP-M7 static Terraform, configuration, and inert workflows implemented and passing the
-deterministic repository gate; no backend or provider operation, cloud resource, IAM mutation,
-deployment, or Live qualification performed
+deterministic repository gate; AP-M8-W1 authority proposal complete and passing its deterministic
+governance gate; reserved backend, deployment, and evidence-support locations remain absent; no
+backend or provider operation, cloud resource, IAM mutation, build, publication, deployment, DNS
+change, evidence collection, or Live qualification performed
 
 The project is organized at the dedicated repository root produced by the history-preserving
 subtree extraction. Paths remain project-relative so repository identity does not alter platform
@@ -20,6 +22,7 @@ contracts, verification, or ownership boundaries.
 | `GLOSSARY.md` | Canonical platform vocabulary |
 | `docs/` | Platform design authority, runbooks, and evidence indexes |
 | `docs/runbooks/` | Subordinate operator procedures requiring their own explicit approvals |
+| `docs/runbooks/qualification_deployment.md` | Proposal-only AP-M8 protected-setting, identity, backend, exact deployment sequence, DNS/TLS, and evidence checkpoints; no action authority |
 | `prompts/` | Bounded task entry points that link to authoritative documents |
 | `integrations/` | Inactive application-adoption inputs with no consuming-app authority |
 | `contracts/` | Version 1 schemas, deterministic reference compiler, reviewed contract vectors, and bounded runtime JSON loading |
@@ -42,6 +45,33 @@ contracts, verification, or ownership boundaries.
 | `infrastructure/terraform/modules/shared-edge/` | AP-M7-W7 internal immutable Cloud Run candidate, direct-origin restriction, serverless backend, certificate, HTTPS forwarding, and HTTP redirect implementation |
 | `infrastructure/terraform/modules/platform-controls/` | AP-M7-W8 internal regional logging, default-bucket exclusion, private evidence, owner-read, budget-notification, and dry-run artifact-retention intent implementation |
 | `infrastructure/workflows/` | AP-M7-W9 parseable but non-executable advisory-plan, apply, rollback, force-unlock, and destroy authority templates |
+
+## Proposed AP-M8 capability locations
+
+These paths are authority reservations, not implemented capabilities or permission to create them:
+
+| Path | Intended owner |
+| --- | --- |
+| `infrastructure/backend/bootstrap-backend.tf.tmpl` | AP-M8-W5 reviewed empty GCS backend declaration for a private temporary bootstrap-root copy only |
+| `infrastructure/backend/render_bootstrap_backend.py` | AP-M8-W5 credential-free deterministic renderer that refuses overwrite and emits no value, state, credential, or provider data |
+| `edge/production.py` | AP-M8-W6 production composition of only the already accepted Shared Edge adapters |
+| `fixtures/runtime.py` | AP-M8-W6 networked synthetic Fixture Application runtime with independent production assertion verification |
+| `infrastructure/images/shared-edge/Dockerfile` | AP-M8-W6 pinned non-root Shared Edge image definition; no credential or mutable deployment tag |
+| `infrastructure/images/fixture-application/Dockerfile` | AP-M8-W6 pinned non-root reusable synthetic Fixture runtime image definition |
+| `infrastructure/config/schemas/platform-configuration.v2.schema.json` | AP-M8-W6 explicit `foundation`/`candidate` Platform State deployment contract preserving one root and lineage |
+| `infrastructure/deployment/` | AP-M8-W6 credential-free operation-record and exact workflow-configuration renderers; no operator value, credential, state, plan, or provider payload |
+| `infrastructure/deployment/schemas/ap-eval-m8-evidence.v1.schema.json` | AP-M8-W6 closed redacted manifest, operation, readback, verdict, and checksum record authority for the private bundle |
+| `infrastructure/deployment/verify_evidence.py` | AP-M8-W6 credential-free deterministic final verifier; accepts only an explicit private bundle directory, manifest digest, and source revision |
+| `registrations/qualification/` | AP-M8-W6 provider-backed initial synthetic Registration Set using reviewed `gcp-cloud-run-v1` references; distinct from AP-M4 Fixture evidence |
+| `.github/workflows/ap-m8-<operation>-<target>.yml` | AP-M8-W6 fixed manual operator workflows, one reviewed operation/target/identity/environment per file |
+| `artifacts/ap-eval-m8/` | Optional AP-M8-W12 owner-approved secret-free historical indexes/digests only; never the private evidence bundle, object payload, access URL, or credential |
+
+AP-M8-W5 must implement and test the backend files in a repository-only protected-main change
+before requesting backend-mutation approval. AP-M8-W6 must separately implement and test the
+deployment-support paths before authenticated preflight. Reserved paths never contain a credential,
+state, saved plan, provider response, secret, or deployable operator default. Their presence will
+not authorize bootstrap, migration, initialization, build, publication, provider access, DNS,
+traffic, evidence collection, force-copy, force-unlock, state push, import, apply, or recovery.
 
 ## Approved AP-M7 capability locations
 

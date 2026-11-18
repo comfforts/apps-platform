@@ -1,6 +1,8 @@
 # Comfforts App Platform
 
 Status: AP-M7 is locally implemented and passes its deterministic AP-EVAL-M7 repository gate.
+AP-M8-W1 is complete as a qualification-deployment authority proposal and passes its deterministic
+governance gate; owner acceptance, AP-M8-W2, and every operator action remain pending.
 Immutable generation loading, catalogue and routing, Platform Sessions and admission, identity
 assertions and application verification, Cloud Run attachment resolution, bounded HTTP, SSE, and
 WebSocket proxying, read-only status, correlation, adapter-health observations, and redacted
@@ -21,6 +23,17 @@ mocked-provider tests; every workflow template passes static non-mutation policy
 this static result and the post-merge handoff boundary. No backend was initialized, provider
 operation performed, cloud resource created, generation uploaded or activated, or deployment,
 Live evidence, or Application Adoption qualified.
+
+The AP-M8-W1 proposal defines AP-M8-W1 through AP-M8-W12 and AP-EVAL-M8-01 through
+AP-EVAL-M8-10, including protected repository environments, operation-specific federation and
+identity boundaries, four state buckets preserving five independent root lineages, private local
+bootstrap and migration, Version 2 foundation/candidate phases, the fixed deployment order,
+DNS/TLS approval, readback, and a closed private evidence bundle. Its deterministic governance
+checks prove only that this authority is internally complete. The proposal creates no executable
+workflow or reserved implementation path and authorizes no repository setting, federation,
+credential, backend, provider, build, publication, generation, DNS, deployment, evidence,
+recovery, or destructive action. AP-M8-W2 may begin only after this pull request merges and the
+owner explicitly accepts AP-M8-W1 and requests that bounded work package.
 
 Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
 history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
@@ -48,7 +61,7 @@ access GCP, DNS, IAP, provider accounts, or the live Finance Assistant deploymen
 
 Read `AGENTS.md` before changing this project and follow the authority and reading order in
 `docs/README.md`. Product requirements, accepted architecture decisions, system design, threat
-model, AP-M3 through AP-M6 plan and evaluation authority, and Version 1 contracts are authoritative
+model, AP-M3 through AP-M8 plan and evaluation authority, and Version 1 contracts are authoritative
 within their declared boundaries. The contract layer supplies Contract (`C`) evidence, and the
 in-process harness supplies Fixture (`F`) evidence only; AP-M5 supplies planning authority rather
 than provider or deployed evidence.
@@ -130,9 +143,10 @@ protected-main/source and plan-digest binding, root concurrency, runner-temporar
 plan/apply, explicit destructive confirmation, and secret-free outcome metadata. AP-M7-W10
 enforces the complete AP-EVAL-M7 matrix, history-independent extraction, offline copy-local provider
 use, plan-only mocked tests for every root, warning and prohibited-artifact failure, and all prior
-regressions. AP-M7-W11 reconciles this static status. Detailed AP-M8 authority may be proposed only
-after the AP-M7 pull request merges to clean `main`; AP-M7 creates no deployment or mutation
-authority.
+regressions. AP-M7-W11 reconciles this static status. AP-M8-W1 now defines the complete proposed
+qualification-deployment authority and its deterministic governance checks. That proposal is not
+owner acceptance, AP-EVAL-M8 deployment evidence, or permission to begin AP-M8-W2. It creates no
+deployment or mutation authority.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
 preserved their history. The separately reviewed source cleanup removed the historical colocated

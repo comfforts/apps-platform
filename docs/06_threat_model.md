@@ -1,7 +1,8 @@
 # App Platform threat model
 
-Version 0.9 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, and approved
-AP-M7 infrastructure-configuration controls;
+Version 1.3 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
+AP-M7 infrastructure-configuration controls, and proposed AP-M8 protected-source, federated-
+identity, backend-bootstrap, state-lineage, deployment-sequencing, and evidence controls;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -428,9 +429,11 @@ provider changes are drift and never become configuration authority.
 extraction-safe checks. `L` covers revision binding, workload identity, least privilege, drift
 readback, plan review, and audit records.
 
-**Residual risk:** Protected-main is configured, while exact-plan binding and Workload Identity
-Federation remain unavailable before infrastructure implementation. The same owner may review and
-apply, so retained evidence and drift readback remain important compensating controls.
+**Residual risk:** Protected-main is configured and AP-M7 statically verifies exact-plan binding in
+inert templates. Workload Identity Federation and executable mutation workflows remain unavailable.
+The AP-M8 profile below is proposal authority only and supplies no operational control. The same
+owner may review and apply, so environment checkpoints, retained evidence, and drift readback
+remain important compensating controls.
 
 ### AP-TM-012 · Availability and cost abuse
 
@@ -545,6 +548,215 @@ performs no backend initialization, credential lookup, provider or metadata requ
 repository mutation, apply, or destroy. A static pass cannot qualify key custody, ingress, IAM,
 logging, budget delivery, rollback, recovery, or any other provider behavior.
 
+## AP-M8 protected-source and federated-identity controls
+
+AP-M8-W1 proposes the controls below for AP-M8-W3 and AP-M8-W4. They refine the existing threats
+without claiming implementation:
+
+- **AP-TM-004 and AP-TM-005:** GitHub workload identity is only an operator credential. It never
+  becomes Visitor identity, a Platform Session, an assertion subject, an Application Principal, or
+  a restricted member. The repository actor, workflow subject, service-account email, and provider
+  token remain absent from runtime identity contracts and application requests.
+- **AP-TM-007:** Protected `main`, required credential-free checks, a fixed rendered workflow,
+  protected-environment approval, exact run SHA, reviewed plan digest, non-cancelling root
+  concurrency, and the backend lock form independent gates. A plan approval grants no apply or
+  recovery authority, and no partial failure automatically advances to another operation.
+- **AP-TM-008 and AP-TM-009:** Every enabled root or publication operation has a distinct service
+  account, rendered workflow, environment class, impersonation binding, backend scope where
+  applicable, and provider scope. Plan, apply, artifact publish, generation publish, DNS, rollback,
+  force-unlock, and destroy authority cannot cross a state owner or become another application's
+  runtime, state, or IAM authority. Unused exceptional identities have no binding.
+- **AP-TM-010:** GitHub environments contain no secret; workflows read no Actions secret and retain
+  no OIDC token, generated credential, state, saved plan, raw provider response, browser state, or
+  authenticated cache. Service-account keys are prohibited. Readback records only the reviewed
+  non-secret setting, resource, role, binding, revision, outcome, and digest fields.
+- **AP-TM-011:** Trust binds repository and owner names plus their immutable numeric identifiers,
+  protected `refs/heads/main`, an allow-listed workflow ref, one reviewed environment and matching
+  subject, `workflow_dispatch`, and the exact source SHA checked by the workflow. Full action pins,
+  read-only defaults, non-persisted checkout credentials, CodeQL thresholds, secret scanning, push
+  protection, and no repository-rule bypass remain mandatory. A renamed or recreated repository,
+  alternate ref, pull-request run, tag, fork, unlisted workflow, or runtime-selected identity fails
+  before credentials are usable.
+- **AP-TM-012:** Operation identities omit owner, editor, IAM-administration, billing-administration,
+  and cross-root permissions. One-hour-or-shorter federated credentials reduce exposure but do not
+  prove provider quotas, runtime cost, or abuse controls.
+- **AP-TM-013:** An unexpected repository bypass, environment secret, claim mismatch, wildcard,
+  stored key, broad or inherited role, cross-root grant, provider mismatch, or partial identity
+  change stops for inspection. There is no automatic policy broadening, retry, rollback, cleanup,
+  or fallback to a local or stored credential.
+- **AP-TM-014:** The pool, provider, environments, workflows, and identities bind only the canonical
+  App Platform repository and non-production qualification project. They grant no Finance
+  Assistant, production, real-application, Integration Draft, or Application Adoption authority.
+
+The initial federation setup remains a separately approved short-lived owner operation because no
+federated path exists yet. Its credential cannot enter Git or retained evidence, and the created
+workload identities cannot administer federation, IAM, or themselves. This identity bootstrap is
+separate from Terraform backend bootstrap.
+
+The exact protected-setting, attribute-mapping, identity-matrix, readback, and stop profile is in
+the subordinate [qualification-deployment runbook](runbooks/qualification_deployment.md). Until the
+complete AP-M8-W1 authority is owner-accepted and the AP-M8-W3/AP-M8-W4 checkpoints are separately
+approved and executed, these controls produce no provider or Live evidence.
+
+## AP-M8 backend-bootstrap and state-lineage controls
+
+AP-M8-W1 proposes these AP-M8-W5 controls without creating a backend or state:
+
+- **AP-TM-007:** The bootstrap root uses one exact local plan and private state before a reviewed
+  backend declaration is rendered from protected source. Migration targets a proven-empty
+  `bootstrap` prefix and preserves lineage, non-decreasing serial, providers, resources, instances,
+  and references. Empty non-bootstrap prefixes remain `not-created` until their first approved
+  apply; no dummy state or invented lineage may satisfy the checkpoint.
+- **AP-TM-008 and AP-TM-009:** Four buckets hold five root lineages. Bootstrap and platform share
+  only a bucket and use distinct conditionally authorized prefixes; every fixture has its own
+  bucket. Default-workspace-only operation, root-scoped IAM, typed non-secret references, and
+  explicit owner/prefix mapping prohibit backend reads, writes, locks, or recovery actions across
+  roots and applications.
+- **AP-TM-010:** Local and remote state, lineage values, plans, backend payloads, credentials,
+  provider responses, lock data, recovery copies, and generated backend files remain restricted
+  operational material. Evidence retains only approved hashes, serials, redacted inventories,
+  resource references, policies, labels, conditions, outcomes, and `not-created` statuses.
+- **AP-TM-011:** The bootstrap backend declaration and renderer must be committed, digest-bound,
+  deterministic, and passing before use. The operator uses exact Terraform/provider locks,
+  protected source, operator-class configuration, one reviewed temporary copy, one saved plan, and
+  an explicit migration action. An occupied bucket or prefix, alternate workspace, implicit input,
+  mutable provider, manual backend file, or unreviewed reconfiguration fails closed.
+- **AP-TM-012:** State buckets use uniform access, public-access prevention, versioning, deletion
+  prevention, no force destroy, fixed regional standard storage, bounded noncurrent retention, and
+  required labels. Those safeguards reduce accidental exposure and deletion but do not prove
+  provider availability, disaster recovery, or spending behavior.
+- **AP-TM-013:** Partial bucket creation retains the private local state and stops. Migration
+  failure freezes local and remote copies. No failure automatically retries with force-copy,
+  disables locking, unlocks, pushes state, imports, deletes, reconstructs state, broadens IAM,
+  initializes another root, or advances deployment. Loss of the authoritative local state before
+  migration acceptance is a recovery incident.
+- **AP-TM-014:** Backend names, identities, prefixes, state, and evidence belong only to the
+  non-production App Platform and synthetic Fixture Applications. No Finance, real-application,
+  Integration Draft, or Adoption state can enter the bootstrap or be inferred from it.
+
+The initial owner credential may create only the four reviewed buckets and their exact controls.
+API enablement, billing mutation, project-wide storage roles, and non-backend resources require
+other authority. Recovery-input readback verifies protected copies are locatable and intact but
+does not restore one or qualify AP-M9 recovery.
+
+The complete procedure, fixed mapping, migration invariants, partial-failure boundary, and allowed
+record are in the [qualification-deployment runbook](runbooks/qualification_deployment.md). Until
+the required AP-M8-W5 repository preparation is merged and the later operator checkpoint is
+explicitly approved, these controls supply no backend, state, provider, deployment, or Live
+evidence.
+
+## AP-M8 deployment-sequencing and activation controls
+
+AP-M8-W1 proposes these AP-M8-W6 through AP-M8-W10 controls without creating a workflow, image,
+generation, resource, record, or DNS entry:
+
+- **AP-TM-001 through AP-TM-003:** The initial provider-backed Registration Set contains only the
+  three synthetic qualification applications and exact `gcp-cloud-run-v1` references produced by
+  their independent roots. The complete set compiles before create-only publication, and the
+  candidate binds its exact source, generation, content digest, object generation, edge image, and
+  attachment references. The AP-M4 `fixture-in-process-v1` generations cannot be relabeled as
+  deployed input.
+- **AP-TM-004 through AP-TM-006:** A production Shared Edge composition entry point may assemble
+  only the accepted identity, assertion, verification, resolution, and proxy adapters. The
+  networked Fixture runtime independently verifies the production application assertion and keeps
+  each application's synthetic authorization and state boundary. Repository support and provider
+  deployment still supply no runtime identity or origin-isolation evidence; AP-M9 must exercise it.
+- **AP-TM-007:** A Version 2 `foundation`/`candidate` contract breaks the first-deployment cycle
+  without placeholder image, generation, or attachment values and preserves one Platform State
+  lineage. Source, base image, package, configuration, object-generation, plan, and run digests are
+  added through immutable predecessor-linked operation records. The candidate plan must preserve
+  foundation resources and bind all exact dependencies before apply.
+- **AP-TM-008 and AP-TM-009:** Platform foundation, each Fixture root, immutable artifact
+  publication, immutable generation publication, platform candidate, and DNS are sequential
+  operation boundaries. Typed references cross roots as reviewed data; no operation reads another
+  backend. Artifact, generation, and DNS identities have no Terraform backend authority and can
+  mutate only their exact repository, object, or A record.
+- **AP-TM-010:** Images contain no credential or secret. Builds use exact source, pinned base
+  images, frozen dependencies, non-root runtime users, and no retained build credential. Generated
+  credentials, plans, state, provider responses, compiled object payloads, tokens, sessions,
+  assertions, restricted members, and DNS-provider payloads remain outside Git and retained
+  evidence; only approved digests, references, inventories, and coarse results enter the record.
+- **AP-TM-011:** W6 implements fixed protected-main manual workflows with full action pins,
+  non-persisted checkout credentials, exact identity/environment/target constants, and no Actions
+  secret. Create-only artifact and object publication reject overwrite or mutable deployment tags.
+  The candidate is built and planned from the exact accepted source rather than an unreviewed
+  working tree or provider-discovered default.
+- **AP-TM-012:** Foundation creates only the approved controls and bounded Artifact Registry;
+  image publication cannot delete or administer it. The candidate retains AP-M7 zero-minimum and
+  maximum-instance limits. DNS changes only the one new qualification A record. These constraints
+  do not prove observed load, availability, cost, provider cleanup, or cache behavior.
+- **AP-TM-013:** The first failure stops all dependent stages. A successfully created immutable
+  image, object, root, or state remains for readback and never triggers automatic cleanup, retry,
+  retag, overwrite, rollback, force-unlock, state push, import, destroy, IAM broadening, alternate
+  artifact, or console repair. Candidate failure blocks DNS; DNS or certificate failure blocks
+  AP-M9 and requires a new approval even to reverse only the new record.
+- **AP-TM-014:** Images, Registration Sets, roots, identities, objects, state, hostname, and records
+  remain confined to the App Platform qualification project and synthetic Fixture Applications.
+  No Finance, production, real-application, Integration Draft, or Adoption input can enter the
+  sequence.
+
+The initial candidate has no predecessor and may receive 100 percent of its Cloud Run service's
+traffic pointer before the hostname exists. This is a dark initial candidate, not zero-percent
+traffic, successor-generation activation, or Live proof. The separately approved A record and
+managed-certificate readiness make it reachable but leave it deployed and not Live-qualified.
+ADR-008 pointer-change authority and all runtime claims remain AP-M9 or later work.
+
+The exact W6 dependency closure, W7 preflight, W8/W9 operation order, W10 DNS/TLS checkpoint, and
+partial-failure table are in the subordinate
+[qualification-deployment runbook](runbooks/qualification_deployment.md). Until W6 is merged and
+each later checkpoint is separately approved, this profile supplies no executable or provider
+authority.
+
+## AP-M8 deployment-evidence controls
+
+AP-M8-W1 proposes these AP-M8-W11/W12 and AP-EVAL-M8 controls without reading a provider or
+creating evidence:
+
+- **AP-TM-001 through AP-TM-006:** Evidence binds the complete provider-backed Registration Set,
+  configuration object, candidate, images, attachment references, and provider resource metadata
+  but makes no catalogue, routing, identity, assertion, direct-origin, or authorization behavior
+  claim. Those claims remain explicitly unavailable until AP-M9 exercises them.
+- **AP-TM-007:** One exact source and append-only manifest chain bind every operation, plan,
+  artifact, root, readback, approval reference, and verdict. Unique identifiers, predecessor hashes,
+  sorted checksums, create-only records, and a no-overwrite final verdict expose omission,
+  substitution, replay, or reordering. An expired or earlier bundle cannot qualify a later source.
+- **AP-TM-008 and AP-TM-009:** Each root has its own readback identity and reducer; no reducer reads
+  another backend. Artifact, generation, and DNS records remain target-scoped. The finalizer can
+  read only one bundle prefix and has no state/provider access. Expected, state, provider, IAM, and
+  owner inventories must agree exactly and cannot hide cross-owner drift behind an aggregate hash.
+- **AP-TM-010:** A closed schema, field allow-list, prohibited-data scan, ephemeral mode-`0700`
+  reduction, private owner-only bucket, 30-day retention, no external sink, and minimal optional Git
+  index exclude raw state, plans, locks, credentials, tokens, provider responses, logs, screenshots,
+  visitor/application data, identity claims, signed URLs, and recovery copies. A scan or evidence-
+  write failure fails closed.
+- **AP-TM-011:** Fixed protected-main readback/finalization workflows, exact environment and
+  identity bindings, full action pins, source/manifest comparison, immutable schema/tool versions,
+  deterministic synthetic verifier tests, and no runtime-selected target constrain evidence
+  fabrication. The final verifier performs no provider query and rejects unknown files or fields.
+- **AP-TM-012:** Evidence records selected scaling, retention, labels, approved services, artifact-
+  retention policy, and budget thresholds only as configuration/readback. It cannot turn them into
+  availability, hard-spend, cleanup, or notification-delivery proof.
+- **AP-TM-013:** A failed operation still produces a redacted failed record when safe. Dependent
+  gates are `blocked` with the causal record; a reachable unrun gate is a mandatory skip and fails.
+  Missing, malformed, expired, prohibited, hash-mismatched, or incomplete evidence is never waived,
+  reconstructed, or called a limitation. Recovery and rollback stay unexecuted.
+- **AP-TM-014:** The bundle names only the canonical repository, non-production qualification
+  project/hostname, and three synthetic fixtures. Finance, production, real applications,
+  Integration Drafts, cross-project behavior, and Adoption remain unavailable and unchanged.
+
+The authoritative bundle is append-only under one private
+`ap-eval-m8/<source-revision>/<evaluation-id>/` prefix. Per-operation create-only permissions do not
+permit listing or reading another record. Root readback identities cannot write state or provider
+resources. The finalizer may read that exact prefix and create only `manifest.v1.json`,
+`checksums.sha256`, and `verdict.v1.json` with no-overwrite preconditions; it cannot read a backend
+or repair a discrepancy.
+
+AP-EVAL-M8 passes only with ten mandatory passes and zero failures, blocked gates, unexpected
+warnings, prohibited findings, or mandatory skips. Its only positive status claim is deployed and
+not Live-qualified. The exact schema, verifier, gates, and allowed fields are in
+[the evaluation strategy](05_evaluation_strategy.md); collection and failure handling are in the
+[qualification-deployment runbook](runbooks/qualification_deployment.md).
+
 ## Unresolved security decisions
 
 The following decisions must be approved by their owning later slice before the named evidence can
@@ -554,8 +766,11 @@ pass:
 | --- | --- |
 | Exact OAuth client and secret-version references, image digests, bucket names, billing-account reference, notification destination, managed-zone resource, and initial Live Registration Set | AP-M8 operator-input review |
 | Provider configuration/readback for the selected runtime limits and observed multi-instance abuse behavior | AP-M8 deployment and AP-M9 Live qualification |
-| Exact protected workflow subjects, protected environment, federation provider, operation identities, and IAM bindings | AP-M8 repository and identity mutation |
-| Backend initialization, state lineage, provider ingress and IAM realization, and direct-origin denial | AP-M8 deployment and AP-M9 Live qualification |
+| Exact repository and owner numeric identifiers, protected workflow refs and environment names, federation resources, operation service accounts, permission sets, scopes, and IAM bindings | AP-M8-W2 operator-input acceptance before AP-M8-W3 or AP-M8-W4 |
+| Exact bucket names, root-prefix permission bindings, backend-renderer implementation, and initial owner credential scope | AP-M8-W2 acceptance and AP-M8-W5 repository preparation before backend mutation |
+| Exact Evidence environment, root-readback/finalizer identities, bundle identifier/prefix, schema/verifier implementation, and create-only record permissions | AP-M8-W2/AP-M8-W4 acceptance and AP-M8-W6 implementation before AP-M8-W11 |
+| Backend initialization and bootstrap-lineage migration | AP-M8-W5 operator checkpoint |
+| Non-bootstrap lineage, provider ingress and IAM realization, and direct-origin denial | AP-M8 deployment and AP-M9 Live qualification |
 | Configuration-object publication, candidate revision, traffic pointer, DNS/TLS, readback, and rollback execution | AP-M8 deployment and AP-M9 Live qualification |
 | Provider audit behavior, log/evidence access, retention enforcement, budget delivery, and cleanup behavior | AP-M9 Live evidence collection |
 | Observed scaling, cost, artifact retention, and approved-service behavior | AP-M9 Live qualification |

@@ -1,7 +1,8 @@
 # App Platform system design
 
-Version 0.9 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, and approved
-AP-M7 Terraform configuration profile;
+Version 1.3 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, approved
+AP-M7 Terraform configuration profile, and proposed AP-M8 protected-source, federated-identity,
+backend-bootstrap, state-lineage, qualification-deployment sequencing, and evidence profiles;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -499,16 +500,254 @@ deterministic checks and advisory read-only plans; the merge commit is planned a
 the apply by source and plan digests. Each workflow identity is limited to its named root and
 operation. One concurrency guard and the backend lock prevent competing mutations.
 
-The dedicated repository, branch, workflow, and environment values must be known after extraction
-before a federation binding can exist. Until then, this is planning authority only. Local checks,
-validation, read-only planning, and readback remain available, but normal local apply is prohibited.
-An owner-declared break-glass operation uses short-lived credentials, exact targets, state backup,
+The dedicated repository is fixed as `comfforts/apps-platform`, with protected `main` as the only
+normal source ref. Exact repository numeric identifiers, workflow files, protected environment
+names, federation resources, operation service accounts, and IAM bindings must be reviewed before a
+federation binding can exist. Until the complete AP-M8 authority is accepted and each named
+checkpoint is separately approved, this remains planning authority only. Local checks, validation,
+read-only local planning, and readback remain available, but normal local apply is prohibited. An
+owner-declared break-glass operation uses short-lived credentials, exact targets, state backup,
 readback, and reconciliation; it never uses a stored service-account key.
 
 Bootstrap, import, force-unlock, state push, backend changes, rollback, and destroy are explicit
 operator procedures rather than hidden Terraform side effects. A provider error stops for
 inspection. Manual console changes remain drift and cannot become the reviewed baseline without a
 source change.
+
+### AP-M8 protected-source and federated-identity profile
+
+The existing checkpoint-3 repository baseline is a precondition, not an AP-M8 result. `main`
+remains the default protected branch; pull requests, current-branch enforcement, the
+`Credential-free project checks` status, CodeQL thresholds, full-length action pins, read-only
+default workflow permissions, secret scanning, push protection, and the no-bypass, no-force-push,
+no-deletion rules remain enabled. AP-M8 stops rather than weakening one of those controls to make a
+deployment job run.
+
+Five distinct protected GitHub Environment classes separate authenticated plan, routine apply and
+immutable publication, qualification DNS, readback/evidence, and exceptional recovery authority.
+Their real names
+remain operator inputs. Every class accepts
+only the exact `main` deployment branch, requires a new explicit owner review for each job, and
+contains no environment secret. The plan review cannot approve an apply; an apply review cannot
+approve rollback, force-unlock, or destroy; and one recovery-job review cannot approve another
+operation. The same owner may perform the human roles, but GitHub still records distinct protected-
+environment checkpoints.
+
+Every executable operator workflow later rendered from the AP-M7 templates is fixed to one root
+and one operation. Its workflow file, protected environment, service account, federation provider,
+repository, branch, and root are committed constants or reviewed non-secret configuration rather
+than dispatch inputs. It uses `workflow_dispatch`, top-level `contents: read`, job-local
+`id-token: write`, full action commit identifiers, non-persisted checkout credentials, root-scoped
+non-cancelling concurrency, and no GitHub secret. The credential-free check workflow never receives
+an OIDC permission.
+
+The one dedicated qualification Workload Identity Pool and GitHub provider accept issuer
+`https://token.actions.githubusercontent.com` and only the reviewed provider audience. Attribute
+mapping retains the subject, repository name and numeric identifier, repository-owner numeric
+identifier, ref, protected-ref status, workflow ref, environment, event, and source SHA. The
+provider condition and service-account impersonation binding jointly require:
+
+- repository `comfforts/apps-platform` and its exact numeric identifier;
+- the exact `comfforts` owner numeric identifier;
+- protected `refs/heads/main`;
+- one allow-listed rendered workflow at `refs/heads/main`;
+- one reviewed protected environment and the matching
+  `repo:comfforts/apps-platform:environment:<name>` subject; and
+- `workflow_dispatch`.
+
+The workflow then compares its run SHA with the exact 40-character protected-main revision in the
+reviewed Version 1 workflow configuration before requesting a plan or mutation. Numeric repository
+and owner bindings prevent a renamed or recreated repository from inheriting name-only trust.
+
+Each enabled root or publication operation has a distinct service account and exact impersonation binding.
+Plan identities may read only the selected state and provider metadata and create/delete only that
+root's native lock object; they cannot write state content or mutate a provider resource. Apply and
+rollback identities may read and write only their selected backend and mutate only resources owned
+by that root through the exact reviewed same-job plan. A force-unlock identity may affect only one
+approved lock and no provider resource. A destroy identity may affect only its root through one
+explicit reviewed destroy plan. Unused rollback, force-unlock, and destroy identities have no
+binding.
+
+Artifact publication, configuration-generation publication, and qualification DNS each use a
+separate fixed workflow and identity. Artifact publication can create only immutable packages in
+the qualification repository. Generation publication can create and read back only the exact
+generation object under a no-overwrite precondition. DNS can change only the reviewed qualification
+A record. None inherits a Terraform root's backend or resource authority.
+
+Each root also has a separate Evidence-class readback identity with read-only access to only that
+root's state metadata and provider resources and create-only access to its exact redacted record
+path. One finalizer identity can read only the exact bundle prefix and create its final manifest,
+checksum file, and verdict under no-overwrite preconditions; it cannot access state or provider
+resources. Every other operation may
+create only its own redacted operation record and cannot list or read another operation's evidence.
+
+No workload identity may administer federation, IAM, its own service account, another operation
+identity, another root, billing, or an application-owned resource. Owner, editor, project-IAM,
+service-account-administrator, and user-managed-key permissions are prohibited. Federated
+credentials last no longer than one hour, and user-managed service-account keys remain absent.
+Import, state push, backend migration, and federation administration remain separate break-glass
+authorities rather than hidden capabilities of a routine identity.
+
+The first federation setup uses a separately approved short-lived owner credential because the
+federated path does not yet exist. It records exact changes and readback without retaining the
+credential or token and grants no workflow permission to alter the trust configuration. Identity
+bootstrap is distinct from Terraform backend bootstrap; success or approval for one does not
+authorize the other.
+
+The subordinate [qualification-deployment runbook](runbooks/qualification_deployment.md) owns the
+checkpoint inputs, setting profile, identity matrix, readback, and stop conditions. This design and
+runbook are AP-M8-W1 authority proposals only. They create no environment, executable workflow,
+pool, provider, service account, IAM binding, credential, backend, plan, resource, DNS change, or
+deployment.
+
+### AP-M8 backend bootstrap and state-lineage profile
+
+Four private versioned GCS buckets support five independent root lineages. The bootstrap and
+platform roots share the platform-state bucket but use exact `bootstrap` and `platform` prefixes
+with distinct conditional access. Each Fixture Application root uses its own bucket and its fixed
+`fixtures/<application-id>` prefix. Only the default Terraform workspace is permitted. A root may
+read or write only its own object prefix, and a bucket-wide or project-wide storage fallback is
+prohibited.
+
+The bootstrap root begins with local state because it creates the buckets. AP-M7 intentionally
+commits no backend block for that root, so AP-M8-W5 must first add the reviewed
+`infrastructure/backend/bootstrap-backend.tf.tmpl` and its credential-free deterministic renderer
+through a protected-main pull request.
+The initial apply uses an exact private copy without that declaration. Only after all four bucket
+and IAM controls read back may the renderer add the reviewed declaration to the temporary copy and
+migrate the state into the empty `bootstrap` prefix.
+
+The initial local bootstrap uses one separately approved short-lived owner credential and one exact
+saved plan retained only in a mode-`0700` temporary directory outside the repository. It may create
+only the four AP-M7 state buckets. Each bucket retains uniform access, enforced public-access
+prevention, object versioning, `STANDARD` single-region storage, deletion prevention, no force
+destroy, required ownership labels, and noncurrent deletion only after both the approved age and
+newer-version thresholds are satisfied. API enablement, billing mutation, project-wide storage
+authority, and any non-backend resource remain outside that plan.
+
+The AP-M7 state-bucket module deliberately defers IAM. After bucket creation, the same approved
+AP-M8-W5 owner checkpoint applies only the reviewed bucket-metadata and conditionally prefix-scoped
+object-access bindings. Those bindings are operator-managed Platform control settings rather than
+resources claimed by another Terraform root. They may not replace an entire policy or grant whole-
+bucket object access where bootstrap and platform share the platform-state bucket.
+
+Before migration, the local state backup is integrity-checked and the remote `bootstrap` prefix is
+proven empty. Migration preserves the exact lineage, a non-decreasing serial, provider and resource
+address inventories, instance identities, and non-secret backend references. Post-migration
+readback proves the remote object location and versioning, native lock acquisition and release, and
+a no-change plan. Raw state and lineage never enter evidence; only their digests, serial, and
+redacted inventories may be recorded.
+
+The local active state remains authoritative until migration and recovery-input readback are
+accepted. Recovery-input readback proves that the exact protected generation and restricted backup
+can be located and integrity-checked; it does not execute restoration or qualify recovery. A
+migration error freezes both copies and never triggers reconfiguration, force-copy retry,
+force-unlock, state push, import, deletion, or reconstruction without a new approval.
+
+The platform and three fixture roots initialize independently from clean private copies using only
+their reviewed bucket and prefix. Initialization does not apply, pre-seed, or create dummy state.
+An empty prefix has status `not-created`; its lineage is recorded only after AP-M8-W9's first
+approved apply and reconciled under AP-M8-W11. This distinguishes backend readiness from a false
+claim that a non-bootstrap state or resource already exists.
+
+The subordinate [qualification-deployment runbook](runbooks/qualification_deployment.md) defines
+the preparation dependency, prerequisites, fixed map, migration invariants, readback, partial-
+failure stops, and allowed record. This AP-M8-W1 proposal performs none of those operations.
+
+### AP-M8 deployment support and sequencing profile
+
+The AP-M7 source is deliberately not deployable as-is. It provides individual Shared Edge
+adapters, in-process Fixture Applications, one-pass static Terraform, and inert workflow templates,
+but no production composition entry point, container definitions, networked synthetic Fixture
+runtime, provider-backed qualification Registration Set, or executable operator workflow. The
+AP-M4 registration generations use `fixture-in-process-v1`; AP-M8 qualification-deployment inputs
+require separately reviewed `gcp-cloud-run-v1` references and never relabel Fixture evidence.
+
+The AP-M7 Version 1 platform configuration also forms a real first-deployment dependency cycle: it
+requires an image digest, a published configuration-object generation, and all three attachment
+references before the platform root can create the Artifact Registry, configuration bucket, and
+platform reference needed to produce those values. AP-M8-W6 resolves that cycle with a Version 2
+platform deployment contract, not placeholder values or manual Terraform edits. Version 1 remains
+accepted static evidence.
+
+Version 2 selects exactly one phase while preserving the single `platform` root and lineage:
+
+| Phase | Inputs | Owned result |
+| --- | --- | --- |
+| `foundation` | Exact environment, bucket/control, OAuth/KMS reference, labels, and independent Artifact Registry identifier inputs; no edge image, published generation, or attachment references | Configuration storage, Artifact Registry, platform identities, KMS/Firestore, logging/evidence controls, and budget controls only |
+| `candidate` | The same accepted foundation configuration plus exact image digest, immutable Registration Generation object, and three typed Fixture attachment references | Preserve foundation unchanged and add the initial Shared Edge revision, serverless load-balancing path, reserved IPv4 address, and managed certificate |
+
+W6 must update the root, schema, loaders, examples, policy, consumers, and deterministic tests
+together. Phase changes may neither change backend ownership nor import, replace, or delete a
+foundation resource. A candidate plan is invalid unless it shows the existing foundation
+unchanged. `make check` remains credential-free and does not build or publish a container.
+
+The initial deployment then follows one dependency chain: apply platform foundation; build and
+create-only publish exact source-bound images; validate the actual platform reference; apply
+`fixture-public`, `fixture-authenticated`, and `fixture-restricted` sequentially; compile the
+provider-backed Registration Set; create-only publish and read back its immutable configuration
+object; and apply the platform candidate from a fresh same-job plan. Cross-root data moves only as
+typed reviewed references, never by reading another backend.
+
+The initial candidate has no predecessor. Cloud Run may point 100 percent of service traffic to its
+only revision while the qualification hostname still has no DNS record. This is a dark initial
+candidate, not zero-percent service traffic, a successor-generation activation, or Live evidence.
+After candidate state/provider/ownership readback, a separate DNS identity and approval may create
+only the `apps-staging.comfforts.com` A record with TTL 1,800. Authoritative and recursive DNS must
+agree with the reserved IPv4 address before the managed certificate may pass its readiness
+checkpoint.
+
+Every stage stops on its first discrepancy. A successful earlier root or immutable object remains
+for inspection; failure never automatically retries, cleans up, overwrites, retags, unlocks,
+imports, pushes state, rolls back, destroys, or advances to DNS. DNS/TLS readiness makes the
+candidate reachable but leaves it deployed and not Live-qualified. AP-M9 owns runtime, identity,
+origin-isolation, failure, availability, and cost qualification. Future generation changes retain
+ADR-008 staging and explicit pointer-change authority rather than inheriting this initial-deployment
+exception.
+
+### AP-M8 deployment-evidence profile
+
+AP-M8 evidence is an append-only, source-bound deployment/readback record, not a new evidence class
+and not Live evidence. The authoritative bundle remains private in the qualification project's
+evidence bucket for 30 days under one `ap-eval-m8/<source-revision>/<evaluation-id>/` prefix. It
+contains one manifest, hash-chained operation records, target-scoped readback records, one final
+verdict, and sorted checksums. Git may retain only an approved secret-free historical index or
+bundle digest.
+
+The Version 1 evidence schema is closed and machine-verified. It binds the repository/source,
+operator-manifest predecessor chain, contracts/tools/workflows, protected environments and
+operation identities, approvals, exact sequence, plans, images, Registration Generation,
+configuration object, state-lineage and inventory digests, provider/IAM/resource inventories,
+DNS/TLS metadata, retention, outcomes, failures, limitations, and unavailable later claims.
+Records use canonical non-secret resource references and hashes rather than raw state, plan, or
+provider material.
+
+Each root is reduced separately by its readback identity. The reducer uses restricted ephemeral
+storage, compares expected/state/provider inventories, emits only its closed record, scans
+prohibited data, and create-only publishes it. The finalizer has no state or provider access; it
+validates schema, unique identifiers, sequence, predecessor hashes, checksums, required gates,
+source/manifest agreement, and prohibited-data results, then create-only writes the final manifest,
+checksum file, and verdict.
+The checksum file covers only the manifest and operation/readback records. The bundle digest
+combines its digest with the separately read-back verdict digest and therefore contains no self-
+reference.
+
+Raw state, lineage values, state attributes, plans, locks, credentials, tokens, generated
+credential files, environment dumps, provider/API responses, browser state, screenshots, logs,
+assertions, sessions, restricted members, identity claims, email addresses, IP addresses, user
+agents, request/response data, application data, signed URLs, and recovery copies are prohibited.
+A missing or prohibited record fails rather than being reconstructed, waived, or silently omitted.
+
+Every AP-EVAL-M8 gate is mandatory. Outcomes are `pass`, `fail`, or `blocked`; the verdict also
+reports the mandatory skip count, which must be zero. A dependent stage after failure is `blocked`
+with its causal record. AP-M9, cross-project, Finance, and Adoption claims remain `unavailable`
+limitations, not successful AP-M8 gates. Only ten complete passing gates may call the exact source
+deployed and not Live-qualified.
+
+The exact schema fields, gate claims, verifier command, redaction rules, retention, and pass/fail/
+skip semantics are owned by [AP-EVAL-M8](05_evaluation_strategy.md). The subordinate
+[qualification-deployment runbook](runbooks/qualification_deployment.md) owns collection and
+finalization. This profile creates no evidence bucket object, identity, provider read, or verdict.
 
 ### AP-M7 Terraform configuration profile
 
@@ -1002,8 +1241,10 @@ compiler behavior, paths relative to that root, or ownership boundaries.
 
 This design intentionally does not implement:
 
-- Terraform modules, bucket names, backend objects, workflows, repository-bound federation,
-  resource names, state-transfer commands, or IAM grants for the selected state and operator model;
+- the AP-M8 Version 2 phase contract, production composition entry points, container definitions,
+  provider-backed qualification Registration Set, executable workflows, operation records,
+  AP-EVAL-M8 evidence schema/verifier, repository-bound federation, backend objects, state-transfer
+  commands, or IAM grants;
 - OAuth client registration values, Firestore session configuration, KMS key versions, secret
   versions, credentials, or IAM bindings for the selected identity profile;
 - a deployed live catalogue or Shared Edge runtime, provider-qualified `gcp-cloud-run-v1`
@@ -1033,8 +1274,17 @@ Version 0.5 selects state and operator authority, Version 0.6 selects activation
 rollback behavior, Version 0.7 selects observability, evidence, incident, and cost controls, and
 Version 0.8 selects the AP-M6 network module, dependency, and bounded-request profile. Version 0.9
 selects the AP-M7 root interfaces, configuration contracts, pinned toolchain, static verification,
-and inert workflow-template profile. None supplies provider, network, identity, deployment, or Live
-evidence. Adoption qualification remains a later application-owned gate.
+and inert workflow-template profile. Version 1.0 proposes the AP-M8 protected-source, environment,
+federation, and root-operation identity profile without configuring it. Version 1.1 proposes the
+AP-M8 backend-bootstrap and state-lineage profile without creating a bucket, state, or lineage.
+Version 1.2 proposes the AP-M8 repository-support dependency break, exact initial-deployment order,
+dark-candidate boundary, separate DNS/TLS checkpoint, and partial-failure stops without building,
+publishing, deploying, or activating anything.
+Version 1.3 proposes the closed deployment-evidence bundle, root-scoped reducers, isolated
+finalizer, redaction boundary, mandatory outcomes, and truthful AP-M9 handoff without collecting
+evidence or reading a provider.
+None supplies provider, network, identity, deployment, or Live evidence. Adoption qualification
+remains a later application-owned gate.
 
 ## Design trace
 
@@ -1050,4 +1300,8 @@ evidence. Adoption qualification remains a later application-owned gate.
 | AP-M6 network module and bounded-request profile | AP-PR-001 through AP-PR-008; AP-QR-002 through AP-QR-006 | ADR-001 through ADR-006, ADR-008, ADR-009 |
 | Terraform state and operator authority | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
 | AP-M7 Terraform configuration profile | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
+| AP-M8 protected source, environments, federation, and operation identities | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003 through AP-QR-006 | ADR-001, ADR-004, ADR-007 |
+| AP-M8 backend bootstrap, migration, and state lineage | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003 through AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
+| AP-M8 deployment support, sequencing, dark candidate, and DNS/TLS boundary | AP-PR-001 through AP-PR-005, AP-PR-007 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-005, ADR-007 through ADR-009 |
+| AP-M8 deployment readback, evidence, and truthful handoff | AP-PR-001 through AP-PR-009; AP-QR-003 through AP-QR-006 | ADR-001, ADR-004, ADR-007 through ADR-009 |
 | Observability, evidence, incidents, and cost | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007, AP-PR-008; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-004, ADR-009 |

@@ -319,21 +319,27 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertNotIn("id-token: write", check_workflow)
         self.assertNotIn("terraform apply", check_workflow)
 
-    def test_status_remains_static_and_does_not_begin_the_w11_handoff(self) -> None:
+    def test_status_records_static_gate_and_defers_ap_m8_until_merge(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(
             encoding="utf-8"
         )
         combined = " ".join((overview, index, prompt))
-        self.assertIn("AP-M7-W10 is next", combined)
+        self.assertIn("AP-M7 is locally implemented", combined)
+        self.assertIn("AP-M7-W11 records only static repository implementation", index)
         self.assertIn("deployment, Live, and Adoption qualification unavailable", index)
+        self.assertIn("only after the AP-M7 pull request has merged", prompt)
+        self.assertIn(
+            "propose the detailed AP-M8 non-production qualification-deployment authority",
+            prompt,
+        )
         for false_claim in (
             "AP-M7 is deployed",
             "AP-M7 is Live-qualified",
             "AP-M7 supplies Application Adoption",
-            "Next task: implement AP-M7-W11",
-            "Next task: implement AP-M8",
+            "AP-M8 is implemented",
+            "AP-M8 is authorized",
         ):
             self.assertNotIn(false_claim, combined)
 

@@ -257,7 +257,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_overview = " ".join(overview.split())
 
         self.assertIn(
-            "AP-M6 locally implemented",
+            "AP-M7 locally implemented",
             normalized_index,
         )
         self.assertIn("Contract (`C`) evidence", normalized_index)
@@ -272,7 +272,10 @@ class ProjectAuthorityTest(unittest.TestCase):
             "bounded HTTP, SSE, and WebSocket proxying",
             normalized_overview,
         )
-        self.assertIn("AP-M6 supplies repository implementation evidence only", overview)
+        self.assertIn(
+            "AP-M6 and AP-M7 supply repository implementation evidence only",
+            overview,
+        )
         self.assertIn("complete credential-free `make check` gate passes", overview)
         self.assertIn("AP-M7-W7 implements one immutable", normalized_index)
         self.assertIn("AP-M7-W7 implements the deep Shared Edge module", normalized_overview)
@@ -280,6 +283,9 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("AP-M7-W8 adds a regional seven-day log bucket", normalized_overview)
         self.assertIn("AP-M7-W9 implements separate inert advisory-plan", normalized_index)
         self.assertIn("AP-M7-W9 adds parseable, non-executable", normalized_overview)
+        self.assertIn("AP-M7-W10 binds AP-EVAL-M7-01", normalized_index)
+        self.assertIn("AP-M7-W11 reconciles this static status", normalized_overview)
+        self.assertIn("AP-M7 static Terraform, configuration", normalized_layout)
         self.assertIn("planning consistency only", normalized_index)
         self.assertIn("Integration draft", index)
         self.assertIn(
@@ -623,7 +629,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("app-owned test state", layout)
 
-    def test_terraform_workflow_prompt_loads_authority_without_copying_it(
+    def test_ap_m8_handoff_loads_authority_without_granting_operations(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -646,22 +652,22 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "Wait for owner approval before editing",
-            "Leave Finance Assistant requirements, code, infrastructure, Terraform state, DNS",
-            "An Integration Draft is not Application Adoption",
-            "credential-free, deterministic, and non-mutating",
-            "after the owner accepts and commits AP-M7-W9",
-            "implement AP-M7-W10, the complete Terraform-and-workflow qualification gate",
-            "Treat absent operator inputs or later authority as unresolved",
-            "Do not initialize a Terraform backend",
-            "AP-M7 stays on its one bounded branch and pull request",
+            "after the AP-M7 pull request has merged to `main`",
+            "owner explicitly requests an AP-M8 authority proposal",
+            "propose the detailed AP-M8 non-production qualification-deployment authority",
+            "treat them as unresolved rather than inferred",
+            "Wait for explicit owner approval of that authority before implementing",
+            "Do not change repository settings",
+            "Do not query a provider, copy Finance Assistant values",
+            "AP-M8 remains a separate owner-approved branch and pull request",
+            "credential-free, deterministic, offline, extraction-safe, and non-mutating",
         ):
             self.assertIn(boundary, normalized_prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertNotIn("terraform apply", prompt)
         self.assertIn(
-            "[Terraform-and-workflow handoff](starting_prompt.md)",
+            "[AP-M8 authority handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -687,7 +693,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         for later_slice in (
             "Networked provider runtime — locally implemented",
-            "Terraform and workflow implementation — inert workflow templates implemented statically",
+            "Terraform and workflow implementation — locally implemented and statically verified",
             "Non-production qualification deployment — later",
             "Live qualification — later",
             "Finance Application Adoption — later and independent",
@@ -695,12 +701,12 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(later_slice, index)
         self.assertIn("separate bounded branch and pull request", normalized_index)
         self.assertIn(
-            "implement AP-M7-W10, the complete Terraform-and-workflow qualification gate",
+            "propose the detailed AP-M8 non-production qualification-deployment authority",
             normalized_prompt,
         )
-        self.assertIn("Wait for owner approval before editing the next work package", normalized_prompt)
-        self.assertIn("Do not initialize a Terraform backend", normalized_prompt)
-        self.assertIn("AP-M7 stays on its one bounded branch", normalized_prompt)
+        self.assertIn("Wait for explicit owner approval of that authority", normalized_prompt)
+        self.assertIn("Do not change repository settings", normalized_prompt)
+        self.assertIn("AP-M8 remains a separate owner-approved branch", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(

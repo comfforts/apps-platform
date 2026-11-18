@@ -1,12 +1,12 @@
 # Comfforts App Platform
 
-Status: AP-M6 is locally implemented and passes its deterministic AP-EVAL-M6 repository gate.
+Status: AP-M7 is locally implemented and passes its deterministic AP-EVAL-M7 repository gate.
 Immutable generation loading, catalogue and routing, Platform Sessions and admission, identity
 assertions and application verification, Cloud Run attachment resolution, bounded HTTP, SSE, and
 WebSocket proxying, read-only status, correlation, adapter-health observations, and redacted
 completion events are implemented locally. AP-M4 remains Fixture-qualified and AP-M5 remains
-planning-validated. AP-M6 supplies repository implementation evidence only. AP-M7 Terraform-and-
-workflow implementation authority is defined. AP-M7-W2 implements the pinned Terraform foundation,
+planning-validated. AP-M6 and AP-M7 supply repository implementation evidence only. AP-M7-W2
+implements the pinned Terraform foundation,
 and AP-M7-W3 implements only the Version 1 non-secret configuration schemas, synthetic examples,
 and deterministic loader and semantic policy. AP-M7-W4 implements static backend-bootstrap and
 state-bucket configuration. AP-M7-W5 implements three isolated Fixture Application roots, one
@@ -14,11 +14,13 @@ internal runtime module, and typed attachment references with plan-only mocked-p
 AP-M7-W6 implements the Platform State identity and immutable-generation foundation. AP-M7-W7
 implements the immutable Shared Edge candidate and hostname-forwarding topology. AP-M7-W8
 implements the bounded observability, evidence-retention, artifact-retention, label, scaling, and
-cost-control intent. AP-M7-W9 implements the five inert operator-workflow authority templates. All
-Terraform roots pass plan-only mocked-provider tests, and every workflow template passes static
-non-mutation policy. No backend was initialized, provider operation performed, cloud resource
-created, generation uploaded or activated, or deployment, Live evidence, or Application Adoption
-qualified.
+cost-control intent. AP-M7-W9 implements the five inert operator-workflow authority templates, and
+AP-M7-W10 binds AP-EVAL-M7-01 through AP-EVAL-M7-10 and all prior regressions into the default
+credential-free gate. All Terraform roots pass offline initialization, validation, and plan-only
+mocked-provider tests; every workflow template passes static non-mutation policy. AP-M7-W11 records
+this static result and the post-merge handoff boundary. No backend was initialized, provider
+operation performed, cloud resource created, generation uploaded or activated, or deployment,
+Live evidence, or Application Adoption qualified.
 
 Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
 history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
@@ -125,8 +127,12 @@ automatic budget or cleanup mutation. AP-M7-W9 adds parseable, non-executable ad
 exact-main apply, rollback, force-unlock, and destroy templates outside `.github/workflows/`. They
 use only unresolved operator placeholders, full-length action pins, read-only default permissions,
 protected-main/source and plan-digest binding, root concurrency, runner-temporary plans, same-job
-plan/apply, explicit destructive confirmation, and secret-free outcome metadata. After owner
-acceptance of AP-M7-W9, AP-M7-W10 is next; AP-M7 remains one separate branch and pull request.
+plan/apply, explicit destructive confirmation, and secret-free outcome metadata. AP-M7-W10
+enforces the complete AP-EVAL-M7 matrix, history-independent extraction, offline copy-local provider
+use, plan-only mocked tests for every root, warning and prohibited-artifact failure, and all prior
+regressions. AP-M7-W11 reconciles this static status. Detailed AP-M8 authority may be proposed only
+after the AP-M7 pull request merges to clean `main`; AP-M7 creates no deployment or mutation
+authority.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
 preserved their history. The separately reviewed source cleanup removed the historical colocated

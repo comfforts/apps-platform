@@ -1,8 +1,9 @@
 # App Platform repository layout
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
-complete; AP-M7-W9 inert workflow templates implemented; no backend or provider operation, cloud
-resource, IAM mutation, deployment, or qualification performed
+complete; AP-M7 static Terraform, configuration, and inert workflows implemented and passing the
+deterministic repository gate; no backend or provider operation, cloud resource, IAM mutation,
+deployment, or Live qualification performed
 
 The project is organized at the dedicated repository root produced by the history-preserving
 subtree extraction. Paths remain project-relative so repository identity does not alter platform
@@ -24,7 +25,7 @@ contracts, verification, or ownership boundaries.
 | `contracts/` | Version 1 schemas, deterministic reference compiler, reviewed contract vectors, and bounded runtime JSON loading |
 | `fixtures/` | In-process reference edge, synthetic identity, three independent Fixture Applications with app-owned test state, and reviewed registration generations |
 | `edge/` | AP-M6 Shared Edge interface, immutable-generation source adapter, catalogue/routing, Google OIDC/sessions, admission, ES256 assertion/JWKS adapters, independent application verification, strict Cloud Run attachment resolution, bounded HTTP/SSE/WebSocket proxying, read-only status, minimized completion events, and accepted runtime behavior only |
-| `tests/` | Behavior-named governance, contract, Fixture, and runtime checks plus explicitly synthetic fixed test material |
+| `tests/` | Behavior-named governance, contract, Fixture, runtime, Terraform, workflow, and qualification checks plus explicitly synthetic fixed test material |
 | `pyproject.toml` and `uv.lock` | Direct runtime dependencies and complete frozen transitive resolution |
 | `Makefile` | Portable project-local developer and verification interface |
 | `.gitignore` | Platform-local generated, secret, state, and build exclusions |
@@ -58,15 +59,14 @@ These locations may be created only by their approved slice:
 | `catalog/` | Root application catalogue implementation |
 | `artifacts/` | Secret-free reviewed evidence indexes and digests, never raw Live evidence bundles |
 
-The W2 foundation, W3 contracts, W4 bootstrap configuration, W5 Fixture Application roots, W6
-Platform foundation, W7 Shared Edge forwarding, and W8 platform controls are
-not authorization to scaffold empty modules for later packages or infer later capabilities. W9
-workflow templates are inert design data and create no federation or mutation authority. AP-M7 may
-create its remaining named paths only in work-package order. It may
-add only reviewed static configuration, synthetic examples, inert workflow templates, and
-deterministic tests. Executable cloud workflows, credentials, state, saved plans, provider calls,
-and Live evidence remain prohibited. Live evidence bundles remain in the private provider evidence
-store rather than the repository.
+The implemented AP-M7 capability locations are not authorization to scaffold empty modules or
+infer later capabilities. The W2 foundation, W3 contracts, W4 bootstrap configuration, W5 Fixture
+Application roots, W6
+Platform foundation, W7 Shared Edge forwarding, W8 platform controls, W9 inert workflows, and W10
+qualification gate do not authorize later behavior. AP-M7-W11 records only repository
+implementation and a post-merge planning handoff. Executable cloud workflows, credentials, state,
+saved plans, provider calls, deployments, and Live evidence remain prohibited. Live evidence
+bundles remain in the private provider evidence store rather than the repository.
 
 ## Completed repository-transition boundary
 

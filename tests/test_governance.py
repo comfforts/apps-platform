@@ -257,7 +257,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_overview = " ".join(overview.split())
 
         self.assertIn(
-            "AP-M7 locally implemented",
+            "AP-M8-W1 qualification-deployment authority proposal complete",
             normalized_index,
         )
         self.assertIn("Contract (`C`) evidence", normalized_index)
@@ -285,7 +285,15 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("AP-M7-W9 adds parseable, non-executable", normalized_overview)
         self.assertIn("AP-M7-W10 binds AP-EVAL-M7-01", normalized_index)
         self.assertIn("AP-M7-W11 reconciles this static status", normalized_overview)
-        self.assertIn("AP-M7 static Terraform, configuration", normalized_layout)
+        self.assertIn("AP-M8-W1 authority proposal complete", normalized_layout)
+        self.assertIn(
+            "owner acceptance, AP-M8-W2, and every operator action pending",
+            normalized_index,
+        )
+        self.assertIn(
+            "AP-M8-W2 may begin only after this pull request merges",
+            normalized_overview,
+        )
         self.assertIn("planning consistency only", normalized_index)
         self.assertIn("Integration draft", index)
         self.assertIn(
@@ -652,14 +660,14 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M7 pull request has merged to `main`",
-            "owner explicitly requests an AP-M8 authority proposal",
-            "propose the detailed AP-M8 non-production qualification-deployment authority",
-            "treat them as unresolved rather than inferred",
-            "Wait for explicit owner approval of that authority before implementing",
+            "after the AP-M8 authority pull request has merged to `main`",
+            "owner explicitly accepts the complete AP-M8-W1 authority and requests AP-M8-W2",
+            "implement AP-M8-W2 only as a bounded, non-secret operator-input manifest",
+            "A missing value stops AP-M8-W2",
+            "Do not begin AP-M8-W3 repository or environment settings",
             "Do not change repository settings",
             "Do not query a provider, copy Finance Assistant values",
-            "AP-M8 remains a separate owner-approved branch and pull request",
+            "Every later external action retains its own explicit owner checkpoint",
             "credential-free, deterministic, offline, extraction-safe, and non-mutating",
         ):
             self.assertIn(boundary, normalized_prompt)
@@ -667,7 +675,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("## ADR-", prompt)
         self.assertNotIn("terraform apply", prompt)
         self.assertIn(
-            "[AP-M8 authority handoff](starting_prompt.md)",
+            "[AP-M8 implementation handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -694,19 +702,19 @@ class ProjectAuthorityTest(unittest.TestCase):
         for later_slice in (
             "Networked provider runtime — locally implemented",
             "Terraform and workflow implementation — locally implemented and statically verified",
-            "Non-production qualification deployment — later",
+            "Non-production qualification deployment — authority proposed, implementation unavailable",
             "Live qualification — later",
             "Finance Application Adoption — later and independent",
         ):
             self.assertIn(later_slice, index)
         self.assertIn("separate bounded branch and pull request", normalized_index)
         self.assertIn(
-            "propose the detailed AP-M8 non-production qualification-deployment authority",
+            "implement AP-M8-W2 only as a bounded, non-secret operator-input manifest",
             normalized_prompt,
         )
-        self.assertIn("Wait for explicit owner approval of that authority", normalized_prompt)
+        self.assertIn("A missing value stops AP-M8-W2", normalized_prompt)
         self.assertIn("Do not change repository settings", normalized_prompt)
-        self.assertIn("AP-M8 remains a separate owner-approved branch", normalized_prompt)
+        self.assertIn("Do not begin AP-M8-W3", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(

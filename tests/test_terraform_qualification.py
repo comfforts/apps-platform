@@ -319,7 +319,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertNotIn("id-token: write", check_workflow)
         self.assertNotIn("terraform apply", check_workflow)
 
-    def test_status_records_static_gate_and_defers_ap_m8_until_merge(self) -> None:
+    def test_status_records_ap_m8_authority_and_defers_w2_until_acceptance(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(
@@ -328,18 +328,21 @@ class TerraformQualificationGateTest(unittest.TestCase):
         combined = " ".join((overview, index, prompt))
         self.assertIn("AP-M7 is locally implemented", combined)
         self.assertIn("AP-M7-W11 records only static repository implementation", index)
-        self.assertIn("deployment, Live, and Adoption qualification unavailable", index)
-        self.assertIn("only after the AP-M7 pull request has merged", prompt)
+        self.assertIn("AP-M8-W1 qualification-deployment authority proposal complete", index)
+        self.assertIn("AP-M8 authority pull request has merged", prompt)
+        self.assertIn("owner explicitly accepts the complete AP-M8-W1 authority", prompt)
         self.assertIn(
-            "propose the detailed AP-M8 non-production qualification-deployment authority",
+            "implement AP-M8-W2 only as a bounded, non-secret operator-input manifest",
             prompt,
         )
         for false_claim in (
             "AP-M7 is deployed",
             "AP-M7 is Live-qualified",
             "AP-M7 supplies Application Adoption",
-            "AP-M8 is implemented",
-            "AP-M8 is authorized",
+            "AP-M8 is deployed",
+            "AP-M8 is Live-qualified",
+            "AP-M8-W2 is implemented",
+            "AP-M8 authority is owner-accepted",
         ):
             self.assertNotIn(false_claim, combined)
 

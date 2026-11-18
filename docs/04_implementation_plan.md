@@ -1,17 +1,18 @@
 # App Platform implementation plan
 
-Version 0.6 | Status: implementation-plan authority through AP-M7; proposed AP-M8
-qualification-deployment authority only; no AP-M8 operator action authorized
+Version 0.7 | Status: implementation-plan authority through AP-M7; AP-M8-W1 authority proposal
+complete and passing its deterministic governance gate; no AP-M8 operator action authorized
 
 This document preserves delivery item 3, the system-design-and-versioned-contracts slice, delivery
 item 4, the deterministic-fixtures slice, and delivery item 5, the infrastructure-planning slice.
 It owns delivery item 6, the networked-provider-runtime slice, and delivery item 7, the
 Terraform-and-workflow implementation slice. AP-M7 implements and statically validates reviewed
-Terraform configuration and inert workflow templates. This revision begins the documentation-only
-AP-M8-W1 authority proposal for delivery item 8. Until the complete AP-M8 authority and
-AP-EVAL-M8 are owner-accepted and merged, no backend initialization, authenticated plan or apply,
-cloud call, credential, federation or repository-setting change, provider resource, DNS or
-identity mutation, deployment, Live qualification, or Application Adoption is authorized.
+Terraform configuration and inert workflow templates. This revision completes the documentation-
+only AP-M8-W1 authority proposal for delivery item 8 and its deterministic governance checks.
+Until the complete AP-M8-W1 authority is owner-accepted and merged, no AP-M8-W2 implementation,
+backend initialization, authenticated plan or apply, cloud call, credential, federation or
+repository-setting change, provider resource, DNS or identity mutation, deployment, Live
+qualification, or Application Adoption is authorized.
 
 Requirements: AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006
 
@@ -1236,11 +1237,11 @@ grant a Feature Entitlement, activate an Integration Draft, or claim Application
 
 ### Authority status
 
-AP-M8-W1 is a documentation-and-governance proposal. It defines the bounded milestone and the
-authority that later commits in this slice must complete. AP-M8-W2 through AP-M8-W12 remain
-unauthorized until AP-M8-W1 defines the complete plan, design refinements, threat controls,
-AP-EVAL-M8 gate, repository locations, and deterministic governance checks; the owner accepts that
-authority; and its pull request merges to protected `main`.
+AP-M8-W1 is a complete documentation-and-governance proposal on this branch. It defines the bounded
+milestone, complete plan, design refinements, threat controls, AP-EVAL-M8 gate, repository
+locations, deterministic governance checks, and implementation handoff. AP-M8-W2 through
+AP-M8-W12 remain unauthorized until the owner accepts that complete authority and its pull request
+merges to protected `main`.
 
 Acceptance or merge of AP-M8-W1 still does not execute an operator action. Each later package has
 its own explicit owner checkpoint, and any package that changes repository settings, cloud IAM,
@@ -1554,8 +1555,9 @@ AP-M8 is accepted only when all of the following are true:
 AP-M8 crosses from static configuration into protected repository, identity, state, provider, and
 DNS control planes. Exact-source binding, least privilege, state isolation, explicit checkpoints,
 stop-on-partial-failure behavior, and redacted readback reduce but do not eliminate those risks.
-The evidence rules and AP-EVAL-M8 gate are proposal authority; deterministic governance enforcement
-and final handoff reconciliation remain incomplete and block AP-M8-W2.
+The evidence rules and AP-EVAL-M8 gate are proposal authority. Deterministic governance enforcement
+and final handoff reconciliation are complete on this branch, but owner acceptance and merge still
+block AP-M8-W2.
 
 No credential, token, assertion, session, restricted identity, application payload, state content,
 saved plan, raw provider response, browser state, or unredacted log may enter Git or the retained
@@ -1565,9 +1567,9 @@ coarse operation outcomes are not secrets but remain bounded to the approved rec
 ### Limitations and unresolved authority
 
 The protected-control, backend, deployment-sequencing, and AP-EVAL-M8 profiles are proposal
-authority, not implemented controls. AP-M8-W1 still requires deterministic governance enforcement
-and final handoff reconciliation. Those are required authority increments, not implementation tasks
-or optional skips. Until every AP-M8-W1 increment is accepted together, AP-M8-W2 through AP-M8-W12
+authority, not implemented controls. AP-M8-W1's deterministic governance enforcement and final
+handoff reconciliation are complete and passing on this branch; they are not owner acceptance or
+merge. Until every AP-M8-W1 increment is accepted together and merged, AP-M8-W2 through AP-M8-W12
 cannot start.
 
 AP-M8 deployment cannot prove visitor or application behavior, direct-origin denial, real login,

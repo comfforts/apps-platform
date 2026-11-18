@@ -2,9 +2,10 @@
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
 complete; AP-M7 static Terraform, configuration, and inert workflows implemented and passing the
-deterministic repository gate; AP-M8 authority reserves backend, deployment, and evidence-support
-locations only; no backend or provider operation, cloud resource, IAM mutation, build, publication,
-deployment, DNS change, evidence collection, or Live qualification performed
+deterministic repository gate; AP-M8-W1 authority proposal complete and passing its deterministic
+governance gate; reserved backend, deployment, and evidence-support locations remain absent; no
+backend or provider operation, cloud resource, IAM mutation, build, publication, deployment, DNS
+change, evidence collection, or Live qualification performed
 
 The project is organized at the dedicated repository root produced by the history-preserving
 subtree extraction. Paths remain project-relative so repository identity does not alter platform

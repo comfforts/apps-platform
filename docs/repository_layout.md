@@ -2,10 +2,11 @@
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
 complete; AP-M7 static Terraform, configuration, and inert workflows implemented and passing the
-deterministic repository gate; AP-M8-W1 authority proposal complete and passing its deterministic
-governance gate; reserved backend, deployment, and evidence-support locations remain absent; no
-backend or provider operation, cloud resource, IAM mutation, build, publication, deployment, DNS
-change, evidence collection, or Live qualification performed
+deterministic repository gate; AP-M8-W1 owner-accepted and merged; AP-M8-W2 operator-manifest
+contract and deterministic chain validation implemented with synthetic material only; reserved
+backend, deployment, and evidence-support locations remain absent; no backend or provider
+operation, cloud resource, IAM mutation, build, publication, deployment, DNS change, evidence
+collection, or Live qualification performed
 
 The project is organized at the dedicated repository root produced by the history-preserving
 subtree extraction. Paths remain project-relative so repository identity does not alter platform
@@ -22,7 +23,7 @@ contracts, verification, or ownership boundaries.
 | `GLOSSARY.md` | Canonical platform vocabulary |
 | `docs/` | Platform design authority, runbooks, and evidence indexes |
 | `docs/runbooks/` | Subordinate operator procedures requiring their own explicit approvals |
-| `docs/runbooks/qualification_deployment.md` | Proposal-only AP-M8 protected-setting, identity, backend, exact deployment sequence, DNS/TLS, and evidence checkpoints; no action authority |
+| `docs/runbooks/qualification_deployment.md` | Planning-only AP-M8 protected-setting, identity, backend, exact deployment sequence, DNS/TLS, and evidence checkpoints; no action authority |
 | `prompts/` | Bounded task entry points that link to authoritative documents |
 | `integrations/` | Inactive application-adoption inputs with no consuming-app authority |
 | `contracts/` | Version 1 schemas, deterministic reference compiler, reviewed contract vectors, and bounded runtime JSON loading |
@@ -34,6 +35,10 @@ contracts, verification, or ownership boundaries.
 | `.gitignore` | Platform-local generated, secret, state, and build exclusions |
 | `infrastructure/tools/` | AP-M7 credential-free local dependency setup and disposable-copy offline validation |
 | `infrastructure/config/` | AP-M7-W3 closed Version 1 schemas and AP-M8-W2 operator-manifest contract, synthetic examples, bounded loader, and semantic policy |
+| `infrastructure/config/schemas/operator-input-manifest.v1.schema.json` | AP-M8-W2 closed append-only non-secret manifest revision contract; no accepted operator values |
+| `infrastructure/config/examples/operator-input-manifest.synthetic.v1.json` | AP-M8-W2 explicitly synthetic validation material; never a default or operator input |
+| `infrastructure/config/validation.py` | AP-M8-W2 pure document, canonical-digest, immutable-input, and predecessor-chain validation without discovery or external access |
+| `infrastructure/config/operator_manifest.py` | AP-M8-W2 read-only explicit-chain command that emits only accepted digests or ordered violations |
 | `infrastructure/terraform/{bootstrap,platform,fixtures/*}/versions.tf` | Exact root-local Terraform and provider constraints |
 | `infrastructure/terraform/{bootstrap,platform,fixtures/*}/.terraform.lock.hcl` | Identical committed provider selections and signed package checksums |
 | `infrastructure/terraform/bootstrap/` | AP-M7-W4 deep bootstrap root, typed configuration interface, and plan-only mocked-provider tests |
@@ -52,9 +57,6 @@ These paths are authority reservations, not implemented capabilities or permissi
 
 | Path | Intended owner |
 | --- | --- |
-| `infrastructure/config/schemas/operator-input-manifest.v1.schema.json` | AP-M8-W2 closed append-only non-secret manifest revision contract; no accepted operator values |
-| `infrastructure/config/examples/operator-input-manifest.synthetic.v1.json` | AP-M8-W2 explicitly synthetic validation material; never a default or operator input |
-| `infrastructure/config/validation.py` | AP-M8-W2 pure document, canonical-digest, and predecessor-chain validation without discovery or external access |
 | `infrastructure/backend/bootstrap-backend.tf.tmpl` | AP-M8-W5 reviewed empty GCS backend declaration for a private temporary bootstrap-root copy only |
 | `infrastructure/backend/render_bootstrap_backend.py` | AP-M8-W5 credential-free deterministic renderer that refuses overwrite and emits no value, state, credential, or provider data |
 | `edge/production.py` | AP-M8-W6 production composition of only the already accepted Shared Edge adapters |

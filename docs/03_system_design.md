@@ -1,7 +1,7 @@
 # App Platform system design
 
-Version 1.3 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, approved
-AP-M7 Terraform configuration profile, and proposed AP-M8 protected-source, federated-identity,
+Version 1.4 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, approved
+AP-M7 Terraform configuration profile, and accepted AP-M8 protected-source, federated-identity,
 backend-bootstrap, state-lineage, qualification-deployment sequencing, and evidence profiles;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
@@ -596,9 +596,9 @@ authorize the other.
 
 The subordinate [qualification-deployment runbook](runbooks/qualification_deployment.md) owns the
 checkpoint inputs, setting profile, identity matrix, readback, and stop conditions. This design and
-runbook are AP-M8-W1 authority proposals only. They create no environment, executable workflow,
-pool, provider, service account, IAM binding, credential, backend, plan, resource, DNS change, or
-deployment.
+runbook are accepted AP-M8-W1 authority. AP-M8-W2 implements only their local manifest contract and
+validator. They create no environment, executable workflow, pool, provider, service account, IAM
+binding, credential, backend, plan, resource, DNS change, or deployment.
 
 ### AP-M8 backend bootstrap and state-lineage profile
 
@@ -652,7 +652,8 @@ claim that a non-bootstrap state or resource already exists.
 
 The subordinate [qualification-deployment runbook](runbooks/qualification_deployment.md) defines
 the preparation dependency, prerequisites, fixed map, migration invariants, readback, partial-
-failure stops, and allowed record. This AP-M8-W1 proposal performs none of those operations.
+failure stops, and allowed record. The accepted AP-M8-W1 authority and AP-M8-W2 local manifest
+validator perform none of those operations.
 
 ### AP-M8 deployment support and sequencing profile
 

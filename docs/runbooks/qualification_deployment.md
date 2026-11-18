@@ -1,12 +1,13 @@
 # AP-M8 qualification-deployment runbook
 
-Status: AP-M8-W1 authority proposal only; no repository setting, identity, credential, backend,
-provider, DNS, traffic, or deployment action is authorized
+Status: AP-M8-W1 owner-accepted and merged; AP-M8-W2 deterministic repository support implemented;
+first real manifest acceptance and every repository setting, identity, credential, backend,
+provider, DNS, traffic, or deployment action pending
 
 This runbook is subordinate to the App Platform requirements, accepted ADRs, system design,
-implementation plan, evaluation strategy, and threat model. It will define the human checkpoints
-for AP-M8-W2 through AP-M8-W12 after the complete AP-M8-W1 authority is owner-accepted and merged.
-Its presence in the repository never authorizes an external mutation.
+implementation plan, evaluation strategy, and threat model. It defines the human checkpoints for
+AP-M8-W2 through AP-M8-W12 under the accepted AP-M8-W1 authority. Its presence and W2's local
+validator never authorize an external mutation.
 
 Requirements: AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003 through AP-QR-006
 
@@ -14,14 +15,16 @@ Decisions: ADR-001, ADR-004, ADR-007
 
 Threats: AP-TM-004, AP-TM-005, AP-TM-007 through AP-TM-014
 
-Plan: AP-M8-W1, AP-M8-W3 through AP-M8-W12
+Plan: AP-M8-W1 through AP-M8-W12
 
 ## Checkpoint rule
 
-The owner first approves and merges the complete AP-M8-W1 authority. AP-M8-W2 then records the
-exact operator-input manifest. AP-M8-W3 and AP-M8-W4 each require a new explicit approval against
-that manifest immediately before their external changes. Approval for one checkpoint, setting,
-environment, workflow, root, operation, identity, or IAM binding cannot be reused for another.
+The complete AP-M8-W1 authority is owner-accepted and merged. AP-M8-W2 implements the closed
+contract and deterministic chain validator, then records the exact real operator-input manifest
+only after that implementation merges. AP-M8-W3 and AP-M8-W4 each require a new explicit approval
+against the accepted manifest immediately before their external changes. Approval for one
+checkpoint, setting, environment, workflow, root, operation, identity, or IAM binding cannot be
+reused for another.
 
 Before requesting either mutation approval, the operator must present a secret-free proposed-
 change table containing:

@@ -1,8 +1,9 @@
 # Comfforts App Platform
 
 Status: AP-M7 is locally implemented and passes its deterministic AP-EVAL-M7 repository gate.
-AP-M8-W1 is complete as a qualification-deployment authority proposal and passes its deterministic
-governance gate; owner acceptance, AP-M8-W2, and every operator action remain pending.
+AP-M8-W1 is owner-accepted and merged. AP-M8-W2 implements the closed non-secret operator-manifest
+contract and deterministic chain validator locally; post-merge acceptance of the first real
+manifest and every external operator action remain pending.
 Immutable generation loading, catalogue and routing, Platform Sessions and admission, identity
 assertions and application verification, Cloud Run attachment resolution, bounded HTTP, SSE, and
 WebSocket proxying, read-only status, correlation, adapter-health observations, and redacted
@@ -24,16 +25,18 @@ this static result and the post-merge handoff boundary. No backend was initializ
 operation performed, cloud resource created, generation uploaded or activated, or deployment,
 Live evidence, or Application Adoption qualified.
 
-The AP-M8-W1 proposal defines AP-M8-W1 through AP-M8-W12 and AP-EVAL-M8-01 through
+The accepted AP-M8-W1 profile defines AP-M8-W1 through AP-M8-W12 and AP-EVAL-M8-01 through
 AP-EVAL-M8-10, including protected repository environments, operation-specific federation and
 identity boundaries, four state buckets preserving five independent root lineages, private local
 bootstrap and migration, Version 2 foundation/candidate phases, the fixed deployment order,
 DNS/TLS approval, readback, and a closed private evidence bundle. Its deterministic governance
-checks prove only that this authority is internally complete. The proposal creates no executable
-workflow or reserved implementation path and authorizes no repository setting, federation,
-credential, backend, provider, build, publication, generation, DNS, deployment, evidence,
-recovery, or destructive action. AP-M8-W2 may begin only after this pull request merges and the
-owner explicitly accepts AP-M8-W1 and requests that bounded work package.
+checks prove only that this authority is internally complete. AP-M8-W2 adds one deep local
+configuration interface for closed revision validation, canonical digests, immutable-input
+comparison, and append-only predecessor chains. Only an explicitly synthetic example is committed.
+The first real manifest must be created after this branch merges, bound to that exact protected-main
+revision, validated, and explicitly accepted by digest outside Git. No executable workflow,
+repository setting, federation, credential, backend, provider, build, publication, generation,
+DNS, deployment, evidence, recovery, or destructive action is authorized.
 
 Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
 history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
@@ -143,10 +146,11 @@ protected-main/source and plan-digest binding, root concurrency, runner-temporar
 plan/apply, explicit destructive confirmation, and secret-free outcome metadata. AP-M7-W10
 enforces the complete AP-EVAL-M7 matrix, history-independent extraction, offline copy-local provider
 use, plan-only mocked tests for every root, warning and prohibited-artifact failure, and all prior
-regressions. AP-M7-W11 reconciles this static status. AP-M8-W1 now defines the complete proposed
-qualification-deployment authority and its deterministic governance checks. That proposal is not
-owner acceptance, AP-EVAL-M8 deployment evidence, or permission to begin AP-M8-W2. It creates no
-deployment or mutation authority.
+regressions. AP-M7-W11 reconciles this static status. AP-M8-W1's complete qualification-deployment
+authority and deterministic governance checks are owner-accepted and merged. AP-M8-W2 implements
+only the local operator-manifest contract and chain validator. It is not a real manifest,
+AP-EVAL-M8 deployment evidence, or permission to begin AP-M8-W3 and creates no deployment or
+mutation authority.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
 preserved their history. The separately reviewed source cleanup removed the historical colocated

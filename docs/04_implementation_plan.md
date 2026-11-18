@@ -1,18 +1,20 @@
 # App Platform implementation plan
 
-Version 0.7 | Status: implementation-plan authority through AP-M7; AP-M8-W1 authority proposal
-complete and passing its deterministic governance gate; no AP-M8 operator action authorized
+Version 0.8 | Status: AP-M8-W1 owner-accepted and merged; AP-M8-W2 repository contract and
+deterministic chain validation implemented locally; real manifest acceptance and every external
+operator action pending
 
 This document preserves delivery item 3, the system-design-and-versioned-contracts slice, delivery
 item 4, the deterministic-fixtures slice, and delivery item 5, the infrastructure-planning slice.
 It owns delivery item 6, the networked-provider-runtime slice, and delivery item 7, the
 Terraform-and-workflow implementation slice. AP-M7 implements and statically validates reviewed
-Terraform configuration and inert workflow templates. This revision completes the documentation-
-only AP-M8-W1 authority proposal for delivery item 8 and its deterministic governance checks.
-Until the complete AP-M8-W1 authority is owner-accepted and merged, no AP-M8-W2 implementation,
-backend initialization, authenticated plan or apply, cloud call, credential, federation or
-repository-setting change, provider resource, DNS or identity mutation, deployment, Live
-qualification, or Application Adoption is authorized.
+Terraform configuration and inert workflow templates. AP-M8-W1's complete authority and
+deterministic governance checks are owner-accepted and merged. This revision implements only the
+AP-M8-W2 closed operator-manifest contract, pure chain validation, and synthetic regression
+material. Until its pull request merges and the owner accepts one real source-bound manifest and
+digest, no AP-M8-W3 implementation, backend initialization, authenticated plan or apply, cloud
+call, credential, federation or repository-setting change, provider resource, DNS or identity
+mutation, deployment, Live qualification, or Application Adoption is authorized.
 
 Requirements: AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006
 
@@ -1237,11 +1239,11 @@ grant a Feature Entitlement, activate an Integration Draft, or claim Application
 
 ### Authority status
 
-AP-M8-W1 is a complete documentation-and-governance proposal on this branch. It defines the bounded
-milestone, complete plan, design refinements, threat controls, AP-EVAL-M8 gate, repository
-locations, deterministic governance checks, and implementation handoff. AP-M8-W2 through
-AP-M8-W12 remain unauthorized until the owner accepts that complete authority and its pull request
-merges to protected `main`.
+AP-M8-W1 is complete, owner-accepted, and merged. It defines the bounded milestone, complete plan,
+design refinements, threat controls, AP-EVAL-M8 gate, repository locations, deterministic
+governance checks, and implementation handoff. AP-M8-W2 is the only active package. AP-M8-W3
+through AP-M8-W12 remain unauthorized until W2's repository support merges and the owner accepts
+one real manifest revision bound to that exact protected-main source.
 
 Acceptance or merge of AP-M8-W1 still does not execute an operator action. Each later package has
 its own explicit owner checkpoint, and any package that changes repository settings, cloud IAM,
@@ -1314,11 +1316,11 @@ deploy a resource, execute recovery, collect Live evidence, or begin AP-M9.
 | --- | --- | --- |
 | AP-M3 through AP-M7 | Merged and passing | Preserve Contract, Fixture, runtime, Terraform, workflow-template, and regression authority without reinterpreting static evidence as deployment proof |
 | Canonical repository | Clean protected `main` in `comfforts/apps-platform` | Bind every later plan, approval, apply, and record to an exact merged source revision |
-| Complete AP-M8-W1 authority | Owner-accepted and merged | Authorize only the named later package; no operator action inherits authority from this proposal |
+| Complete AP-M8-W1 authority | Owner-accepted and merged | Authorize only the named later package; no operator action inherits authority from this profile |
 | Qualification environment | Fixed planning facts | Use project `comfforts-platform-non-prod` (`455651441682`), region `us-west1`, and hostname `apps-staging.comfforts.com`; never infer another environment |
 | Operator inputs | Reviewed before their dependent package | Record exact values and digests without provider discovery, Finance-derived values, or invented defaults |
-| Credentials and provider access | Unavailable to AP-M8-W1 | Later packages may use only approved short-lived identities within their exact operation boundary |
-| AP-EVAL-M8 | Complete and approved before mutation | Define deployment/readback claims, commands, fixtures, evidence, redaction, and pass/fail/skip semantics before AP-M8-W2 |
+| Credentials and provider access | Unavailable through AP-M8-W2 | Later packages may use only approved short-lived identities within their exact operation boundary |
+| AP-EVAL-M8 | Authority complete and accepted; result unavailable | Preserve deployment/readback claims, commands, fixtures, evidence, redaction, and pass/fail/skip semantics before mutation |
 | AP-M9 and Application Adoption | Unavailable | Produce no Live qualification or consuming-application change |
 
 The exact repository and owner numeric identifiers, protected workflow refs, subjects and
@@ -1354,6 +1356,13 @@ configuration-object generations, plan digests, and run identifiers enter only t
 successor revisions that name their predecessor and receive a fresh approval before use. The exact
 protected-main source revision is recorded after merge; no commit is required to contain its own
 future identifier.
+
+Repository status: the closed Version 1 revision schema, deterministic local loader, canonical
+digest, immutable-input comparison, predecessor-chain validation, explicitly synthetic example,
+and security/governance regression checks are implemented on the W2 branch. This repository
+implementation neither contains nor accepts the real operator manifest. After merge, one real
+non-secret revision must be created in an owner-approved non-Git location, validated against the
+exact merged source, and explicitly accepted by digest before W3 can begin.
 
 #### AP-M8-W3 · Protected repository and environment controls
 
@@ -1511,9 +1520,10 @@ AP-M9 proposal after merge but may not claim Live qualification or authorize App
 
 ### Ordered delivery
 
-AP-M8-W1 is the only active package in this authority slice. After it is accepted and merged,
-AP-M8-W2 through AP-M8-W12 proceed in order, each behind its named owner checkpoint. Work may be
-split across separately approved branches and pull requests where the package changes a distinct
+AP-M8-W1 is owner-accepted and merged, and AP-M8-W2 is the only active package. After W2's
+repository implementation merges and its exact real manifest revision is accepted, AP-M8-W3
+through AP-M8-W12 proceed in order, each behind its named owner checkpoint. Work may be split
+across separately approved branches and pull requests where the package changes a distinct
 authority surface. A later package may not begin from an unmerged branch, fill a missing input,
 reuse an earlier approval for a different operation, or continue past a failed checkpoint.
 
@@ -1555,9 +1565,9 @@ AP-M8 is accepted only when all of the following are true:
 AP-M8 crosses from static configuration into protected repository, identity, state, provider, and
 DNS control planes. Exact-source binding, least privilege, state isolation, explicit checkpoints,
 stop-on-partial-failure behavior, and redacted readback reduce but do not eliminate those risks.
-The evidence rules and AP-EVAL-M8 gate are proposal authority. Deterministic governance enforcement
-and final handoff reconciliation are complete on this branch, but owner acceptance and merge still
-block AP-M8-W2.
+The evidence rules and AP-EVAL-M8 gate are accepted W1 authority. W2's deterministic manifest
+contract and chain validation are repository implementation only; merge plus explicit acceptance
+of the exact real manifest and digest still block AP-M8-W3.
 
 No credential, token, assertion, session, restricted identity, application payload, state content,
 saved plan, raw provider response, browser state, or unredacted log may enter Git or the retained
@@ -1566,11 +1576,11 @@ coarse operation outcomes are not secrets but remain bounded to the approved rec
 
 ### Limitations and unresolved authority
 
-The protected-control, backend, deployment-sequencing, and AP-EVAL-M8 profiles are proposal
-authority, not implemented controls. AP-M8-W1's deterministic governance enforcement and final
-handoff reconciliation are complete and passing on this branch; they are not owner acceptance or
-merge. Until every AP-M8-W1 increment is accepted together and merged, AP-M8-W2 through AP-M8-W12
-cannot start.
+The protected-control, backend, deployment-sequencing, and AP-EVAL-M8 profiles are accepted
+planning authority, not implemented controls. AP-M8-W1 is owner-accepted and merged. AP-M8-W2 implements
+only the local manifest contract and validator; no real manifest is committed or accepted by that
+result. Until the exact post-merge revision is validated and owner-accepted, AP-M8-W3 through
+AP-M8-W12 cannot start.
 
 AP-M8 deployment cannot prove visitor or application behavior, direct-origin denial, real login,
 assertion verification, load, availability, multi-instance behavior, rollback time, recovery,

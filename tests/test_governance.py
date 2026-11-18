@@ -816,6 +816,201 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertEqual(len(identifiers), len(set(identifiers)))
 
+    def test_ap_m8_authority_has_complete_unique_work_packages_and_gates(self) -> None:
+        plan = (PROJECT_ROOT / "docs/04_implementation_plan.md").read_text(
+            encoding="utf-8"
+        )
+        evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
+            encoding="utf-8"
+        )
+
+        work_packages = re.findall(r"^#### (AP-M8-W\d+) ·", plan, re.MULTILINE)
+        evaluation_gates = re.findall(
+            r"^##### (AP-EVAL-M8-\d{2}) ·", evaluation, re.MULTILINE
+        )
+
+        self.assertEqual(
+            work_packages,
+            [f"AP-M8-W{index}" for index in range(1, 13)],
+        )
+        self.assertEqual(
+            evaluation_gates,
+            [f"AP-EVAL-M8-{index:02d}" for index in range(1, 11)],
+        )
+        self.assertEqual(len(work_packages), len(set(work_packages)))
+        self.assertEqual(len(evaluation_gates), len(set(evaluation_gates)))
+
+    def test_ap_m8_operator_authorities_are_separate_and_exact(self) -> None:
+        runbook = (
+            PROJECT_ROOT / "docs/runbooks/qualification_deployment.md"
+        ).read_text(encoding="utf-8")
+
+        environment_section = runbook.split("### Environment classes", 1)[1].split(
+            "### Executable workflow boundary", 1
+        )[0]
+        environment_classes = re.findall(
+            r"^\| (Plan|Apply|DNS|Evidence|Recovery) \|",
+            environment_section,
+            re.MULTILINE,
+        )
+        self.assertEqual(
+            environment_classes,
+            ["Plan", "Apply", "DNS", "Evidence", "Recovery"],
+        )
+
+        identity_section = runbook.split(
+            "### One identity per root or publication operation", 1
+        )[1].split("### Bootstrap exception", 1)[0]
+        operation_names = re.findall(
+            r"^\| (Plan|Apply|Artifact publish|Generation publish|"
+            r"Qualification DNS|Root readback|Evidence finalize|Rollback|"
+            r"Force-unlock|Destroy) \|",
+            identity_section,
+            re.MULTILINE,
+        )
+        self.assertEqual(
+            operation_names,
+            [
+                "Plan",
+                "Apply",
+                "Artifact publish",
+                "Generation publish",
+                "Qualification DNS",
+                "Root readback",
+                "Evidence finalize",
+                "Rollback",
+                "Force-unlock",
+                "Destroy",
+            ],
+        )
+        normalized_identity = " ".join(identity_section.split())
+        for boundary in (
+            "No operation identity spans roots or operations",
+            "Workload identities receive no owner, editor, IAM administrator",
+            "They cannot alter the Workload Identity Pool/provider, their own service account",
+            "no service-account key may exist",
+            "Import, state push, backend migration, federation administration",
+            "cannot list another evaluation prefix, overwrite or delete a record",
+        ):
+            self.assertIn(boundary, normalized_identity)
+
+    def test_ap_m8_state_and_deployment_order_are_fixed(self) -> None:
+        runbook = (
+            PROJECT_ROOT / "docs/runbooks/qualification_deployment.md"
+        ).read_text(encoding="utf-8")
+
+        state_section = runbook.split("### Fixed root and prefix map", 1)[1].split(
+            "### Operator prerequisites", 1
+        )[0]
+        for root_mapping in (
+            "| `bootstrap` | Platform State backend resources | "
+            "Platform-state bucket | `bootstrap` |",
+            "| `platform` | Platform State | Platform-state bucket | `platform` |",
+            "| `fixture-public` | Fixture Application State | Fixture-public state "
+            "bucket | `fixtures/fixture-public` |",
+            "| `fixture-authenticated` | Fixture Application State | "
+            "Fixture-authenticated state bucket | `fixtures/fixture-authenticated` |",
+            "| `fixture-restricted` | Fixture Application State | "
+            "Fixture-restricted state bucket | `fixtures/fixture-restricted` |",
+        ):
+            self.assertIn(root_mapping, state_section)
+        self.assertIn(
+            "Four buckets hold five independent root lineages", state_section
+        )
+        self.assertIn("workspaces other than `default` are prohibited", state_section)
+
+        sequence_section = runbook.split(
+            "## AP-M8-W8 and AP-M8-W9 deployment sequence", 1
+        )[1].split("## AP-M8-W10 qualification DNS and TLS checkpoint", 1)[0]
+        operations = re.findall(
+            r"^\| [1-8] \| ([^|]+?) \|", sequence_section, re.MULTILINE
+        )
+        self.assertEqual(
+            operations,
+            [
+                "Apply Platform `foundation`",
+                "Build and publish images",
+                "Accept platform reference",
+                "Apply `fixture-public`",
+                "Apply `fixture-authenticated`",
+                "Apply `fixture-restricted`",
+                "Compile and publish generation",
+                "Plan and apply Platform `candidate`",
+            ],
+        )
+        normalized_sequence = " ".join(sequence_section.split())
+        for boundary in (
+            "Fixture roots deploy sequentially for the initial environment",
+            "workflow never reads another root's backend or uses `terraform_remote_state`",
+            "dark initial candidate",
+            "not zero-percent Cloud Run traffic, activation, or Live qualification",
+        ):
+            self.assertIn(boundary, normalized_sequence)
+
+    def test_ap_eval_m8_evidence_is_closed_private_and_non_live(self) -> None:
+        evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
+            encoding="utf-8"
+        )
+        normalized = " ".join(evaluation.split())
+        ap_m8 = evaluation.split(
+            "### AP-EVAL-M8 · Qualification-deployment gate", 1
+        )[1].split("### AP-EVAL-M9 · Live-qualification gate", 1)[0]
+
+        for bundle_entry in (
+            "manifest.v1.json",
+            "operations/<sequence>-<operation-id>.v1.json",
+            "readback/<target-id>.v1.json",
+            "verdict.v1.json",
+            "checksums.sha256",
+        ):
+            self.assertIn(bundle_entry, ap_m8)
+        for verifier_argument in (
+            "--bundle <private-read-only-bundle-directory>",
+            "--manifest-digest sha256:<64-lowercase-hex>",
+            "--source-revision <40-lowercase-hex>",
+            "--verdict-output <new-ephemeral-verdict-file>",
+        ):
+            self.assertIn(verifier_argument, ap_m8)
+        for evidence_boundary in (
+            "deployment/readback evidence, not a fifth evidence class",
+            "It does not invoke an application route or status endpoint",
+            "Uniform access, public-access prevention, owner-only read",
+            "covers neither itself nor the later verdict",
+            "avoiding a self-referential hash",
+            "All ten AP-EVAL-M8 gates are mandatory",
+            "The mandatory skip count must be zero",
+            "dependent gate that cannot safely run is `blocked`",
+            "AP-M9, cross-project, Finance, and Adoption behaviors are recorded as `unavailable`",
+            "creates no schema, workflow, identity, credential, bucket object, provider action",
+        ):
+            self.assertIn(evidence_boundary, normalized)
+
+    def test_ap_m8_authority_branch_contains_no_operational_capability(self) -> None:
+        reserved_paths = (
+            "infrastructure/backend",
+            "edge/production.py",
+            "fixtures/runtime.py",
+            "infrastructure/images",
+            "infrastructure/config/schemas/platform-configuration.v2.schema.json",
+            "infrastructure/deployment",
+            "registrations",
+            "artifacts",
+        )
+        for relative_path in reserved_paths:
+            self.assertFalse(
+                (PROJECT_ROOT / relative_path).exists(),
+                f"AP-M8-W1 must not implement reserved capability: {relative_path}",
+            )
+
+        workflow_root = PROJECT_ROOT / ".github/workflows"
+        self.assertEqual(
+            sorted(item.name for item in workflow_root.iterdir() if item.is_file()),
+            ["check.yml"],
+        )
+        self.assertFalse(any(PROJECT_ROOT.rglob("*.tfvars")))
+        self.assertFalse(any(PROJECT_ROOT.rglob("*.tfstate")))
+        self.assertFalse(any(PROJECT_ROOT.rglob("*.tfplan")))
+
     def test_ap_m7_authority_is_exact_static_and_non_operational(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
             encoding="utf-8"

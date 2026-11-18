@@ -1,8 +1,7 @@
 # Repository extraction runbook
 
-Status: approved transition procedure; extraction checkpoints 1 through 3 are complete;
-reconciliation, authority cutover, and source-tree cleanup remain pending and require their named
-approvals
+Status: completed transition procedure; checkpoints 1 through 5 are owner-approved and complete;
+`comfforts/apps-platform` is the canonical App Platform repository
 
 This runbook moves the separately governed App Platform tree into its dedicated GitHub repository
 without flattening its history, importing Finance Assistant authority, or creating two active
@@ -189,3 +188,7 @@ is merged, and the owner explicitly declares the target canonical.
 Acceptance proves repository continuity only. It proves no Terraform, provider, cloud, DNS,
 identity, deployment, Live, or Application Adoption behavior and does not authorize AP-M7 edits
 until their separate proposal is approved.
+
+The [repository extraction handoff](../repository_extraction_handoff.md) records that every
+acceptance condition and separately approved cleanup checkpoint completed. This runbook is now a
+historical procedure; it does not authorize another repository transition.

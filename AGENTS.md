@@ -40,9 +40,9 @@ change in the repository.
   Terraform, external network, credential lookup, provider call, cloud or repository mutation,
   deployment, Live claim, or Application Adoption.
 - Keep platform implementation, contracts, tests, prompts, and evidence inside this dedicated
-  repository. Extraction does not make Finance Assistant authority applicable here, and this
-  repository does not become canonical until the reconciliation pull request merges and the owner
-  explicitly declares the cutover.
+  canonical repository. Extraction does not make Finance Assistant authority applicable here. The
+  completed source-repository cleanup does not transfer Finance Assistant requirements, behavior,
+  infrastructure, state, or application-adoption authority into this project.
 
 ## Branch and review workflow
 

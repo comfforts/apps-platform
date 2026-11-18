@@ -1,7 +1,7 @@
 # Repository extraction handoff
 
-Status: checkpoints 1 through 3 complete; checkpoint 4 reconciliation in progress; canonical
-authority cutover and checkpoint 5 source-repository cleanup pending
+Status: checkpoints 1 through 5 owner-approved and complete; `comfforts/apps-platform` is the
+canonical App Platform repository
 
 This secret-free record is subordinate to the
 [repository extraction runbook](runbooks/repository_extraction.md). It records repository
@@ -63,6 +63,23 @@ without the locked runtime packages. After frozen setup, the desktop sandbox den
 explicit process-local loopback binds. Re-running the unchanged gate with only that sandbox
 restriction lifted passed; the tests made no external connection and used no credential.
 
+The dedicated reconciliation pull request retained two small commits and merged without rewriting
+them:
+
+| Evidence | Observed value |
+| --- | --- |
+| Root-reconciliation commit | `a12da61450c0ca970d8b8662841a5462771c72ee` |
+| Root-reconciliation tree | `4f33144e8115005a6d5d9188b7e47adb653b498b` |
+| Handoff-record commit | `6ecd60079dc87458fac993222cbb9e789d2e78ac` |
+| Handoff-record tree | `8a0615e56149130814b371db4c5d9cb6ca23c52f` |
+| [Dedicated reconciliation pull request](https://github.com/comfforts/apps-platform/pull/1) | Merged 2026-11-17 at 15:39 PST |
+| Reconciliation merge commit | `22f32da94854bbc265d40c8125f56b4efbbe7558` |
+| Reconciliation merge tree | `8a0615e56149130814b371db4c5d9cb6ca23c52f` |
+
+The pull request's required `Credential-free project checks`, CodeQL Actions analysis, and CodeQL
+checks succeeded. A clean, updated dedicated clone read back `main` at the exact merge commit before
+this governance closeout branch was created.
+
 ## GitHub workflow evidence
 
 | Workflow | Revision and result |
@@ -70,6 +87,8 @@ restriction lifted passed; the tests made no external connection and used no cre
 | [Initial App Platform checks run](https://github.com/comfforts/apps-platform/actions/runs/44192487649) | Run 44192487649 on `main` at `66ae90b`; success on 2026-11-17 at 14:41 PST; 34 seconds total; `Credential-free project checks` completed in 30 seconds; no artifact |
 | [Initial Dependency Graph run](https://github.com/comfforts/apps-platform/actions/runs/44195072491) | Run 44195072491; success on 2026-11-17 at 14:58 PST; 44 seconds |
 | [Initial CodeQL run](https://github.com/comfforts/apps-platform/actions/runs/44195292276) | Run 44195292276 using default setup; success on 2026-11-17 at 14:59 PST; 57 seconds; the security overview recorded the scan at 15:00 PST |
+| [Post-merge App Platform checks](https://github.com/comfforts/apps-platform/actions/runs/44201272475) | Run 44201272475 on `main` at `22f32da`; success after reconciliation merge |
+| [Post-merge CodeQL analysis](https://github.com/comfforts/apps-platform/actions/runs/44201272079) | Run 44201272079 on `main` at `22f32da`; success after reconciliation merge |
 
 These runs qualify only repository checks and security-tool availability. They do not supply Live or
 Application Adoption evidence.
@@ -101,22 +120,29 @@ The owner completed checkpoint 3 and the settings readback observed:
 Checkpoint 3 created no Actions secret, cloud credential, OIDC trust, Workload Identity Federation
 binding, protected deployment environment, Terraform state, saved plan, or apply authority.
 
-## Approvals and remaining checkpoints
+## Completed approvals and canonical cutover
 
 | Checkpoint | Status |
 | --- | --- |
 | 1. Source revision and dry-run extraction | Owner-approved and complete |
 | 2. Exact initial push | Owner-approved and complete |
 | 3. Dedicated-repository settings and required checks | Owner-approved, configured, and read back |
-| 4. Reconciliation pull request and canonical-authority cutover | Approved to prepare; reconciliation branch in progress; pull request, required-check readback, merge, and explicit owner cutover declaration pending |
-| 5. Source-tree and CI-wrapper cleanup | Not approved and not started |
+| 4. Reconciliation pull request and canonical-authority cutover | Owner-approved and complete; pull request merged with required checks passing, then the owner explicitly declared `comfforts/apps-platform` canonical |
+| 5. Source-tree and CI-wrapper cleanup | Owner-approved and complete through a separate source-repository pull request |
 
-The source-repository copy remains canonical. Neither this record nor the reconciliation commit
-declares a cutover. After the reconciliation pull request merges and its required checks pass, the
-owner must explicitly declare `comfforts/apps-platform` canonical. Only then may a separate,
-recoverable source-repository pull request remove or replace the colocated tree and CI wrapper.
+After the reconciliation pull request merged and its required checks passed, the owner explicitly
+declared `comfforts/apps-platform` canonical on 2026-11-17. The declaration—not the extraction or
+reconciliation commit—performed the authority cutover. Platform changes now occur only in this
+dedicated repository.
 
-Until that declaration, platform changes remain stopped in both repositories except for this
-approved reconciliation. Finance Assistant requirements, code, infrastructure, state, DNS,
-identity, deployment, and access remain unchanged. AP-M7 and every later provider or application
-slice remain outside this extraction.
+The separately reviewed source cleanup completed through
+[source pull request 70](https://github.com/hankgalt/ai_finance_assitant/pull/70), merged on
+2026-11-17 at 16:49 PST as `b049be2bd4e8969a4160f05f6e0943092bace780`. Its required checks
+passed. A later read-only source `main` readback at
+`5a44dd16e4976a24e9e1a4256cc4769c18eaa86a` confirmed that the tree contains neither the
+`apps-platform/` directory nor `.github/workflows/apps-platform-ci.yml`.
+
+Checkpoint 5 changed only the containing repository's platform copy, wrapper, and boundary notes.
+Finance Assistant requirements, application behavior, infrastructure, state, DNS, identity,
+deployment, and access remain unchanged. AP-M7 and every later provider or application slice remain
+outside this extraction and require their own proposal, approval, implementation, and evidence.

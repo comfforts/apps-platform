@@ -1,8 +1,7 @@
 # App Platform repository layout
 
-Status: authoritative dedicated-root layout; initial extraction and repository settings complete;
-reconciliation, canonical cutover, and source-repository cleanup pending; no provider operation or
-infrastructure implemented
+Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
+complete; no provider operation or infrastructure implemented
 
 The project is organized at the dedicated repository root produced by the history-preserving
 subtree extraction. Paths remain project-relative so repository identity does not alter platform
@@ -44,22 +43,21 @@ These locations may be created only by their approved slice:
 
 The reservation is not authorization to scaffold empty modules or imply later capabilities. AP-M6
 may extend only `edge/` and implementation-owned registration test inputs through its ordered work
-packages. AP-M7 may create only the planned Terraform and workflow paths after repository
-reconciliation merges and the owner declares the canonical cutover. Live evidence bundles remain
-in the private provider evidence store rather than the repository.
+packages. AP-M7 may create only the planned Terraform and workflow paths after its detailed plan
+and evaluation authority are approved. Live evidence bundles remain in the private provider
+evidence store rather than the repository.
 
-## Repository-transition boundary
+## Completed repository-transition boundary
 
-The source repository may retain only temporary integration files outside this dedicated root:
+The history-preserving split and dedicated reconciliation retained project history and made paths
+root-relative. After the reconciliation pull request merged, the owner explicitly declared
+`comfforts/apps-platform` canonical. A separate, recoverable source-repository pull request then
+removed the historical `apps-platform/` tree and its path-scoped GitHub Actions wrapper.
 
-- short authority-boundary notes in its `AGENTS.md`, `README.md`, documentation index, and
-  repository-layout document; and
-- its path-scoped GitHub Actions wrapper.
-
-Those files are not dedicated-repository authority. Until the reconciliation pull request merges
-and the owner explicitly declares the canonical cutover, the source-repository copy remains
-authoritative and platform changes stop in both locations. Removing or replacing that copy and its
-CI wrapper is a later, separately approved source-repository change.
+The containing repository retains only its own short authority-boundary notes. They are not App
+Platform authority. Platform changes occur only in this canonical repository, and the completed
+cleanup did not modify Finance Assistant requirements, implementation, infrastructure, state, DNS,
+identity, deployment, or access.
 
 ## Dedicated-repository rules
 
@@ -67,7 +65,8 @@ CI wrapper is a later, separately approved source-repository change.
   root.
 - Use project-relative paths and run `make check` from the dedicated repository root.
 - Keep Terraform state, credentials, saved plans, caches, and authenticated artifacts outside Git.
-- Follow the reviewed [repository extraction runbook](runbooks/repository_extraction.md) before any
-  remaining reconciliation, authority-cutover, or source-repository cleanup action.
+- Treat the reviewed [repository extraction runbook](runbooks/repository_extraction.md) and
+  [handoff](repository_extraction_handoff.md) as the procedure and evidence for the completed
+  transition; any new repository move requires new authority.
 - A path move is complete only when every contract consumer, test, command, document, and workflow
   resolves to the new location.

@@ -62,6 +62,7 @@ edge-caller binding. The AP-M7-W6 Platform State root consumes the complete
 `platform_configuration` object and exposes only minimal typed platform references. AP-M7-W7 adds
 exactly three typed Fixture Application attachment references as a second explicit input and
 consumes them only as data; the Shared Edge module performs no application lookup or management.
-AP-M7-W8 must preserve this agreement as it extends that root. The deterministic gate rejects
-disagreement. No root may consume another root's backend or `terraform_remote_state`; reviewed
-cross-state-reference documents are the only exchange shape.
+AP-M7-W8 preserves that agreement while composing the platform-controls module from the same
+complete `platform_configuration` object. AP-M7-W9 must preserve it while adding only inert workflow
+templates. The deterministic gate rejects disagreement. No root may consume another root's backend
+or `terraform_remote_state`; reviewed cross-state-reference documents are the only exchange shape.

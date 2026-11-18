@@ -30,7 +30,7 @@ class TerraformSharedEdgeTest(unittest.TestCase):
 
         self.assertEqual(
             re.findall(r'^module "([^"]+)"', main, re.MULTILINE),
-            ["platform_foundation", "shared_edge"],
+            ["platform_foundation", "shared_edge", "platform_controls"],
         )
         self.assertIn('source = "../modules/shared-edge"', main)
         self.assertEqual(main.count("edge_configuration = {"), 1)

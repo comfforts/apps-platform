@@ -23,14 +23,20 @@ composes it into Platform State with
 an immutable explicit Cloud Run candidate, closed direct-origin posture, bounded runtime profile,
 three typed Fixture Application references consumed only as data, one global address and serverless
 backend, managed-certificate intent, hostname-only HTTPS forwarding, and HTTP-to-HTTPS redirect.
+AP-M7-W8 implements one deep platform-controls module and composes it into Platform State with a
+regional seven-day minimized completion-event log bucket and internal sink, `_Default`-bucket
+exclusion for Shared Edge revision logs, private 30-day evidence storage, owner-readable access
+intent, notification-only USD 20 budget thresholds, dry-run-first Artifact Registry retention,
+required-label and exact runtime-cap policy, and prohibited-capability assertions. It uploads no
+evidence or image, exports no logs, and performs no automatic budget or cleanup mutation.
 No backend or provider operation, executable cloud workflow, actual cloud resource or IAM mutation,
 generation upload or activation, DNS change, credential, deployment, Application Adoption, or Live
 (`L`) evidence is implemented or qualified.
 
-Use this handoff only after the owner accepts and commits AP-M7-W7 on the bounded AP-M7 branch. The
+Use this handoff only after the owner accepts and commits AP-M7-W8 on the bounded AP-M7 branch. The
 repository extraction handoff records that AP-M6 and the reconciliation pull request merged, the
 owner explicitly declared this dedicated repository canonical, and the separately approved source
-cleanup completed. If those facts or the AP-M7-W1 through AP-M7-W7 implementation are absent or
+cleanup completed. If those facts or the AP-M7-W1 through AP-M7-W8 implementation are absent or
 inconsistent, the working
 tree contains unreviewed changes, or the requested work package is out of order, report that
 conflict and stop instead of switching, pulling, resetting, committing, or combining packages
@@ -60,13 +66,14 @@ Before editing:
    cannot define generic platform behavior or infrastructure, and cannot authorize Application
    Adoption.
 
-Next task: implement AP-M7-W8, the observability, evidence, retention, and cost-control intent, as
-the next small commit. Extend only Platform State with the dedicated seven-day log bucket and
-exclusion intent, 30-day owner-readable evidence bucket, USD 20 budget notification thresholds,
-required labels, zero-minimum and maximum-instance checks, Artifact Registry retention intent, and
-prohibited-service policy. Billing-account reference, notification destination, and globally unique
-names remain explicit operator inputs. Create no DNS record, credential, saved plan, application
-runtime, automated budget mutation, or owner-unapproved cleanup. Wait for owner approval before
+Next task: implement AP-M7-W9, the inert workflow-authority templates, as the next small commit. Add
+only non-executable templates under `infrastructure/workflows/` for advisory plan, exact-main apply,
+rollback, force-unlock, and destroy. Enforce SHA-pinned actions, read-only default permissions,
+explicit OIDC permission only where required, protected-main and environment placeholders,
+root-scoped concurrency, exact source and plan digest binding, explicit targets, same-job
+plan/apply, no uploaded saved plan, stop-on-partial-failure, and retained secret-free outcome
+metadata. Do not place a template under `.github/workflows/`, name a real federation provider or
+service account, read a secret, or make a cloud workflow executable. Wait for owner approval before
 editing the next work package.
 
 The proposal must preserve separate backend-bootstrap, Platform State, and per-Fixture-Application

@@ -250,7 +250,7 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                 violations = validate_configuration(value, kind)
                 self.assertIn("CONFIGURATION_POLICY_INVALID", {item.code for item in violations})
 
-    def test_w7_adds_only_the_approved_platform_and_fixture_resources(self) -> None:
+    def test_w8_adds_only_the_approved_platform_and_fixture_resources(self) -> None:
         terraform_root = PROJECT_ROOT / "infrastructure" / "terraform"
         terraform_files = sorted(
             path.relative_to(terraform_root).as_posix()
@@ -285,6 +285,9 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                     "modules/platform-foundation/main.tf",
                     "modules/platform-foundation/outputs.tf",
                     "modules/platform-foundation/variables.tf",
+                    "modules/platform-controls/main.tf",
+                    "modules/platform-controls/outputs.tf",
+                    "modules/platform-controls/variables.tf",
                     "modules/shared-edge/main.tf",
                     "modules/shared-edge/outputs.tf",
                     "modules/shared-edge/variables.tf",

@@ -84,3 +84,26 @@ module "shared_edge" {
     attachment_references = [for value in var.fixture_attachment_references : value.reference]
   }
 }
+
+module "platform_controls" {
+  source = "../modules/platform-controls"
+
+  controls_configuration = {
+    project_id                = var.platform_configuration.project_id
+    project_number            = var.platform_configuration.project_number
+    region                    = var.platform_configuration.region
+    log_bucket                = var.platform_configuration.log_bucket
+    evidence_bucket           = var.platform_configuration.evidence_bucket
+    artifact_repository_id    = split("/", var.platform_configuration.edge_image_digest)[2]
+    billing_account_reference = var.platform_configuration.billing_account_reference
+    notification_destination  = var.platform_configuration.notification_destination
+    owner_principal           = "projectOwner:${var.platform_configuration.project_id}"
+    labels                    = var.platform_configuration.labels
+    artifact_packages = [
+      "fixture-authenticated",
+      "fixture-public",
+      "fixture-restricted",
+      "shared-edge",
+    ]
+  }
+}

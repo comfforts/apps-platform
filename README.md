@@ -12,10 +12,11 @@ and deterministic loader and semantic policy. AP-M7-W4 implements static backend
 state-bucket configuration. AP-M7-W5 implements three isolated Fixture Application roots, one
 internal runtime module, and typed attachment references with plan-only mocked-provider tests.
 AP-M7-W6 implements the Platform State identity and immutable-generation foundation. AP-M7-W7
-implements the immutable Shared Edge candidate and hostname-forwarding topology. Both pass plan-
-only mocked-provider tests. No backend was initialized, provider operation performed, cloud
-resource created, generation uploaded or activated, or deployment, Live evidence, or Application
-Adoption qualified.
+implements the immutable Shared Edge candidate and hostname-forwarding topology. AP-M7-W8
+implements the bounded observability, evidence-retention, artifact-retention, label, scaling, and
+cost-control intent. All pass plan-only mocked-provider tests. No backend was initialized, provider
+operation performed, cloud resource created, generation uploaded or activated, or deployment, Live
+evidence, or Application Adoption qualified.
 
 Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
 history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
@@ -113,8 +114,13 @@ candidate, closed direct-origin posture, bounded scaling and timeout profile, ty
 Application references consumed only as data, one global address and serverless backend, managed-
 certificate intent, hostname-only HTTPS forwarding, and HTTP-to-HTTPS redirect. All provider
 behavior remains mocked and plan-only; no DNS record, application runtime, credential, backend
-operation, provider operation, deployment, or Live evidence exists. After owner acceptance of AP-M7-W7,
-AP-M7-W8 is the next work package; AP-M7 remains one separate branch and pull request.
+operation, provider operation, deployment, or Live evidence exists. AP-M7-W8 adds a regional
+seven-day log bucket, minimized internal sink, and `_Default`-bucket exclusion, private 30-day
+evidence storage, explicit owner-readable access intent, a USD 20 notification-only budget,
+dry-run-first Artifact Registry retention, required-label and runtime-cap policy, and explicit
+prohibited-capability assertions. It uploads no evidence or image, exports no log, and performs no
+automatic budget or cleanup mutation. After owner acceptance of AP-M7-W8, AP-M7-W9 is the next
+work package; AP-M7 remains one separate branch and pull request.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
 preserved their history. The separately reviewed source cleanup removed the historical colocated

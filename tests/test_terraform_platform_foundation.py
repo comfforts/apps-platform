@@ -42,10 +42,11 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
         )
         self.assertEqual(
             re.findall(r'^module "([^"]+)"', main, re.MULTILINE),
-            ["platform_foundation", "shared_edge"],
+            ["platform_foundation", "shared_edge", "platform_controls"],
         )
         self.assertIn('source = "../modules/platform-foundation"', main)
         self.assertIn('source = "../modules/shared-edge"', main)
+        self.assertIn('source = "../modules/platform-controls"', main)
         self.assertEqual(backend.count('backend "gcs" {}'), 1)
         self.assertNotIn("bucket", backend)
         self.assertNotIn("prefix", backend)

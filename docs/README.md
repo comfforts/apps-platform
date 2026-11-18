@@ -1,8 +1,8 @@
 # App Platform documentation
 
-Version 1.7 | Status: AP-M6 locally implemented and passing its deterministic repository gate;
-AP-M7-W5 static Fixture Application roots implemented and passing mocked-provider plans; backend
-operation, provider operation, deployment, Live, and Adoption qualification unavailable
+Version 1.8 | Status: AP-M6 locally implemented and passing its deterministic repository gate;
+AP-M7-W6 static Platform identity and generation foundation implemented and passing mocked-provider
+plans; backend operation, provider operation, deployment, Live, and Adoption qualification unavailable
 
 This directory is the design authority for Comfforts App Platform. AP-M3 supplies Contract (`C`)
 evidence through the logical design, threat boundary, Version 1 schemas, deterministic compiler,
@@ -13,8 +13,8 @@ topology, identity, state, operator, lifecycle, evidence, incident, and cost pla
 deterministic planning gate. AP-M6 supplies locally tested repository implementation of the
 networked Shared Edge and production-adapter logic through deterministic fakes and process-local
 loopback. Live (`L`) and Adoption (`A`) evidence remain unavailable. No deployed Shared Edge,
-provider identity, Terraform resource configuration, cloud resource, DNS change,
-application migration, or production credential is implemented.
+provider identity, cloud resource, DNS change, application migration, or production credential is
+implemented.
 Repository extraction is governed by a reviewed runbook. Its history-preserving extraction, root
 check, dedicated-repository settings, reconciliation merge, explicit canonical-authority cutover,
 and separately reviewed source-repository cleanup are complete. This dedicated repository is the
@@ -46,7 +46,7 @@ sole App Platform authority; the extraction supplied no Terraform, cloud, or app
     evidence for all five completed extraction checkpoints and the canonical repository boundary.
 14. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
 15. [Terraform-and-workflow handoff](../prompts/starting_prompt.md) provides a bounded entry point
-    for continuing with AP-M7-W6 only after the owner accepts and commits AP-M7-W5.
+    for continuing with AP-M7-W7 only after the owner accepts and commits AP-M7-W6.
 
 AP-M3 Contract behavior, AP-M4 Fixture behavior, and AP-M5 planning authority are merged and pass
 their deterministic gates. AP-M6-W1 through AP-M6-W11 are implemented locally, and the complete
@@ -101,7 +101,7 @@ small reviewable commits, merge it, and only then begin the next item.
    repository implementation evidence only: AP-M6 performs no Terraform, cloud mutation,
    deployment, Live qualification, or Application Adoption. Repository extraction, reconciliation,
    canonical cutover, and source cleanup are complete.
-7. **Terraform and workflow implementation — Fixture Application roots implemented statically:** AP-M7-W1
+7. **Terraform and workflow implementation — Platform foundation implemented statically:** AP-M7-W1
    defines the root interfaces, configuration contracts, work packages, and deterministic
    AP-EVAL-M7 gate. AP-M7-W2 implements exact CLI/provider constraints, committed root locks,
    ignored local dependencies, and disposable-copy offline format/init/validate checks. AP-M7-W3
@@ -111,9 +111,13 @@ small reviewable commits, merge it, and only then begin the next item.
    tested only through plan-mode mocked providers. AP-M7-W5 implements one internal Fixture
    Application module and independent public, authenticated, and restricted roots with runtime
    identities, internal-only ingress, edge-caller Invoker intent, bounded scaling, non-secret
-   identity references, and typed attachment outputs. AP-M7-W6 is next after owner acceptance of
-   W5. Later packages may implement reviewed static Terraform resources and inert workflow
-   templates only; AP-M7 performs no authenticated plan or apply.
+   identity references, and typed attachment outputs. AP-M7-W6 implements private versioned
+   configuration storage, immutable generation metadata without object upload, Firestore Native
+   session settings and TTL, separate edge identities, regional software ES256 signing with manual
+   rotation and overlap intent, version-only OAuth secret references, minimal IAM intent, and typed
+   platform outputs. AP-M7-W7 is next after owner acceptance of W6. Later packages may implement
+   reviewed static Terraform resources and inert workflow templates only; AP-M7 performs no
+   authenticated plan or apply.
 8. **Non-production qualification deployment — later:** AP-M8 may bootstrap and deploy only through
    separately approved protected operator actions after repository extraction and AP-M7 merge.
 9. **Live qualification — later:** AP-M9 must execute the approved Live gates against the exact

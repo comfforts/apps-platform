@@ -248,7 +248,7 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                 violations = validate_configuration(value, kind)
                 self.assertIn("CONFIGURATION_POLICY_INVALID", {item.code for item in violations})
 
-    def test_w5_adds_only_the_approved_fixture_roots_and_internal_module(self) -> None:
+    def test_w6_adds_only_the_approved_platform_foundation_and_internal_module(self) -> None:
         terraform_root = PROJECT_ROOT / "infrastructure" / "terraform"
         terraform_files = sorted(
             path.relative_to(terraform_root).as_posix()
@@ -280,24 +280,33 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                     "modules/fixture-application/main.tf",
                     "modules/fixture-application/outputs.tf",
                     "modules/fixture-application/variables.tf",
+                    "modules/platform-foundation/main.tf",
+                    "modules/platform-foundation/outputs.tf",
+                    "modules/platform-foundation/variables.tf",
                     "modules/state-bucket/main.tf",
                     "modules/state-bucket/outputs.tf",
                     "modules/state-bucket/variables.tf",
+                    "platform/backend.tf",
+                    "platform/main.tf",
+                    "platform/outputs.tf",
+                    "platform/variables.tf",
                     "platform/versions.tf",
                 )
             ),
         )
-        platform = (terraform_root / "platform/versions.tf").read_text(encoding="utf-8")
-        self.assertNotIn('variable "', platform)
-        self.assertNotIn('resource "', platform)
-        self.assertNotIn('backend "', platform)
-
         bootstrap = "\n".join(
             (terraform_root / relative_path).read_text(encoding="utf-8")
             for relative_path in terraform_files
             if relative_path.startswith("bootstrap/")
         )
         self.assertNotIn('backend "', bootstrap)
+
+        platform_backend = (terraform_root / "platform/backend.tf").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(platform_backend.count('backend "gcs" {}'), 1)
+        self.assertNotIn("bucket", platform_backend)
+        self.assertNotIn("prefix", platform_backend)
 
         for application_id in (
             "fixture-public",

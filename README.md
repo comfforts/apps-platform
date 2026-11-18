@@ -11,8 +11,10 @@ and AP-M7-W3 implements only the Version 1 non-secret configuration schemas, syn
 and deterministic loader and semantic policy. AP-M7-W4 implements static backend-bootstrap and
 state-bucket configuration. AP-M7-W5 implements three isolated Fixture Application roots, one
 internal runtime module, and typed attachment references with plan-only mocked-provider tests. No
-backend was initialized, provider operation performed, cloud resource created, or deployment,
-Live evidence, or Application Adoption qualified.
+AP-M7-W6 implements the Platform State identity and immutable-generation foundation with plan-only
+mocked-provider tests. No backend was initialized, provider operation performed, cloud resource
+created, generation uploaded or activated, or deployment, Live evidence, or Application Adoption
+qualified.
 
 Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
 history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
@@ -100,8 +102,13 @@ state-bucket module without an IAM principal, backend operation, or provider cal
 implements the three deep Fixture Application roots and their internal Cloud Run runtime module,
 runtime identities, protected ingress, edge-only Invoker intent, bounded scaling, required labels,
 non-secret platform references, and typed `gcp-cloud-run-v1` attachment outputs. All provider
-behavior is mocked and plan-only. After owner acceptance of AP-M7-W5, AP-M7-W6 is the next work
-package; AP-M7 remains one separate branch and pull request.
+behavior is mocked and plan-only. AP-M7-W6 implements the deep Platform foundation module and root
+for private versioned configuration storage, immutable generation metadata, Firestore Native
+Platform Sessions with TTL and eight-hour application expiry intent, separate edge runtime and
+caller identities, regional software ES256 signing with manual-rotation intent, versioned OAuth
+secret references, least-privilege access intent, and minimal typed platform outputs. After owner
+acceptance of AP-M7-W6, AP-M7-W7 is the next work package; AP-M7 remains one separate branch and
+pull request.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
 preserved their history. The separately reviewed source cleanup removed the historical colocated

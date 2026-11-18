@@ -266,8 +266,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertIn("AP-M6 supplies repository implementation evidence only", overview)
         self.assertIn("complete credential-free `make check` gate passes", overview)
-        self.assertIn("AP-M7-W5 static Fixture Application roots implemented", normalized_index)
-        self.assertIn("AP-M7-W5 implements three isolated Fixture Application roots", normalized_overview)
+        self.assertIn("AP-M7-W6 static Platform identity and generation foundation implemented", normalized_index)
+        self.assertIn("AP-M7-W6 implements the Platform State identity", normalized_overview)
         self.assertIn("planning consistency only", normalized_index)
         self.assertIn("Integration draft", index)
         self.assertIn(
@@ -638,8 +638,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Leave Finance Assistant requirements, code, infrastructure, Terraform state, DNS",
             "An Integration Draft is not Application Adoption",
             "credential-free, deterministic, and non-mutating",
-            "after the owner accepts and commits AP-M7-W5",
-            "implement AP-M7-W6, the Platform identity and generation foundation",
+            "after the owner accepts and commits AP-M7-W6",
+            "implement AP-M7-W7, the Shared Edge and hostname-forwarding intent",
             "Treat absent operator inputs or later authority as unresolved",
             "Do not initialize a Terraform backend",
             "AP-M7 stays on its one bounded branch and pull request",
@@ -675,7 +675,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         for later_slice in (
             "Networked provider runtime — locally implemented",
-            "Terraform and workflow implementation — Fixture Application roots implemented statically",
+            "Terraform and workflow implementation — Platform foundation implemented statically",
             "Non-production qualification deployment — later",
             "Live qualification — later",
             "Finance Application Adoption — later and independent",
@@ -683,7 +683,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(later_slice, index)
         self.assertIn("separate bounded branch and pull request", normalized_index)
         self.assertIn(
-            "implement AP-M7-W6, the Platform identity and generation foundation",
+            "implement AP-M7-W7, the Shared Edge and hostname-forwarding intent",
             normalized_prompt,
         )
         self.assertIn("Wait for owner approval before editing the next work package", normalized_prompt)
@@ -939,7 +939,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             normalized_threat_model,
         )
 
-    def test_ap_m7_w5_fixture_paths_are_bounded(
+    def test_ap_m7_w6_platform_foundation_paths_are_bounded(
         self,
     ) -> None:
         layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(
@@ -954,7 +954,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         for relative_path in reserved_paths:
             self.assertFalse(
                 (PROJECT_ROOT / relative_path).exists(),
-                f"AP-M7-W5 must not create later implementation path: {relative_path}",
+                f"AP-M7-W6 must not create later implementation path: {relative_path}",
             )
 
         config_root = PROJECT_ROOT / "infrastructure/config"
@@ -965,7 +965,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         module_root = PROJECT_ROOT / "infrastructure/terraform/modules"
         self.assertEqual(
             sorted(path.name for path in module_root.iterdir() if path.is_dir()),
-            ["fixture-application", "state-bucket"],
+            ["fixture-application", "platform-foundation", "state-bucket"],
         )
 
         expected_roots = (
@@ -1027,9 +1027,16 @@ class ProjectAuthorityTest(unittest.TestCase):
                     "infrastructure/terraform/modules/fixture-application/main.tf",
                     "infrastructure/terraform/modules/fixture-application/outputs.tf",
                     "infrastructure/terraform/modules/fixture-application/variables.tf",
+                    "infrastructure/terraform/modules/platform-foundation/main.tf",
+                    "infrastructure/terraform/modules/platform-foundation/outputs.tf",
+                    "infrastructure/terraform/modules/platform-foundation/variables.tf",
                     "infrastructure/terraform/modules/state-bucket/main.tf",
                     "infrastructure/terraform/modules/state-bucket/outputs.tf",
                     "infrastructure/terraform/modules/state-bucket/variables.tf",
+                    "infrastructure/terraform/platform/backend.tf",
+                    "infrastructure/terraform/platform/main.tf",
+                    "infrastructure/terraform/platform/outputs.tf",
+                    "infrastructure/terraform/platform/variables.tf",
                 ]
             ),
         )
@@ -1042,7 +1049,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertEqual(prohibited_files, [])
         self.assertTrue((PROJECT_ROOT / ".github/workflows/check.yml").is_file())
 
-    def test_ap_m7_w5_default_gate_has_no_live_operator_command(self) -> None:
+    def test_ap_m7_w6_default_gate_has_no_live_operator_command(self) -> None:
         makefile = (PROJECT_ROOT / "Makefile").read_text(encoding="utf-8")
         evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
             encoding="utf-8"

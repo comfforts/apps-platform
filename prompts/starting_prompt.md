@@ -14,14 +14,18 @@ AP-M7-W4 implements the deep backend-bootstrap root and internal state-bucket mo
 mocked providers. AP-M7-W5 implements one deep internal Fixture Application module and independent
 public, authenticated, and restricted roots with runtime identities, internal-only ingress,
 edge-caller Invoker intent, bounded scaling, required labels, non-secret platform identity data,
-and typed attachment outputs. No backend or provider operation, executable cloud workflow, cloud
-resource, IAM mutation, DNS change, credential, deployment, Application Adoption, or Live (`L`)
-evidence is implemented or qualified.
+and typed attachment outputs. AP-M7-W6 implements the deep Platform identity and generation
+foundation: private versioned configuration storage, immutable generation metadata without upload,
+Firestore Native session/TTL settings, separate edge identities, regional software ES256 signing
+with manual rotation and overlap intent, version-only OAuth secret references, minimal access
+intent, and typed platform outputs. No backend or provider operation, executable cloud workflow,
+cloud resource, IAM mutation, generation upload or activation, DNS change, credential, deployment,
+Application Adoption, or Live (`L`) evidence is implemented or qualified.
 
-Use this handoff only after the owner accepts and commits AP-M7-W5 on the bounded AP-M7 branch. The
+Use this handoff only after the owner accepts and commits AP-M7-W6 on the bounded AP-M7 branch. The
 repository extraction handoff records that AP-M6 and the reconciliation pull request merged, the
 owner explicitly declared this dedicated repository canonical, and the separately approved source
-cleanup completed. If those facts or the AP-M7-W1 through AP-M7-W5 implementation are absent or
+cleanup completed. If those facts or the AP-M7-W1 through AP-M7-W6 implementation are absent or
 inconsistent, the working
 tree contains unreviewed changes, or the requested work package is out of order, report that
 conflict and stop instead of switching, pulling, resetting, committing, or combining packages
@@ -51,14 +55,14 @@ Before editing:
    cannot define generic platform behavior or infrastructure, and cannot authorize Application
    Adoption.
 
-Next task: implement AP-M7-W6, the Platform identity and generation foundation, as the next small
-commit. Add the Platform State configuration bucket, immutable compiled-generation object shape,
-Firestore Native Platform Session settings, regional software-protected ES256 KMS signing-key and
-rotation intent, versioned Secret Manager reference inputs, separate edge runtime and edge caller
-identities, and minimal typed platform references. Secret values must never enter Terraform
-variables or state. Do not compile an unreviewed Registration Set, upload a real generation, create
-an OAuth secret, or activate a candidate revision. Wait for owner approval before editing the next
-work package.
+Next task: implement AP-M7-W7, the Shared Edge and hostname-forwarding intent, as the next small
+commit. Extend the Platform State root with one Cloud Run edge bound to immutable image and
+Registration Generation inputs, the approved bounded runtime profile, one global address, one
+Google-managed certificate intent, HTTP-to-HTTPS redirect, one serverless backend, one hostname-
+level URL map with no application prefixes, edge-only IAM, and 100-percent traffic to one explicit
+candidate. Consume typed Fixture Application attachment references only as data. Create no DNS
+record and do not import, discover, mutate, or destroy an application-owned runtime. Wait for owner
+approval before editing the next work package.
 
 The proposal must preserve separate backend-bootstrap, Platform State, and per-Fixture-Application
 State roots; typed non-secret cross-state inputs without `terraform_remote_state`; explicit plan,

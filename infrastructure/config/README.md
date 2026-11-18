@@ -1,6 +1,6 @@
 # AP-M7 infrastructure configuration contracts
 
-Version 1 | Status: AP-M7-W3 implemented and AP-M7-W4/W5 root interfaces consumed; synthetic
+Version 1 | Status: AP-M7-W3 implemented and AP-M7-W4 through W6 root interfaces consumed; synthetic
 repository examples only; no operator configuration, backend operation, provider operation, or
 deployment
 
@@ -58,6 +58,9 @@ AP-M7-W4 introduces the bootstrap root's single `backend_configuration` variable
 owning implementation and duplicates every applicable security-critical backend schema type and
 validation. AP-M7-W5 adds the `fixture_configuration` and typed `platform_reference` inputs to each
 independent Fixture Application root, including the non-secret issuer, public-key, audience, and
-edge-caller binding. AP-M7-W6 through AP-M7-W8 must do the same for their interfaces. The
-deterministic gate rejects disagreement. No root may consume another root's backend or
-`terraform_remote_state`; reviewed cross-state-reference documents are the only exchange shape.
+edge-caller binding. The AP-M7-W6 Platform State root now consumes the complete
+`platform_configuration` object and exposes
+only minimal typed platform references. AP-M7-W7 and AP-M7-W8 must preserve this agreement as they
+extend that root. The deterministic gate rejects disagreement. No root may consume another root's
+backend or `terraform_remote_state`; reviewed cross-state-reference documents are the only exchange
+shape.

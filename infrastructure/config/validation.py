@@ -1183,7 +1183,11 @@ def validate_operator_manifest_chain(
         )
         if isinstance(revision, dict):
             dictionaries.append(revision)
-            candidate_digests.append(_operator_manifest_digest(revision))
+            candidate_digests.append(
+                _operator_manifest_digest(revision)
+                if not revision_violations
+                else None
+            )
         else:
             candidate_digests.append(None)
 

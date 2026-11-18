@@ -1,10 +1,14 @@
-"""Deterministic loading and policy for AP-M7 infrastructure configuration."""
+"""Deterministic loading and policy for App Platform infrastructure configuration."""
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
+import hashlib
+import json
 from pathlib import Path
-from typing import Any
+import re
+from typing import Any, Sequence
 
 from contracts.validation import (
     Violation,
@@ -21,6 +25,7 @@ SCHEMA_FILES = (
     "backend-configuration.v1.schema.json",
     "cross-state-reference.v1.schema.json",
     "fixture-configuration.v1.schema.json",
+    "operator-input-manifest.v1.schema.json",
     "platform-configuration.v1.schema.json",
     "workflow-configuration.v1.schema.json",
 )
@@ -30,6 +35,9 @@ SCHEMA_IDS = {
         "urn:comfforts:app-platform:infrastructure-config:cross-state-reference:v1"
     ),
     "fixture": "urn:comfforts:app-platform:infrastructure-config:fixture:v1",
+    "operator-input-manifest": (
+        "urn:comfforts:app-platform:infrastructure-config:operator-input-manifest:v1"
+    ),
     "platform": "urn:comfforts:app-platform:infrastructure-config:platform:v1",
     "workflow": "urn:comfforts:app-platform:infrastructure-config:workflow:v1",
 }
@@ -77,6 +85,15 @@ class ConfigurationResult:
     violations: tuple[Violation, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class OperatorManifestChainResult:
+    """One accepted append-only manifest chain and its canonical revision digests."""
+
+    values: tuple[dict[str, Any], ...] | None
+    digests: tuple[str, ...]
+    violations: tuple[Violation, ...]
+
+
 def _pointer(path: str, token: str | int) -> str:
     encoded = str(token).replace("~", "~0").replace("/", "~1")
     return f"{path}/{encoded}" if path else f"/{encoded}"
@@ -88,6 +105,67 @@ def _violation(code: str, path: str, message: str) -> Violation:
 
 def _ordered(violations: list[Violation]) -> tuple[Violation, ...]:
     return tuple(sorted(violations, key=lambda item: (item.path, item.code, item.message)))
+
+
+def _canonical_bytes(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _normalized_operator_manifest(value: dict[str, Any]) -> dict[str, Any]:
+    normalized = copy.deepcopy(value)
+    controls = normalized.get("repository_controls")
+    if isinstance(controls, dict) and isinstance(controls.get("workflow_references"), list):
+        controls["workflow_references"] = sorted(
+            controls["workflow_references"],
+            key=lambda item: (
+                item.get("operation", "") if isinstance(item, dict) else "",
+                item.get("target_id", "") if isinstance(item, dict) else "",
+            ),
+        )
+    federation = normalized.get("federation")
+    if isinstance(federation, dict) and isinstance(
+        federation.get("operation_identities"), list
+    ):
+        for identity in federation["operation_identities"]:
+            if isinstance(identity, dict):
+                if isinstance(identity.get("permissions"), list):
+                    identity["permissions"] = sorted(identity["permissions"])
+                if isinstance(identity.get("resource_scopes"), list):
+                    identity["resource_scopes"] = sorted(identity["resource_scopes"])
+        federation["operation_identities"] = sorted(
+            federation["operation_identities"],
+            key=lambda item: (
+                item.get("operation", "") if isinstance(item, dict) else "",
+                item.get("target_id", "") if isinstance(item, dict) else "",
+            ),
+        )
+    state = normalized.get("state")
+    if isinstance(state, dict):
+        if isinstance(state.get("buckets"), list):
+            state["buckets"] = sorted(
+                state["buckets"],
+                key=lambda item: item.get("bucket_role", "") if isinstance(item, dict) else "",
+            )
+        if isinstance(state.get("lineages"), list):
+            state["lineages"] = sorted(
+                state["lineages"],
+                key=lambda item: item.get("root_target", "") if isinstance(item, dict) else "",
+            )
+    registration = normalized.get("registration_inputs")
+    if isinstance(registration, dict) and isinstance(registration.get("application_ids"), list):
+        registration["application_ids"] = sorted(registration["application_ids"])
+    return normalized
+
+
+def _operator_manifest_digest(value: dict[str, Any]) -> str:
+    payload = _canonical_bytes(_normalized_operator_manifest(value))
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
 
 
 def load_configuration_schemas(
@@ -546,12 +624,431 @@ def _workflow_violations(value: dict[str, Any]) -> list[Violation]:
     return violations
 
 
+_OPERATION_ENVIRONMENTS = {
+    "plan": "plan",
+    "apply": "apply",
+    "artifact-publish": "apply",
+    "generation-publish": "apply",
+    "qualification-dns": "dns",
+    "root-readback": "evidence",
+    "evidence-finalize": "evidence",
+    "rollback": "recovery",
+    "force-unlock": "recovery",
+    "destroy": "recovery",
+}
+_PROHIBITED_OPERATION_PERMISSIONS = {
+    "billing.resourceAssociations.create",
+    "iam.serviceAccountKeys.create",
+    "iam.serviceAccounts.setIamPolicy",
+    "resourcemanager.projects.setIamPolicy",
+    "serviceusage.services.enable",
+}
+_EXPECTED_LINEAGES = {
+    "bootstrap": ("platform-state", "bootstrap"),
+    "platform": ("platform-state", "platform"),
+    "fixture-public": ("fixture-public-state", "fixtures/fixture-public"),
+    "fixture-authenticated": (
+        "fixture-authenticated-state",
+        "fixtures/fixture-authenticated",
+    ),
+    "fixture-restricted": (
+        "fixture-restricted-state",
+        "fixtures/fixture-restricted",
+    ),
+}
+_EXPECTED_BUCKET_ROLES = {
+    "platform-state",
+    "fixture-public-state",
+    "fixture-authenticated-state",
+    "fixture-restricted-state",
+}
+_EXPECTED_APPLICATION_IDS = {
+    "fixture-public",
+    "fixture-authenticated",
+    "fixture-restricted",
+}
+
+
+def _manifest_key(value: Any) -> tuple[object, object] | None:
+    if not isinstance(value, dict):
+        return None
+    return value.get("operation"), value.get("target_id")
+
+
+def _operator_manifest_violations(value: dict[str, Any]) -> list[Violation]:
+    violations: list[Violation] = []
+    revision = value.get("revision")
+    predecessor = value.get("predecessor_manifest_digest")
+    facts = value.get("generated_facts")
+    if revision == 1:
+        if predecessor is not None:
+            violations.append(
+                _violation(
+                    "MANIFEST_CHAIN_INVALID",
+                    "/predecessor_manifest_digest",
+                    "the initial manifest revision must not name a predecessor",
+                )
+            )
+        if facts != []:
+            violations.append(
+                _violation(
+                    "MANIFEST_CHAIN_INVALID",
+                    "/generated_facts",
+                    "the initial manifest cannot claim facts produced by later operations",
+                )
+            )
+    elif isinstance(revision, int) and not isinstance(predecessor, str):
+        violations.append(
+            _violation(
+                "MANIFEST_CHAIN_INVALID",
+                "/predecessor_manifest_digest",
+                "a successor manifest revision must name its predecessor digest",
+            )
+        )
+
+    source = value.get("source")
+    resources = value.get("platform_resources")
+    if isinstance(source, dict) and isinstance(resources, dict):
+        source_revision = source.get("source_revision")
+        evidence_prefix = resources.get("evidence_bundle_prefix")
+        if isinstance(source_revision, str) and isinstance(evidence_prefix, str):
+            expected_prefix = f"ap-eval-m8/{source_revision}/"
+            if not evidence_prefix.startswith(expected_prefix):
+                violations.append(
+                    _violation(
+                        "CONFIGURATION_POLICY_INVALID",
+                        "/platform_resources/evidence_bundle_prefix",
+                        "evidence prefix must bind the selected protected-main revision",
+                    )
+                )
+        if resources.get("oauth_redirect_uri") != (
+            f"https://{FIXED_HOSTNAME}/_platform/auth/callback"
+        ):
+            violations.append(
+                _violation(
+                    "CONFIGURATION_POLICY_INVALID",
+                    "/platform_resources/oauth_redirect_uri",
+                    "OAuth redirect must use the reviewed qualification callback",
+                )
+            )
+
+    controls = value.get("repository_controls")
+    workflow_by_key: dict[tuple[object, object], dict[str, Any]] = {}
+    if isinstance(controls, dict):
+        environments = controls.get("protected_environments")
+        if isinstance(environments, dict):
+            names = list(environments.values())
+            if len(names) != len(set(names)):
+                violations.append(
+                    _violation(
+                        "OWNER_CONFLICT",
+                        "/repository_controls/protected_environments",
+                        "the five protected environment classes require distinct names",
+                    )
+                )
+        workflows = controls.get("workflow_references")
+        workflow_paths: set[object] = set()
+        if isinstance(workflows, list):
+            for index, workflow in enumerate(workflows):
+                if not isinstance(workflow, dict):
+                    continue
+                path = f"/repository_controls/workflow_references/{index}"
+                key = _manifest_key(workflow)
+                if key in workflow_by_key:
+                    violations.append(
+                        _violation(
+                            "OWNER_CONFLICT",
+                            f"{path}/target_id",
+                            "operation and target are duplicated",
+                        )
+                    )
+                elif key is not None:
+                    workflow_by_key[key] = workflow
+                operation = workflow.get("operation")
+                expected_environment = _OPERATION_ENVIRONMENTS.get(operation)
+                if expected_environment is not None and workflow.get(
+                    "environment_class"
+                ) != expected_environment:
+                    violations.append(
+                        _violation(
+                            "CONFIGURATION_POLICY_INVALID",
+                            f"{path}/environment_class",
+                            "operation does not use its fixed environment class",
+                        )
+                    )
+                workflow_path = workflow.get("workflow_path")
+                if workflow_path in workflow_paths:
+                    violations.append(
+                        _violation(
+                            "OWNER_CONFLICT",
+                            f"{path}/workflow_path",
+                            "one rendered workflow path cannot authorize multiple operations",
+                        )
+                    )
+                workflow_paths.add(workflow_path)
+
+    federation = value.get("federation")
+    identity_by_key: dict[tuple[object, object], dict[str, Any]] = {}
+    identity_index_by_key: dict[tuple[object, object], int] = {}
+    if isinstance(federation, dict):
+        expected_pool_prefix = "projects/455651441682/locations/global/workloadIdentityPools/"
+        pool = federation.get("pool_resource")
+        provider = federation.get("provider_resource")
+        audience = federation.get("provider_audience")
+        if isinstance(pool, str) and not pool.startswith(expected_pool_prefix):
+            violations.append(
+                _violation(
+                    "CONFIGURATION_POLICY_INVALID",
+                    "/federation/pool_resource",
+                    "pool resource must remain in the reviewed qualification project",
+                )
+            )
+        if isinstance(pool, str) and isinstance(provider, str) and not provider.startswith(
+            f"{pool}/providers/"
+        ):
+            violations.append(
+                _violation(
+                    "CONFIGURATION_POLICY_INVALID",
+                    "/federation/provider_resource",
+                    "provider resource must remain under the selected pool",
+                )
+            )
+        if isinstance(provider, str) and audience != f"//iam.googleapis.com/{provider}":
+            violations.append(
+                _violation(
+                    "CONFIGURATION_POLICY_INVALID",
+                    "/federation/provider_audience",
+                    "provider audience must bind the selected provider resource",
+                )
+            )
+        identities = federation.get("operation_identities")
+        service_accounts: set[object] = set()
+        if isinstance(identities, list):
+            for index, identity in enumerate(identities):
+                if not isinstance(identity, dict):
+                    continue
+                path = f"/federation/operation_identities/{index}"
+                key = _manifest_key(identity)
+                if key in identity_by_key:
+                    violations.append(
+                        _violation(
+                            "OWNER_CONFLICT",
+                            f"{path}/target_id",
+                            "operation identity and target are duplicated",
+                        )
+                    )
+                elif key is not None:
+                    identity_by_key[key] = identity
+                    identity_index_by_key[key] = index
+                operation = identity.get("operation")
+                expected_environment = _OPERATION_ENVIRONMENTS.get(operation)
+                if expected_environment is not None and identity.get(
+                    "environment_class"
+                ) != expected_environment:
+                    violations.append(
+                        _violation(
+                            "CONFIGURATION_POLICY_INVALID",
+                            f"{path}/environment_class",
+                            "operation identity does not use its fixed environment class",
+                        )
+                    )
+                service_account = identity.get("service_account_resource")
+                if service_account in service_accounts:
+                    violations.append(
+                        _violation(
+                            "OWNER_CONFLICT",
+                            f"{path}/service_account_resource",
+                            "operation identities require distinct service accounts",
+                        )
+                    )
+                service_accounts.add(service_account)
+                permissions = identity.get("permissions")
+                if isinstance(permissions, list):
+                    for permission_index, permission in enumerate(permissions):
+                        if permission in _PROHIBITED_OPERATION_PERMISSIONS:
+                            violations.append(
+                                _violation(
+                                    "CONFIGURATION_POLICY_INVALID",
+                                    f"{path}/permissions/{permission_index}",
+                                    "operation identities cannot administer IAM, billing, keys, or APIs",
+                                )
+                            )
+
+    if set(workflow_by_key) != set(identity_by_key):
+        violations.append(
+            _violation(
+                "OWNER_CONFLICT",
+                "/federation/operation_identities",
+                "each workflow operation and target requires exactly one matching identity",
+            )
+        )
+    for key in set(workflow_by_key) & set(identity_by_key):
+        workflow = workflow_by_key[key]
+        identity = identity_by_key[key]
+        identity_index = identity_index_by_key[key]
+        path = f"/federation/operation_identities/{identity_index}"
+        for field in ("environment_class", "workflow_path"):
+            if identity.get(field) != workflow.get(field):
+                violations.append(
+                    _violation(
+                        "OWNER_CONFLICT",
+                        f"{path}/{field}",
+                        "operation identity must match its exact workflow reference",
+                    )
+                )
+
+    state = value.get("state")
+    state_bucket_names: list[object] = []
+    if isinstance(state, dict):
+        buckets = state.get("buckets")
+        if isinstance(buckets, list):
+            roles = {
+                bucket.get("bucket_role")
+                for bucket in buckets
+                if isinstance(bucket, dict)
+            }
+            if roles != _EXPECTED_BUCKET_ROLES:
+                violations.append(
+                    _violation(
+                        "OWNER_CONFLICT",
+                        "/state/buckets",
+                        "all four independent state bucket roles are required exactly once",
+                    )
+                )
+            state_bucket_names = [
+                bucket.get("bucket_name")
+                for bucket in buckets
+                if isinstance(bucket, dict)
+            ]
+            if len(state_bucket_names) != len(set(state_bucket_names)):
+                violations.append(
+                    _violation(
+                        "OWNER_CONFLICT",
+                        "/state/buckets",
+                        "the four state buckets require globally distinct names",
+                    )
+                )
+        lineages = state.get("lineages")
+        if isinstance(lineages, list):
+            observed: dict[object, tuple[object, object]] = {}
+            access_bindings: set[object] = set()
+            for index, lineage in enumerate(lineages):
+                if not isinstance(lineage, dict):
+                    continue
+                root = lineage.get("root_target")
+                path = f"/state/lineages/{index}"
+                if root in observed:
+                    violations.append(
+                        _violation(
+                            "OWNER_CONFLICT",
+                            f"{path}/root_target",
+                            "state root lineage is duplicated",
+                        )
+                    )
+                observed[root] = (
+                    lineage.get("bucket_role"),
+                    lineage.get("backend_prefix"),
+                )
+                binding = lineage.get("access_binding_reference")
+                if binding in access_bindings:
+                    violations.append(
+                        _violation(
+                            "OWNER_CONFLICT",
+                            f"{path}/access_binding_reference",
+                            "state lineages require distinct access bindings",
+                        )
+                    )
+                access_bindings.add(binding)
+            if observed != _EXPECTED_LINEAGES:
+                violations.append(
+                    _violation(
+                        "OWNER_CONFLICT",
+                        "/state/lineages",
+                        "the fixed five root lineages and prefixes are required",
+                    )
+                )
+
+    if isinstance(resources, dict):
+        resource_bucket_names = [
+            resources.get(field)
+            for field in ("configuration_bucket", "log_bucket", "evidence_bucket")
+        ]
+        all_bucket_names = state_bucket_names + resource_bucket_names
+        if len(all_bucket_names) != len(set(all_bucket_names)):
+            violations.append(
+                _violation(
+                    "OWNER_CONFLICT",
+                    "/platform_resources/configuration_bucket",
+                    "state, configuration, log, and evidence buckets require distinct names",
+                )
+            )
+
+    registration = value.get("registration_inputs")
+    if isinstance(registration, dict):
+        if set(registration.get("application_ids", [])) != _EXPECTED_APPLICATION_IDS:
+            violations.append(
+                _violation(
+                    "OWNER_CONFLICT",
+                    "/registration_inputs/application_ids",
+                    "the three synthetic qualification applications are required exactly once",
+                )
+            )
+        if registration.get("restricted_members_source") != registration.get(
+            "registration_set_path"
+        ):
+            violations.append(
+                _violation(
+                    "CONFIGURATION_POLICY_INVALID",
+                    "/registration_inputs/restricted_members_source",
+                    "restricted synthetic members must remain inside the reviewed Registration Set",
+                )
+            )
+
+    if isinstance(facts, list):
+        fact_keys: set[tuple[object, object]] = set()
+        fact_patterns = {
+            "image-digest": r".+@sha256:[0-9a-f]{64}",
+            "state-lineage-digest": r"sha256:[0-9a-f]{64}",
+            "configuration-object-generation": r"[1-9][0-9]{0,18}",
+            "plan-digest": r"sha256:[0-9a-f]{64}",
+            "workflow-run-id": r"[1-9][0-9]{0,18}",
+        }
+        for index, fact in enumerate(facts):
+            if not isinstance(fact, dict):
+                continue
+            path = f"/generated_facts/{index}"
+            key = (fact.get("fact_kind"), fact.get("target_id"))
+            if key in fact_keys:
+                violations.append(
+                    _violation(
+                        "MANIFEST_CHAIN_INVALID",
+                        f"{path}/target_id",
+                        "a generated fact kind and target can be recorded only once",
+                    )
+                )
+            fact_keys.add(key)
+            pattern = fact_patterns.get(fact.get("fact_kind"))
+            fact_value = fact.get("value")
+            if pattern is not None and (
+                not isinstance(fact_value, str) or re.fullmatch(pattern, fact_value) is None
+            ):
+                violations.append(
+                    _violation(
+                        "CONFIGURATION_POLICY_INVALID",
+                        f"{path}/value",
+                        "generated fact value does not match its immutable kind",
+                    )
+                )
+    return violations
+
+
 def _semantic_violations(value: dict[str, Any]) -> list[Violation]:
     kind = value.get("configuration_kind")
     handlers = {
         "backend": _backend_violations,
         "cross-state-reference": _cross_state_violations,
         "fixture": _fixture_violations,
+        "operator-input-manifest": _operator_manifest_violations,
         "platform": _platform_violations,
         "workflow": _workflow_violations,
     }
@@ -616,3 +1113,179 @@ def load_configuration_document(
     )
     value = loaded.value if isinstance(loaded.value, dict) and not violations else None
     return ConfigurationResult(value, violations)
+
+
+def _revision_path(index: int, path: str) -> str:
+    base = f"/revisions/{index}"
+    return f"{base}{path}" if path else base
+
+
+def _revision_violation(index: int, violation: Violation) -> Violation:
+    return Violation(
+        violation.code,
+        _revision_path(index, violation.path),
+        violation.message,
+    )
+
+
+def _immutable_manifest_view(value: dict[str, Any]) -> dict[str, Any]:
+    immutable = copy.deepcopy(value)
+    for field in (
+        "revision",
+        "predecessor_manifest_digest",
+        "approval_reference",
+        "generated_facts",
+    ):
+        immutable.pop(field, None)
+    source = immutable.get("source")
+    if isinstance(source, dict):
+        source.pop("source_revision", None)
+    resources = immutable.get("platform_resources")
+    if isinstance(resources, dict):
+        resources.pop("evidence_bundle_prefix", None)
+    return immutable
+
+
+def validate_operator_manifest_chain(
+    revisions: Sequence[Any],
+    *,
+    allow_synthetic: bool = False,
+    registry: dict[str, dict[str, Any]] | None = None,
+) -> OperatorManifestChainResult:
+    """Validate an ordered AP-M8 manifest chain without discovery or external access."""
+
+    if not revisions:
+        return OperatorManifestChainResult(
+            None,
+            (),
+            (
+                _violation(
+                    "MANIFEST_CHAIN_INVALID",
+                    "/revisions",
+                    "at least one manifest revision is required",
+                ),
+            ),
+        )
+    active_registry = registry or load_configuration_schemas()
+    violations: list[Violation] = []
+    dictionaries: list[dict[str, Any]] = []
+    candidate_digests: list[str | None] = []
+    for index, revision in enumerate(revisions):
+        revision_violations = validate_configuration(
+            revision,
+            "operator-input-manifest",
+            allow_synthetic=allow_synthetic,
+            registry=active_registry,
+        )
+        violations.extend(
+            _revision_violation(index, violation)
+            for violation in revision_violations
+        )
+        if isinstance(revision, dict):
+            dictionaries.append(revision)
+            candidate_digests.append(
+                _operator_manifest_digest(revision)
+                if not revision_violations
+                else None
+            )
+        else:
+            candidate_digests.append(None)
+
+    if len(dictionaries) == len(revisions):
+        first = dictionaries[0]
+        immutable_view = _immutable_manifest_view(first)
+        previous_facts: list[Any] = []
+        previous_approval: object = None
+        for index, revision in enumerate(dictionaries):
+            expected_revision = index + 1
+            if revision.get("revision") != expected_revision:
+                violations.append(
+                    _violation(
+                        "MANIFEST_CHAIN_INVALID",
+                        _revision_path(index, "/revision"),
+                        "manifest revisions must start at one and increase by one",
+                    )
+                )
+            if index > 0 and revision.get("predecessor_manifest_digest") != candidate_digests[
+                index - 1
+            ]:
+                violations.append(
+                    _violation(
+                        "MANIFEST_CHAIN_INVALID",
+                        _revision_path(index, "/predecessor_manifest_digest"),
+                        "successor predecessor digest does not match the prior revision",
+                    )
+                )
+            if _immutable_manifest_view(revision) != immutable_view:
+                violations.append(
+                    _violation(
+                        "MANIFEST_CHAIN_INVALID",
+                        _revision_path(index, ""),
+                        "successor changed an immutable reviewed operator input",
+                    )
+                )
+            approval = revision.get("approval_reference")
+            if index > 0 and approval == previous_approval:
+                violations.append(
+                    _violation(
+                        "MANIFEST_CHAIN_INVALID",
+                        _revision_path(index, "/approval_reference"),
+                        "each successor revision requires a fresh approval reference",
+                    )
+                )
+            current_facts = revision.get("generated_facts")
+            if isinstance(current_facts, list):
+                if len(current_facts) < len(previous_facts) or current_facts[
+                    : len(previous_facts)
+                ] != previous_facts:
+                    violations.append(
+                        _violation(
+                            "MANIFEST_CHAIN_INVALID",
+                            _revision_path(index, "/generated_facts"),
+                            "successor revisions must preserve the generated-fact prefix",
+                        )
+                    )
+                if index > 0 and len(current_facts) == len(previous_facts):
+                    violations.append(
+                        _violation(
+                            "MANIFEST_CHAIN_INVALID",
+                            _revision_path(index, "/generated_facts"),
+                            "a successor revision must append at least one generated fact",
+                        )
+                    )
+                previous_facts = copy.deepcopy(current_facts)
+            previous_approval = approval
+
+    ordered = _ordered(violations)
+    if ordered:
+        return OperatorManifestChainResult(None, (), ordered)
+    accepted = tuple(copy.deepcopy(value) for value in dictionaries)
+    digests = tuple(digest for digest in candidate_digests if digest is not None)
+    return OperatorManifestChainResult(accepted, digests, ())
+
+
+def load_operator_manifest_chain(
+    paths: Sequence[Path],
+    *,
+    allow_synthetic: bool = False,
+    max_bytes: int = 262_144,
+) -> OperatorManifestChainResult:
+    """Load an explicit ordered manifest chain from bounded local JSON documents."""
+
+    revisions: list[Any] = []
+    violations: list[Violation] = []
+    for index, path in enumerate(paths):
+        loaded = load_json_document(path, max_bytes=max_bytes)
+        if loaded.violations:
+            violations.extend(
+                _revision_violation(index, violation)
+                for violation in loaded.violations
+            )
+        else:
+            revisions.append(loaded.value)
+    if violations:
+        return OperatorManifestChainResult(None, (), _ordered(violations))
+    return validate_operator_manifest_chain(
+        revisions,
+        allow_synthetic=allow_synthetic,
+    )

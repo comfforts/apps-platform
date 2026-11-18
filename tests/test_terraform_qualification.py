@@ -319,20 +319,21 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertNotIn("id-token: write", check_workflow)
         self.assertNotIn("terraform apply", check_workflow)
 
-    def test_status_records_ap_m8_authority_and_defers_w2_until_acceptance(self) -> None:
+    def test_status_records_w2_support_and_defers_w3_until_manifest_acceptance(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(
             encoding="utf-8"
         )
         combined = " ".join((overview, index, prompt))
+        normalized_prompt = " ".join(prompt.split())
         self.assertIn("AP-M7 is locally implemented", combined)
         self.assertIn("AP-M7-W11 records only static repository implementation", index)
-        self.assertIn("AP-M8-W1 qualification-deployment authority proposal complete", index)
-        self.assertIn("AP-M8 authority pull request has merged", prompt)
-        self.assertIn("owner explicitly accepts the complete AP-M8-W1 authority", prompt)
+        self.assertIn("AP-M8-W1 owner-accepted and merged", index)
+        self.assertIn("AP-M8-W2 pull request has merged", prompt)
+        self.assertIn("post-merge W2 manifest-acceptance checkpoint", normalized_prompt)
         self.assertIn(
-            "implement AP-M8-W2 only as a bounded, non-secret operator-input manifest",
+            "create the first real, non-secret manifest revision",
             prompt,
         )
         for false_claim in (
@@ -341,8 +342,8 @@ class TerraformQualificationGateTest(unittest.TestCase):
             "AP-M7 supplies Application Adoption",
             "AP-M8 is deployed",
             "AP-M8 is Live-qualified",
-            "AP-M8-W2 is implemented",
-            "AP-M8 authority is owner-accepted",
+            "AP-M8-W3 is implemented",
+            "real operator manifest is accepted",
         ):
             self.assertNotIn(false_claim, combined)
 

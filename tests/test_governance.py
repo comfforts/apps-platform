@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 import unittest
@@ -257,7 +258,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_overview = " ".join(overview.split())
 
         self.assertIn(
-            "AP-M8-W1 qualification-deployment authority proposal complete",
+            "AP-M8-W1 owner-accepted and merged",
             normalized_index,
         )
         self.assertIn("Contract (`C`) evidence", normalized_index)
@@ -285,13 +286,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("AP-M7-W9 adds parseable, non-executable", normalized_overview)
         self.assertIn("AP-M7-W10 binds AP-EVAL-M7-01", normalized_index)
         self.assertIn("AP-M7-W11 reconciles this static status", normalized_overview)
-        self.assertIn("AP-M8-W1 authority proposal complete", normalized_layout)
+        self.assertIn("AP-M8-W1 owner-accepted and merged", normalized_layout)
         self.assertIn(
-            "owner acceptance, AP-M8-W2, and every operator action pending",
+            "post-merge real-manifest acceptance and every external operator action pending",
             normalized_index,
         )
         self.assertIn(
-            "AP-M8-W2 may begin only after this pull request merges",
+            "The first real manifest must be created after this branch merges",
             normalized_overview,
         )
         self.assertIn("planning consistency only", normalized_index)
@@ -660,22 +661,24 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M8 authority pull request has merged to `main`",
-            "owner explicitly accepts the complete AP-M8-W1 authority and requests AP-M8-W2",
-            "implement AP-M8-W2 only as a bounded, non-secret operator-input manifest",
-            "A missing value stops AP-M8-W2",
+            "after the AP-M8-W2 pull request has merged to `main`",
+            "owner explicitly requests the post-merge W2 manifest-acceptance checkpoint",
+            "create the first real, non-secret manifest revision",
+            "owner-approved private working directory outside Git",
+            "-m infrastructure.config.operator_manifest",
+            "Wait for explicit owner acceptance of that exact digest",
+            "Do not commit the real manifest",
             "Do not begin AP-M8-W3 repository or environment settings",
             "Do not change repository settings",
-            "Do not query a provider, copy Finance Assistant values",
+            "not a reason to query GitHub or GCP",
             "Every later external action retains its own explicit owner checkpoint",
-            "credential-free, deterministic, offline, extraction-safe, and non-mutating",
         ):
             self.assertIn(boundary, normalized_prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertNotIn("terraform apply", prompt)
         self.assertIn(
-            "[AP-M8 implementation handoff](starting_prompt.md)",
+            "[AP-M8-W2 manifest-acceptance handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -702,17 +705,17 @@ class ProjectAuthorityTest(unittest.TestCase):
         for later_slice in (
             "Networked provider runtime — locally implemented",
             "Terraform and workflow implementation — locally implemented and statically verified",
-            "Non-production qualification deployment — authority proposed, implementation unavailable",
+            "Non-production qualification deployment — W1 accepted; W2 repository support implemented",
             "Live qualification — later",
             "Finance Application Adoption — later and independent",
         ):
             self.assertIn(later_slice, index)
         self.assertIn("separate bounded branch and pull request", normalized_index)
         self.assertIn(
-            "implement AP-M8-W2 only as a bounded, non-secret operator-input manifest",
+            "create the first real, non-secret manifest revision",
             normalized_prompt,
         )
-        self.assertIn("A missing value stops AP-M8-W2", normalized_prompt)
+        self.assertIn("Wait for explicit owner acceptance of that exact digest", normalized_prompt)
         self.assertIn("Do not change repository settings", normalized_prompt)
         self.assertIn("Do not begin AP-M8-W3", normalized_prompt)
 
@@ -989,7 +992,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "The mandatory skip count must be zero",
             "dependent gate that cannot safely run is `blocked`",
             "AP-M9, cross-project, Finance, and Adoption behaviors are recorded as `unavailable`",
-            "creates no schema, workflow, identity, credential, bucket object, provider action",
+            "AP-M8-W2's local schema and validator create no workflow, identity, credential, bucket object, provider action",
         ):
             self.assertIn(evidence_boundary, normalized)
 
@@ -1018,6 +1021,113 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertFalse(any(PROJECT_ROOT.rglob("*.tfvars")))
         self.assertFalse(any(PROJECT_ROOT.rglob("*.tfstate")))
         self.assertFalse(any(PROJECT_ROOT.rglob("*.tfplan")))
+
+    def test_ap_m8_w2_operator_manifest_is_closed_synthetic_and_non_operational(
+        self,
+    ) -> None:
+        config_root = PROJECT_ROOT / "infrastructure/config"
+        schema_path = config_root / "schemas/operator-input-manifest.v1.schema.json"
+        example_path = (
+            config_root / "examples/operator-input-manifest.synthetic.v1.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        example = json.loads(example_path.read_text(encoding="utf-8"))
+        config_index = (config_root / "README.md").read_text(encoding="utf-8")
+
+        self.assertEqual(
+            schema["$id"],
+            "urn:comfforts:app-platform:infrastructure-config:"
+            "operator-input-manifest:v1",
+        )
+        self.assertFalse(schema["additionalProperties"])
+        environment = schema["$defs"]["qualificationEnvironment"]["properties"]
+        self.assertEqual(
+            {
+                key: value["const"]
+                for key, value in environment.items()
+            },
+            {
+                "environment_id": "qualification",
+                "project_id": "comfforts-platform-non-prod",
+                "project_number": "455651441682",
+                "region": "us-west1",
+                "hostname": "apps-staging.comfforts.com",
+            },
+        )
+        self.assertEqual(example["configuration_class"], "synthetic")
+        self.assertEqual(example["generated_facts"], [])
+        self.assertEqual(example["predecessor_manifest_digest"], None)
+        self.assertIn("owner-approved non-Git", config_index)
+        self.assertIn("AP-M8-W2 creates no protected environment", config_index)
+
+        operator_manifests = [
+            path
+            for path in PROJECT_ROOT.rglob("*operator-input-manifest*.json")
+            if path != schema_path and path != example_path
+        ]
+        self.assertEqual(operator_manifests, [])
+
+    def test_ap_m8_w2_validator_has_no_discovery_or_later_slice_capability(
+        self,
+    ) -> None:
+        validation = (
+            PROJECT_ROOT / "infrastructure/config/validation.py"
+        ).read_text(encoding="utf-8")
+        command = (
+            PROJECT_ROOT / "infrastructure/config/operator_manifest.py"
+        ).read_text(encoding="utf-8")
+        package = (PROJECT_ROOT / "infrastructure/config/__init__.py").read_text(
+            encoding="utf-8"
+        )
+        normalized = " ".join(validation.split())
+        local_implementation = "\n".join((validation, command))
+
+        for interface in (
+            "OperatorManifestChainResult",
+            "load_operator_manifest_chain",
+            "validate_operator_manifest_chain",
+        ):
+            self.assertIn(interface, package)
+        for prohibited_dependency in (
+            "import os",
+            "import socket",
+            "import subprocess",
+            "import urllib",
+            "import requests",
+            "google.cloud",
+            "os.environ",
+        ):
+            self.assertNotIn(prohibited_dependency, local_implementation)
+        for boundary in (
+            "the initial manifest revision must not name a predecessor",
+            "successor predecessor digest does not match the prior revision",
+            "successor changed an immutable reviewed operator input",
+            "a successor revision must append at least one generated fact",
+            "operation identities require distinct service accounts",
+            "the fixed five root lineages and prefixes are required",
+        ):
+            self.assertIn(boundary, normalized)
+
+        for later_path in (
+            "infrastructure/backend",
+            "infrastructure/deployment",
+            "infrastructure/images",
+            "edge/production.py",
+            "fixtures/runtime.py",
+            "registrations/qualification",
+        ):
+            self.assertFalse(
+                (PROJECT_ROOT / later_path).exists(),
+                f"AP-M8-W2 must not create later capability: {later_path}",
+            )
+        self.assertEqual(
+            sorted(
+                path.name
+                for path in (PROJECT_ROOT / ".github/workflows").iterdir()
+                if path.is_file()
+            ),
+            ["check.yml"],
+        )
 
     def test_ap_m7_authority_is_exact_static_and_non_operational(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
@@ -1193,8 +1303,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         config_root = PROJECT_ROOT / "infrastructure/config"
         self.assertTrue((config_root / "README.md").is_file())
         self.assertTrue((config_root / "validation.py").is_file())
-        self.assertEqual(len(tuple((config_root / "schemas").glob("*.json"))), 5)
-        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 15)
+        self.assertEqual(len(tuple((config_root / "schemas").glob("*.json"))), 6)
+        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 16)
         module_root = PROJECT_ROOT / "infrastructure/terraform/modules"
         self.assertEqual(
             sorted(path.name for path in module_root.iterdir() if path.is_dir()),

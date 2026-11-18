@@ -1,7 +1,7 @@
 # App Platform threat model
 
-Version 1.3 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
-AP-M7 infrastructure-configuration controls, and proposed AP-M8 protected-source, federated-
+Version 1.4 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
+AP-M7 infrastructure-configuration controls, and accepted AP-M8 protected-source, federated-
 identity, backend-bootstrap, state-lineage, deployment-sequencing, and evidence controls;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
@@ -431,7 +431,8 @@ readback, plan review, and audit records.
 
 **Residual risk:** Protected-main is configured and AP-M7 statically verifies exact-plan binding in
 inert templates. Workload Identity Federation and executable mutation workflows remain unavailable.
-The AP-M8 profile below is proposal authority only and supplies no operational control. The same
+The accepted AP-M8-W1 profile below supplies no operational control. AP-M8-W2 adds only a local
+manifest contract and validator. The same
 owner may review and apply, so environment checkpoints, retained evidence, and drift readback
 remain important compensating controls.
 
@@ -550,7 +551,7 @@ logging, budget delivery, rollback, recovery, or any other provider behavior.
 
 ## AP-M8 protected-source and federated-identity controls
 
-AP-M8-W1 proposes the controls below for AP-M8-W3 and AP-M8-W4. They refine the existing threats
+AP-M8-W1 defines the controls below for AP-M8-W3 and AP-M8-W4. They refine the existing threats
 without claiming implementation:
 
 - **AP-TM-004 and AP-TM-005:** GitHub workload identity is only an operator credential. It never
@@ -594,13 +595,13 @@ workload identities cannot administer federation, IAM, or themselves. This ident
 separate from Terraform backend bootstrap.
 
 The exact protected-setting, attribute-mapping, identity-matrix, readback, and stop profile is in
-the subordinate [qualification-deployment runbook](runbooks/qualification_deployment.md). Until the
-complete AP-M8-W1 authority is owner-accepted and the AP-M8-W3/AP-M8-W4 checkpoints are separately
-approved and executed, these controls produce no provider or Live evidence.
+the subordinate [qualification-deployment runbook](runbooks/qualification_deployment.md). AP-M8-W1
+is owner-accepted and merged; until the exact W2 manifest and the AP-M8-W3/AP-M8-W4 checkpoints are
+separately approved and executed, these controls produce no provider or Live evidence.
 
 ## AP-M8 backend-bootstrap and state-lineage controls
 
-AP-M8-W1 proposes these AP-M8-W5 controls without creating a backend or state:
+AP-M8-W1 defines these AP-M8-W5 controls without creating a backend or state:
 
 - **AP-TM-007:** The bootstrap root uses one exact local plan and private state before a reviewed
   backend declaration is rendered from protected source. Migration targets a proven-empty
@@ -647,7 +648,7 @@ evidence.
 
 ## AP-M8 deployment-sequencing and activation controls
 
-AP-M8-W1 proposes these AP-M8-W6 through AP-M8-W10 controls without creating a workflow, image,
+AP-M8-W1 defines these AP-M8-W6 through AP-M8-W10 controls without creating a workflow, image,
 generation, resource, record, or DNS entry:
 
 - **AP-TM-001 through AP-TM-003:** The initial provider-backed Registration Set contains only the
@@ -709,7 +710,7 @@ authority.
 
 ## AP-M8 deployment-evidence controls
 
-AP-M8-W1 proposes these AP-M8-W11/W12 and AP-EVAL-M8 controls without reading a provider or
+AP-M8-W1 defines these AP-M8-W11/W12 and AP-EVAL-M8 controls without reading a provider or
 creating evidence:
 
 - **AP-TM-001 through AP-TM-006:** Evidence binds the complete provider-backed Registration Set,

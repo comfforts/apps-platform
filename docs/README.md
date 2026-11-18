@@ -1,8 +1,8 @@
 # App Platform documentation
 
-Version 1.13 | Status: AP-M8-W1 qualification-deployment authority proposal complete and passing
-its deterministic repository gate; owner acceptance, AP-M8-W2, and every operator action pending;
-backend operation, provider operation, deployment, Live, and Adoption qualification unavailable
+Version 1.14 | Status: AP-M8-W1 owner-accepted and merged; AP-M8-W2 operator-manifest contract and
+deterministic chain validation implemented locally; post-merge real-manifest acceptance and every
+external operator action pending; deployment, Live, and Adoption qualification unavailable
 
 This directory is the design authority for Comfforts App Platform. AP-M3 supplies Contract (`C`)
 evidence through the logical design, threat boundary, Version 1 schemas, deterministic compiler,
@@ -45,8 +45,8 @@ sole App Platform authority; the extraction supplied no Terraform, cloud, or app
 13. [Repository extraction handoff](repository_extraction_handoff.md) records the secret-free
     evidence for all five completed extraction checkpoints and the canonical repository boundary.
 14. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
-15. [AP-M8 implementation handoff](../prompts/starting_prompt.md) provides a bounded entry point for
-    AP-M8-W2 only after the authority pull request merges and the owner explicitly accepts AP-M8-W1.
+15. [AP-M8-W2 acceptance handoff](../prompts/starting_prompt.md) provides a bounded post-merge entry
+    point for creating, validating, and explicitly accepting the first real non-secret manifest.
 
 AP-M3 Contract behavior, AP-M4 Fixture behavior, and AP-M5 planning authority are merged and pass
 their deterministic gates. AP-M6-W1 through AP-M6-W11 are implemented locally, and the complete
@@ -80,8 +80,8 @@ plan-only mocked-provider tests, inert workflow templates, offline extraction, a
 regressions. It proves no backend, provider, repository-setting, federation, deployment, DNS,
 Live, or Adoption behavior.
 
-AP-M8-W1 is complete as a qualification-deployment authority proposal on this branch, and its
-deterministic governance gate passes. It defines AP-M8-W1 through AP-M8-W12,
+AP-M8-W1 is owner-accepted and merged, and its deterministic governance gate passes. It defines
+AP-M8-W1 through AP-M8-W12,
 AP-EVAL-M8-01 through AP-EVAL-M8-10, five protected environment classes, ten operation-specific
 identity authorities, four state buckets preserving five independent root lineages, the private
 bootstrap and migration boundary, Version 2 foundation/candidate phases, the fixed eight-stage
@@ -89,9 +89,12 @@ deployment order, the separate DNS/TLS checkpoint, and a closed private evidence
 mandatory pass/fail/blocked/unavailable semantics. These definitions neither implement the
 reserved paths nor authorize a repository setting, identity, backend, provider, build,
 publication, generation, DNS, deployment, readback, evidence, recovery, or destructive action.
-AP-M8-W2 through AP-M8-W12 remain unavailable until this authority pull request is merged, the
-owner explicitly accepts the complete AP-M8-W1 profile, and the owner requests the next bounded
-work package. AP-M9 Live qualification remains separate.
+AP-M8-W2 now implements the closed Version 1 operator-manifest revision schema, pure bounded
+loading, canonical digesting, immutable-input and predecessor-chain policy, and explicitly
+synthetic regression material. It contains no real operator manifest and performs no discovery or
+external access. After the W2 pull request merges, the owner must validate and explicitly accept
+one real non-secret manifest and its digest for that exact protected-main revision. AP-M8-W3
+through AP-M8-W12 remain unavailable until that checkpoint passes. AP-M9 remains separate.
 
 ## Incremental delivery sequence
 
@@ -158,10 +161,11 @@ small reviewable commits, merge it, and only then begin the next item.
    AP-M7-W11 records only static repository implementation and the post-merge handoff. AP-M7
    performs no authenticated plan or apply and supplies no provider, deployment, Live, or Adoption
    evidence.
-8. **Non-production qualification deployment — authority proposed, implementation unavailable:**
-   AP-M8-W1 defines the complete staged authority and deterministic evaluation profile. It creates
-   no operational capability. AP-M8-W2 may begin only after the authority pull request merges and
-   the owner explicitly accepts AP-M8-W1; every later external mutation retains its own approval.
+8. **Non-production qualification deployment — W1 accepted; W2 repository support implemented:**
+   AP-M8-W1 defines the complete staged authority and deterministic evaluation profile. AP-M8-W2
+   implements only the non-secret append-only manifest contract and deterministic chain validator.
+   The first real manifest is created and accepted after merge; every external mutation remains
+   unavailable and retains its own later approval.
 9. **Live qualification — later:** AP-M9 must execute the approved Live gates against the exact
    deployed revision and retain redacted evidence before any Live-qualified claim.
 10. **Finance Application Adoption — later and independent:** use the inactive integration package
@@ -188,10 +192,10 @@ Current AP-M3 and AP-M4 authorities authorize the Version 1 contract implementat
 in-process Fixture harness, and their Contract and Fixture evidence. AP-M5 authorizes planning, and
 AP-M6 authorizes only local provider-runtime implementation and tests after AP-M6-W1 acceptance.
 AP-M7 authorizes only static Terraform configuration and inert workflow templates after AP-M7-W1
-acceptance. AP-M8-W1 is a complete authority proposal only; AP-M8-W2 through AP-M8-W12 require its
-merge, explicit owner acceptance, and their own work-package or operator approvals. Deployment,
-Live qualification, and Application Adoption remain separate AP-M8, AP-M9, or application-owned
-gates.
+acceptance. AP-M8-W1 is owner-accepted and merged. AP-M8-W2 authorizes only its repository contract,
+validator, synthetic examples, and post-merge manifest-acceptance checkpoint. AP-M8-W3 through
+AP-M8-W12 retain their own work-package or operator approvals. Deployment, Live qualification, and
+Application Adoption remain separate AP-M8, AP-M9, or application-owned gates.
 
 ## Scope labels
 
@@ -227,9 +231,10 @@ Passing contract and Fixture tests are revision-scoped Contract and Fixture evid
 AP-EVAL-M5 proves planning consistency only. Passing AP-EVAL-M6 proves only the locally tested
 runtime implementation named by that gate. Passing AP-EVAL-M7 proves only static Terraform,
 configuration-contract, and inert workflow-template implementation at the evaluated revision.
-Passing the AP-M8-W1 governance checks proves only that the proposed authority is internally
-complete and closed; it is neither AP-EVAL-M8 deployment evidence nor owner acceptance. None is
-deployed or operational evidence. Each future capability must pass its named gate and, where
-applicable, retain secret-free Live evidence.
+Passing the AP-M8-W1 governance checks proves only that its accepted authority is internally
+complete and closed. Passing the AP-M8-W2 repository checks proves only the local manifest contract,
+canonical digest, predecessor policy, and synthetic examples; it is not acceptance of a real
+manifest or AP-EVAL-M8 deployment evidence. None is deployed or operational evidence. Each future
+capability must pass its named gate and, where applicable, retain secret-free Live evidence.
 Credentials, Terraform state, saved plans, authenticated browser state, and unredacted external
 payloads are never committed.

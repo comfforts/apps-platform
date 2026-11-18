@@ -1,14 +1,15 @@
 # App Platform evaluation strategy
 
-Version 0.6 | Status: deterministic evaluation authority through AP-M7 and proposed AP-EVAL-M8
-qualification-deployment authority; AP-EVAL-M9 remains a future claim boundary
+Version 0.7 | Status: AP-M8-W1 evaluation authority accepted; AP-M8-W2 local manifest validation
+implemented; AP-EVAL-M8 deployment evidence unavailable; AP-EVAL-M9 remains a future claim boundary
 
-This document preserves how delivery items 3 through 7 are evaluated and proposes AP-EVAL-M8 for
-the non-production qualification deployment. AP-EVAL-M7 qualifies only committed configuration and
-inert templates through deterministic static tests with mocked providers. AP-EVAL-M8 can record
-deployment and readback only after its complete authority is accepted and every operator checkpoint
-passes. AP-EVAL-M9 remains future Live authority. No gate through AP-EVAL-M8 qualifies a consuming
-application or runtime behavior.
+This document preserves how delivery items 3 through 7 are evaluated and defines accepted
+AP-EVAL-M8 authority for the non-production qualification deployment. AP-EVAL-M7 qualifies only
+committed configuration and inert templates through deterministic static tests with mocked
+providers. AP-M8-W2 validates only explicit local manifest revisions. AP-EVAL-M8 can record
+deployment and readback only after its manifest and every later operator checkpoint pass. AP-EVAL-M9
+remains future Live authority. No gate through AP-EVAL-M8 qualifies a consuming application or
+runtime behavior.
 
 Plan: [App Platform implementation plan](04_implementation_plan.md)
 
@@ -1154,11 +1155,11 @@ AP-EVAL-M9.
 
 ## Future evaluation boundaries
 
-The following sections constrain later authorities. They do not authorize implementation or
-provide a passing result. AP-M8 is fully specified below as proposal authority but remains future
-until the complete AP-M8-W1 change is accepted and merged. AP-M9 must refine its commands,
-fixtures, expected results, evidence schema, pass/fail semantics, and exact deployed revision before
-Live work begins.
+The following sections constrain later authorities. They do not authorize an external operation or
+provide a passing result. AP-M8-W1 is accepted and merged; AP-M8-W2 implements only its local
+manifest contract and validator. AP-EVAL-M8 remains future until every named deployment checkpoint
+passes. AP-M9 must refine its commands, fixtures, expected results, evidence schema, pass/fail
+semantics, and exact deployed revision before Live work begins.
 
 ### AP-EVAL-M8 · Qualification-deployment gate
 
@@ -1181,7 +1182,8 @@ response, cross-project attachment, Finance Assistant, or Application Adoption.
 
 #### Evaluation environment and command boundary
 
-The gate begins only after the complete AP-M8-W1 authority is accepted and merged and the exact
+The gate begins only after the complete AP-M8-W1 authority is accepted and merged, the exact
+AP-M8-W2 real manifest and digest are accepted, and the exact
 protected-main source revision has passed:
 
 ```bash
@@ -1415,9 +1417,9 @@ rollback, restoration, cleanup, or Application Adoption. Provider readback is ev
 selected configuration exists, not proof of its runtime behavior. Those claims remain AP-M9 or a
 later application-owned gate.
 
-This section is proposal authority only until the complete AP-M8-W1 change is owner-accepted and
-merged. It creates no schema, workflow, identity, credential, bucket object, provider action,
-resource, DNS record, certificate, evidence bundle, or passing result.
+This section is accepted AP-M8-W1 authority, not a passing result. AP-M8-W2's local schema and
+validator create no workflow, identity, credential, bucket object, provider action, resource, DNS
+record, certificate, evidence bundle, or passing result.
 
 ### AP-EVAL-M9 · Live-qualification gate
 

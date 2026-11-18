@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 import unittest
@@ -1019,6 +1020,109 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertFalse(any(PROJECT_ROOT.rglob("*.tfstate")))
         self.assertFalse(any(PROJECT_ROOT.rglob("*.tfplan")))
 
+    def test_ap_m8_w2_operator_manifest_is_closed_synthetic_and_non_operational(
+        self,
+    ) -> None:
+        config_root = PROJECT_ROOT / "infrastructure/config"
+        schema_path = config_root / "schemas/operator-input-manifest.v1.schema.json"
+        example_path = (
+            config_root / "examples/operator-input-manifest.synthetic.v1.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        example = json.loads(example_path.read_text(encoding="utf-8"))
+        config_index = (config_root / "README.md").read_text(encoding="utf-8")
+
+        self.assertEqual(
+            schema["$id"],
+            "urn:comfforts:app-platform:infrastructure-config:"
+            "operator-input-manifest:v1",
+        )
+        self.assertFalse(schema["additionalProperties"])
+        environment = schema["$defs"]["qualificationEnvironment"]["properties"]
+        self.assertEqual(
+            {
+                key: value["const"]
+                for key, value in environment.items()
+            },
+            {
+                "environment_id": "qualification",
+                "project_id": "comfforts-platform-non-prod",
+                "project_number": "455651441682",
+                "region": "us-west1",
+                "hostname": "apps-staging.comfforts.com",
+            },
+        )
+        self.assertEqual(example["configuration_class"], "synthetic")
+        self.assertEqual(example["generated_facts"], [])
+        self.assertEqual(example["predecessor_manifest_digest"], None)
+        self.assertIn("owner-approved non-Git", config_index)
+        self.assertIn("AP-M8-W2 creates no protected environment", config_index)
+
+        operator_manifests = [
+            path
+            for path in PROJECT_ROOT.rglob("*operator-input-manifest*.json")
+            if path != schema_path and path != example_path
+        ]
+        self.assertEqual(operator_manifests, [])
+
+    def test_ap_m8_w2_validator_has_no_discovery_or_later_slice_capability(
+        self,
+    ) -> None:
+        validation = (
+            PROJECT_ROOT / "infrastructure/config/validation.py"
+        ).read_text(encoding="utf-8")
+        package = (PROJECT_ROOT / "infrastructure/config/__init__.py").read_text(
+            encoding="utf-8"
+        )
+        normalized = " ".join(validation.split())
+
+        for interface in (
+            "OperatorManifestChainResult",
+            "load_operator_manifest_chain",
+            "validate_operator_manifest_chain",
+        ):
+            self.assertIn(interface, package)
+        for prohibited_dependency in (
+            "import os",
+            "import socket",
+            "import subprocess",
+            "import urllib",
+            "import requests",
+            "google.cloud",
+            "os.environ",
+        ):
+            self.assertNotIn(prohibited_dependency, validation)
+        for boundary in (
+            "the initial manifest revision must not name a predecessor",
+            "successor predecessor digest does not match the prior revision",
+            "successor changed an immutable reviewed operator input",
+            "a successor revision must append at least one generated fact",
+            "operation identities require distinct service accounts",
+            "the fixed five root lineages and prefixes are required",
+        ):
+            self.assertIn(boundary, normalized)
+
+        for later_path in (
+            "infrastructure/backend",
+            "infrastructure/deployment",
+            "infrastructure/images",
+            "edge/production.py",
+            "fixtures/runtime.py",
+            "registrations/qualification",
+        ):
+            self.assertFalse(
+                (PROJECT_ROOT / later_path).exists(),
+                f"AP-M8-W2 must not create later capability: {later_path}",
+            )
+        self.assertEqual(
+            sorted(
+                path.name
+                for path in (PROJECT_ROOT / ".github/workflows").iterdir()
+                if path.is_file()
+            ),
+            ["check.yml"],
+        )
+
     def test_ap_m7_authority_is_exact_static_and_non_operational(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
             encoding="utf-8"
@@ -1193,8 +1297,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         config_root = PROJECT_ROOT / "infrastructure/config"
         self.assertTrue((config_root / "README.md").is_file())
         self.assertTrue((config_root / "validation.py").is_file())
-        self.assertEqual(len(tuple((config_root / "schemas").glob("*.json"))), 5)
-        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 15)
+        self.assertEqual(len(tuple((config_root / "schemas").glob("*.json"))), 6)
+        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 16)
         module_root = PROJECT_ROOT / "infrastructure/terraform/modules"
         self.assertEqual(
             sorted(path.name for path in module_root.iterdir() if path.is_dir()),

@@ -33,7 +33,7 @@ contracts, verification, or ownership boundaries.
 | `Makefile` | Portable project-local developer and verification interface |
 | `.gitignore` | Platform-local generated, secret, state, and build exclusions |
 | `infrastructure/tools/` | AP-M7 credential-free local dependency setup and disposable-copy offline validation |
-| `infrastructure/config/` | AP-M7-W3 closed Version 1 schemas, synthetic examples, bounded loader, and semantic policy |
+| `infrastructure/config/` | AP-M7-W3 closed Version 1 schemas and AP-M8-W2 operator-manifest contract, synthetic examples, bounded loader, and semantic policy |
 | `infrastructure/terraform/{bootstrap,platform,fixtures/*}/versions.tf` | Exact root-local Terraform and provider constraints |
 | `infrastructure/terraform/{bootstrap,platform,fixtures/*}/.terraform.lock.hcl` | Identical committed provider selections and signed package checksums |
 | `infrastructure/terraform/bootstrap/` | AP-M7-W4 deep bootstrap root, typed configuration interface, and plan-only mocked-provider tests |
@@ -52,6 +52,9 @@ These paths are authority reservations, not implemented capabilities or permissi
 
 | Path | Intended owner |
 | --- | --- |
+| `infrastructure/config/schemas/operator-input-manifest.v1.schema.json` | AP-M8-W2 closed append-only non-secret manifest revision contract; no accepted operator values |
+| `infrastructure/config/examples/operator-input-manifest.synthetic.v1.json` | AP-M8-W2 explicitly synthetic validation material; never a default or operator input |
+| `infrastructure/config/validation.py` | AP-M8-W2 pure document, canonical-digest, and predecessor-chain validation without discovery or external access |
 | `infrastructure/backend/bootstrap-backend.tf.tmpl` | AP-M8-W5 reviewed empty GCS backend declaration for a private temporary bootstrap-root copy only |
 | `infrastructure/backend/render_bootstrap_backend.py` | AP-M8-W5 credential-free deterministic renderer that refuses overwrite and emits no value, state, credential, or provider data |
 | `edge/production.py` | AP-M8-W6 production composition of only the already accepted Shared Edge adapters |

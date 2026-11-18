@@ -1,8 +1,9 @@
-# AP-M7 infrastructure configuration contracts
+# App Platform infrastructure configuration contracts
 
-Version 1 | Status: AP-M7-W3 implemented, AP-M7-W4 through W8 root interfaces consumed, and
-AP-M7-W9 inert templates bound to the workflow contract; synthetic repository examples only; no
-operator configuration, backend operation, provider operation, or deployment
+Version 1.1 | Status: AP-M7-W3 implemented, AP-M7-W4 through W8 root interfaces consumed,
+AP-M7-W9 inert templates bound to the workflow contract, and the AP-M8-W2 operator-manifest
+contract location approved; synthetic repository examples only; no accepted operator manifest,
+backend operation, provider operation, or deployment
 
 This directory defines the closed, non-secret inputs for later AP-M7 Terraform roots and inert
 workflow templates. The schemas and loader are subordinate to the platform requirements, accepted
@@ -18,11 +19,31 @@ initialization, credential lookup, cloud action, DNS change, or repository-setti
 | `schemas/fixture-configuration.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:fixture:v1` | One independently owned Fixture Application input |
 | `schemas/cross-state-reference.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:cross-state-reference:v1` | Typed backend, platform, or attachment reference without state reads |
 | `schemas/workflow-configuration.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:workflow:v1` | Source-bound plan, apply, rollback, force-unlock, or destroy authority input |
+| `schemas/operator-input-manifest.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:operator-input-manifest:v1` | AP-M8-W2 append-only non-secret operator-input revision; implemented by the next bounded commit |
 
 `examples/` contains only `configuration_class: synthetic` documents. They use reserved synthetic
 names, identities, revisions, and digests to exercise every approved configuration and workflow
 shape. They are test material, not defaults or deployable values. The loader rejects them unless a
 caller explicitly selects `allow_synthetic=True`; the operator path always leaves that flag false.
+
+## AP-M8-W2 operator-manifest boundary
+
+AP-M8-W2 extends this existing configuration module rather than creating a deployment module. The
+repository may contain only the closed Version 1 schema, pure validation implementation, and
+explicitly synthetic examples. The accepted operator manifest is created only after this slice
+merges so it can bind the exact protected-main revision. It remains in an owner-approved non-Git
+location and never becomes a repository example, default, credential source, or deployment input
+without its own recorded approval.
+
+One initial revision records every reviewed value known before an external mutation. A fact that
+can exist only after a later approved operation enters one immutable successor revision that names
+and binds its predecessor. A successor never edits or retroactively completes an earlier revision.
+The schema and validator do not discover a value from GitHub, GCP, Terraform state, an environment
+variable, Finance Assistant, or another manifest chain.
+
+AP-M8-W2 creates no protected environment, workflow, federation resource, service account, IAM
+binding, backend, state, provider resource, image, Registration Generation, DNS record, evidence
+bundle, or permission to begin AP-M8-W3.
 
 ## Loader interface
 

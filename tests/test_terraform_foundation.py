@@ -5,7 +5,10 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 import re
+import subprocess
+import tempfile
 import unittest
+from unittest import mock
 
 from infrastructure.tools import terraform_check, terraform_setup
 
@@ -90,6 +93,76 @@ class TerraformFoundationTest(unittest.TestCase):
         self.assertIn('"HOME": str(isolated_home)', check_source)
         self.assertIn('"PATH": os.environ.get("PATH", "")', check_source)
         self.assertNotIn("environment = dict(os.environ)", check_source)
+
+    def test_provider_mirror_uses_a_module_free_selection_directory(self) -> None:
+        provider_payload = b"synthetic locked provider package"
+        provider_digest = hashlib.sha256(provider_payload).hexdigest()
+        observed_working_directories: list[Path] = []
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            mirror = temporary / "provider-mirror"
+            setup_config = temporary / "setup.tfrc"
+            offline_config = temporary / "offline.tfrc"
+
+            def mirror_provider(
+                command: list[str],
+                *,
+                cwd: Path,
+                env: dict[str, str],
+                check: bool,
+            ) -> subprocess.CompletedProcess[str]:
+                del env
+                self.assertTrue(check)
+                self.assertIn("providers", command)
+                self.assertIn("mirror", command)
+                self.assertIn("-platform=linux_amd64", command)
+                working_directory = Path(cwd)
+                observed_working_directories.append(working_directory)
+                self.assertNotEqual(working_directory, terraform_setup.ROOTS[0])
+                self.assertEqual(
+                    sorted(
+                        path.relative_to(working_directory).as_posix()
+                        for path in working_directory.rglob("*")
+                        if path.is_file()
+                    ),
+                    [".terraform.lock.hcl", "versions.tf"],
+                )
+                package = (
+                    mirror
+                    / "registry.terraform.io/hashicorp/google"
+                    / "terraform-provider-google_8.11.0_linux_amd64.zip"
+                )
+                package.parent.mkdir(parents=True)
+                package.write_bytes(provider_payload)
+                return subprocess.CompletedProcess(command, 0)
+
+            with (
+                mock.patch.object(terraform_setup, "MIRROR_ROOT", mirror),
+                mock.patch.object(terraform_setup, "SETUP_CLI_CONFIG", setup_config),
+                mock.patch.object(terraform_setup, "OFFLINE_CLI_CONFIG", offline_config),
+                mock.patch.object(
+                    terraform_setup,
+                    "_lock_hashes",
+                    return_value={provider_digest},
+                ),
+                mock.patch.object(
+                    terraform_setup.subprocess,
+                    "run",
+                    side_effect=mirror_provider,
+                ),
+            ):
+                self.assertEqual(
+                    terraform_setup._populate_provider_mirror("linux_amd64"),
+                    provider_digest,
+                )
+
+            self.assertEqual(len(observed_working_directories), 1)
+            self.assertFalse(observed_working_directories[0].exists())
+            self.assertIn(
+                str(mirror.resolve()),
+                offline_config.read_text(encoding="utf-8"),
+            )
 
     def test_check_workflow_separates_setup_from_the_offline_gate(self) -> None:
         workflow = (PROJECT_ROOT / ".github/workflows/check.yml").read_text(

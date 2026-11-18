@@ -205,18 +205,27 @@ def _populate_provider_mirror(terraform_platform: str) -> str:
     if MIRROR_ROOT.exists():
         shutil.rmtree(MIRROR_ROOT)
     MIRROR_ROOT.mkdir(parents=True)
-    subprocess.run(
-        [
-            str(TERRAFORM),
-            "providers",
-            "mirror",
-            f"-platform={terraform_platform}",
-            str(MIRROR_ROOT),
-        ],
-        cwd=ROOTS[0],
-        env=_terraform_environment(SETUP_CLI_CONFIG),
-        check=True,
-    )
+    with tempfile.TemporaryDirectory(
+        prefix="apps-platform-provider-selection-"
+    ) as selection_name:
+        selection_root = Path(selection_name)
+        shutil.copy2(ROOTS[0] / "versions.tf", selection_root / "versions.tf")
+        shutil.copy2(
+            ROOTS[0] / ".terraform.lock.hcl",
+            selection_root / ".terraform.lock.hcl",
+        )
+        subprocess.run(
+            [
+                str(TERRAFORM),
+                "providers",
+                "mirror",
+                f"-platform={terraform_platform}",
+                str(MIRROR_ROOT),
+            ],
+            cwd=selection_root,
+            env=_terraform_environment(SETUP_CLI_CONFIG),
+            check=True,
+        )
 
     packages = sorted(
         MIRROR_ROOT.rglob(

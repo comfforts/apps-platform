@@ -261,11 +261,11 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("planning consistency only", normalized_index)
         self.assertIn("Integration draft", index)
         self.assertIn(
-            "authoritative dedicated-root layout",
+            "authoritative canonical dedicated-root layout",
             normalized_layout,
         )
         self.assertIn(
-            "reconciliation, canonical cutover, and source-repository cleanup pending",
+            "all five repository-extraction checkpoints complete",
             normalized_layout,
         )
         self.assertIn("`contracts/`", layout)
@@ -354,14 +354,18 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Credential-free project checks",
             "Secret scanning through Secret Protection and push protection are enabled",
             "Code scanning uses CodeQL default setup",
-            "canonical authority cutover and checkpoint 5 source-repository cleanup pending",
-            "pull request, required-check readback, merge, and explicit owner cutover declaration pending",
-            "Source-tree and CI-wrapper cleanup | Not approved and not started",
-            "The source-repository copy remains canonical",
+            "22f32da94854bbc265d40c8125f56b4efbbe7558",
+            "6ecd60079dc87458fac993222cbb9e789d2e78ac",
+            "b049be2bd4e8969a4160f05f6e0943092bace780",
+            "5a44dd16e4976a24e9e1a4256cc4769c18eaa86a",
+            "Status: checkpoints 1 through 5 owner-approved and complete",
+            "Source-tree and CI-wrapper cleanup | Owner-approved and complete",
+            "the owner explicitly declared `comfforts/apps-platform` canonical",
+            "contains neither the `apps-platform/` directory nor `.github/workflows/apps-platform-ci.yml`",
             "AP-M7 and every later provider or application slice remain outside this extraction",
         ):
             self.assertIn(evidence, normalized_handoff)
-        self.assertNotIn("Status: canonical", handoff)
+        self.assertNotIn("source-repository cleanup pending", normalized_handoff)
 
     def test_ap_m3_authorities_have_complete_unique_identifiers(self) -> None:
         plan = (PROJECT_ROOT / "docs/04_implementation_plan.md").read_text(
@@ -624,11 +628,11 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Leave Finance Assistant requirements, code, infrastructure, Terraform state, DNS",
             "An Integration Draft is not Application Adoption",
             "credential-free, deterministic, and non-mutating",
-            "updated `main` after the AP-M6 and repository-reconciliation pull requests have merged",
+            "updated `main` after the repository-governance closeout has merged",
             "propose AP-M7, the smallest Terraform-and-workflow implementation-authority slice",
             "Treat absent detailed work packages, configuration contracts, evaluation commands",
             "Do not initialize a Terraform backend",
-            "AP-M7 belongs on a new bounded branch and pull request only after AP-M6 and the repository-reconciliation pull requests merge",
+            "AP-M7 belongs on a new bounded branch and pull request after this repository-governance closeout merges",
         ):
             self.assertIn(boundary, normalized_prompt)
         self.assertNotIn("### AP-PR-", prompt)
@@ -661,7 +665,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         for later_slice in (
             "Networked provider runtime — locally implemented",
-            "Terraform and workflow implementation — next after canonical cutover",
+            "Terraform and workflow implementation — next after governance closeout",
             "Non-production qualification deployment — later",
             "Live qualification — later",
             "Finance Application Adoption — later and independent",

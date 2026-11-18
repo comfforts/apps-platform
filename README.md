@@ -9,11 +9,10 @@ planning-validated. AP-M6 supplies repository implementation evidence only.
 No Terraform configuration, cloud resource, deployment, Live evidence, or Application Adoption is
 implemented or qualified.
 
-Comfforts App Platform is a separately governed project in its dedicated repository. The initial
-history-preserving extraction and dedicated-repository settings are complete, but the extracted
-repository does not become canonical until its reconciliation pull request merges and the owner
-explicitly declares the authority cutover. Nothing in the extraction changes the current Finance
-Assistant deployment, requirements, or Terraform ownership.
+Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
+history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
+cutover, and source-repository cleanup are complete. Nothing in the extraction changed the current
+Finance Assistant deployment, requirements, or Terraform ownership.
 
 The project will be implemented and qualified with deterministic fixture applications before any
 Finance Assistant migration is proposed. Draft application integrations remain inactive until the
@@ -87,9 +86,10 @@ AP-M6-W10 enforces the complete AP-EVAL-M6 matrix, including exact numeric bound
 generation and identity paths, fake-provider parity, streaming cancellation and isolation,
 loopback-only networking, history-independent extraction, dependency locking, redaction, and all
 prior regressions. AP-M6-W11 reconciles this status. The next AP-M7 authority proposal may begin
-only after repository reconciliation merges and the owner declares the canonical cutover. AP-M7
-must remain a separate branch and pull request.
+from updated `main` after this repository-governance closeout merges. AP-M7 must remain a separate
+branch and pull request and still requires owner-approved detailed plan and evaluation authority
+before Terraform or workflow implementation.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
-preserved their history, but this reconciliation does not by itself transfer canonical authority
-or authorize removal of the source-repository copy and CI wrapper.
+preserved their history. The separately reviewed source cleanup removed the historical colocated
+tree and containing-repository CI wrapper; it supplied no platform implementation authority.

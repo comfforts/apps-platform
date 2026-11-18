@@ -7,11 +7,10 @@ not replace requirements, accepted architecture decisions, system design, implem
 evaluation gates. Every external mutation still requires the approval named by its runbook.
 
 - [Repository extraction](repository_extraction.md) governs the history-preserving extraction that
-  established `https://github.com/comfforts/apps-platform.git` and the remaining reconciliation,
-  canonical-cutover, and source-repository-cleanup checkpoints. It performs no cloud, DNS,
-  identity, Terraform, deployment, or Application Adoption action.
+  established `https://github.com/comfforts/apps-platform.git`; all five checkpoints are complete.
+  It performed no cloud, DNS, identity, Terraform, deployment, or Application Adoption action.
 - [Repository extraction handoff](../repository_extraction_handoff.md) records the secret-free
-  extraction, workflow, repository-setting, approval, and remaining-checkpoint evidence.
+  extraction, workflow, repository-setting, reconciliation, cutover, and cleanup evidence.
 
 Runbooks never contain credentials, Terraform state, saved plans, authenticated browser state, or
 unredacted provider output. A failed or incomplete procedure stops for inspection and does not

@@ -10,11 +10,12 @@ backend, workflow authority, cloud resource, DNS change, credential, deployment,
 Adoption, or Live (`L`) evidence is implemented or qualified merely because those earlier slices
 exist.
 
-Use this handoff only from updated `main` after the AP-M6 and repository-reconciliation pull
-requests have merged and the owner has explicitly declared the dedicated repository canonical. If
-those conditions are not recorded, the working tree is not clean, or the requested branch already
-contains AP-M7 changes, report that conflict and stop instead of switching, pulling, resetting,
-committing, or combining slices without owner direction.
+Use this handoff only from updated `main` after the repository-governance closeout has merged. The
+repository extraction handoff records that AP-M6 and the reconciliation pull request merged, the
+owner explicitly declared this dedicated repository canonical, and the separately approved source
+cleanup completed. If those facts are absent or inconsistent, the working tree is not clean, or the
+requested branch already contains AP-M7 changes, report that conflict and stop instead of
+switching, pulling, resetting, committing, or combining slices without owner direction.
 
 Before editing:
 
@@ -61,9 +62,8 @@ reusable behavior rather than querying a provider or inventing defaults.
 Do not initialize a Terraform backend, run an authenticated plan or apply, create or read a
 credential, call GCP, modify repository settings, configure identity or DNS, deploy a service,
 create state or a saved plan, or claim deployed or Live evidence. AP-M7 belongs on a new bounded
-branch and pull request only after AP-M6 and the repository-reconciliation pull requests merge and
-the owner declares the canonical cutover. Static configuration is not provider or deployment
-evidence.
+branch and pull request after this repository-governance closeout merges. Static configuration is
+not provider or deployment evidence.
 
 Keep the proposal inside the App Platform boundary. Leave Finance Assistant requirements, code,
 infrastructure, Terraform state, DNS, identity configuration, deployment, and access unchanged. An

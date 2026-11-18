@@ -6,9 +6,10 @@ assertions and application verification, Cloud Run attachment resolution, bounde
 WebSocket proxying, read-only status, correlation, adapter-health observations, and redacted
 completion events are implemented locally. AP-M4 remains Fixture-qualified and AP-M5 remains
 planning-validated. AP-M6 supplies repository implementation evidence only. AP-M7 Terraform-and-
-workflow implementation authority is defined, but no AP-M7 implementation exists yet.
-No Terraform configuration, cloud resource, deployment, Live evidence, or Application Adoption is
-implemented or qualified.
+workflow implementation authority is defined, and AP-M7-W2 implements only the pinned Terraform
+CLI/provider foundation, committed root locks, local dependency setup, and disposable-copy offline
+validation. No Terraform resource configuration, cloud resource, deployment, Live evidence, or
+Application Adoption is implemented or qualified.
 
 Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
 history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
@@ -24,11 +25,13 @@ consuming application adopts them through its own requirements and release proce
 From the dedicated repository root:
 
 ```bash
+make terraform-setup
 make check
 ```
 
-`check` is credential-free and non-mutating. It does not access GCP, DNS, IAP, provider accounts,
-or the live Finance Assistant deployment.
+`terraform-setup` downloads only the checksum-pinned public Terraform CLI and locked provider into
+the ignored project-local cache. `check` is credential-free, offline, and non-mutating. It does not
+access GCP, DNS, IAP, provider accounts, or the live Finance Assistant deployment.
 
 ## Project authority
 
@@ -87,8 +90,9 @@ AP-M6-W10 enforces the complete AP-EVAL-M6 matrix, including exact numeric bound
 generation and identity paths, fake-provider parity, streaming cancellation and isolation,
 loopback-only networking, history-independent extraction, dependency locking, redaction, and all
 prior regressions. AP-M6-W11 reconciles this status. AP-M7-W1 defines the detailed Terraform-and-
-workflow implementation authority. Owner acceptance of that exact authority is required before
-AP-M7-W2 begins; AP-M7 remains one separate branch and pull request.
+workflow implementation authority. AP-M7-W2 implements its pinned, credential-free Terraform
+foundation and deterministic offline root validation. After owner acceptance of AP-M7-W2,
+AP-M7-W3 is the next work package; AP-M7 remains one separate branch and pull request.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
 preserved their history. The separately reviewed source cleanup removed the historical colocated

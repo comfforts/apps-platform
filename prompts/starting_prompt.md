@@ -7,14 +7,16 @@ evidence, AP-M5 supplies accepted infrastructure-planning authority, and AP-M6 i
 networked Shared Edge and production-adapter logic locally through deterministic fakes and process-
 local loopback. The complete AP-EVAL-M6 repository gate passes. AP-M7-W1 defines the exact root
 interfaces, pinned toolchain, configuration contracts, work packages, and AP-EVAL-M7 static gate.
-No Terraform configuration, backend, executable cloud workflow, cloud resource, DNS change,
-credential, deployment, Application Adoption, or Live (`L`) evidence is implemented or qualified
-merely because that authority exists.
+AP-M7-W2 implements the pinned CLI/provider foundation, committed root locks, local dependency
+setup, and disposable-copy offline validation. No Terraform resource configuration, backend,
+executable cloud workflow, cloud resource, DNS change, credential, deployment, Application
+Adoption, or Live (`L`) evidence is implemented or qualified by that foundation.
 
-Use this handoff only after the owner accepts and commits AP-M7-W1 on the bounded AP-M7 branch. The
+Use this handoff only after the owner accepts and commits AP-M7-W2 on the bounded AP-M7 branch. The
 repository extraction handoff records that AP-M6 and the reconciliation pull request merged, the
 owner explicitly declared this dedicated repository canonical, and the separately approved source
-cleanup completed. If those facts or the AP-M7-W1 authority are absent or inconsistent, the working
+cleanup completed. If those facts, the AP-M7-W1 authority, or the W2 foundation are absent or
+inconsistent, the working
 tree contains unreviewed changes, or the requested work package is out of order, report that
 conflict and stop instead of switching, pulling, resetting, committing, or combining packages
 without owner direction.
@@ -43,11 +45,10 @@ Before editing:
    cannot define generic platform behavior or infrastructure, and cannot authorize Application
    Adoption.
 
-Next task: implement AP-M7-W2, the pinned Terraform foundation, as the next small commit. Add only
-the exact CLI/provider constraints, committed root locks, provider-mirror setup boundary, ignored
-tool/cache paths, temporary-copy offline harness foundation, and dedicated-check setup required by
-AP-M7-W2. Add deterministic tests with the behavior. Wait for owner approval before editing the next
-work package.
+Next task: implement AP-M7-W3, the versioned non-secret configuration contracts, as the next small
+commit. Add only the schemas, synthetic examples, exact validation boundaries, and deterministic
+tests required by AP-M7-W3. Consume the completed pinned setup without changing its versions or
+root ownership. Wait for owner approval before editing the next work package.
 
 The proposal must preserve separate backend-bootstrap, Platform State, and per-Fixture-Application
 State roots; typed non-secret cross-state inputs without `terraform_remote_state`; explicit plan,

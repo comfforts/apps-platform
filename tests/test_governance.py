@@ -103,6 +103,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "version: 0.12.5",
             "cache-dependency-glob: uv.lock",
             "uv sync --frozen --python 3.12.12",
+            "run: make terraform-setup",
             "run: make check",
         ):
             self.assertIn(required, workflow)
@@ -112,7 +113,9 @@ class ProjectAuthorityTest(unittest.TestCase):
             "contents: write",
             "apps-platform/",
             "make -C",
-            "terraform",
+            "terraform apply",
+            "terraform plan",
+            "terraform init",
             "gcloud",
             "secrets.",
         ):
@@ -200,6 +203,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             ".env",
             ".venv/",
             "**/.terraform/",
+            ".cache/terraform/",
             "*.tfstate",
             "*.tfplan",
             "*.tfvars",
@@ -262,8 +266,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertIn("AP-M6 supplies repository implementation evidence only", overview)
         self.assertIn("complete credential-free `make check` gate passes", overview)
-        self.assertIn("AP-M7 implementation authority defined", normalized_index)
-        self.assertIn("no AP-M7 implementation exists yet", normalized_overview)
+        self.assertIn("AP-M7-W2 pinned Terraform foundation implemented", normalized_index)
+        self.assertIn("AP-M7-W2 implements only the pinned Terraform", normalized_overview)
         self.assertIn("planning consistency only", normalized_index)
         self.assertIn("Integration draft", index)
         self.assertIn(
@@ -634,8 +638,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Leave Finance Assistant requirements, code, infrastructure, Terraform state, DNS",
             "An Integration Draft is not Application Adoption",
             "credential-free, deterministic, and non-mutating",
-            "after the owner accepts and commits AP-M7-W1",
-            "implement AP-M7-W2, the pinned Terraform foundation",
+            "after the owner accepts and commits AP-M7-W2",
+            "implement AP-M7-W3, the versioned non-secret configuration contracts",
             "Treat absent operator inputs or later authority as unresolved",
             "Do not initialize a Terraform backend",
             "AP-M7 stays on its one bounded branch and pull request",
@@ -671,7 +675,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         for later_slice in (
             "Networked provider runtime — locally implemented",
-            "Terraform and workflow implementation — authority defined, implementation pending",
+            "Terraform and workflow implementation — pinned foundation implemented",
             "Non-production qualification deployment — later",
             "Live qualification — later",
             "Finance Application Adoption — later and independent",
@@ -679,7 +683,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(later_slice, index)
         self.assertIn("separate bounded branch and pull request", normalized_index)
         self.assertIn(
-            "implement AP-M7-W2, the pinned Terraform foundation",
+            "implement AP-M7-W3, the versioned non-secret configuration contracts",
             normalized_prompt,
         )
         self.assertIn("Wait for owner approval before editing the next work package", normalized_prompt)
@@ -935,7 +939,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             normalized_threat_model,
         )
 
-    def test_ap_m7_w1_defines_paths_without_creating_implementation(
+    def test_ap_m7_w2_foundation_paths_are_bounded(
         self,
     ) -> None:
         layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(
@@ -944,14 +948,28 @@ class ProjectAuthorityTest(unittest.TestCase):
 
         reserved_paths = (
             "registrations",
-            "infrastructure",
             "artifacts",
+            "infrastructure/config",
+            "infrastructure/terraform/modules",
+            "infrastructure/workflows",
         )
         for relative_path in reserved_paths:
             self.assertFalse(
                 (PROJECT_ROOT / relative_path).exists(),
-                f"AP-M7-W1 must not create implementation path: {relative_path}",
+                f"AP-M7-W2 must not create later implementation path: {relative_path}",
             )
+
+        expected_roots = (
+            "infrastructure/terraform/bootstrap",
+            "infrastructure/terraform/platform",
+            "infrastructure/terraform/fixtures/fixture-public",
+            "infrastructure/terraform/fixtures/fixture-authenticated",
+            "infrastructure/terraform/fixtures/fixture-restricted",
+        )
+        for relative_root in expected_roots:
+            root = PROJECT_ROOT / relative_root
+            self.assertTrue((root / "versions.tf").is_file())
+            self.assertTrue((root / ".terraform.lock.hcl").is_file())
 
         self.assertTrue((PROJECT_ROOT / "edge/__init__.py").is_file())
         self.assertTrue((PROJECT_ROOT / "edge/_generation.py").is_file())
@@ -972,20 +990,25 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(reserved_reference, layout)
 
-        prohibited_suffixes = (".tf", ".tf.json", ".tfvars", ".tfstate", ".tfplan")
+        terraform_files = sorted(
+            path.relative_to(PROJECT_ROOT).as_posix()
+            for path in PROJECT_ROOT.rglob("*")
+            if path.is_file() and path.name.endswith((".tf", ".tf.json"))
+        )
+        self.assertEqual(
+            terraform_files,
+            sorted(f"{root}/versions.tf" for root in expected_roots),
+        )
         prohibited_files = sorted(
             path.relative_to(PROJECT_ROOT).as_posix()
             for path in PROJECT_ROOT.rglob("*")
             if path.is_file()
-            and (
-                path.name.endswith(prohibited_suffixes)
-                or path.name == ".terraform.lock.hcl"
-            )
+            and path.name.endswith((".tfvars", ".tfstate", ".tfplan"))
         )
         self.assertEqual(prohibited_files, [])
         self.assertTrue((PROJECT_ROOT / ".github/workflows/check.yml").is_file())
 
-    def test_ap_m7_w1_default_gate_has_no_terraform_or_live_operator_command(self) -> None:
+    def test_ap_m7_w2_default_gate_has_no_live_operator_command(self) -> None:
         makefile = (PROJECT_ROOT / "Makefile").read_text(encoding="utf-8")
         evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
             encoding="utf-8"
@@ -993,7 +1016,9 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_makefile = " ".join(makefile.split())
 
         for prohibited_command in (
-            "terraform",
+            "terraform apply",
+            "terraform plan",
+            "terraform init",
             "gcloud",
             "gsutil",
             " dig ",
@@ -1005,9 +1030,11 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertNotIn(prohibited_command, f" {normalized_makefile} ")
 
         self.assertIn(
-            "check: governance-check contract-check fixture-check",
+            "check: governance-check contract-check fixture-check runtime-check terraform-check",
             makefile,
         )
+        self.assertIn("terraform-setup:", makefile)
+        self.assertIn("terraform-check:", makefile)
         self.assertIn("credential-free, deterministic, network-free", evaluation)
 
     def test_ap_m4_authorities_have_complete_unique_identifiers(self) -> None:

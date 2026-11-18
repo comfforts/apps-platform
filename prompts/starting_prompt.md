@@ -18,14 +18,19 @@ and typed attachment outputs. AP-M7-W6 implements the deep Platform identity and
 foundation: private versioned configuration storage, immutable generation metadata without upload,
 Firestore Native session/TTL settings, separate edge identities, regional software ES256 signing
 with manual rotation and overlap intent, version-only OAuth secret references, minimal access
-intent, and typed platform outputs. No backend or provider operation, executable cloud workflow,
-cloud resource, IAM mutation, generation upload or activation, DNS change, credential, deployment,
-Application Adoption, or Live (`L`) evidence is implemented or qualified.
+intent, and typed platform outputs. AP-M7-W7 implements one deep internal Shared Edge module and
+composes it into Platform State with
+an immutable explicit Cloud Run candidate, closed direct-origin posture, bounded runtime profile,
+three typed Fixture Application references consumed only as data, one global address and serverless
+backend, managed-certificate intent, hostname-only HTTPS forwarding, and HTTP-to-HTTPS redirect.
+No backend or provider operation, executable cloud workflow, actual cloud resource or IAM mutation,
+generation upload or activation, DNS change, credential, deployment, Application Adoption, or Live
+(`L`) evidence is implemented or qualified.
 
-Use this handoff only after the owner accepts and commits AP-M7-W6 on the bounded AP-M7 branch. The
+Use this handoff only after the owner accepts and commits AP-M7-W7 on the bounded AP-M7 branch. The
 repository extraction handoff records that AP-M6 and the reconciliation pull request merged, the
 owner explicitly declared this dedicated repository canonical, and the separately approved source
-cleanup completed. If those facts or the AP-M7-W1 through AP-M7-W6 implementation are absent or
+cleanup completed. If those facts or the AP-M7-W1 through AP-M7-W7 implementation are absent or
 inconsistent, the working
 tree contains unreviewed changes, or the requested work package is out of order, report that
 conflict and stop instead of switching, pulling, resetting, committing, or combining packages
@@ -55,14 +60,14 @@ Before editing:
    cannot define generic platform behavior or infrastructure, and cannot authorize Application
    Adoption.
 
-Next task: implement AP-M7-W7, the Shared Edge and hostname-forwarding intent, as the next small
-commit. Extend the Platform State root with one Cloud Run edge bound to immutable image and
-Registration Generation inputs, the approved bounded runtime profile, one global address, one
-Google-managed certificate intent, HTTP-to-HTTPS redirect, one serverless backend, one hostname-
-level URL map with no application prefixes, edge-only IAM, and 100-percent traffic to one explicit
-candidate. Consume typed Fixture Application attachment references only as data. Create no DNS
-record and do not import, discover, mutate, or destroy an application-owned runtime. Wait for owner
-approval before editing the next work package.
+Next task: implement AP-M7-W8, the observability, evidence, retention, and cost-control intent, as
+the next small commit. Extend only Platform State with the dedicated seven-day log bucket and
+exclusion intent, 30-day owner-readable evidence bucket, USD 20 budget notification thresholds,
+required labels, zero-minimum and maximum-instance checks, Artifact Registry retention intent, and
+prohibited-service policy. Billing-account reference, notification destination, and globally unique
+names remain explicit operator inputs. Create no DNS record, credential, saved plan, application
+runtime, automated budget mutation, or owner-unapproved cleanup. Wait for owner approval before
+editing the next work package.
 
 The proposal must preserve separate backend-bootstrap, Platform State, and per-Fixture-Application
 State roots; typed non-secret cross-state inputs without `terraform_remote_state`; explicit plan,

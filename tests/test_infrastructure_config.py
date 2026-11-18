@@ -25,6 +25,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_ROOT = PROJECT_ROOT / "infrastructure" / "config"
 EXAMPLE_KINDS = {
     "backend.synthetic.v1.json": "backend",
+    "cross-state-attachment-public.synthetic.v1.json": "cross-state-reference",
+    "cross-state-attachment-restricted.synthetic.v1.json": "cross-state-reference",
     "cross-state-attachment.synthetic.v1.json": "cross-state-reference",
     "cross-state-backend.synthetic.v1.json": "cross-state-reference",
     "cross-state-platform.synthetic.v1.json": "cross-state-reference",
@@ -248,7 +250,7 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                 violations = validate_configuration(value, kind)
                 self.assertIn("CONFIGURATION_POLICY_INVALID", {item.code for item in violations})
 
-    def test_w6_adds_only_the_approved_platform_foundation_and_internal_module(self) -> None:
+    def test_w7_adds_only_the_approved_platform_and_fixture_resources(self) -> None:
         terraform_root = PROJECT_ROOT / "infrastructure" / "terraform"
         terraform_files = sorted(
             path.relative_to(terraform_root).as_posix()
@@ -283,6 +285,9 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                     "modules/platform-foundation/main.tf",
                     "modules/platform-foundation/outputs.tf",
                     "modules/platform-foundation/variables.tf",
+                    "modules/shared-edge/main.tf",
+                    "modules/shared-edge/outputs.tf",
+                    "modules/shared-edge/variables.tf",
                     "modules/state-bucket/main.tf",
                     "modules/state-bucket/outputs.tf",
                     "modules/state-bucket/variables.tf",

@@ -26,7 +26,7 @@ def _terraform_sources(root: Path) -> str:
 
 
 class TerraformPlatformFoundationTest(unittest.TestCase):
-    def test_platform_root_exposes_one_deep_interface(self) -> None:
+    def test_platform_root_keeps_its_interfaces_explicit(self) -> None:
         variables = (PLATFORM_ROOT / "variables.tf").read_text(encoding="utf-8")
         outputs = (PLATFORM_ROOT / "outputs.tf").read_text(encoding="utf-8")
         main = (PLATFORM_ROOT / "main.tf").read_text(encoding="utf-8")
@@ -34,7 +34,7 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
 
         self.assertEqual(
             re.findall(r'^variable "([^"]+)"', variables, re.MULTILINE),
-            ["platform_configuration"],
+            ["platform_configuration", "fixture_attachment_references"],
         )
         self.assertEqual(
             re.findall(r'^output "([^"]+)"', outputs, re.MULTILINE),
@@ -42,9 +42,10 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
         )
         self.assertEqual(
             re.findall(r'^module "([^"]+)"', main, re.MULTILINE),
-            ["platform_foundation"],
+            ["platform_foundation", "shared_edge"],
         )
         self.assertIn('source = "../modules/platform-foundation"', main)
+        self.assertIn('source = "../modules/shared-edge"', main)
         self.assertEqual(backend.count('backend "gcs" {}'), 1)
         self.assertNotIn("bucket", backend)
         self.assertNotIn("prefix", backend)

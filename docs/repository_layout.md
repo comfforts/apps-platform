@@ -1,7 +1,7 @@
 # App Platform repository layout
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
-complete; AP-M7-W6 static Platform identity and generation foundation implemented; no backend or
+complete; AP-M7-W7 static Shared Edge and hostname forwarding implemented; no backend or
 provider operation, cloud resource, IAM mutation, deployment, or qualification performed
 
 The project is organized at the dedicated repository root produced by the history-preserving
@@ -36,8 +36,9 @@ contracts, verification, or ownership boundaries.
 | `infrastructure/terraform/modules/state-bucket/` | AP-M7-W4 internal private, versioned, recovery-bounded state-bucket implementation |
 | `infrastructure/terraform/fixtures/{fixture-public,fixture-authenticated,fixture-restricted}/` | AP-M7-W5 independent Application State roots, typed interfaces and outputs, and plan-only mocked-provider tests |
 | `infrastructure/terraform/modules/fixture-application/` | AP-M7-W5 internal Cloud Run runtime, identity, ingress, scaling, non-secret identity-data, and edge-caller intent implementation |
-| `infrastructure/terraform/platform/` | AP-M7-W6 deep Platform State root, typed configuration/reference interface, and plan-only mocked-provider tests |
+| `infrastructure/terraform/platform/` | AP-M7-W6/W7 deep Platform State root, typed configuration and Fixture-reference interfaces, and plan-only mocked-provider tests |
 | `infrastructure/terraform/modules/platform-foundation/` | AP-M7-W6 internal configuration-storage, session, edge-identity, signing-key, and access-intent implementation |
+| `infrastructure/terraform/modules/shared-edge/` | AP-M7-W7 internal immutable Cloud Run candidate, direct-origin restriction, serverless backend, certificate, HTTPS forwarding, and HTTP redirect implementation |
 
 ## Approved AP-M7 capability locations
 
@@ -48,16 +49,17 @@ These locations may be created only by their approved slice:
 | `registrations/` | Future reviewed Live Registration Sets; Fixture registrations remain under `fixtures/` |
 | `infrastructure/config/` | AP-M7-W3 versioned non-secret configuration contracts; implemented with no operator values or Terraform resources |
 | `infrastructure/terraform/bootstrap/` | AP-M7-W4 static backend resource owner; implemented without backend initialization or IAM principals |
-| `infrastructure/terraform/platform/` | Shared Edge Platform State root; W6 identity and generation foundation implemented, with W7 and W8 resources still absent |
+| `infrastructure/terraform/platform/` | Shared Edge Platform State root; W6 identity/generation foundation and W7 Shared Edge/hostname forwarding implemented, with W8 resources still absent |
 | `infrastructure/terraform/fixtures/<application-id>/` | Independently owned Fixture Application State roots; W5 resource configuration implemented without a backend or provider operation |
-| `infrastructure/terraform/modules/` | Internal state-bucket, Fixture Application, and Platform foundation modules implemented through W6; later modules remain work-package-owned and own no environment or state |
+| `infrastructure/terraform/modules/` | Internal state-bucket, Fixture Application, Platform foundation, and Shared Edge modules implemented through W7; later modules remain work-package-owned and own no environment or state |
 | `infrastructure/workflows/` | AP-M7 inert operator-workflow templates; never executable GitHub workflows |
 | `catalog/` | Root application catalogue implementation |
 | `artifacts/` | Secret-free reviewed evidence indexes and digests, never raw Live evidence bundles |
 
-The W2 foundation, W3 contracts, W4 bootstrap configuration, W5 Fixture Application roots, and W6
-Platform foundation are not authorization to scaffold empty modules for later packages or imply
-later capabilities. AP-M7 may create its remaining named paths only in work-package order. It may
+The W2 foundation, W3 contracts, W4 bootstrap configuration, W5 Fixture Application roots, W6
+Platform foundation, and W7 Shared Edge forwarding are not authorization to scaffold empty modules
+for later packages or imply later capabilities. AP-M7 may create its remaining named paths only in
+work-package order. It may
 add only reviewed static configuration, synthetic examples, inert workflow templates, and
 deterministic tests. Executable cloud workflows, credentials, state, saved plans, provider calls,
 and Live evidence remain prohibited. Live evidence bundles remain in the private provider evidence

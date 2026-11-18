@@ -1,0 +1,15 @@
+{
+  "contract_version": 1,
+  "configuration_kind": "cross-state-reference",
+  "configuration_class": "synthetic",
+  "reference": {
+    "reference_kind": "attachment",
+    "state_owner": "application",
+    "owner_id": "fixture-public",
+    "application_id": "fixture-public",
+    "attachment_id": "primary",
+    "adapter_kind": "gcp-cloud-run-v1",
+    "resource_reference": "urn:comfforts:app-platform:gcp:cloud-run:123456789012:us-west1:fixture-public",
+    "audience": null
+  }
+}

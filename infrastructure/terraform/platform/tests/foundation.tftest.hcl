@@ -4,6 +4,11 @@ mock_provider "google" {
 
 variables {
   platform_configuration = jsondecode(file("../../config/examples/platform.synthetic.v1.json"))
+  fixture_attachment_references = [
+    jsondecode(file("../../config/examples/cross-state-attachment-public.synthetic.v1.json")),
+    jsondecode(file("../../config/examples/cross-state-attachment.synthetic.v1.json")),
+    jsondecode(file("../../config/examples/cross-state-attachment-restricted.synthetic.v1.json")),
+  ]
 }
 
 run "plans_identity_and_generation_foundation" {

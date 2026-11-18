@@ -3,6 +3,11 @@ output "edge_caller_principal" {
   value       = local.edge_caller_principal
 }
 
+output "edge_runtime_email" {
+  description = "Platform-owned runtime identity email for the Shared Edge revision."
+  value       = google_service_account.edge_runtime.email
+}
+
 output "policy_summary" {
   description = "Internal plan-test surface for identity, generation, session, and signing controls."
   value = {

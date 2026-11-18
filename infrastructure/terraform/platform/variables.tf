@@ -160,3 +160,66 @@ variable "platform_configuration" {
     error_message = "operator platform configuration must use the reviewed non-production scope and cannot select reserved synthetic values."
   }
 }
+
+variable "fixture_attachment_references" {
+  description = "Three reviewed typed Fixture Application attachment references consumed only as data."
+  type = list(object({
+    contract_version    = number
+    configuration_kind  = string
+    configuration_class = string
+    reference = object({
+      reference_kind     = string
+      state_owner        = string
+      owner_id           = string
+      application_id     = string
+      attachment_id      = string
+      adapter_kind       = string
+      resource_reference = string
+      audience           = string
+    })
+  }))
+
+  validation {
+    condition = (
+      length(var.fixture_attachment_references) == 3 &&
+      alltrue([
+        for value in var.fixture_attachment_references :
+        value.contract_version == 1 &&
+        value.configuration_kind == "cross-state-reference" &&
+        value.configuration_class == var.platform_configuration.configuration_class &&
+        value.reference.reference_kind == "attachment" &&
+        value.reference.state_owner == "application" &&
+        value.reference.owner_id == value.reference.application_id &&
+        value.reference.attachment_id == "primary" &&
+        value.reference.adapter_kind == "gcp-cloud-run-v1"
+      ])
+    )
+    error_message = "fixture_attachment_references must contain exactly three matching Version 1 application-owned primary Cloud Run references."
+  }
+
+  validation {
+    condition = (
+      toset([for value in var.fixture_attachment_references : value.reference.application_id]) == toset([
+        "fixture-public",
+        "fixture-authenticated",
+        "fixture-restricted",
+      ]) &&
+      length(toset([
+        for value in var.fixture_attachment_references : value.reference.resource_reference
+      ])) == 3 &&
+      alltrue([
+        for value in var.fixture_attachment_references :
+        value.reference.resource_reference == "urn:comfforts:app-platform:gcp:cloud-run:${var.platform_configuration.project_number}:${var.platform_configuration.region}:${value.reference.application_id}"
+      ])
+    )
+    error_message = "fixture attachment references must identify the three canonical independently owned runtimes in the configured project and region."
+  }
+
+  validation {
+    condition = alltrue([
+      for value in var.fixture_attachment_references :
+      value.reference.application_id == "fixture-public" ? value.reference.audience == null : value.reference.audience == "urn:comfforts:app-platform:audience:${value.reference.application_id}"
+    ])
+    error_message = "public attachment data must omit an audience and each protected attachment must retain its exact application audience."
+  }
+}

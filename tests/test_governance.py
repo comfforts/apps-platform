@@ -266,8 +266,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertIn("AP-M6 supplies repository implementation evidence only", overview)
         self.assertIn("complete credential-free `make check` gate passes", overview)
-        self.assertIn("AP-M7-W6 static Platform identity and generation foundation implemented", normalized_index)
-        self.assertIn("AP-M7-W6 implements the Platform State identity", normalized_overview)
+        self.assertIn("AP-M7-W7 implements one immutable", normalized_index)
+        self.assertIn("AP-M7-W7 implements the deep Shared Edge module", normalized_overview)
         self.assertIn("planning consistency only", normalized_index)
         self.assertIn("Integration draft", index)
         self.assertIn(
@@ -638,8 +638,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Leave Finance Assistant requirements, code, infrastructure, Terraform state, DNS",
             "An Integration Draft is not Application Adoption",
             "credential-free, deterministic, and non-mutating",
-            "after the owner accepts and commits AP-M7-W6",
-            "implement AP-M7-W7, the Shared Edge and hostname-forwarding intent",
+            "after the owner accepts and commits AP-M7-W7",
+            "implement AP-M7-W8, the observability, evidence, retention, and cost-control intent",
             "Treat absent operator inputs or later authority as unresolved",
             "Do not initialize a Terraform backend",
             "AP-M7 stays on its one bounded branch and pull request",
@@ -675,7 +675,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         for later_slice in (
             "Networked provider runtime — locally implemented",
-            "Terraform and workflow implementation — Platform foundation implemented statically",
+            "Terraform and workflow implementation — Shared Edge forwarding implemented statically",
             "Non-production qualification deployment — later",
             "Live qualification — later",
             "Finance Application Adoption — later and independent",
@@ -683,7 +683,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(later_slice, index)
         self.assertIn("separate bounded branch and pull request", normalized_index)
         self.assertIn(
-            "implement AP-M7-W7, the Shared Edge and hostname-forwarding intent",
+            "implement AP-M7-W8, the observability, evidence, retention, and cost-control intent",
             normalized_prompt,
         )
         self.assertIn("Wait for owner approval before editing the next work package", normalized_prompt)
@@ -939,7 +939,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             normalized_threat_model,
         )
 
-    def test_ap_m7_w6_platform_foundation_paths_are_bounded(
+    def test_ap_m7_w7_shared_edge_paths_are_bounded(
         self,
     ) -> None:
         layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(
@@ -954,18 +954,18 @@ class ProjectAuthorityTest(unittest.TestCase):
         for relative_path in reserved_paths:
             self.assertFalse(
                 (PROJECT_ROOT / relative_path).exists(),
-                f"AP-M7-W6 must not create later implementation path: {relative_path}",
+                f"AP-M7-W7 must not create later implementation path: {relative_path}",
             )
 
         config_root = PROJECT_ROOT / "infrastructure/config"
         self.assertTrue((config_root / "README.md").is_file())
         self.assertTrue((config_root / "validation.py").is_file())
         self.assertEqual(len(tuple((config_root / "schemas").glob("*.json"))), 5)
-        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 13)
+        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 15)
         module_root = PROJECT_ROOT / "infrastructure/terraform/modules"
         self.assertEqual(
             sorted(path.name for path in module_root.iterdir() if path.is_dir()),
-            ["fixture-application", "platform-foundation", "state-bucket"],
+            ["fixture-application", "platform-foundation", "shared-edge", "state-bucket"],
         )
 
         expected_roots = (
@@ -1030,6 +1030,9 @@ class ProjectAuthorityTest(unittest.TestCase):
                     "infrastructure/terraform/modules/platform-foundation/main.tf",
                     "infrastructure/terraform/modules/platform-foundation/outputs.tf",
                     "infrastructure/terraform/modules/platform-foundation/variables.tf",
+                    "infrastructure/terraform/modules/shared-edge/main.tf",
+                    "infrastructure/terraform/modules/shared-edge/outputs.tf",
+                    "infrastructure/terraform/modules/shared-edge/variables.tf",
                     "infrastructure/terraform/modules/state-bucket/main.tf",
                     "infrastructure/terraform/modules/state-bucket/outputs.tf",
                     "infrastructure/terraform/modules/state-bucket/variables.tf",

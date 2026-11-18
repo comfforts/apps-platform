@@ -5,6 +5,7 @@
 *.pem
 *.key
 credentials*.json
+gha-creds-*.json
 
 # Terraform working data and saved plans
 **/.terraform/

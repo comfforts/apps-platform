@@ -49,6 +49,12 @@ class ProjectAuthorityTest(unittest.TestCase):
             "edge/_routing.py",
             "edge/_runtime.py",
             "edge/verification.py",
+            "infrastructure/workflows/README.md",
+            "infrastructure/workflows/advisory-plan.yml.tmpl",
+            "infrastructure/workflows/destroy.yml.tmpl",
+            "infrastructure/workflows/exact-main-apply.yml.tmpl",
+            "infrastructure/workflows/force-unlock.yml.tmpl",
+            "infrastructure/workflows/rollback.yml.tmpl",
             "prompts/README.md",
             "prompts/starting_prompt.md",
             "pyproject.toml",
@@ -61,6 +67,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "tests/test_observability.py",
             "tests/test_proxy.py",
             "tests/test_runtime_qualification.py",
+            "tests/test_workflow_templates.py",
             "tests/fixtures/assertion-test-keys.jwk.json",
             "tests/fixtures/oidc-test-private.jwk.json",
             "uv.lock",
@@ -270,6 +277,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("AP-M7-W7 implements the deep Shared Edge module", normalized_overview)
         self.assertIn("AP-M7-W8 implements a regional seven-day log bucket", normalized_index)
         self.assertIn("AP-M7-W8 adds a regional seven-day log bucket", normalized_overview)
+        self.assertIn("AP-M7-W9 implements separate inert advisory-plan", normalized_index)
+        self.assertIn("AP-M7-W9 adds parseable, non-executable", normalized_overview)
         self.assertIn("planning consistency only", normalized_index)
         self.assertIn("Integration draft", index)
         self.assertIn(
@@ -640,8 +649,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Leave Finance Assistant requirements, code, infrastructure, Terraform state, DNS",
             "An Integration Draft is not Application Adoption",
             "credential-free, deterministic, and non-mutating",
-            "after the owner accepts and commits AP-M7-W8",
-            "implement AP-M7-W9, the inert workflow-authority templates",
+            "after the owner accepts and commits AP-M7-W9",
+            "implement AP-M7-W10, the complete Terraform-and-workflow qualification gate",
             "Treat absent operator inputs or later authority as unresolved",
             "Do not initialize a Terraform backend",
             "AP-M7 stays on its one bounded branch and pull request",
@@ -677,7 +686,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         for later_slice in (
             "Networked provider runtime — locally implemented",
-            "Terraform and workflow implementation — platform controls implemented statically",
+            "Terraform and workflow implementation — inert workflow templates implemented statically",
             "Non-production qualification deployment — later",
             "Live qualification — later",
             "Finance Application Adoption — later and independent",
@@ -685,7 +694,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(later_slice, index)
         self.assertIn("separate bounded branch and pull request", normalized_index)
         self.assertIn(
-            "implement AP-M7-W9, the inert workflow-authority templates",
+            "implement AP-M7-W10, the complete Terraform-and-workflow qualification gate",
             normalized_prompt,
         )
         self.assertIn("Wait for owner approval before editing the next work package", normalized_prompt)
@@ -941,7 +950,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             normalized_threat_model,
         )
 
-    def test_ap_m7_w8_platform_control_paths_are_bounded(
+    def test_ap_m7_w9_workflow_template_paths_are_bounded(
         self,
     ) -> None:
         layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(
@@ -951,13 +960,25 @@ class ProjectAuthorityTest(unittest.TestCase):
         reserved_paths = (
             "registrations",
             "artifacts",
-            "infrastructure/workflows",
         )
         for relative_path in reserved_paths:
             self.assertFalse(
                 (PROJECT_ROOT / relative_path).exists(),
-                f"AP-M7-W8 must not create later implementation path: {relative_path}",
+                f"AP-M7-W9 must not create later implementation path: {relative_path}",
             )
+
+        workflow_root = PROJECT_ROOT / "infrastructure/workflows"
+        self.assertEqual(
+            sorted(path.name for path in workflow_root.iterdir()),
+            [
+                "README.md",
+                "advisory-plan.yml.tmpl",
+                "destroy.yml.tmpl",
+                "exact-main-apply.yml.tmpl",
+                "force-unlock.yml.tmpl",
+                "rollback.yml.tmpl",
+            ],
+        )
 
         config_root = PROJECT_ROOT / "infrastructure/config"
         self.assertTrue((config_root / "README.md").is_file())
@@ -1063,7 +1084,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertEqual(prohibited_files, [])
         self.assertTrue((PROJECT_ROOT / ".github/workflows/check.yml").is_file())
 
-    def test_ap_m7_w8_default_gate_has_no_live_operator_command(self) -> None:
+    def test_ap_m7_w9_default_gate_has_no_live_operator_command(self) -> None:
         makefile = (PROJECT_ROOT / "Makefile").read_text(encoding="utf-8")
         evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
             encoding="utf-8"
@@ -1090,6 +1111,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertIn("terraform-setup:", makefile)
         self.assertIn("terraform-check:", makefile)
+        self.assertIn("tests.test_workflow_templates", makefile)
         self.assertIn("credential-free, deterministic, network-free", evaluation)
 
     def test_ap_m4_authorities_have_complete_unique_identifiers(self) -> None:

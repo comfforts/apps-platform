@@ -1,0 +1,117 @@
+{
+  "name": "[INERT AP-M7] Advisory Terraform plan",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "app-platform-__ROOT_TARGET__",
+    "cancel-in-progress": false
+  },
+  "env": {
+    "AP_OPERATION": "plan",
+    "AP_REPOSITORY": "comfforts/apps-platform",
+    "AP_PROTECTED_MAIN_REF": "refs/heads/main",
+    "AP_PROTECTED_ENVIRONMENT": "__PROTECTED_ENVIRONMENT__",
+    "AP_PROTECTED_SUBJECT": "repo:comfforts/apps-platform:environment:__PROTECTED_ENVIRONMENT__",
+    "AP_SOURCE_REVISION": "__SOURCE_REVISION_40_HEX__",
+    "AP_ROOT_TARGET": "__ROOT_TARGET__",
+    "AP_BACKEND_CONFIG_FILE": "__BACKEND_CONFIG_FILE__",
+    "AP_TERRAFORM_INPUTS_FILE": "__TERRAFORM_INPUTS_FILE__",
+    "TF_CLI_CONFIG_FILE": "${{ github.workspace }}/.cache/terraform/offline.tfrc"
+  },
+  "x-ap-m7-authority": {
+    "status": "inert",
+    "activation_authority": "AP-M8_REQUIRED",
+    "configuration_contract": "urn:comfforts:app-platform:infrastructure-config:workflow:v1",
+    "operation": "plan",
+    "plan_digest": null,
+    "destructive_target": null,
+    "plan_storage": "runner-temporary-only",
+    "stop_on_partial_failure": true,
+    "outcome_metadata": [
+      "operation",
+      "root_target",
+      "source_revision",
+      "plan_digest",
+      "outcome"
+    ]
+  },
+  "jobs": {
+    "plan": {
+      "name": "INERT template - AP-M8 activation required",
+      "if": "${{ github.repository == 'comfforts/apps-platform' && github.ref == 'refs/heads/main' && github.sha == '__SOURCE_REVISION_40_HEX__' }}",
+      "environment": "__PROTECTED_ENVIRONMENT__",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 30,
+      "permissions": {
+        "contents": "read",
+        "id-token": "write"
+      },
+      "steps": [
+        {
+          "name": "Check out the exact reviewed revision",
+          "uses": "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+          "with": {
+            "ref": "__SOURCE_REVISION_40_HEX__",
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Set up the pinned Python runtime",
+          "uses": "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "with": {
+            "python-version": "3.12.12"
+          }
+        },
+        {
+          "name": "Prepare the checksum-pinned Terraform toolchain",
+          "run": "set -euo pipefail\nmake terraform-setup"
+        },
+        {
+          "name": "Authenticate with future protected OIDC authority",
+          "uses": "google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093",
+          "with": {
+            "project_id": "__PROJECT_ID__",
+            "workload_identity_provider": "__WORKLOAD_IDENTITY_PROVIDER__",
+            "service_account": "__OPERATION_SERVICE_ACCOUNT__",
+            "create_credentials_file": "true",
+            "export_environment_variables": "true"
+          }
+        },
+        {
+          "name": "Verify source authority",
+          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = \"$AP_REPOSITORY\"\ntest \"$GITHUB_REF\" = \"$AP_PROTECTED_MAIN_REF\"\ntest \"$GITHUB_SHA\" = \"$AP_SOURCE_REVISION\"\ntest \"$AP_PROTECTED_SUBJECT\" = \"repo:${AP_REPOSITORY}:environment:${AP_PROTECTED_ENVIRONMENT}\""
+        },
+        {
+          "name": "Resolve the explicit state root",
+          "id": "root",
+          "run": "set -euo pipefail\ncase \"$AP_ROOT_TARGET\" in\n  bootstrap) root=\"infrastructure/terraform/bootstrap\" ;;\n  platform) root=\"infrastructure/terraform/platform\" ;;\n  fixture-public) root=\"infrastructure/terraform/fixtures/fixture-public\" ;;\n  fixture-authenticated) root=\"infrastructure/terraform/fixtures/fixture-authenticated\" ;;\n  fixture-restricted) root=\"infrastructure/terraform/fixtures/fixture-restricted\" ;;\n  *) exit 1 ;;\nesac\nprintf 'directory=%s\\n' \"$root\" >> \"$GITHUB_OUTPUT\""
+        },
+        {
+          "name": "Initialize and validate the selected root",
+          "working-directory": "${{ steps.root.outputs.directory }}",
+          "run": "set -euo pipefail\ntf=\"$GITHUB_WORKSPACE/.cache/terraform/bin/terraform\"\nif [ \"$AP_ROOT_TARGET\" = bootstrap ]; then\n  \"$tf\" init -input=false -lockfile=readonly\nelse\n  \"$tf\" init -input=false -lockfile=readonly -backend-config=\"$GITHUB_WORKSPACE/$AP_BACKEND_CONFIG_FILE\"\nfi\n\"$tf\" validate -no-color"
+        },
+        {
+          "name": "Create an advisory runner-local plan",
+          "id": "plan",
+          "working-directory": "${{ steps.root.outputs.directory }}",
+          "run": "set -euo pipefail\ntf=\"$GITHUB_WORKSPACE/.cache/terraform/bin/terraform\"\nplan_file=\"$RUNNER_TEMP/app-platform-${AP_OPERATION}-${AP_ROOT_TARGET}.tfplan\"\nplan_json=\"$RUNNER_TEMP/app-platform-${AP_OPERATION}-${AP_ROOT_TARGET}.json\"\nset +e\n\"$tf\" plan -input=false -lock-timeout=5m -detailed-exitcode -var-file=\"$GITHUB_WORKSPACE/$AP_TERRAFORM_INPUTS_FILE\" -out=\"$plan_file\"\nplan_exit=$?\nset -e\nif [ \"$plan_exit\" -eq 1 ]; then exit 1; fi\n\"$tf\" show -json \"$plan_file\" > \"$plan_json\"\nplan_digest=\"$(python3 - \"$plan_json\" <<'PY'\nimport hashlib, json, sys\nwith open(sys.argv[1], encoding='utf-8') as stream:\n    document = json.load(stream)\ndocument.pop('timestamp', None)\ncanonical = json.dumps(document, sort_keys=True, separators=(',', ':')).encode()\nprint('sha256:' + hashlib.sha256(canonical).hexdigest())\nPY\n)\"\nprintf 'plan_digest=%s\\n' \"$plan_digest\" >> \"$GITHUB_OUTPUT\""
+        },
+        {
+          "name": "Record secret-free advisory outcome metadata",
+          "if": "${{ always() }}",
+          "run": "printf 'operation=%s\\nroot_target=%s\\nsource_revision=%s\\nplan_digest=%s\\noutcome=%s\\n' \"$AP_OPERATION\" \"$AP_ROOT_TARGET\" \"$AP_SOURCE_REVISION\" \"${{ steps.plan.outputs.plan_digest || 'unavailable' }}\" \"${{ steps.plan.outcome }}\" >> \"$GITHUB_STEP_SUMMARY\""
+        },
+        {
+          "name": "Remove the runner-local plan",
+          "if": "${{ always() }}",
+          "run": "rm -f \"$RUNNER_TEMP/app-platform-${AP_OPERATION}-${AP_ROOT_TARGET}.tfplan\" \"$RUNNER_TEMP/app-platform-${AP_OPERATION}-${AP_ROOT_TARGET}.json\""
+        }
+      ]
+    }
+  }
+}

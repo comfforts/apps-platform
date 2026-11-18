@@ -1,7 +1,7 @@
 # App Platform documentation
 
-Version 1.10 | Status: AP-M6 locally implemented and passing its deterministic repository gate;
-AP-M7-W8 static platform controls implemented and passing mocked-provider plans;
+Version 1.11 | Status: AP-M6 locally implemented and passing its deterministic repository gate;
+AP-M7-W9 inert workflow-authority templates implemented and passing static policy;
 backend operation, provider operation, deployment, Live, and Adoption qualification unavailable
 
 This directory is the design authority for Comfforts App Platform. AP-M3 supplies Contract (`C`)
@@ -46,7 +46,7 @@ sole App Platform authority; the extraction supplied no Terraform, cloud, or app
     evidence for all five completed extraction checkpoints and the canonical repository boundary.
 14. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
 15. [Terraform-and-workflow handoff](../prompts/starting_prompt.md) provides a bounded entry point
-    for continuing with AP-M7-W9 only after the owner accepts and commits AP-M7-W8.
+    for continuing with AP-M7-W10 only after the owner accepts and commits AP-M7-W9.
 
 AP-M3 Contract behavior, AP-M4 Fixture behavior, and AP-M5 planning authority are merged and pass
 their deterministic gates. AP-M6-W1 through AP-M6-W11 are implemented locally, and the complete
@@ -101,7 +101,7 @@ small reviewable commits, merge it, and only then begin the next item.
    repository implementation evidence only: AP-M6 performs no Terraform, cloud mutation,
    deployment, Live qualification, or Application Adoption. Repository extraction, reconciliation,
    canonical cutover, and source cleanup are complete.
-7. **Terraform and workflow implementation — platform controls implemented statically:** AP-M7-W1
+7. **Terraform and workflow implementation — inert workflow templates implemented statically:** AP-M7-W1
    defines the root interfaces, configuration contracts, work packages, and deterministic
    AP-EVAL-M7 gate. AP-M7-W2 implements exact CLI/provider constraints, committed root locks,
    ignored local dependencies, and disposable-copy offline format/init/validate checks. AP-M7-W3
@@ -127,9 +127,14 @@ small reviewable commits, merge it, and only then begin the next item.
    USD 20 budget thresholds, dry-run-first image retention, required labels, exact runtime caps,
    and prohibited-capability policy. Static and mocked-plan checks reject external log export, raw
    evidence objects, public evidence access, automatic budget mutation, active cleanup deletion,
-   and later provider services. AP-M7-W9 is next after owner acceptance of W8. Later packages may
-   implement inert workflow templates and complete the deterministic gate only; AP-M7 performs no
-   authenticated plan or apply.
+   and later provider services. AP-M7-W9 implements separate inert advisory-plan, exact-main apply,
+   rollback, force-unlock, and destroy templates under `infrastructure/workflows/`. Static checks
+   enforce full-length action pins, read-only default permissions, protected environment and main
+   placeholders, exact source/plan binding, root concurrency, same-job plan/apply, explicit
+   destructive targets, stop-on-partial-failure behavior, runner-temporary plans, secret-free
+   outcome metadata, and absence from `.github/workflows/`. AP-M7-W10 is next after owner acceptance
+   of W9. Later packages may complete the deterministic gate and status record only; AP-M7 performs
+   no authenticated plan or apply.
 8. **Non-production qualification deployment — later:** AP-M8 may bootstrap and deploy only through
    separately approved protected operator actions after repository extraction and AP-M7 merge.
 9. **Live qualification — later:** AP-M9 must execute the approved Live gates against the exact

@@ -29,14 +29,20 @@ exclusion for Shared Edge revision logs, private 30-day evidence storage, owner-
 intent, notification-only USD 20 budget thresholds, dry-run-first Artifact Registry retention,
 required-label and exact runtime-cap policy, and prohibited-capability assertions. It uploads no
 evidence or image, exports no logs, and performs no automatic budget or cleanup mutation.
+AP-M7-W9 implements five JSON-compatible YAML templates under `infrastructure/workflows/` for
+advisory plan, exact-main apply, rollback, force-unlock, and destroy. They remain non-executable,
+use unresolved operator placeholders, pin actions by full commit SHA, keep default permissions
+read-only, grant job-local OIDC permission only for future federation, bind protected main, source,
+plan, environment, subject, root, and destructive targets, retain plans only in runner temporary
+storage, and record only secret-free outcome metadata.
 No backend or provider operation, executable cloud workflow, actual cloud resource or IAM mutation,
 generation upload or activation, DNS change, credential, deployment, Application Adoption, or Live
 (`L`) evidence is implemented or qualified.
 
-Use this handoff only after the owner accepts and commits AP-M7-W8 on the bounded AP-M7 branch. The
+Use this handoff only after the owner accepts and commits AP-M7-W9 on the bounded AP-M7 branch. The
 repository extraction handoff records that AP-M6 and the reconciliation pull request merged, the
 owner explicitly declared this dedicated repository canonical, and the separately approved source
-cleanup completed. If those facts or the AP-M7-W1 through AP-M7-W8 implementation are absent or
+cleanup completed. If those facts or the AP-M7-W1 through AP-M7-W9 implementation are absent or
 inconsistent, the working
 tree contains unreviewed changes, or the requested work package is out of order, report that
 conflict and stop instead of switching, pulling, resetting, committing, or combining packages
@@ -66,15 +72,16 @@ Before editing:
    cannot define generic platform behavior or infrastructure, and cannot authorize Application
    Adoption.
 
-Next task: implement AP-M7-W9, the inert workflow-authority templates, as the next small commit. Add
-only non-executable templates under `infrastructure/workflows/` for advisory plan, exact-main apply,
-rollback, force-unlock, and destroy. Enforce SHA-pinned actions, read-only default permissions,
-explicit OIDC permission only where required, protected-main and environment placeholders,
-root-scoped concurrency, exact source and plan digest binding, explicit targets, same-job
-plan/apply, no uploaded saved plan, stop-on-partial-failure, and retained secret-free outcome
-metadata. Do not place a template under `.github/workflows/`, name a real federation provider or
-service account, read a secret, or make a cloud workflow executable. Wait for owner approval before
-editing the next work package.
+Next task: implement AP-M7-W10, the complete Terraform-and-workflow qualification gate, as the next
+small commit. Complete AP-EVAL-M7-01 through AP-EVAL-M7-10 in behavior-named tests and the default
+`make check` dependency chain. Cover formatting, disposable-copy offline initialization with
+`-backend=false` and the locked filesystem mirror, validation, plan-only mocked-provider tests,
+static resource and workflow policy, configuration examples, history-independent extraction,
+prohibited-file scanning, and all prior regressions. The gate must fail on an apply-mode Terraform
+test, provider or backend access, implicit download, credential lookup, live operator value,
+executable mutation workflow, skipped root, repository change, or false deployed claim. Do not
+perform an authenticated plan or apply, add operator values, or begin the AP-M7-W11 status record.
+Wait for owner approval before editing the next work package.
 
 The proposal must preserve separate backend-bootstrap, Platform State, and per-Fixture-Application
 State roots; typed non-secret cross-state inputs without `terraform_remote_state`; explicit plan,

@@ -14,9 +14,11 @@ internal runtime module, and typed attachment references with plan-only mocked-p
 AP-M7-W6 implements the Platform State identity and immutable-generation foundation. AP-M7-W7
 implements the immutable Shared Edge candidate and hostname-forwarding topology. AP-M7-W8
 implements the bounded observability, evidence-retention, artifact-retention, label, scaling, and
-cost-control intent. All pass plan-only mocked-provider tests. No backend was initialized, provider
-operation performed, cloud resource created, generation uploaded or activated, or deployment, Live
-evidence, or Application Adoption qualified.
+cost-control intent. AP-M7-W9 implements the five inert operator-workflow authority templates. All
+Terraform roots pass plan-only mocked-provider tests, and every workflow template passes static
+non-mutation policy. No backend was initialized, provider operation performed, cloud resource
+created, generation uploaded or activated, or deployment, Live evidence, or Application Adoption
+qualified.
 
 Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
 history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
@@ -119,8 +121,12 @@ seven-day log bucket, minimized internal sink, and `_Default`-bucket exclusion, 
 evidence storage, explicit owner-readable access intent, a USD 20 notification-only budget,
 dry-run-first Artifact Registry retention, required-label and runtime-cap policy, and explicit
 prohibited-capability assertions. It uploads no evidence or image, exports no log, and performs no
-automatic budget or cleanup mutation. After owner acceptance of AP-M7-W8, AP-M7-W9 is the next
-work package; AP-M7 remains one separate branch and pull request.
+automatic budget or cleanup mutation. AP-M7-W9 adds parseable, non-executable advisory-plan,
+exact-main apply, rollback, force-unlock, and destroy templates outside `.github/workflows/`. They
+use only unresolved operator placeholders, full-length action pins, read-only default permissions,
+protected-main/source and plan-digest binding, root concurrency, runner-temporary plans, same-job
+plan/apply, explicit destructive confirmation, and secret-free outcome metadata. After owner
+acceptance of AP-M7-W9, AP-M7-W10 is next; AP-M7 remains one separate branch and pull request.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
 preserved their history. The separately reviewed source cleanup removed the historical colocated

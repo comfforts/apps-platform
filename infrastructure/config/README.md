@@ -1,8 +1,8 @@
 # AP-M7 infrastructure configuration contracts
 
-Version 1 | Status: AP-M7-W3 implemented and AP-M7-W4 through W7 root interfaces consumed; synthetic
-repository examples only; no operator configuration, backend operation, provider operation, or
-deployment
+Version 1 | Status: AP-M7-W3 implemented, AP-M7-W4 through W8 root interfaces consumed, and
+AP-M7-W9 inert templates bound to the workflow contract; synthetic repository examples only; no
+operator configuration, backend operation, provider operation, or deployment
 
 This directory defines the closed, non-secret inputs for later AP-M7 Terraform roots and inert
 workflow templates. The schemas and loader are subordinate to the platform requirements, accepted
@@ -63,6 +63,7 @@ edge-caller binding. The AP-M7-W6 Platform State root consumes the complete
 exactly three typed Fixture Application attachment references as a second explicit input and
 consumes them only as data; the Shared Edge module performs no application lookup or management.
 AP-M7-W8 preserves that agreement while composing the platform-controls module from the same
-complete `platform_configuration` object. AP-M7-W9 must preserve it while adding only inert workflow
-templates. The deterministic gate rejects disagreement. No root may consume another root's backend
-or `terraform_remote_state`; reviewed cross-state-reference documents are the only exchange shape.
+complete `platform_configuration` object. AP-M7-W9 preserves it and binds five inert templates to
+the Version 1 workflow operations without adding a Terraform root or provider resource. The
+deterministic gate rejects disagreement. No root may consume another root's backend or
+`terraform_remote_state`; reviewed cross-state-reference documents are the only exchange shape.

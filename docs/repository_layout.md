@@ -1,7 +1,7 @@
 # App Platform repository layout
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
-complete; AP-M7-W8 static platform controls implemented; no backend or provider operation, cloud
+complete; AP-M7-W9 inert workflow templates implemented; no backend or provider operation, cloud
 resource, IAM mutation, deployment, or qualification performed
 
 The project is organized at the dedicated repository root produced by the history-preserving
@@ -40,6 +40,7 @@ contracts, verification, or ownership boundaries.
 | `infrastructure/terraform/modules/platform-foundation/` | AP-M7-W6 internal configuration-storage, session, edge-identity, signing-key, and access-intent implementation |
 | `infrastructure/terraform/modules/shared-edge/` | AP-M7-W7 internal immutable Cloud Run candidate, direct-origin restriction, serverless backend, certificate, HTTPS forwarding, and HTTP redirect implementation |
 | `infrastructure/terraform/modules/platform-controls/` | AP-M7-W8 internal regional logging, default-bucket exclusion, private evidence, owner-read, budget-notification, and dry-run artifact-retention intent implementation |
+| `infrastructure/workflows/` | AP-M7-W9 parseable but non-executable advisory-plan, apply, rollback, force-unlock, and destroy authority templates |
 
 ## Approved AP-M7 capability locations
 
@@ -53,14 +54,15 @@ These locations may be created only by their approved slice:
 | `infrastructure/terraform/platform/` | Shared Edge Platform State root; W6 identity/generation foundation, W7 Shared Edge/hostname forwarding, and W8 platform controls implemented |
 | `infrastructure/terraform/fixtures/<application-id>/` | Independently owned Fixture Application State roots; W5 resource configuration implemented without a backend or provider operation |
 | `infrastructure/terraform/modules/` | Internal state-bucket, Fixture Application, Platform foundation, Shared Edge, and platform-controls modules implemented through W8; later modules remain work-package-owned and own no environment or state |
-| `infrastructure/workflows/` | AP-M7 inert operator-workflow templates; never executable GitHub workflows |
+| `infrastructure/workflows/` | AP-M7-W9 inert operator-workflow templates implemented outside `.github/workflows/`; never executable during AP-M7 |
 | `catalog/` | Root application catalogue implementation |
 | `artifacts/` | Secret-free reviewed evidence indexes and digests, never raw Live evidence bundles |
 
 The W2 foundation, W3 contracts, W4 bootstrap configuration, W5 Fixture Application roots, W6
 Platform foundation, W7 Shared Edge forwarding, and W8 platform controls are
-not authorization to scaffold empty modules for later packages or imply later capabilities. AP-M7
-may create its remaining named paths only in work-package order. It may
+not authorization to scaffold empty modules for later packages or infer later capabilities. W9
+workflow templates are inert design data and create no federation or mutation authority. AP-M7 may
+create its remaining named paths only in work-package order. It may
 add only reviewed static configuration, synthetic examples, inert workflow templates, and
 deterministic tests. Executable cloud workflows, credentials, state, saved plans, provider calls,
 and Live evidence remain prohibited. Live evidence bundles remain in the private provider evidence

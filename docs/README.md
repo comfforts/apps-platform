@@ -1,7 +1,8 @@
 # App Platform documentation
 
-Version 1.2 | Status: AP-M6 locally implemented and passing its deterministic repository gate;
-provider operation, Terraform, deployment, Live, and Adoption qualification unavailable
+Version 1.3 | Status: AP-M6 locally implemented and passing its deterministic repository gate;
+AP-M7 implementation authority defined; provider operation, Terraform implementation, deployment,
+Live, and Adoption qualification unavailable
 
 This directory is the design authority for Comfforts App Platform. AP-M3 supplies Contract (`C`)
 evidence through the logical design, threat boundary, Version 1 schemas, deterministic compiler,
@@ -30,10 +31,10 @@ sole App Platform authority; the extraction supplied no Terraform, cloud, or app
 5. [System design](03_system_design.md) defines logical modules, interfaces, lifecycle, state
    ownership, selected Live topology, and unresolved implementation inputs.
 6. [Threat model](06_threat_model.md) defines trust zones, threats, controls, and evidence classes.
-7. [AP-M3 through AP-M6 implementation plan](04_implementation_plan.md) owns delivery items 3
-   through 6 and separates runtime, Terraform, deployment, and Live work.
-8. [Evaluation strategy](05_evaluation_strategy.md) defines AP-M3 through AP-M6 deterministic gates
-   and the future AP-M7 through AP-M9 claim boundaries.
+7. [AP-M3 through AP-M7 implementation plan](04_implementation_plan.md) owns delivery items 3
+   through 7 and separates static Terraform, deployment, and Live work.
+8. [Evaluation strategy](05_evaluation_strategy.md) defines AP-M3 through AP-M7 deterministic gates
+   and the future AP-M8 and AP-M9 claim boundaries.
 9. [Version 1 contract index](../contracts/README.md) owns machine interfaces subordinate to the
    requirements, accepted decisions, and system design.
 10. [Repository layout](repository_layout.md) defines dedicated-root capability ownership and
@@ -45,7 +46,7 @@ sole App Platform authority; the extraction supplied no Terraform, cloud, or app
     evidence for all five completed extraction checkpoints and the canonical repository boundary.
 14. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
 15. [Terraform-and-workflow handoff](../prompts/starting_prompt.md) provides a bounded entry point
-    for proposing AP-M7 authority from updated `main` after this governance closeout merges.
+    for continuing with AP-M7-W2 only after the owner accepts and commits AP-M7-W1.
 
 AP-M3 Contract behavior, AP-M4 Fixture behavior, and AP-M5 planning authority are merged and pass
 their deterministic gates. AP-M6-W1 through AP-M6-W11 are implemented locally, and the complete
@@ -100,10 +101,10 @@ small reviewable commits, merge it, and only then begin the next item.
    repository implementation evidence only: AP-M6 performs no Terraform, cloud mutation,
    deployment, Live qualification, or Application Adoption. Repository extraction, reconciliation,
    canonical cutover, and source cleanup are complete.
-7. **Terraform and workflow implementation — next after governance closeout:** AP-M7 must first
-   refine its detailed implementation and evaluation authority on a separate owner-approved branch
-   after this closeout merges. It may then implement reviewed configuration and static gates only;
-   it performs no authenticated plan or apply.
+7. **Terraform and workflow implementation — authority defined, implementation pending:** AP-M7-W1
+   defines the root interfaces, configuration contracts, work packages, and deterministic
+   AP-EVAL-M7 gate. After owner acceptance, later packages may implement reviewed configuration and
+   inert workflow templates only; AP-M7 performs no authenticated plan or apply.
 8. **Non-production qualification deployment — later:** AP-M8 may bootstrap and deploy only through
    separately approved protected operator actions after repository extraction and AP-M7 merge.
 9. **Live qualification — later:** AP-M9 must execute the approved Live gates against the exact
@@ -131,8 +132,9 @@ Conflicts are resolved in this order:
 Current AP-M3 and AP-M4 authorities authorize the Version 1 contract implementation, deterministic
 in-process Fixture harness, and their Contract and Fixture evidence. AP-M5 authorizes planning, and
 AP-M6 authorizes only local provider-runtime implementation and tests after AP-M6-W1 acceptance.
-Terraform, deployment, Live qualification, and Application Adoption remain separate AP-M7 through
-AP-M9 or application-owned gates.
+AP-M7 authorizes only static Terraform configuration and inert workflow templates after AP-M7-W1
+acceptance. Deployment, Live qualification, and Application Adoption remain separate AP-M8,
+AP-M9, or application-owned gates.
 
 ## Scope labels
 

@@ -1,13 +1,13 @@
 # App Platform evaluation strategy
 
-Version 0.4 | Status: deterministic evaluation authority through AP-M6; future AP-M7 through AP-M9
+Version 0.5 | Status: deterministic evaluation authority through AP-M7; future AP-M8 and AP-M9
 claim boundaries
 
-This document preserves how delivery items 3 through 5 are evaluated and now defines AP-EVAL-M6 for
-delivery item 6, the networked provider runtime. AP-EVAL-M6 qualifies only repository behavior
-through deterministic and process-local integration tests. AP-EVAL-M7 through AP-EVAL-M9 remain
-future claim boundaries. No gate in this document qualifies a deployed Shared Edge, provider
-identity, cloud resource, consuming application, or Live behavior.
+This document preserves how delivery items 3 through 6 are evaluated and now defines AP-EVAL-M7 for
+delivery item 7, the Terraform-and-workflow implementation. AP-EVAL-M7 qualifies only committed
+configuration and inert templates through deterministic static tests with mocked providers.
+AP-EVAL-M8 and AP-EVAL-M9 remain future claim boundaries. No gate through AP-EVAL-M7 qualifies a
+deployed Shared Edge, provider identity, cloud resource, consuming application, or Live behavior.
 
 Plan: [App Platform implementation plan](04_implementation_plan.md)
 
@@ -960,24 +960,202 @@ IAM, deployment, load, availability, cost, direct-origin network, multi-instance
 recovery, incident, migration, or application-product test. Its production adapters are locally
 tested implementations, not evidence that their required provider resources or permissions exist.
 
+## AP-EVAL-M7 · Terraform-and-workflow gate
+
+### Evaluation claim
+
+A passing AP-EVAL-M7 result means only that the exact repository revision implements the approved
+Terraform roots, internal modules, typed configuration contracts, and inert workflow templates and
+passes deterministic static verification with mocked providers. It supplies repository
+implementation evidence, not provider, deployment, or Live evidence.
+
+It does not prove a backend, state lineage, provider credential, Workload Identity Federation
+binding, IAM grant, Google identity, Cloud Run service, load balancer, certificate, DNS record,
+budget notification, log retention, direct-origin denial, recovery operation, or Application
+Adoption.
+
+### Evaluation environment
+
+The gate runs from the dedicated repository root after an explicit dependency-only setup action:
+
+```bash
+make terraform-setup
+make check
+```
+
+`make terraform-setup` installs only Terraform 1.17.2 and the locked `hashicorp/google` 8.11.0
+provider into ignored local tool and filesystem-mirror paths after checksum verification. It does
+not initialize a root or backend, read a credential, run a plan, or contact GCP. The setup network
+access is not part of AP-EVAL-M7 and its exact artifacts and checksums are recorded.
+
+`make check` remains the sole evaluation command. Terraform evaluation copies configuration into a
+temporary directory, uses `TF_CLI_CONFIG_FILE` to permit only the pre-populated filesystem mirror,
+disables update checks, unsets credential variables, and runs with no external network. It may run
+`terraform fmt -check -recursive`, `terraform init -backend=false -lockfile=readonly`,
+`terraform validate`, and `terraform test` only with explicit `command = plan` and mocked providers.
+No command writes the repository or a backend, creates state outside the disposable directory, or
+uses a provider API.
+
+### Gate structure
+
+#### AP-EVAL-M7-01 · Authority, toolchain, locks, and extraction
+
+Verify AP-M7-W1 through AP-M7-W11 authority, Terraform 1.17.2, `hashicorp/google` 8.11.0, exact root
+constraints, committed `linux_amd64` and `darwin_arm64` provider checksums, ignored setup paths, and
+project-relative commands. Reject prerelease, floating, unlocked, extra, or unapproved providers.
+
+A temporary history-independent copy must run the complete gate without the source repository,
+Finance Assistant, user Terraform configuration, global plugin cache, credential, or network.
+
+#### AP-EVAL-M7-02 · Root and module ownership
+
+Verify exactly one bootstrap root, one platform root, and roots for `fixture-public`,
+`fixture-authenticated`, and `fixture-restricted`. Every managed resource has one root and one
+declared owner. Bootstrap owns backend resources only; the platform root owns only Platform State;
+each fixture root owns only that fixture's Application State.
+
+Reusable modules declare no backend, environment, provider credentials, operator values, state
+owner, cross-root data source, or hidden root resource. Tests exercise root interfaces rather than
+depending on internal module structure.
+
+#### AP-EVAL-M7-03 · Configuration and reference contracts
+
+Validate Version 1 backend, platform, fixture, cross-state-reference, and workflow schemas and every
+synthetic example. Require closed properties, exact owner classes, canonical resource references,
+immutable image digests, bounded values, required labels, Secret Manager version references, and
+explicit destructive targets. Terraform variable types and validations must agree with the schemas.
+
+Reject missing, extra, malformed, placeholder-as-live, secret-bearing, state-bearing, ambiguous,
+cross-owner, or unbounded inputs. Reject `terraform_remote_state`, backend-object reads, application
+credentials, discovered references, and output values containing secret, state, or plan material.
+
+#### AP-EVAL-M7-04 · Backend bootstrap and recovery controls
+
+Using explicit plan-only mocked-provider tests, verify one platform-state bucket and one bucket for
+each Fixture Application, uniform bucket-level access, public-access prevention, object versioning,
+at least 90 days and 20 newer noncurrent versions before expiration, ownership labels, and explicit
+root-scoped access intent. Outputs expose only typed non-secret bucket references.
+
+Reject a backend initialization, local state file, weak retention, public access, cross-root object
+access, implicit bucket name, destroy-on-budget behavior, or backend mutation command.
+
+#### AP-EVAL-M7-05 · Fixture Application isolation
+
+For all three fixture roots, verify one Cloud Run runtime and identity, the declared Application
+State owner, edge-only caller intent, protected direct ingress, exact audience and platform
+references, zero minimum, one maximum 1-vCPU/512-MiB instance, concurrency 10, required labels, and
+one canonical `gcp-cloud-run-v1` attachment output.
+
+Reject public unauthenticated origin intent, platform-owned fixture resources, shared fixture state,
+cross-fixture IAM, load balancer or DNS ownership, application feature grants, mutable image tags,
+or management of another root's resource.
+
+#### AP-EVAL-M7-06 · Platform identity and immutable generation
+
+Verify configuration-object immutability and digest inputs, Firestore Native session settings,
+eight-hour application expiry intent without backup or PITR, software-protected regional ES256 KMS
+key intent, active/overlap version constraints, Secret Manager references without values, edge and
+caller identity separation, and minimal typed platform outputs.
+
+Reject an embedded OAuth secret, signing material, restricted member set, mutable generation name,
+unreviewed compilation path, credential output, application-owned identity resource, or activation
+side effect.
+
+#### AP-EVAL-M7-07 · Shared Edge and hostname forwarding
+
+Verify one `us-west1` Cloud Run edge, immutable image and generation binding, zero minimum and two
+maximum 1-vCPU/512-MiB instances, concurrency 20, approved timeouts, restricted ingress, dedicated
+runtime and caller identities, one global address, one Google-managed certificate intent, HTTP-to-
+HTTPS redirect, one serverless backend, and one hostname-level URL map with no application prefix.
+
+Reject a DNS record, CDN, WAF, public direct edge origin, arbitrary target URL, application runtime
+ownership, extra environment, additional load balancer, mutable image tag, unbounded scaling, or
+fragmented registration-derived provider routing.
+
+#### AP-EVAL-M7-08 · Observability, evidence, retention, labels, and cost
+
+Verify a dedicated seven-day log bucket and exclusions, 30-day evidence bucket intent, owner-only
+access intent, USD 20 budget with 50/80/100-percent notifications, dry-run-first artifact cleanup,
+active/rollback/candidate retention, required `environment`, `managed_by`, `state_owner`, and
+applicable `application_id` labels, approved services, and every selected scaling and retention cap.
+
+Reject identity, visitor, payload, state, plan, secret, or provider response in configured logs or
+evidence; automatic billing disablement, automatic destroy, unapproved billable service, longer
+retention, always-on instance, backup, PITR, HSM, production replica, missing label, or implicit
+notification destination.
+
+#### AP-EVAL-M7-09 · Workflow authority and non-mutation
+
+Parse every inert template and verify separate plan, apply, rollback, force-unlock, and destroy
+authorities; full-length action pins; read-only default permissions; explicit `id-token: write` only
+for future federated jobs; protected-main and environment placeholders; per-root concurrency; exact
+commit checkout; fresh exact-main plan; source and plan digest recording; same-job plan and apply;
+explicit root and destructive targets; stop-on-partial-failure; and secret-free outcome metadata.
+
+Reject placement under `.github/workflows/`, a real federation or service-account value, stored key,
+secret read, pull-request apply, reused pull-request plan, uploaded saved plan, unpinned action,
+implicit apply, automatic unlock, rollback, DNS change, or destroy. The existing executable check
+workflow retains read-only permissions and no OIDC authority.
+
+#### AP-EVAL-M7-10 · Complete regression, truthful status, and handoff
+
+Run every AP-EVAL-M3 through AP-EVAL-M7 gate at one source revision with zero failures, errors,
+unexpected warnings, mandatory skips, external connections, credential lookups, or repository
+changes. Verify unique identifiers and complete traceability for AP-M7-W1 through AP-M7-W11 and
+AP-EVAL-M7-01 through AP-EVAL-M7-10.
+
+Status may call AP-M7 implemented only after all gates pass. Backend initialization, provider
+operation, repository settings, federation, deployment, Live, and Adoption remain unavailable, and
+the next task routes to AP-M8 only after merge.
+
+### Threat coverage boundary
+
+| Threats | AP-EVAL-M7 implementation claim |
+| --- | --- |
+| AP-TM-001 through AP-TM-003 | Configuration, generation, routing, and attachment inputs have closed typed contracts and static policy |
+| AP-TM-004 through AP-TM-006 | Ingress, identity, audience, and entitlement separation are represented in mocked plans without an operational claim |
+| AP-TM-007 through AP-TM-009 | Immutable binding, root ownership, typed references, concurrency, and cross-application isolation pass statically |
+| AP-TM-010 | Contracts, outputs, templates, tests, and scans exclude prohibited secret, identity, state, plan, and payload data |
+| AP-TM-011 | Exact locks, action pins, source/plan binding, offline extraction, inert workflows, and no implicit mutation pass |
+| AP-TM-012 | Scaling, retention, approved-service, label, and budget policies pass without an availability or cost claim |
+| AP-TM-013 | Failure templates stop for inspection and retain explicit recovery authority without testing provider recovery |
+| AP-TM-014 | Fixtures remain synthetic, Finance remains unchanged, and no static result is called Live or Adoption evidence |
+
+### Pass, fail, and skip semantics
+
+AP-EVAL-M7 passes only when all ten gates and every prior regression gate pass at one revision. Any
+floating dependency, lock mismatch, registry or provider access, real credential or operator value,
+backend operation, apply-mode test, root overlap, cross-state read, executable mutation workflow,
+state, saved plan, prohibited data, external connection, repository change, false operational claim,
+failure, error, unexpected warning, or mandatory skip fails the gate.
+
+An unavailable provider resource, operator input, or Live control is a declared limitation, not a
+skipped test. Platform-specific conditional skips are prohibited.
+
+### Required evaluation evidence
+
+The pull-request handoff records branch and AP-M6/governance merge base, evaluated and final
+revisions, AP-M7 work-package commits and paths, Terraform and provider versions, lock and tool
+digests, exact setup and gate commands, working directory, duration, test totals, failures, errors,
+warnings, and skips, identifier and threat coverage, configuration examples, security/privacy
+impact, limitations, and unresolved AP-M8 inputs. It confirms mocked-provider and offline-mirror use,
+no external mutation, and unchanged Finance behavior.
+
+Console output is sufficient and no generated report is committed.
+
+### Limitations
+
+AP-EVAL-M7 performs no backend, state-lineage, authenticated provider, browser, repository-setting,
+federation, DNS, TLS, IAM, deployment, load, availability, cost-delivery, direct-origin network,
+multi-instance, rollback, recovery, incident, migration, or application-product test. Static
+configuration and mocked plans are implementation evidence only and cannot satisfy AP-EVAL-M8 or
+AP-EVAL-M9.
+
 ## Future evaluation boundaries
 
 The following sections constrain later authorities. They do not authorize implementation or
 provide a passing result. Each later milestone must refine its environment, commands, fixtures,
 expected results, evidence schema, pass/fail semantics, and exact source revision before work begins.
-
-### AP-EVAL-M7 · Terraform-and-workflow gate
-
-AP-EVAL-M7 may qualify only committed Terraform and workflow implementation through formatting,
-static validation, module contract tests, policy checks, fixture configuration checks, extraction
-tests, and secret/state/plan exclusion. It must prove the root and module ownership boundaries,
-backend configuration shape, typed cross-state inputs, least-privilege role intent, budget and
-scaling policy, explicit destructive targets, workflow source binding, and absence of implicit
-apply.
-
-AP-EVAL-M7 performs no backend initialization, authenticated plan, repository-setting change,
-Workload Identity Federation action, provider API call, resource creation, DNS change, or deploy.
-Static configuration is not deployed evidence and cannot satisfy AP-EVAL-M8 or AP-EVAL-M9.
 
 ### AP-EVAL-M8 · Qualification-deployment gate
 

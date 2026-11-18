@@ -39,6 +39,11 @@ change in the repository.
   adapter logic tested through deterministic fakes and process-local loopback. It authorizes no
   Terraform, external network, credential lookup, provider call, cloud or repository mutation,
   deployment, Live claim, or Application Adoption.
+- AP-M7 authorizes only reviewed Terraform configuration, non-executable workflow templates, and
+  credential-free static verification under its named work packages and AP-EVAL-M7. It authorizes
+  no backend initialization, authenticated plan or apply, credential or federation configuration,
+  provider call, repository-setting change, cloud or DNS mutation, deployment, Live claim, or
+  Application Adoption.
 - Keep platform implementation, contracts, tests, prompts, and evidence inside this dedicated
   canonical repository. Extraction does not make Finance Assistant authority applicable here. The
   completed source-repository cleanup does not transfer Finance Assistant requirements, behavior,

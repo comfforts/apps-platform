@@ -1,7 +1,8 @@
 # App Platform repository layout
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
-complete; no provider operation or infrastructure implemented
+complete; AP-M7 Terraform-and-workflow paths approved but not implemented; no provider operation or
+infrastructure implemented
 
 The project is organized at the dedicated repository root produced by the history-preserving
 subtree extraction. Paths remain project-relative so repository identity does not alter platform
@@ -34,18 +35,21 @@ These locations may be created only by their approved slice:
 | Path | Intended owner |
 | --- | --- |
 | `registrations/` | Future reviewed Live Registration Sets; Fixture registrations remain under `fixtures/` |
-| `infrastructure/terraform/bootstrap/` | Future backend-bootstrap root only |
-| `infrastructure/terraform/platform/` | Future Shared Edge Platform State root only |
-| `infrastructure/terraform/fixtures/<application-id>/` | Future independently owned Fixture Application State root |
-| `infrastructure/terraform/modules/` | Future reusable modules with no environment or state ownership of their own |
+| `infrastructure/config/` | AP-M7 versioned non-secret configuration schemas and synthetic examples |
+| `infrastructure/terraform/bootstrap/` | AP-M7 backend-bootstrap root only |
+| `infrastructure/terraform/platform/` | AP-M7 Shared Edge Platform State root only |
+| `infrastructure/terraform/fixtures/<application-id>/` | AP-M7 independently owned Fixture Application State root |
+| `infrastructure/terraform/modules/` | AP-M7 reusable modules with no environment or state ownership of their own |
+| `infrastructure/workflows/` | AP-M7 inert operator-workflow templates; never executable GitHub workflows |
 | `catalog/` | Root application catalogue implementation |
 | `artifacts/` | Secret-free reviewed evidence indexes and digests, never raw Live evidence bundles |
 
-The reservation is not authorization to scaffold empty modules or imply later capabilities. AP-M6
-may extend only `edge/` and implementation-owned registration test inputs through its ordered work
-packages. AP-M7 may create only the planned Terraform and workflow paths after its detailed plan
-and evaluation authority are approved. Live evidence bundles remain in the private provider
-evidence store rather than the repository.
+The reservation is not authorization to scaffold empty modules or imply later capabilities. AP-M7
+may create its named paths only in work-package order after AP-M7-W1 owner acceptance. It may add
+only reviewed static configuration, synthetic examples, inert workflow templates, and deterministic
+tests. Executable cloud workflows, credentials, state, plans, provider calls, and Live evidence
+remain prohibited. Live evidence bundles remain in the private provider evidence store rather than
+the repository.
 
 ## Completed repository-transition boundary
 

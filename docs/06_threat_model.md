@@ -1,6 +1,7 @@
 # App Platform threat model
 
-Version 0.8 | Status: Fixture-qualified threat model and approved AP-M6 runtime controls;
+Version 0.9 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, and approved
+AP-M7 infrastructure-configuration controls;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -499,6 +500,51 @@ behavior. `A` is mandatory for every real application and retains its prior hist
 **Residual risk:** Human process can still misstate adoption; truthful status checks, review, and
 release ownership are required at every handoff.
 
+## AP-M7 infrastructure-configuration controls
+
+AP-EVAL-M7 covers the static infrastructure profile without treating configuration as an
+operational control. The following controls refine the existing threats:
+
+- **AP-TM-001 through AP-TM-003:** Version 1 configuration schemas, Terraform root validation, and
+  mocked plans accept only complete immutable generations, canonical typed attachment references,
+  named state owners, allow-listed adapters, and one hostname-level route authority. Arbitrary URLs,
+  provider commands, mutable image tags, application-prefix URL-map routes, and discovered targets
+  are rejected.
+- **AP-TM-004 through AP-TM-006:** Fixture roots configure protected ingress and edge-caller intent;
+  the platform root keeps workload identity separate from Visitor assertions; every application
+  audience remains distinct; and no IAM or infrastructure value grants a Feature Entitlement.
+  These are static intents until AP-EVAL-M9 proves provider enforcement.
+- **AP-TM-007:** Immutable source, image, generation, object, and plan digests, explicit predecessor
+  inputs, root-scoped concurrency templates, backend-lock intent, and one 100-percent candidate
+  traffic value prevent a configuration from describing a partial registration activation.
+  Workflow templates stop on failure and never auto-retry, unlock, roll back, change DNS, or destroy.
+- **AP-TM-008 and AP-TM-009:** The bootstrap, platform, and three Fixture Application roots have
+  disjoint resource allow-lists. Cross-state values conform to typed non-secret reference contracts;
+  `terraform_remote_state`, backend-object reads, application credentials, and cross-owner resource
+  management are forbidden. Reusable modules own no environment or state.
+- **AP-TM-010:** Schema examples, variables, outputs, plan policy, workflow templates, logs, and
+  evidence reject secret values, credentials, restricted membership, assertions, sessions, visitor
+  data, application data, state addresses or contents, saved plans, and raw provider responses.
+  Secret Manager and KMS inputs are versioned references only.
+- **AP-TM-011:** Terraform 1.17.2, `hashicorp/google` 8.11.0, provider checksums, action commit pins,
+  protected-main and environment placeholders, exact source/plan digest binding, an offline
+  filesystem mirror, and extraction tests constrain supply-chain and control-plane substitution.
+  Only the existing read-only check workflow is executable during AP-M7.
+- **AP-TM-012:** Static policy fixes one non-production environment, one load balancer, zero-minimum
+  bounded Cloud Run services, selected CPU, memory, concurrency and timeouts, seven-day logs,
+  30-day evidence, approved services, required labels, USD 20 notifications, and no automatic cost
+  mutation. It supplies no availability or spend guarantee.
+- **AP-TM-013:** Missing tools, locks, configuration, operator inputs, mirrors, references, or mocked
+  provider results fail the gate. Provider failures in later templates stop for inspection and keep
+  rollback, unlock, state recovery, and destroy under separate explicit authority.
+- **AP-TM-014:** All fixture values remain synthetic, Finance Assistant remains unchanged, and
+  Terraform formatting, validation, or mocked plans can supply neither Live nor Adoption evidence.
+
+The AP-M7 gate runs only explicit plan-mode tests with mocked providers in a disposable copy. It
+performs no backend initialization, credential lookup, provider or metadata request, DNS lookup,
+repository mutation, apply, or destroy. A static pass cannot qualify key custody, ingress, IAM,
+logging, budget delivery, rollback, recovery, or any other provider behavior.
+
 ## Unresolved security decisions
 
 The following decisions must be approved by their owning later slice before the named evidence can
@@ -506,13 +552,13 @@ pass:
 
 | Decision | Required before |
 | --- | --- |
-| OAuth client values, session-store realization, KMS/JWKS resources, and identity IAM bindings for the selected trust profile | Infrastructure implementation |
-| Provider configuration/readback for the selected runtime limits and observed multi-instance abuse behavior | Terraform implementation and Live qualification |
-| Terraform modules, exact bucket and resource names, ingress realization, and IAM bindings for the selected GCP topology | Infrastructure implementation |
-| Exact protected workflow subjects, protected environment, and federation bindings | Infrastructure implementation and Live mutation |
-| Configuration-bucket, candidate-revision, traffic-pointer, DNS/TLS, readback, and rollback realization | Infrastructure implementation and Live qualification |
-| Exact log/evidence bucket names, IAM, exclusions, retention rules, and provider audit behavior for the selected profile | Infrastructure implementation and Live evidence collection |
-| Terraform enforcement of selected budgets, scaling caps, labels, image retention, and approved billable resources | Infrastructure implementation and Live qualification |
+| Exact OAuth client and secret-version references, image digests, bucket names, billing-account reference, notification destination, managed-zone resource, and initial Live Registration Set | AP-M8 operator-input review |
+| Provider configuration/readback for the selected runtime limits and observed multi-instance abuse behavior | AP-M8 deployment and AP-M9 Live qualification |
+| Exact protected workflow subjects, protected environment, federation provider, operation identities, and IAM bindings | AP-M8 repository and identity mutation |
+| Backend initialization, state lineage, provider ingress and IAM realization, and direct-origin denial | AP-M8 deployment and AP-M9 Live qualification |
+| Configuration-object publication, candidate revision, traffic pointer, DNS/TLS, readback, and rollback execution | AP-M8 deployment and AP-M9 Live qualification |
+| Provider audit behavior, log/evidence access, retention enforcement, budget delivery, and cleanup behavior | AP-M9 Live evidence collection |
+| Observed scaling, cost, artifact retention, and approved-service behavior | AP-M9 Live qualification |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |
 
 An unresolved decision causes its dependent gate to remain unavailable; it is not an accepted risk

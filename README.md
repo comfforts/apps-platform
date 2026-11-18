@@ -5,7 +5,8 @@ Immutable generation loading, catalogue and routing, Platform Sessions and admis
 assertions and application verification, Cloud Run attachment resolution, bounded HTTP, SSE, and
 WebSocket proxying, read-only status, correlation, adapter-health observations, and redacted
 completion events are implemented locally. AP-M4 remains Fixture-qualified and AP-M5 remains
-planning-validated. AP-M6 supplies repository implementation evidence only.
+planning-validated. AP-M6 supplies repository implementation evidence only. AP-M7 Terraform-and-
+workflow implementation authority is defined, but no AP-M7 implementation exists yet.
 No Terraform configuration, cloud resource, deployment, Live evidence, or Application Adoption is
 implemented or qualified.
 
@@ -85,10 +86,9 @@ call, credential, or Live readback is created or qualified.
 AP-M6-W10 enforces the complete AP-EVAL-M6 matrix, including exact numeric boundaries, immutable
 generation and identity paths, fake-provider parity, streaming cancellation and isolation,
 loopback-only networking, history-independent extraction, dependency locking, redaction, and all
-prior regressions. AP-M6-W11 reconciles this status. The next AP-M7 authority proposal may begin
-from updated `main` after this repository-governance closeout merges. AP-M7 must remain a separate
-branch and pull request and still requires owner-approved detailed plan and evaluation authority
-before Terraform or workflow implementation.
+prior regressions. AP-M6-W11 reconciles this status. AP-M7-W1 defines the detailed Terraform-and-
+workflow implementation authority. Owner acceptance of that exact authority is required before
+AP-M7-W2 begins; AP-M7 remains one separate branch and pull request.
 
 All platform files are project-relative at the dedicated repository root. Repository extraction
 preserved their history. The separately reviewed source cleanup removed the historical colocated

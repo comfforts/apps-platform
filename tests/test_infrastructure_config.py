@@ -64,6 +64,7 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                     "backend-configuration.v1.schema.json",
                     "cross-state-reference.v1.schema.json",
                     "fixture-configuration.v1.schema.json",
+                    "operator-input-manifest.v1.schema.json",
                     "platform-configuration.v1.schema.json",
                     "workflow-configuration.v1.schema.json",
                 )

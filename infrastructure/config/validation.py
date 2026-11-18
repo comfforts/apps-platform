@@ -21,6 +21,7 @@ SCHEMA_FILES = (
     "backend-configuration.v1.schema.json",
     "cross-state-reference.v1.schema.json",
     "fixture-configuration.v1.schema.json",
+    "operator-input-manifest.v1.schema.json",
     "platform-configuration.v1.schema.json",
     "workflow-configuration.v1.schema.json",
 )
@@ -30,6 +31,9 @@ SCHEMA_IDS = {
         "urn:comfforts:app-platform:infrastructure-config:cross-state-reference:v1"
     ),
     "fixture": "urn:comfforts:app-platform:infrastructure-config:fixture:v1",
+    "operator-input-manifest": (
+        "urn:comfforts:app-platform:infrastructure-config:operator-input-manifest:v1"
+    ),
     "platform": "urn:comfforts:app-platform:infrastructure-config:platform:v1",
     "workflow": "urn:comfforts:app-platform:infrastructure-config:workflow:v1",
 }

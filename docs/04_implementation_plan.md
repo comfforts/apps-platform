@@ -1318,8 +1318,9 @@ deploy a resource, execute recovery, collect Live evidence, or begin AP-M9.
 | AP-EVAL-M8 | Complete and approved before mutation | Define deployment/readback claims, commands, fixtures, evidence, redaction, and pass/fail/skip semantics before AP-M8-W2 |
 | AP-M9 and Application Adoption | Unavailable | Produce no Live qualification or consuming-application change |
 
-The exact protected workflow subjects and environment, Workload Identity Federation pool/provider
-and operation identities, service-account and IAM bindings, globally unique state/configuration/log/
+The exact repository and owner numeric identifiers, protected workflow refs, subjects and
+environment names, Workload Identity Federation pool/provider and operation identities, service-
+account permission sets and IAM bindings, globally unique state/configuration/log/
 evidence bucket names, managed DNS zone and record transaction, immutable edge and fixture image
 digests, OAuth client and redirect registration, Secret Manager version references, billing-account
 and notification references, reviewed Fixture Registration Set, restricted synthetic members, and
@@ -1346,17 +1347,36 @@ values before an authenticated command runs.
 
 #### AP-M8-W3 · Protected repository and environment controls
 
-Verify and, under a separate repository-setting approval, configure only the approved protected
-main, required checks, environment reviewers, workflow permissions, action pinning policy, and
-root-scoped concurrency controls. Record redacted readback and stop on any broader permission or
-unprotected mutation path.
+Read back and preserve the extraction checkpoint-3 baseline: default protected `main`, no bypass,
+force-push or deletion; pull requests, current-branch enforcement, `Credential-free project
+checks`, CodeQL thresholds, full action pins, read-only default permissions, dependency and secret
+controls, and the credential-free check workflow. A missing or weakened baseline control stops the
+package.
+
+Under a separate repository-setting approval, create only the reviewed plan, apply, and recovery
+GitHub Environment classes. Each accepts exact `main`, requires a fresh owner review for every job,
+contains no secret, and produces the exact environment-bound OIDC subject. No environment approval
+transfers to another class or operation. The
+[qualification-deployment runbook](runbooks/qualification_deployment.md) owns the setting profile,
+proposed-change table, readback fields, and stop conditions. AP-M8-W3 does not render or invoke an
+operator workflow.
 
 #### AP-M8-W4 · Federation and operation identities
 
-Under a separate cloud-IAM approval, create and verify only the reviewed GitHub OIDC federation
-conditions and least-privilege identities for the named plan, apply, and exceptional operations.
-No stored key, wildcard repository subject, cross-root identity, or implicit credential source is
-permitted.
+Under a separate cloud-IAM approval and one short-lived owner bootstrap credential, create one
+dedicated qualification Workload Identity Pool/provider and only the reviewed root-operation
+service accounts and impersonation bindings. Trust jointly binds the GitHub issuer, provider
+audience, repository and owner names plus numeric identifiers, protected `main`, an allow-listed
+workflow ref, one reviewed environment and matching subject, `workflow_dispatch`, and the exact run
+SHA verified by the workflow.
+
+Plan, apply, rollback, force-unlock, and destroy identities are distinct for every enabled root.
+Each receives only its exact backend and owned-resource permissions; unused exceptional identities
+have no binding. Workload identities cannot administer federation, IAM, themselves, billing,
+another root, or an application. Keys, wildcard subjects, broad primitive roles, credentials longer
+than one hour, implicit credential sources, and name-only repository trust are prohibited. Readback
+must prove mappings, conditions, key absence, impersonation principals, direct and inherited roles,
+and scopes before the owner closes the package.
 
 #### AP-M8-W5 · Backend bootstrap and state lineage
 

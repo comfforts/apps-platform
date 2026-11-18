@@ -1,7 +1,8 @@
 # App Platform system design
 
-Version 0.9 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, and approved
-AP-M7 Terraform configuration profile;
+Version 1.0 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, approved
+AP-M7 Terraform configuration profile, and proposed AP-M8 protected-source and federated-identity
+profile;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -499,16 +500,89 @@ deterministic checks and advisory read-only plans; the merge commit is planned a
 the apply by source and plan digests. Each workflow identity is limited to its named root and
 operation. One concurrency guard and the backend lock prevent competing mutations.
 
-The dedicated repository, branch, workflow, and environment values must be known after extraction
-before a federation binding can exist. Until then, this is planning authority only. Local checks,
-validation, read-only planning, and readback remain available, but normal local apply is prohibited.
-An owner-declared break-glass operation uses short-lived credentials, exact targets, state backup,
+The dedicated repository is fixed as `comfforts/apps-platform`, with protected `main` as the only
+normal source ref. Exact repository numeric identifiers, workflow files, protected environment
+names, federation resources, operation service accounts, and IAM bindings must be reviewed before a
+federation binding can exist. Until the complete AP-M8 authority is accepted and each named
+checkpoint is separately approved, this remains planning authority only. Local checks, validation,
+read-only local planning, and readback remain available, but normal local apply is prohibited. An
+owner-declared break-glass operation uses short-lived credentials, exact targets, state backup,
 readback, and reconciliation; it never uses a stored service-account key.
 
 Bootstrap, import, force-unlock, state push, backend changes, rollback, and destroy are explicit
 operator procedures rather than hidden Terraform side effects. A provider error stops for
 inspection. Manual console changes remain drift and cannot become the reviewed baseline without a
 source change.
+
+### AP-M8 protected-source and federated-identity profile
+
+The existing checkpoint-3 repository baseline is a precondition, not an AP-M8 result. `main`
+remains the default protected branch; pull requests, current-branch enforcement, the
+`Credential-free project checks` status, CodeQL thresholds, full-length action pins, read-only
+default workflow permissions, secret scanning, push protection, and the no-bypass, no-force-push,
+no-deletion rules remain enabled. AP-M8 stops rather than weakening one of those controls to make a
+deployment job run.
+
+Three distinct protected GitHub Environment classes separate authenticated plan, routine apply,
+and exceptional recovery authority. Their real names remain operator inputs. Every class accepts
+only the exact `main` deployment branch, requires a new explicit owner review for each job, and
+contains no environment secret. The plan review cannot approve an apply; an apply review cannot
+approve rollback, force-unlock, or destroy; and one recovery-job review cannot approve another
+operation. The same owner may perform the human roles, but GitHub still records distinct protected-
+environment checkpoints.
+
+Every executable operator workflow later rendered from the AP-M7 templates is fixed to one root
+and one operation. Its workflow file, protected environment, service account, federation provider,
+repository, branch, and root are committed constants or reviewed non-secret configuration rather
+than dispatch inputs. It uses `workflow_dispatch`, top-level `contents: read`, job-local
+`id-token: write`, full action commit identifiers, non-persisted checkout credentials, root-scoped
+non-cancelling concurrency, and no GitHub secret. The credential-free check workflow never receives
+an OIDC permission.
+
+The one dedicated qualification Workload Identity Pool and GitHub provider accept issuer
+`https://token.actions.githubusercontent.com` and only the reviewed provider audience. Attribute
+mapping retains the subject, repository name and numeric identifier, repository-owner numeric
+identifier, ref, protected-ref status, workflow ref, environment, event, and source SHA. The
+provider condition and service-account impersonation binding jointly require:
+
+- repository `comfforts/apps-platform` and its exact numeric identifier;
+- the exact `comfforts` owner numeric identifier;
+- protected `refs/heads/main`;
+- one allow-listed rendered workflow at `refs/heads/main`;
+- one reviewed protected environment and the matching
+  `repo:comfforts/apps-platform:environment:<name>` subject; and
+- `workflow_dispatch`.
+
+The workflow then compares its run SHA with the exact 40-character protected-main revision in the
+reviewed Version 1 workflow configuration before requesting a plan or mutation. Numeric repository
+and owner bindings prevent a renamed or recreated repository from inheriting name-only trust.
+
+Each enabled root-operation pair has a distinct service account and exact impersonation binding.
+Plan identities may read only the selected backend and provider metadata needed for a plan. Apply
+and rollback identities may read and write only their selected backend and mutate only resources
+owned by that root through the exact reviewed same-job plan. A force-unlock identity may affect only
+one approved lock and no provider resource. A destroy identity may affect only its root through one
+explicit reviewed destroy plan. Unused rollback, force-unlock, and destroy identities have no
+binding.
+
+No workload identity may administer federation, IAM, its own service account, another operation
+identity, another root, billing, or an application-owned resource. Owner, editor, project-IAM,
+service-account-administrator, and user-managed-key permissions are prohibited. Federated
+credentials last no longer than one hour, and user-managed service-account keys remain absent.
+Import, state push, backend migration, and federation administration remain separate break-glass
+authorities rather than hidden capabilities of a routine identity.
+
+The first federation setup uses a separately approved short-lived owner credential because the
+federated path does not yet exist. It records exact changes and readback without retaining the
+credential or token and grants no workflow permission to alter the trust configuration. Identity
+bootstrap is distinct from Terraform backend bootstrap; success or approval for one does not
+authorize the other.
+
+The subordinate [qualification-deployment runbook](runbooks/qualification_deployment.md) owns the
+checkpoint inputs, setting profile, identity matrix, readback, and stop conditions. This design and
+runbook are AP-M8-W1 authority proposals only. They create no environment, executable workflow,
+pool, provider, service account, IAM binding, credential, backend, plan, resource, DNS change, or
+deployment.
 
 ### AP-M7 Terraform configuration profile
 
@@ -1033,8 +1107,10 @@ Version 0.5 selects state and operator authority, Version 0.6 selects activation
 rollback behavior, Version 0.7 selects observability, evidence, incident, and cost controls, and
 Version 0.8 selects the AP-M6 network module, dependency, and bounded-request profile. Version 0.9
 selects the AP-M7 root interfaces, configuration contracts, pinned toolchain, static verification,
-and inert workflow-template profile. None supplies provider, network, identity, deployment, or Live
-evidence. Adoption qualification remains a later application-owned gate.
+and inert workflow-template profile. Version 1.0 proposes the AP-M8 protected-source, environment,
+federation, and root-operation identity profile without configuring it. None supplies provider,
+network, identity, deployment, or Live evidence. Adoption qualification remains a later
+application-owned gate.
 
 ## Design trace
 
@@ -1050,4 +1126,5 @@ evidence. Adoption qualification remains a later application-owned gate.
 | AP-M6 network module and bounded-request profile | AP-PR-001 through AP-PR-008; AP-QR-002 through AP-QR-006 | ADR-001 through ADR-006, ADR-008, ADR-009 |
 | Terraform state and operator authority | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
 | AP-M7 Terraform configuration profile | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
+| AP-M8 protected source, environments, federation, and operation identities | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003 through AP-QR-006 | ADR-001, ADR-004, ADR-007 |
 | Observability, evidence, incidents, and cost | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007, AP-PR-008; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-004, ADR-009 |

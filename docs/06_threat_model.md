@@ -1,7 +1,8 @@
 # App Platform threat model
 
-Version 0.9 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, and approved
-AP-M7 infrastructure-configuration controls;
+Version 1.0 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
+AP-M7 infrastructure-configuration controls, and proposed AP-M8 protected-source and federated-
+identity controls;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -428,9 +429,11 @@ provider changes are drift and never become configuration authority.
 extraction-safe checks. `L` covers revision binding, workload identity, least privilege, drift
 readback, plan review, and audit records.
 
-**Residual risk:** Protected-main is configured, while exact-plan binding and Workload Identity
-Federation remain unavailable before infrastructure implementation. The same owner may review and
-apply, so retained evidence and drift readback remain important compensating controls.
+**Residual risk:** Protected-main is configured and AP-M7 statically verifies exact-plan binding in
+inert templates. Workload Identity Federation and executable mutation workflows remain unavailable.
+The AP-M8 profile below is proposal authority only and supplies no operational control. The same
+owner may review and apply, so environment checkpoints, retained evidence, and drift readback
+remain important compensating controls.
 
 ### AP-TM-012 · Availability and cost abuse
 
@@ -545,6 +548,56 @@ performs no backend initialization, credential lookup, provider or metadata requ
 repository mutation, apply, or destroy. A static pass cannot qualify key custody, ingress, IAM,
 logging, budget delivery, rollback, recovery, or any other provider behavior.
 
+## AP-M8 protected-source and federated-identity controls
+
+AP-M8-W1 proposes the controls below for AP-M8-W3 and AP-M8-W4. They refine the existing threats
+without claiming implementation:
+
+- **AP-TM-004 and AP-TM-005:** GitHub workload identity is only an operator credential. It never
+  becomes Visitor identity, a Platform Session, an assertion subject, an Application Principal, or
+  a restricted member. The repository actor, workflow subject, service-account email, and provider
+  token remain absent from runtime identity contracts and application requests.
+- **AP-TM-007:** Protected `main`, required credential-free checks, a fixed rendered workflow,
+  protected-environment approval, exact run SHA, reviewed plan digest, non-cancelling root
+  concurrency, and the backend lock form independent gates. A plan approval grants no apply or
+  recovery authority, and no partial failure automatically advances to another operation.
+- **AP-TM-008 and AP-TM-009:** Every enabled root-operation pair has a distinct service account,
+  rendered workflow, environment class, impersonation binding, backend scope, and provider scope.
+  Plan, apply, rollback, force-unlock, and destroy authority cannot cross a state owner or become
+  another application's runtime, state, or IAM authority. Unused exceptional identities have no
+  binding.
+- **AP-TM-010:** GitHub environments contain no secret; workflows read no Actions secret and retain
+  no OIDC token, generated credential, state, saved plan, raw provider response, browser state, or
+  authenticated cache. Service-account keys are prohibited. Readback records only the reviewed
+  non-secret setting, resource, role, binding, revision, outcome, and digest fields.
+- **AP-TM-011:** Trust binds repository and owner names plus their immutable numeric identifiers,
+  protected `refs/heads/main`, an allow-listed workflow ref, one reviewed environment and matching
+  subject, `workflow_dispatch`, and the exact source SHA checked by the workflow. Full action pins,
+  read-only defaults, non-persisted checkout credentials, CodeQL thresholds, secret scanning, push
+  protection, and no repository-rule bypass remain mandatory. A renamed or recreated repository,
+  alternate ref, pull-request run, tag, fork, unlisted workflow, or runtime-selected identity fails
+  before credentials are usable.
+- **AP-TM-012:** Operation identities omit owner, editor, IAM-administration, billing-administration,
+  and cross-root permissions. One-hour-or-shorter federated credentials reduce exposure but do not
+  prove provider quotas, runtime cost, or abuse controls.
+- **AP-TM-013:** An unexpected repository bypass, environment secret, claim mismatch, wildcard,
+  stored key, broad or inherited role, cross-root grant, provider mismatch, or partial identity
+  change stops for inspection. There is no automatic policy broadening, retry, rollback, cleanup,
+  or fallback to a local or stored credential.
+- **AP-TM-014:** The pool, provider, environments, workflows, and identities bind only the canonical
+  App Platform repository and non-production qualification project. They grant no Finance
+  Assistant, production, real-application, Integration Draft, or Application Adoption authority.
+
+The initial federation setup remains a separately approved short-lived owner operation because no
+federated path exists yet. Its credential cannot enter Git or retained evidence, and the created
+workload identities cannot administer federation, IAM, or themselves. This identity bootstrap is
+separate from Terraform backend bootstrap.
+
+The exact protected-setting, attribute-mapping, identity-matrix, readback, and stop profile is in
+the subordinate [qualification-deployment runbook](runbooks/qualification_deployment.md). Until the
+complete AP-M8-W1 authority is owner-accepted and the AP-M8-W3/AP-M8-W4 checkpoints are separately
+approved and executed, these controls produce no provider or Live evidence.
+
 ## Unresolved security decisions
 
 The following decisions must be approved by their owning later slice before the named evidence can
@@ -554,7 +607,7 @@ pass:
 | --- | --- |
 | Exact OAuth client and secret-version references, image digests, bucket names, billing-account reference, notification destination, managed-zone resource, and initial Live Registration Set | AP-M8 operator-input review |
 | Provider configuration/readback for the selected runtime limits and observed multi-instance abuse behavior | AP-M8 deployment and AP-M9 Live qualification |
-| Exact protected workflow subjects, protected environment, federation provider, operation identities, and IAM bindings | AP-M8 repository and identity mutation |
+| Exact repository and owner numeric identifiers, protected workflow refs and environment names, federation resources, operation service accounts, permission sets, scopes, and IAM bindings | AP-M8-W2 operator-input acceptance before AP-M8-W3 or AP-M8-W4 |
 | Backend initialization, state lineage, provider ingress and IAM realization, and direct-origin denial | AP-M8 deployment and AP-M9 Live qualification |
 | Configuration-object publication, candidate revision, traffic pointer, DNS/TLS, readback, and rollback execution | AP-M8 deployment and AP-M9 Live qualification |
 | Provider audit behavior, log/evidence access, retention enforcement, budget delivery, and cleanup behavior | AP-M9 Live evidence collection |

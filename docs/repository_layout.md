@@ -2,8 +2,9 @@
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
 complete; AP-M7 static Terraform, configuration, and inert workflows implemented and passing the
-deterministic repository gate; no backend or provider operation, cloud resource, IAM mutation,
-deployment, or Live qualification performed
+deterministic repository gate; AP-M8 authority reserves backend-preparation support only; no
+backend or provider operation, cloud resource, IAM mutation, deployment, or Live qualification
+performed
 
 The project is organized at the dedicated repository root produced by the history-preserving
 subtree extraction. Paths remain project-relative so repository identity does not alter platform
@@ -20,6 +21,7 @@ contracts, verification, or ownership boundaries.
 | `GLOSSARY.md` | Canonical platform vocabulary |
 | `docs/` | Platform design authority, runbooks, and evidence indexes |
 | `docs/runbooks/` | Subordinate operator procedures requiring their own explicit approvals |
+| `docs/runbooks/qualification_deployment.md` | Proposal-only AP-M8 protected-setting, identity, backend, deployment, and evidence checkpoints; no action authority |
 | `prompts/` | Bounded task entry points that link to authoritative documents |
 | `integrations/` | Inactive application-adoption inputs with no consuming-app authority |
 | `contracts/` | Version 1 schemas, deterministic reference compiler, reviewed contract vectors, and bounded runtime JSON loading |
@@ -42,6 +44,21 @@ contracts, verification, or ownership boundaries.
 | `infrastructure/terraform/modules/shared-edge/` | AP-M7-W7 internal immutable Cloud Run candidate, direct-origin restriction, serverless backend, certificate, HTTPS forwarding, and HTTP redirect implementation |
 | `infrastructure/terraform/modules/platform-controls/` | AP-M7-W8 internal regional logging, default-bucket exclusion, private evidence, owner-read, budget-notification, and dry-run artifact-retention intent implementation |
 | `infrastructure/workflows/` | AP-M7-W9 parseable but non-executable advisory-plan, apply, rollback, force-unlock, and destroy authority templates |
+
+## Proposed AP-M8 capability locations
+
+These paths are authority reservations, not implemented capabilities or permission to create them:
+
+| Path | Intended owner |
+| --- | --- |
+| `infrastructure/backend/bootstrap-backend.tf.tmpl` | AP-M8-W5 reviewed empty GCS backend declaration for a private temporary bootstrap-root copy only |
+| `infrastructure/backend/render_bootstrap_backend.py` | AP-M8-W5 credential-free deterministic renderer that refuses overwrite and emits no value, state, credential, or provider data |
+
+AP-M8-W5 must implement and test these two files in a repository-only protected-main change before
+requesting backend-mutation approval. They never contain a bucket name, prefix, credential, backend
+state, saved plan, provider response, or deployable operator default. Their presence will not
+authorize bootstrap, migration, initialization, force-copy, force-unlock, state push, import, or
+apply.
 
 ## Approved AP-M7 capability locations
 

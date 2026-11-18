@@ -1,8 +1,8 @@
 # App Platform system design
 
-Version 1.0 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, approved
-AP-M7 Terraform configuration profile, and proposed AP-M8 protected-source and federated-identity
-profile;
+Version 1.1 | Status: Fixture-qualified logical design, approved AP-M6 runtime profile, approved
+AP-M7 Terraform configuration profile, and proposed AP-M8 protected-source, federated-identity,
+backend-bootstrap, and state-lineage profiles;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -558,10 +558,11 @@ reviewed Version 1 workflow configuration before requesting a plan or mutation. 
 and owner bindings prevent a renamed or recreated repository from inheriting name-only trust.
 
 Each enabled root-operation pair has a distinct service account and exact impersonation binding.
-Plan identities may read only the selected backend and provider metadata needed for a plan. Apply
-and rollback identities may read and write only their selected backend and mutate only resources
-owned by that root through the exact reviewed same-job plan. A force-unlock identity may affect only
-one approved lock and no provider resource. A destroy identity may affect only its root through one
+Plan identities may read only the selected state and provider metadata and create/delete only that
+root's native lock object; they cannot write state content or mutate a provider resource. Apply and
+rollback identities may read and write only their selected backend and mutate only resources owned
+by that root through the exact reviewed same-job plan. A force-unlock identity may affect only one
+approved lock and no provider resource. A destroy identity may affect only its root through one
 explicit reviewed destroy plan. Unused rollback, force-unlock, and destroy identities have no
 binding.
 
@@ -583,6 +584,60 @@ checkpoint inputs, setting profile, identity matrix, readback, and stop conditio
 runbook are AP-M8-W1 authority proposals only. They create no environment, executable workflow,
 pool, provider, service account, IAM binding, credential, backend, plan, resource, DNS change, or
 deployment.
+
+### AP-M8 backend bootstrap and state-lineage profile
+
+Four private versioned GCS buckets support five independent root lineages. The bootstrap and
+platform roots share the platform-state bucket but use exact `bootstrap` and `platform` prefixes
+with distinct conditional access. Each Fixture Application root uses its own bucket and its fixed
+`fixtures/<application-id>` prefix. Only the default Terraform workspace is permitted. A root may
+read or write only its own object prefix, and a bucket-wide or project-wide storage fallback is
+prohibited.
+
+The bootstrap root begins with local state because it creates the buckets. AP-M7 intentionally
+commits no backend block for that root, so AP-M8-W5 must first add the reviewed
+`infrastructure/backend/bootstrap-backend.tf.tmpl` and its credential-free deterministic renderer
+through a protected-main pull request.
+The initial apply uses an exact private copy without that declaration. Only after all four bucket
+and IAM controls read back may the renderer add the reviewed declaration to the temporary copy and
+migrate the state into the empty `bootstrap` prefix.
+
+The initial local bootstrap uses one separately approved short-lived owner credential and one exact
+saved plan retained only in a mode-`0700` temporary directory outside the repository. It may create
+only the four AP-M7 state buckets. Each bucket retains uniform access, enforced public-access
+prevention, object versioning, `STANDARD` single-region storage, deletion prevention, no force
+destroy, required ownership labels, and noncurrent deletion only after both the approved age and
+newer-version thresholds are satisfied. API enablement, billing mutation, project-wide storage
+authority, and any non-backend resource remain outside that plan.
+
+The AP-M7 state-bucket module deliberately defers IAM. After bucket creation, the same approved
+AP-M8-W5 owner checkpoint applies only the reviewed bucket-metadata and conditionally prefix-scoped
+object-access bindings. Those bindings are operator-managed Platform control settings rather than
+resources claimed by another Terraform root. They may not replace an entire policy or grant whole-
+bucket object access where bootstrap and platform share the platform-state bucket.
+
+Before migration, the local state backup is integrity-checked and the remote `bootstrap` prefix is
+proven empty. Migration preserves the exact lineage, a non-decreasing serial, provider and resource
+address inventories, instance identities, and non-secret backend references. Post-migration
+readback proves the remote object location and versioning, native lock acquisition and release, and
+a no-change plan. Raw state and lineage never enter evidence; only their digests, serial, and
+redacted inventories may be recorded.
+
+The local active state remains authoritative until migration and recovery-input readback are
+accepted. Recovery-input readback proves that the exact protected generation and restricted backup
+can be located and integrity-checked; it does not execute restoration or qualify recovery. A
+migration error freezes both copies and never triggers reconfiguration, force-copy retry,
+force-unlock, state push, import, deletion, or reconstruction without a new approval.
+
+The platform and three fixture roots initialize independently from clean private copies using only
+their reviewed bucket and prefix. Initialization does not apply, pre-seed, or create dummy state.
+An empty prefix has status `not-created`; its lineage is recorded only after AP-M8-W9's first
+approved apply and reconciled under AP-M8-W11. This distinguishes backend readiness from a false
+claim that a non-bootstrap state or resource already exists.
+
+The subordinate [qualification-deployment runbook](runbooks/qualification_deployment.md) defines
+the preparation dependency, prerequisites, fixed map, migration invariants, readback, partial-
+failure stops, and allowed record. This AP-M8-W1 proposal performs none of those operations.
 
 ### AP-M7 Terraform configuration profile
 
@@ -1108,9 +1163,10 @@ rollback behavior, Version 0.7 selects observability, evidence, incident, and co
 Version 0.8 selects the AP-M6 network module, dependency, and bounded-request profile. Version 0.9
 selects the AP-M7 root interfaces, configuration contracts, pinned toolchain, static verification,
 and inert workflow-template profile. Version 1.0 proposes the AP-M8 protected-source, environment,
-federation, and root-operation identity profile without configuring it. None supplies provider,
-network, identity, deployment, or Live evidence. Adoption qualification remains a later
-application-owned gate.
+federation, and root-operation identity profile without configuring it. Version 1.1 proposes the
+AP-M8 backend-bootstrap and state-lineage profile without creating a bucket, state, or lineage.
+None supplies provider, network, identity, deployment, or Live evidence. Adoption qualification
+remains a later application-owned gate.
 
 ## Design trace
 
@@ -1127,4 +1183,5 @@ application-owned gate.
 | Terraform state and operator authority | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
 | AP-M7 Terraform configuration profile | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
 | AP-M8 protected source, environments, federation, and operation identities | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003 through AP-QR-006 | ADR-001, ADR-004, ADR-007 |
+| AP-M8 backend bootstrap, migration, and state lineage | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003 through AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
 | Observability, evidence, incidents, and cost | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007, AP-PR-008; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-004, ADR-009 |

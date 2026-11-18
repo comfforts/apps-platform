@@ -1380,10 +1380,27 @@ and scopes before the owner closes the package.
 
 #### AP-M8-W5 · Backend bootstrap and state lineage
 
-Execute the one-time bootstrap with short-lived approved authority, verify recovery controls and
-exclusive ownership, migrate temporary local state only after lineage readback succeeds, and
-initialize each non-bootstrap root against its independent reviewed backend. Stop before any root
-apply when lineage, locking, versioning, IAM, prefix, or recovery readback disagrees.
+First merge a repository-only implementation of
+`infrastructure/backend/bootstrap-backend.tf.tmpl` and its credential-free deterministic renderer,
+with tests proving that the AP-M7 root remains local for its initial apply and receives only the
+reviewed declaration as `backend.tf` for migration. No authenticated action may begin before that
+support passes the complete gate on protected `main`.
+
+Under a later explicit operator approval, use one short-lived owner credential and one private
+exact-source copy to plan and create only four reviewed private, versioned, recovery-bounded state
+buckets. Five lineages use fixed prefixes: `bootstrap` and `platform` in the platform-state bucket,
+plus one `fixtures/<application-id>` prefix in each fixture bucket. Conditional access must preserve
+root separation even where the bucket is shared; a project-wide or cross-prefix fallback is
+prohibited.
+
+After bucket, policy, label, IAM, and empty-prefix readback succeeds, retain a restricted local
+backup, render the reviewed backend declaration, and migrate bootstrap state while preserving
+lineage, non-decreasing serial, providers, resource and instance inventories, and non-secret
+references. Verify remote versioning, native locking, recovery inputs, and a no-change plan before
+removing the active local copy. Initialize the four non-bootstrap roots one at a time without apply,
+migration, dummy state, state push, or invented lineage; empty prefixes remain `not-created` until
+AP-M8-W9. The [qualification-deployment runbook](runbooks/qualification_deployment.md) owns exact
+prerequisites, invariants, records, and failure stops.
 
 #### AP-M8-W6 · Executable workflow realization
 
@@ -1480,8 +1497,8 @@ AP-M8 is accepted only when all of the following are true:
 AP-M8 crosses from static configuration into protected repository, identity, state, provider, and
 DNS control planes. Exact-source binding, least privilege, state isolation, explicit checkpoints,
 stop-on-partial-failure behavior, and redacted readback reduce but do not eliminate those risks.
-Detailed controls and evidence rules remain incomplete until the later AP-M8-W1 authority commits;
-that incompleteness is a hard block on AP-M8-W2.
+Deployment sequencing, evidence rules, and AP-EVAL-M8 remain incomplete until the later AP-M8-W1
+authority commits; that incompleteness is a hard block on AP-M8-W2.
 
 No credential, token, assertion, session, restricted identity, application payload, state content,
 saved plan, raw provider response, browser state, or unredacted log may enter Git or the retained
@@ -1490,10 +1507,10 @@ coarse operation outcomes are not secrets but remain bounded to the approved rec
 
 ### Limitations and unresolved authority
 
-This scope commit does not yet complete the protected-control profile, backend procedure,
-deployment sequence, evidence schema, or AP-EVAL-M8 gate. Those are required AP-M8-W1 authority
-increments, not implementation tasks and not optional skips. Until they are accepted together,
-AP-M8-W2 through AP-M8-W12 cannot start.
+The protected-control and backend profiles are still proposal authority, not implemented controls.
+AP-M8-W1 does not yet complete the deployment sequence, evidence schema, or AP-EVAL-M8 gate. Those
+are required authority increments, not implementation tasks and not optional skips. Until every
+AP-M8-W1 increment is accepted together, AP-M8-W2 through AP-M8-W12 cannot start.
 
 AP-M8 deployment cannot prove visitor or application behavior, direct-origin denial, real login,
 assertion verification, load, availability, multi-instance behavior, rollback time, recovery,

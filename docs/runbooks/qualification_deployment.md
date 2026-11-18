@@ -12,9 +12,9 @@ Requirements: AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003 t
 
 Decisions: ADR-001, ADR-004, ADR-007
 
-Threats: AP-TM-004, AP-TM-005, AP-TM-007 through AP-TM-011, AP-TM-013, AP-TM-014
+Threats: AP-TM-004, AP-TM-005, AP-TM-007 through AP-TM-014
 
-Plan: AP-M8-W1, AP-M8-W3, AP-M8-W4
+Plan: AP-M8-W1, AP-M8-W3, AP-M8-W4, AP-M8-W5
 
 ## Checkpoint rule
 
@@ -145,7 +145,7 @@ and one exact workload-identity impersonation binding for every enabled cell in 
 
 | Operation | Environment class | Permitted provider authority |
 | --- | --- | --- |
-| Plan | Plan | Read the selected root's backend and only the provider metadata required to calculate and read back its plan; no mutation |
+| Plan | Plan | Read the selected root's state and provider metadata and create/delete only its native backend lock; no state-content or provider-resource mutation |
 | Apply | Apply | Read and write the selected root's backend and mutate only resources owned by that root through one reviewed same-job plan |
 | Rollback | Recovery | Read and write the selected root's backend and perform only the reviewed rollback plan for that root |
 | Force-unlock | Recovery | Inspect the selected root's lock and remove only the exact approved lock identifier; no provider-resource mutation |
@@ -197,3 +197,189 @@ Readback records only non-secret setting names, resource references, numeric rep
 workflow/environment/root/operation bindings, role identifiers, source revisions, timestamps,
 coarse outcomes, and hashes. OIDC tokens, generated credentials, IAM access tokens, raw provider
 responses, browser state, and environment dumps are prohibited.
+
+## AP-M8-W5 backend bootstrap and state lineage
+
+AP-M8-W5 has a repository-only preparation phase and a later operator phase. Preparation adds and
+deterministically tests the reviewed bootstrap-backend declaration mechanism described below, then
+merges it through protected `main`. It performs no authenticated command. Only a subsequent explicit
+owner approval may start the operator phase at that exact merged revision.
+
+The AP-M7 bootstrap root intentionally has no backend block because it must create its own backend
+buckets from local state. The non-bootstrap roots already contain empty `gcs` backend declarations.
+AP-M8-W5 must not improvise or hand-edit a backend declaration in an authenticated working
+directory. Before the operator phase, protected `main` must contain
+`infrastructure/backend/bootstrap-backend.tf.tmpl`, whose only Terraform content is the empty GCS
+backend declaration, and `infrastructure/backend/render_bootstrap_backend.py`, a credential-free
+standard-library renderer that copies it into a private temporary bootstrap-root copy as
+`backend.tf` for migration. The gate must verify the template and rendered digest, exact destination
+filename, refusal to overwrite, absence during initial local apply, and presence only during
+migration and later remote operation.
+
+This requirement is unresolved implementation work owned by AP-M8-W5. Until it is merged and its
+deterministic tests pass, backend bootstrap is blocked.
+
+### Fixed root and prefix map
+
+Four buckets hold five independent root lineages. Bucket names are exact AP-M8-W2 operator inputs;
+prefixes and owners are fixed:
+
+| Root | State owner | Bucket | Prefix | Initial state action |
+| --- | --- | --- | --- | --- |
+| `bootstrap` | Platform State backend resources | Platform-state bucket | `bootstrap` | Create locally, then migrate while preserving lineage |
+| `platform` | Platform State | Platform-state bucket | `platform` | Initialize empty remote backend; first approved apply creates lineage |
+| `fixture-public` | Fixture Application State | Fixture-public state bucket | `fixtures/fixture-public` | Initialize empty remote backend; first approved apply creates lineage |
+| `fixture-authenticated` | Fixture Application State | Fixture-authenticated state bucket | `fixtures/fixture-authenticated` | Initialize empty remote backend; first approved apply creates lineage |
+| `fixture-restricted` | Fixture Application State | Fixture-restricted state bucket | `fixtures/fixture-restricted` | Initialize empty remote backend; first approved apply creates lineage |
+
+The Version 1 backend configuration and `backend_reference_set` continue to expose the platform and
+three fixture references. The `bootstrap` prefix is an operator-procedure constant for the state of
+the root that owns those buckets; it is not a cross-state reference and is never supplied to another
+root. Terraform workspaces other than `default` are prohibited because they create unreviewed
+object paths and lineages.
+
+The two platform-state prefixes require separate conditional object access for the bootstrap and
+platform root identities. Each fixture bucket admits only identities for its own root. If GCS IAM
+readback cannot prove the reviewed prefix or bucket scope without granting cross-root access,
+AP-M8-W5 stops and requires a new design; project-wide or whole-platform-bucket object authority is
+not an acceptable fallback.
+
+### Operator prerequisites
+
+Before the one-time local bootstrap begins, the owner reviews one proposed-operation record proving:
+
+- AP-M8-W1 is merged, and AP-M8-W2 through AP-M8-W4 passed their exact checkpoints;
+- the source is the exact clean protected-main revision containing the reviewed backend renderer;
+- `make check` passed at that revision with Terraform 1.17.2 and `hashicorp/google` 8.11.0;
+- the operator-class Version 1 backend configuration validates and its digest matches the manifest;
+- project `comfforts-platform-non-prod`, number `455651441682`, region `us-west1`, four globally
+  unique bucket names, five prefixes, recovery bounds, labels, and IAM scopes match the manifest;
+- every target bucket and prefix is absent and unclaimed; an existing object or bucket is not
+  imported, emptied, overwritten, or adopted by this procedure;
+- required provider APIs and the billing attachment are already reviewed and available without an
+  unapproved service enablement or billing change;
+- one short-lived owner credential has only the approved bucket-bootstrap and binding permissions,
+  contains no service-account key, and will not be retained; and
+- the private temporary working directory, state-backup location, evidence destination, stop
+  owner, and recovery contact are known before planning.
+
+A missing API, unavailable name, pre-existing bucket or prefix, provider default, synthetic value,
+unexpected IAM inheritance, or broader credential stops before a plan is created.
+
+### Private local bootstrap
+
+The operator creates a mode-`0700` temporary directory outside the repository and runner caches,
+copies the exact reviewed Terraform subtree into it, and verifies the copy digest. Backend,
+variable, plan, state, and provider-response files remain under that directory with restrictive
+permissions and never enter Git, an Actions artifact, a job summary, or the AP-M8 evidence bundle.
+
+The bootstrap-root copy initially contains no backend declaration. It initializes only the locked
+toolchain and local backend, validates the exact operator configuration, creates a saved plan under
+the private temporary directory, records the canonical redacted plan digest, and applies that exact
+plan with the short-lived owner credential. The operation never uses `-lock=false`, a mutable
+provider selection, an implicit variable, or an automatically approved follow-on command.
+
+The plan may create exactly four GCS buckets and their AP-M7 labels and recovery controls. Each
+bucket must read back:
+
+- the exact project, globally unique name, `US-WEST1` location, and `STANDARD` storage class;
+- uniform bucket-level access and enforced public-access prevention;
+- object versioning;
+- deletion prevention and `force_destroy = false` in the exact applied configuration;
+- noncurrent deletion only after both the reviewed 90-to-365-day age and 20-to-50-newer-version
+  thresholds are met; and
+- the exact `environment`, `managed_by`, `state_owner`, and applicable `application_id` labels.
+
+IAM readback must then match only the approved root-operation principals and conditional scopes.
+Because the AP-M7 state-bucket module deliberately defers IAM, the same approved owner checkpoint
+then applies only the reviewed per-bucket metadata and conditionally prefix-scoped object-access
+bindings. Those bindings are operator-managed Platform control settings, remain outside another
+Terraform root, and cannot replace an entire policy or grant whole-bucket object access where two
+roots share the platform-state bucket. The bootstrap apply does not enable an API, create another
+resource, write a remote state object, or grant a project-wide storage role.
+
+### Bootstrap-state migration
+
+After bucket and IAM readback succeeds, the operator captures a restricted local state backup and
+records only its SHA-256 digest, Terraform state-format version, Terraform version, lineage digest,
+serial, provider-address set, and sorted resource-address inventory. Raw state, lineage, attributes,
+outputs, and provider payloads remain outside evidence.
+
+Before migration, the platform-state bucket's `bootstrap` prefix must contain no state or lock
+object. The deterministic renderer adds the reviewed empty GCS backend declaration to the temporary
+bootstrap copy and produces a backend configuration containing only the exact platform-state bucket
+and `bootstrap` prefix. The operator compares both files with their reviewed digests.
+
+Migration uses Terraform's explicit state-migration mode with locking enabled. Non-interactive
+`-force-copy` is permitted only when the proposed operation named it and the owner approved the
+already verified empty target immediately before execution; it is never a retry shortcut. A
+migration warning, prompt outside the reviewed confirmation, lineage change, occupied target,
+credential change, or lock failure stops with the local backup retained.
+
+Post-migration readback must prove:
+
+- the remote state lineage equals the original local lineage;
+- the remote serial is not lower than the pre-migration serial;
+- provider addresses, resource addresses, instance identities, and non-secret bucket references
+  match the pre-migration state;
+- the state object is in the platform-state bucket under only the `bootstrap` prefix, versioning is
+  active, and no alternate or local active state exists;
+- the bootstrap root can acquire and release the native GCS backend lock through a no-change
+  operation without `-lock=false`; and
+- a fresh remote plan at the same source and input digests reports no unreviewed change.
+
+The restricted local backup remains until those checks and the private recovery-input readback are
+owner-accepted. Recovery-input readback proves the exact state generation can be located, read, and
+integrity-checked and that an older protected copy remains available; it does not execute a restore
+or qualify AP-M9 recovery behavior. After acceptance, the temporary active state, generated
+credential, plan, and provider payloads are removed from the working directory. Any retained
+recovery copy remains encrypted, access-controlled, separately inventoried, and excluded from the
+evidence bundle.
+
+### Non-bootstrap backend initialization
+
+The platform and three fixture roots initialize one at a time from clean private copies. Each
+backend configuration contains only its exact bucket and fixed prefix from the reviewed map. The
+operator verifies that no local state exists and the remote prefix is empty, then initializes with
+input disabled, the committed lock read-only, and no migration or force-copy flag.
+
+Initialization may verify backend access but does not apply a root, create an empty state object,
+invent a lineage, or read another root's backend. An empty prefix is recorded as `not-created`; its
+lineage becomes available only after AP-M8-W9's first approved apply and is reconciled by
+AP-M8-W11. Claiming a lineage for an empty backend, pre-seeding state with `state push`, or using a
+dummy resource to create a state generation fails AP-M8-W5.
+
+Each plan identity must be unable to write state content or read another root, while retaining only
+the create/delete permission required for its own native lock object. Each apply or rollback
+identity must be unable to access another root's bucket or prefix. Exceptional force-unlock and
+destroy identities remain unbound unless their separately approved operation is active.
+
+### Partial failure and recovery boundary
+
+Failure before any bucket exists leaves no provider resource and closes the checkpoint. Partial
+bucket creation retains the private local state and stops; the operator does not delete, import,
+recreate, rename, or manually edit a bucket. A new exact plan and owner decision are required.
+
+Migration failure retains the local state and backup and freezes both local and remote targets.
+The operator does not retry with `-reconfigure`, `-force-copy`, `-lock=false`, force-unlock, or state
+push until readback identifies the authoritative lineage and a new recovery action is approved.
+Loss of the local state before accepted migration is a recovery incident, not permission to import
+provider resources or reconstruct state manually.
+
+A mismatch during non-bootstrap initialization leaves that root unapplied and cannot affect another
+root. No AP-M8-W5 failure triggers resource destroy, backend deletion, IAM broadening, state repair,
+workflow realization, deployment, DNS, traffic, or cleanup.
+
+### Backend checkpoint record
+
+The AP-M8-W5 record may contain source and configuration digests, tool versions, exact command
+shapes with values redacted where required, bucket names, regions, policy and label summaries, IAM
+role identifiers and conditions, root/prefix mappings, state and lineage digests, serials, object-
+generation digests, resource-address inventories, timestamps, approvals, outcomes, limitations, and
+the `not-created` status of empty roots.
+
+It contains no credential, token, local or remote state content, lineage value, state attribute,
+saved plan, backend object payload, generated credential file, raw provider response, environment
+dump, or recovery copy. Passing AP-M8-W5 proves only backend creation, bootstrap-lineage migration,
+policy readback, and empty-root initialization; it does not prove a non-bootstrap apply, state
+recovery, provider runtime, or Live behavior.

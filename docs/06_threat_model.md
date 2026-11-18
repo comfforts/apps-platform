@@ -1,8 +1,8 @@
 # App Platform threat model
 
-Version 1.0 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
-AP-M7 infrastructure-configuration controls, and proposed AP-M8 protected-source and federated-
-identity controls;
+Version 1.1 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
+AP-M7 infrastructure-configuration controls, and proposed AP-M8 protected-source, federated-
+identity, backend-bootstrap, and state-lineage controls;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -598,6 +598,53 @@ the subordinate [qualification-deployment runbook](runbooks/qualification_deploy
 complete AP-M8-W1 authority is owner-accepted and the AP-M8-W3/AP-M8-W4 checkpoints are separately
 approved and executed, these controls produce no provider or Live evidence.
 
+## AP-M8 backend-bootstrap and state-lineage controls
+
+AP-M8-W1 proposes these AP-M8-W5 controls without creating a backend or state:
+
+- **AP-TM-007:** The bootstrap root uses one exact local plan and private state before a reviewed
+  backend declaration is rendered from protected source. Migration targets a proven-empty
+  `bootstrap` prefix and preserves lineage, non-decreasing serial, providers, resources, instances,
+  and references. Empty non-bootstrap prefixes remain `not-created` until their first approved
+  apply; no dummy state or invented lineage may satisfy the checkpoint.
+- **AP-TM-008 and AP-TM-009:** Four buckets hold five root lineages. Bootstrap and platform share
+  only a bucket and use distinct conditionally authorized prefixes; every fixture has its own
+  bucket. Default-workspace-only operation, root-scoped IAM, typed non-secret references, and
+  explicit owner/prefix mapping prohibit backend reads, writes, locks, or recovery actions across
+  roots and applications.
+- **AP-TM-010:** Local and remote state, lineage values, plans, backend payloads, credentials,
+  provider responses, lock data, recovery copies, and generated backend files remain restricted
+  operational material. Evidence retains only approved hashes, serials, redacted inventories,
+  resource references, policies, labels, conditions, outcomes, and `not-created` statuses.
+- **AP-TM-011:** The bootstrap backend declaration and renderer must be committed, digest-bound,
+  deterministic, and passing before use. The operator uses exact Terraform/provider locks,
+  protected source, operator-class configuration, one reviewed temporary copy, one saved plan, and
+  an explicit migration action. An occupied bucket or prefix, alternate workspace, implicit input,
+  mutable provider, manual backend file, or unreviewed reconfiguration fails closed.
+- **AP-TM-012:** State buckets use uniform access, public-access prevention, versioning, deletion
+  prevention, no force destroy, fixed regional standard storage, bounded noncurrent retention, and
+  required labels. Those safeguards reduce accidental exposure and deletion but do not prove
+  provider availability, disaster recovery, or spending behavior.
+- **AP-TM-013:** Partial bucket creation retains the private local state and stops. Migration
+  failure freezes local and remote copies. No failure automatically retries with force-copy,
+  disables locking, unlocks, pushes state, imports, deletes, reconstructs state, broadens IAM,
+  initializes another root, or advances deployment. Loss of the authoritative local state before
+  migration acceptance is a recovery incident.
+- **AP-TM-014:** Backend names, identities, prefixes, state, and evidence belong only to the
+  non-production App Platform and synthetic Fixture Applications. No Finance, real-application,
+  Integration Draft, or Adoption state can enter the bootstrap or be inferred from it.
+
+The initial owner credential may create only the four reviewed buckets and their exact controls.
+API enablement, billing mutation, project-wide storage roles, and non-backend resources require
+other authority. Recovery-input readback verifies protected copies are locatable and intact but
+does not restore one or qualify AP-M9 recovery.
+
+The complete procedure, fixed mapping, migration invariants, partial-failure boundary, and allowed
+record are in the [qualification-deployment runbook](runbooks/qualification_deployment.md). Until
+the required AP-M8-W5 repository preparation is merged and the later operator checkpoint is
+explicitly approved, these controls supply no backend, state, provider, deployment, or Live
+evidence.
+
 ## Unresolved security decisions
 
 The following decisions must be approved by their owning later slice before the named evidence can
@@ -608,7 +655,9 @@ pass:
 | Exact OAuth client and secret-version references, image digests, bucket names, billing-account reference, notification destination, managed-zone resource, and initial Live Registration Set | AP-M8 operator-input review |
 | Provider configuration/readback for the selected runtime limits and observed multi-instance abuse behavior | AP-M8 deployment and AP-M9 Live qualification |
 | Exact repository and owner numeric identifiers, protected workflow refs and environment names, federation resources, operation service accounts, permission sets, scopes, and IAM bindings | AP-M8-W2 operator-input acceptance before AP-M8-W3 or AP-M8-W4 |
-| Backend initialization, state lineage, provider ingress and IAM realization, and direct-origin denial | AP-M8 deployment and AP-M9 Live qualification |
+| Exact bucket names, root-prefix permission bindings, backend-renderer implementation, and initial owner credential scope | AP-M8-W2 acceptance and AP-M8-W5 repository preparation before backend mutation |
+| Backend initialization and bootstrap-lineage migration | AP-M8-W5 operator checkpoint |
+| Non-bootstrap lineage, provider ingress and IAM realization, and direct-origin denial | AP-M8 deployment and AP-M9 Live qualification |
 | Configuration-object publication, candidate revision, traffic pointer, DNS/TLS, readback, and rollback execution | AP-M8 deployment and AP-M9 Live qualification |
 | Provider audit behavior, log/evidence access, retention enforcement, budget delivery, and cleanup behavior | AP-M9 Live evidence collection |
 | Observed scaling, cost, artifact retention, and approved-service behavior | AP-M9 Live qualification |

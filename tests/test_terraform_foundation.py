@@ -87,7 +87,9 @@ class TerraformFoundationTest(unittest.TestCase):
         check_source = (
             PROJECT_ROOT / "infrastructure/tools/terraform_check.py"
         ).read_text(encoding="utf-8")
-        self.assertIn('variable.startswith(("TF_TOKEN_", "TF_CLI_ARGS"))', check_source)
+        self.assertIn('"HOME": str(isolated_home)', check_source)
+        self.assertIn('"PATH": os.environ.get("PATH", "")', check_source)
+        self.assertNotIn("environment = dict(os.environ)", check_source)
 
     def test_check_workflow_separates_setup_from_the_offline_gate(self) -> None:
         workflow = (PROJECT_ROOT / ".github/workflows/check.yml").read_text(

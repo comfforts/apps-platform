@@ -67,6 +67,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "tests/test_observability.py",
             "tests/test_proxy.py",
             "tests/test_runtime_qualification.py",
+            "tests/test_terraform_qualification.py",
             "tests/test_workflow_templates.py",
             "tests/fixtures/assertion-test-keys.jwk.json",
             "tests/fixtures/oidc-test-private.jwk.json",
@@ -1112,6 +1113,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("terraform-setup:", makefile)
         self.assertIn("terraform-check:", makefile)
         self.assertIn("tests.test_workflow_templates", makefile)
+        self.assertIn("tests.test_terraform_qualification", makefile)
         self.assertIn("credential-free, deterministic, network-free", evaluation)
 
     def test_ap_m4_authorities_have_complete_unique_identifiers(self) -> None:

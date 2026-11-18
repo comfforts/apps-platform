@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -17,16 +18,6 @@ PROJECT_ROOT = terraform_setup.PROJECT_ROOT
 TERRAFORM_SOURCE = PROJECT_ROOT / "infrastructure" / "terraform"
 CONFIG_SOURCE = PROJECT_ROOT / "infrastructure" / "config"
 
-_CREDENTIAL_VARIABLES = {
-    "GOOGLE_APPLICATION_CREDENTIALS",
-    "GOOGLE_BACKEND_CREDENTIALS",
-    "GOOGLE_CREDENTIALS",
-    "GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
-    "GOOGLE_OAUTH_ACCESS_TOKEN",
-    "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE",
-}
-
-
 def _run(command: list[str], *, cwd: Path, environment: dict[str, str]) -> None:
     result = subprocess.run(
         command,
@@ -35,10 +26,14 @@ def _run(command: list[str], *, cwd: Path, environment: dict[str, str]) -> None:
         capture_output=True,
         text=True,
     )
-    if result.returncode != 0:
+    combined_output = f"{result.stdout}\n{result.stderr}"
+    if result.returncode != 0 or re.search(
+        r"(?im)^\s*warning:", combined_output
+    ):
         rendered = " ".join(command)
         raise RuntimeError(
-            f"command failed in {cwd}: {rendered}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            f"command failed or warned in {cwd}: {rendered}\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
 
 
@@ -90,27 +85,59 @@ def _verify_local_dependencies(manifest: dict[str, object]) -> None:
         raise RuntimeError("offline Terraform CLI configuration is missing")
 
 
-def _environment(data_directory: Path) -> dict[str, str]:
-    environment = dict(os.environ)
-    for variable in tuple(environment):
-        if variable.startswith(("TF_TOKEN_", "TF_CLI_ARGS")):
-            environment.pop(variable)
-    for variable in _CREDENTIAL_VARIABLES:
-        environment.pop(variable, None)
-    environment.pop("TF_PLUGIN_CACHE_DIR", None)
-    environment.update(
-        {
-            "CHECKPOINT_DISABLE": "1",
-            "GCE_METADATA_HOST": "127.0.0.1:1",
-            "HTTP_PROXY": "http://127.0.0.1:1",
-            "HTTPS_PROXY": "http://127.0.0.1:1",
-            "NO_PROXY": "",
-            "TF_CLI_CONFIG_FILE": str(terraform_setup.OFFLINE_CLI_CONFIG),
-            "TF_DATA_DIR": str(data_directory),
-            "TF_IN_AUTOMATION": "1",
-        }
+def _write_offline_cli_configuration(destination: Path) -> Path:
+    destination.write_text(
+        "provider_installation {\n"
+        "  filesystem_mirror {\n"
+        f"    path = {json.dumps(str(terraform_setup.MIRROR_ROOT.resolve()))}\n"
+        f'    include = ["{terraform_setup.GOOGLE_PROVIDER_SOURCE}"]\n'
+        "  }\n"
+        "}\n"
+        "disable_checkpoint = true\n",
+        encoding="utf-8",
     )
-    return environment
+    return destination
+
+
+def _environment(data_directory: Path, cli_config: Path) -> dict[str, str]:
+    isolated_home = data_directory.parent / "home"
+    isolated_home.mkdir(parents=True, exist_ok=True)
+    return {
+        "CHECKPOINT_DISABLE": "1",
+        "GCE_METADATA_HOST": "127.0.0.1:1",
+        "HOME": str(isolated_home),
+        "HTTP_PROXY": "http://127.0.0.1:1",
+        "HTTPS_PROXY": "http://127.0.0.1:1",
+        "NO_PROXY": "",
+        "PATH": os.environ.get("PATH", ""),
+        "TF_CLI_CONFIG_FILE": str(cli_config),
+        "TF_DATA_DIR": str(data_directory),
+        "TF_IN_AUTOMATION": "1",
+        "TMPDIR": os.environ.get("TMPDIR", tempfile.gettempdir()),
+        "XDG_CONFIG_HOME": str(isolated_home / ".config"),
+    }
+
+
+def _plan_only_test_files(root: Path) -> tuple[Path, ...]:
+    test_directory = root / "tests"
+    test_files = tuple(sorted(test_directory.glob("*.tftest.hcl")))
+    if not test_files:
+        raise RuntimeError(f"Terraform root has no mocked plan tests: {root}")
+
+    for test_file in test_files:
+        contents = test_file.read_text(encoding="utf-8")
+        run_count = len(re.findall(r'(?m)^\s*run\s+"[^"]+"\s*\{', contents))
+        plan_count = len(re.findall(r"(?m)^\s*command\s*=\s*plan\s*$", contents))
+        if re.search(r"(?m)^\s*command\s*=\s*apply\s*$", contents):
+            raise RuntimeError(f"apply-mode Terraform test is prohibited: {test_file}")
+        if run_count == 0 or plan_count != run_count:
+            raise RuntimeError(
+                f"every Terraform test run must declare command = plan: {test_file}"
+            )
+        if not re.search(r'(?m)^\s*mock_provider\s+"google"\s*\{', contents):
+            raise RuntimeError(f"Terraform test must mock the Google provider: {test_file}")
+
+    return test_files
 
 
 def validate_foundation() -> tuple[str, ...]:
@@ -125,7 +152,12 @@ def validate_foundation() -> tuple[str, ...]:
         copied = copied_infrastructure / "terraform"
         shutil.copytree(TERRAFORM_SOURCE, copied)
         shutil.copytree(CONFIG_SOURCE, copied_infrastructure / "config")
-        formatting_environment = _environment(temporary / "format-data")
+        offline_cli_config = _write_offline_cli_configuration(
+            temporary / "offline.tfrc"
+        )
+        formatting_environment = _environment(
+            temporary / "format-data", offline_cli_config
+        )
         _run(
             [
                 str(terraform_setup.TERRAFORM),
@@ -142,7 +174,9 @@ def validate_foundation() -> tuple[str, ...]:
         for index, source_root in enumerate(terraform_setup.ROOTS):
             relative = source_root.relative_to(TERRAFORM_SOURCE)
             copied_root = copied / relative
-            environment = _environment(temporary / "data" / str(index))
+            environment = _environment(
+                temporary / "data" / str(index), offline_cli_config
+            )
             _run(
                 [
                     str(terraform_setup.TERRAFORM),
@@ -160,17 +194,17 @@ def validate_foundation() -> tuple[str, ...]:
                 cwd=copied_root,
                 environment=environment,
             )
-            if (copied_root / "tests").is_dir():
-                _run(
-                    [
-                        str(terraform_setup.TERRAFORM),
-                        "test",
-                        "-no-color",
-                        "-test-directory=tests",
-                    ],
-                    cwd=copied_root,
-                    environment=environment,
-                )
+            _plan_only_test_files(copied_root)
+            _run(
+                [
+                    str(terraform_setup.TERRAFORM),
+                    "test",
+                    "-no-color",
+                    "-test-directory=tests",
+                ],
+                cwd=copied_root,
+                environment=environment,
+            )
             validated.append(relative.as_posix())
 
         if list(temporary.rglob("*.tfstate")) or list(temporary.rglob("*.tfplan")):

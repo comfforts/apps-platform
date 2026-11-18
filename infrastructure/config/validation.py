@@ -187,6 +187,13 @@ def _fixed_operator_violations(value: dict[str, Any]) -> list[Violation]:
         _field_equals(value, "region", FIXED_REGION, violations)
     if kind in {"fixture", "platform"}:
         _field_equals(value, "project_number", FIXED_PROJECT_NUMBER, violations)
+    if kind == "fixture":
+        _field_equals(
+            value,
+            "platform_issuer",
+            f"https://{FIXED_HOSTNAME}/_platform",
+            violations,
+        )
     if kind == "platform":
         _field_equals(value, "qualification_hostname", FIXED_HOSTNAME, violations)
         _field_equals(value, "repository", FIXED_REPOSITORY, violations)
@@ -210,6 +217,16 @@ def _fixed_operator_violations(value: dict[str, Any]) -> list[Violation]:
                         "CONFIGURATION_POLICY_INVALID",
                         "/reference/project_number",
                         "platform reference must use the reviewed project number",
+                    )
+                )
+            if reference.get("public_key_reference") != (
+                f"https://{FIXED_HOSTNAME}/.well-known/jwks.json"
+            ):
+                violations.append(
+                    _violation(
+                        "CONFIGURATION_POLICY_INVALID",
+                        "/reference/public_key_reference",
+                        "platform public-key reference must use the reviewed qualification hostname",
                     )
                 )
             if reference.get("region") != FIXED_REGION:
@@ -419,6 +436,22 @@ def _cross_state_violations(value: dict[str, Any]) -> list[Violation]:
                     "OWNER_CONFLICT",
                     "/reference/backend_prefix",
                     "backend reference does not match an approved state owner",
+                )
+            )
+    elif kind == "platform":
+        issuer = reference.get("platform_issuer")
+        public_key_reference = reference.get("public_key_reference")
+        expected_public_key_reference = (
+            f"{issuer.removesuffix('/_platform')}/.well-known/jwks.json"
+            if isinstance(issuer, str) and issuer.endswith("/_platform")
+            else None
+        )
+        if public_key_reference != expected_public_key_reference:
+            violations.append(
+                _violation(
+                    "CONFIGURATION_POLICY_INVALID",
+                    "/reference/public_key_reference",
+                    "platform public-key reference must be derived from its issuer hostname",
                 )
             )
     elif kind == "attachment":

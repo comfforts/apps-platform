@@ -198,6 +198,22 @@ class InfrastructureConfigurationTest(unittest.TestCase):
         )
         self.assertIn(("FIELD_PATTERN", "/reference/resource_reference"), _codes(violations))
 
+        platform_reference = _example("cross-state-platform.synthetic.v1.json")
+        platform = platform_reference["reference"]
+        assert isinstance(platform, dict)
+        platform["public_key_reference"] = (
+            "https://other.example.invalid/.well-known/jwks.json"
+        )
+        violations = validate_configuration(
+            platform_reference,
+            "cross-state-reference",
+            allow_synthetic=True,
+        )
+        self.assertIn(
+            ("CONFIGURATION_POLICY_INVALID", "/reference/public_key_reference"),
+            _codes(violations),
+        )
+
     def test_workflow_policy_binds_subject_plan_and_destructive_target(self) -> None:
         workflow = _example("workflow-destroy.synthetic.v1.json")
         workflow["protected_subject"] = (
@@ -232,7 +248,7 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                 violations = validate_configuration(value, kind)
                 self.assertIn("CONFIGURATION_POLICY_INVALID", {item.code for item in violations})
 
-    def test_w4_adds_only_the_approved_bootstrap_root_and_internal_module(self) -> None:
+    def test_w5_adds_only_the_approved_fixture_roots_and_internal_module(self) -> None:
         terraform_root = PROJECT_ROOT / "infrastructure" / "terraform"
         terraform_files = sorted(
             path.relative_to(terraform_root).as_posix()
@@ -246,9 +262,24 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                     "bootstrap/outputs.tf",
                     "bootstrap/variables.tf",
                     "bootstrap/versions.tf",
+                    "fixtures/fixture-authenticated/backend.tf",
+                    "fixtures/fixture-authenticated/main.tf",
+                    "fixtures/fixture-authenticated/outputs.tf",
+                    "fixtures/fixture-authenticated/variables.tf",
                     "fixtures/fixture-authenticated/versions.tf",
+                    "fixtures/fixture-public/backend.tf",
+                    "fixtures/fixture-public/main.tf",
+                    "fixtures/fixture-public/outputs.tf",
+                    "fixtures/fixture-public/variables.tf",
                     "fixtures/fixture-public/versions.tf",
+                    "fixtures/fixture-restricted/backend.tf",
+                    "fixtures/fixture-restricted/main.tf",
+                    "fixtures/fixture-restricted/outputs.tf",
+                    "fixtures/fixture-restricted/variables.tf",
                     "fixtures/fixture-restricted/versions.tf",
+                    "modules/fixture-application/main.tf",
+                    "modules/fixture-application/outputs.tf",
+                    "modules/fixture-application/variables.tf",
                     "modules/state-bucket/main.tf",
                     "modules/state-bucket/outputs.tf",
                     "modules/state-bucket/variables.tf",
@@ -256,19 +287,28 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                 )
             ),
         )
-        for relative_path in (
-            "fixtures/fixture-authenticated/versions.tf",
-            "fixtures/fixture-public/versions.tf",
-            "fixtures/fixture-restricted/versions.tf",
-            "platform/versions.tf",
+        platform = (terraform_root / "platform/versions.tf").read_text(encoding="utf-8")
+        self.assertNotIn('variable "', platform)
+        self.assertNotIn('resource "', platform)
+        self.assertNotIn('backend "', platform)
+
+        bootstrap = "\n".join(
+            (terraform_root / relative_path).read_text(encoding="utf-8")
+            for relative_path in terraform_files
+            if relative_path.startswith("bootstrap/")
+        )
+        self.assertNotIn('backend "', bootstrap)
+
+        for application_id in (
+            "fixture-public",
+            "fixture-authenticated",
+            "fixture-restricted",
         ):
-            contents = (terraform_root / relative_path).read_text(encoding="utf-8")
-            self.assertNotIn('variable "', contents)
-            self.assertNotIn('resource "', contents)
-            self.assertNotIn('backend "', contents)
-        for relative_path in terraform_files:
-            contents = (terraform_root / relative_path).read_text(encoding="utf-8")
-            self.assertNotIn('backend "', contents)
+            root = terraform_root / "fixtures" / application_id
+            backend = (root / "backend.tf").read_text(encoding="utf-8")
+            self.assertEqual(backend.count('backend "gcs" {}'), 1)
+            self.assertNotIn("bucket", backend)
+            self.assertNotIn("prefix", backend)
 
     def test_configuration_layer_runs_unchanged_from_an_extracted_copy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

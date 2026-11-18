@@ -148,10 +148,7 @@ class TerraformBootstrapTest(unittest.TestCase):
 
     def test_bootstrap_has_no_backend_identity_iam_or_mutation_command(self) -> None:
         bootstrap = _terraform_sources(BOOTSTRAP_ROOT)
-        all_terraform = "\n".join(
-            path.read_text(encoding="utf-8")
-            for path in sorted(TERRAFORM_ROOT.rglob("*.tf"))
-        )
+        bootstrap_implementation = "\n".join((bootstrap, _terraform_sources(MODULE_ROOT)))
         self.assertNotIn('backend "', bootstrap)
         for prohibited in (
             "terraform_remote_state",
@@ -162,7 +159,7 @@ class TerraformBootstrapTest(unittest.TestCase):
             "terraform destroy",
             "force-unlock",
         ):
-            self.assertNotIn(prohibited, all_terraform)
+            self.assertNotIn(prohibited, bootstrap_implementation)
 
 
 if __name__ == "__main__":

@@ -140,6 +140,7 @@
         "project_number",
         "region",
         "platform_issuer",
+        "public_key_reference",
         "edge_caller_principal"
       ],
       "properties": {
@@ -159,6 +160,9 @@
           "$ref": "#/$defs/region"
         },
         "platform_issuer": {
+          "$ref": "#/$defs/httpsUri"
+        },
+        "public_key_reference": {
           "$ref": "#/$defs/httpsUri"
         },
         "edge_caller_principal": {

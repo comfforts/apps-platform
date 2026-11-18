@@ -11,14 +11,17 @@ AP-M7-W2 implements the pinned CLI/provider foundation, committed root locks, lo
 setup, and disposable-copy offline validation. AP-M7-W3 implements the five closed Version 1 non-
 secret configuration schemas, synthetic examples, and bounded deterministic semantic loader.
 AP-M7-W4 implements the deep backend-bootstrap root and internal state-bucket module with plan-only
-mocked providers. No backend or provider operation, executable cloud workflow, cloud resource, IAM
-binding, DNS change, credential, deployment, Application Adoption, or Live (`L`) evidence is
-implemented or qualified.
+mocked providers. AP-M7-W5 implements one deep internal Fixture Application module and independent
+public, authenticated, and restricted roots with runtime identities, internal-only ingress,
+edge-caller Invoker intent, bounded scaling, required labels, non-secret platform identity data,
+and typed attachment outputs. No backend or provider operation, executable cloud workflow, cloud
+resource, IAM mutation, DNS change, credential, deployment, Application Adoption, or Live (`L`)
+evidence is implemented or qualified.
 
-Use this handoff only after the owner accepts and commits AP-M7-W4 on the bounded AP-M7 branch. The
+Use this handoff only after the owner accepts and commits AP-M7-W5 on the bounded AP-M7 branch. The
 repository extraction handoff records that AP-M6 and the reconciliation pull request merged, the
 owner explicitly declared this dedicated repository canonical, and the separately approved source
-cleanup completed. If those facts or the AP-M7-W1 through AP-M7-W4 implementation are absent or
+cleanup completed. If those facts or the AP-M7-W1 through AP-M7-W5 implementation are absent or
 inconsistent, the working
 tree contains unreviewed changes, or the requested work package is out of order, report that
 conflict and stop instead of switching, pulling, resetting, committing, or combining packages
@@ -48,12 +51,14 @@ Before editing:
    cannot define generic platform behavior or infrastructure, and cannot authorize Application
    Adoption.
 
-Next task: implement AP-M7-W5, the Fixture Application roots, as the next small commit. Add one deep
-internal Fixture Application module and independent roots for `fixture-public`, `fixture-
-authenticated`, and `fixture-restricted`. Each root may own only its Cloud Run runtime and identity,
-direct-ingress restriction, edge-caller grant intent, bounded scaling and labels, and one typed
-`gcp-cloud-run-v1` attachment reference. Consume platform issuer, audience, caller, and public-key
-references only as non-secret data. Wait for owner approval before editing the next work package.
+Next task: implement AP-M7-W6, the Platform identity and generation foundation, as the next small
+commit. Add the Platform State configuration bucket, immutable compiled-generation object shape,
+Firestore Native Platform Session settings, regional software-protected ES256 KMS signing-key and
+rotation intent, versioned Secret Manager reference inputs, separate edge runtime and edge caller
+identities, and minimal typed platform references. Secret values must never enter Terraform
+variables or state. Do not compile an unreviewed Registration Set, upload a real generation, create
+an OAuth secret, or activate a candidate revision. Wait for owner approval before editing the next
+work package.
 
 The proposal must preserve separate backend-bootstrap, Platform State, and per-Fixture-Application
 State roots; typed non-secret cross-state inputs without `terraform_remote_state`; explicit plan,

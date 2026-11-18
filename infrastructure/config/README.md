@@ -1,7 +1,8 @@
 # AP-M7 infrastructure configuration contracts
 
-Version 1 | Status: AP-M7-W3 implemented and AP-M7-W4 backend interface consumed; synthetic
-repository examples only; no operator configuration, backend, provider operation, or deployment
+Version 1 | Status: AP-M7-W3 implemented and AP-M7-W4/W5 root interfaces consumed; synthetic
+repository examples only; no operator configuration, backend operation, provider operation, or
+deployment
 
 This directory defines the closed, non-secret inputs for later AP-M7 Terraform roots and inert
 workflow templates. The schemas and loader are subordinate to the platform requirements, accepted
@@ -42,7 +43,8 @@ Semantic policy enforces:
   inputs;
 - the three approved Fixture Application identities and their public, authenticated, or restricted
   profiles;
-- exact owner binding for backend, platform, and `gcp-cloud-run-v1` attachment references;
+- exact owner binding for backend, platform issuer/public-key/caller, and `gcp-cloud-run-v1`
+  attachment references;
 - immutable Artifact Registry image digests, numeric Secret Manager versions, scoped KMS key
   versions, and generation/source digest binding;
 - repository-and-environment-bound protected subjects, plan-digest rules, and exact destructive
@@ -54,6 +56,8 @@ Semantic policy enforces:
 
 AP-M7-W4 introduces the bootstrap root's single `backend_configuration` variable together with its
 owning implementation and duplicates every applicable security-critical backend schema type and
-validation. AP-M7-W5 through AP-M7-W8 must do the same for their interfaces. The deterministic gate
-rejects disagreement. No root may consume another root's backend or `terraform_remote_state`;
-reviewed cross-state-reference documents are the only exchange shape.
+validation. AP-M7-W5 adds the `fixture_configuration` and typed `platform_reference` inputs to each
+independent Fixture Application root, including the non-secret issuer, public-key, audience, and
+edge-caller binding. AP-M7-W6 through AP-M7-W8 must do the same for their interfaces. The
+deterministic gate rejects disagreement. No root may consume another root's backend or
+`terraform_remote_state`; reviewed cross-state-reference documents are the only exchange shape.

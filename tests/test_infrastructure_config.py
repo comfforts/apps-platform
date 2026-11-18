@@ -59,6 +59,31 @@ def _manifest() -> dict[str, object]:
     return _example("operator-input-manifest.synthetic.v1.json")
 
 
+def _operator_manifest() -> dict[str, object]:
+    value = json.loads(json.dumps(_manifest()).replace("synthetic", "qualification-test"))
+    assert isinstance(value, dict)
+    value["configuration_class"] = "operator"
+    source = value["source"]
+    assert isinstance(source, dict)
+    source["source_revision"] = "3" * 40
+    resources = value["platform_resources"]
+    assert isinstance(resources, dict)
+    resources["evidence_bundle_prefix"] = (
+        f"ap-eval-m8/{'3' * 40}/qualification-test-evaluation/"
+    )
+    federation = value["federation"]
+    assert isinstance(federation, dict)
+    operation_identities = federation["operation_identities"]
+    assert isinstance(operation_identities, list)
+    operation_identity = operation_identities[0]
+    assert isinstance(operation_identity, dict)
+    operation_identity["service_account_resource"] = (
+        "projects/comfforts-platform-non-prod/serviceAccounts/"
+        "qtest-plan-platform@comfforts-platform-non-prod.iam.gserviceaccount.com"
+    )
+    return value
+
+
 def _successor(
     predecessor: dict[str, object],
     predecessor_digest: str,
@@ -531,6 +556,56 @@ class InfrastructureConfigurationTest(unittest.TestCase):
         self.assertIn(
             ("FIELD_TYPE", "/revisions/0/generated_facts"),
             _codes(result.violations),
+        )
+
+    def test_operator_manifest_command_emits_only_digests_or_ordered_violations(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            operator_path = directory / "operator.json"
+            operator_path.write_text(
+                json.dumps(_operator_manifest()),
+                encoding="utf-8",
+            )
+            accepted = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "infrastructure.config.operator_manifest",
+                    str(operator_path),
+                ],
+                cwd=PROJECT_ROOT,
+                env={"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": str(PROJECT_ROOT)},
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            synthetic_path = EXAMPLE_DIRECTORY / "operator-input-manifest.synthetic.v1.json"
+            rejected = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "infrastructure.config.operator_manifest",
+                    str(synthetic_path),
+                ],
+                cwd=PROJECT_ROOT,
+                env={"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": str(PROJECT_ROOT)},
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+        accepted_payload = json.loads(accepted.stdout)
+        rejected_payload = json.loads(rejected.stdout)
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        self.assertEqual(accepted_payload["status"], "accepted")
+        self.assertEqual(accepted_payload["revision_count"], 1)
+        self.assertRegex(accepted_payload["digests"][0], r"^sha256:[0-9a-f]{64}$")
+        self.assertNotIn("qualification-test", accepted.stdout)
+        self.assertEqual(rejected.returncode, 1, rejected.stderr)
+        self.assertEqual(rejected_payload["status"], "rejected")
+        self.assertEqual(
+            rejected_payload["violations"][0]["code"],
+            "SYNTHETIC_CONFIGURATION_PROHIBITED",
         )
 
     def test_w8_adds_only_the_approved_platform_and_fixture_resources(self) -> None:

@@ -1,9 +1,9 @@
 # App Platform infrastructure configuration contracts
 
-Version 1.1 | Status: AP-M7-W3 implemented, AP-M7-W4 through W8 root interfaces consumed,
+Version 1.2 | Status: AP-M7-W3 implemented, AP-M7-W4 through W8 root interfaces consumed,
 AP-M7-W9 inert templates bound to the workflow contract, and the AP-M8-W2 operator-manifest
-contract location approved; synthetic repository examples only; no accepted operator manifest,
-backend operation, provider operation, or deployment
+contract and deterministic chain validator implemented; synthetic repository examples only; no
+accepted operator manifest, backend operation, provider operation, or deployment
 
 This directory defines the closed, non-secret inputs for later AP-M7 Terraform roots and inert
 workflow templates. The schemas and loader are subordinate to the platform requirements, accepted
@@ -19,7 +19,7 @@ initialization, credential lookup, cloud action, DNS change, or repository-setti
 | `schemas/fixture-configuration.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:fixture:v1` | One independently owned Fixture Application input |
 | `schemas/cross-state-reference.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:cross-state-reference:v1` | Typed backend, platform, or attachment reference without state reads |
 | `schemas/workflow-configuration.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:workflow:v1` | Source-bound plan, apply, rollback, force-unlock, or destroy authority input |
-| `schemas/operator-input-manifest.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:operator-input-manifest:v1` | AP-M8-W2 append-only non-secret operator-input revision; implemented by the next bounded commit |
+| `schemas/operator-input-manifest.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:operator-input-manifest:v1` | AP-M8-W2 append-only non-secret operator-input revision; implemented with deterministic chain validation |
 
 `examples/` contains only `configuration_class: synthetic` documents. They use reserved synthetic
 names, identities, revisions, and digests to exercise every approved configuration and workflow
@@ -70,6 +70,20 @@ environment, resource, identity, backend, registration, and ownership selections
 within one manifest chain. The implementation reads only the explicit bounded local documents; it
 does not inspect Git, an environment variable, a credential, a repository setting, Terraform, or a
 provider.
+
+After this repository slice merges, validate one explicit real chain from a private working
+directory by passing every revision in predecessor order:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m infrastructure.config.operator_manifest \
+  /absolute/private/path/revision-1.json \
+  /absolute/private/path/revision-2.json
+```
+
+The command emits only `accepted` plus canonical revision digests, or `rejected` plus ordered code,
+pointer, and message fields. It never prints manifest values, follows no path from a document, and
+writes no file. There is deliberately no switch that permits synthetic examples on this operator
+entry point.
 
 Semantic policy enforces:
 

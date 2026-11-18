@@ -1,0 +1,19 @@
+{
+  "contract_version": 1,
+  "configuration_kind": "workflow",
+  "configuration_class": "synthetic",
+  "operation": "destroy",
+  "repository": "comfforts/apps-platform",
+  "source_revision": "0000000000000000000000000000000000000000",
+  "protected_main_ref": "refs/heads/main",
+  "protected_environment": "synthetic-ap-m8",
+  "protected_subject": "repo:comfforts/apps-platform:environment:synthetic-ap-m8",
+  "root_target": "fixture-public",
+  "plan_digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+  "destructive_target": {
+    "operation": "destroy",
+    "root_target": "fixture-public",
+    "target_id": "fixture-public",
+    "confirmation_digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+  }
+}

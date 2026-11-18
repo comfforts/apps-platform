@@ -1,0 +1,22 @@
+{
+  "contract_version": 1,
+  "configuration_kind": "fixture",
+  "configuration_class": "synthetic",
+  "project_id": "synthetic-platform",
+  "project_number": "123456789012",
+  "region": "us-west1",
+  "application_id": "fixture-public",
+  "state_owner": "application",
+  "service_name": "fixture-public",
+  "image_digest": "us-west1-docker.pkg.dev/synthetic-platform/synthetic-images/fixture-public@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "admission_mode": "public",
+  "assertion_audience": null,
+  "platform_issuer": "https://apps.example.invalid/_platform",
+  "edge_caller_principal": "serviceAccount:synthetic-edge-caller@synthetic-platform.iam.gserviceaccount.com",
+  "labels": {
+    "environment": "qualification",
+    "managed_by": "terraform",
+    "state_owner": "application",
+    "application_id": "fixture-public"
+  }
+}

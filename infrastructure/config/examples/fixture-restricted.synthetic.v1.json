@@ -1,0 +1,22 @@
+{
+  "contract_version": 1,
+  "configuration_kind": "fixture",
+  "configuration_class": "synthetic",
+  "project_id": "synthetic-platform",
+  "project_number": "123456789012",
+  "region": "us-west1",
+  "application_id": "fixture-restricted",
+  "state_owner": "application",
+  "service_name": "fixture-restricted",
+  "image_digest": "us-west1-docker.pkg.dev/synthetic-platform/synthetic-images/fixture-restricted@sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "admission_mode": "restricted",
+  "assertion_audience": "urn:comfforts:app-platform:audience:fixture-restricted",
+  "platform_issuer": "https://apps.example.invalid/_platform",
+  "edge_caller_principal": "serviceAccount:synthetic-edge-caller@synthetic-platform.iam.gserviceaccount.com",
+  "labels": {
+    "environment": "qualification",
+    "managed_by": "terraform",
+    "state_owner": "application",
+    "application_id": "fixture-restricted"
+  }
+}

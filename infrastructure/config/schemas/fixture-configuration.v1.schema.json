@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:comfforts:app-platform:infrastructure-config:fixture:v1",
+  "title": "Fixture Configuration Version 1",
+  "description": "Non-secret configuration for exactly one independently owned Fixture Application root.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "configuration_kind",
+    "configuration_class",
+    "project_id",
+    "project_number",
+    "region",
+    "application_id",
+    "state_owner",
+    "service_name",
+    "image_digest",
+    "admission_mode",
+    "assertion_audience",
+    "platform_issuer",
+    "edge_caller_principal",
+    "labels"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": 1
+    },
+    "configuration_kind": {
+      "const": "fixture"
+    },
+    "configuration_class": {
+      "enum": [
+        "operator",
+        "synthetic"
+      ]
+    },
+    "project_id": {
+      "$ref": "#/$defs/projectId"
+    },
+    "project_number": {
+      "$ref": "#/$defs/projectNumber"
+    },
+    "region": {
+      "$ref": "#/$defs/region"
+    },
+    "application_id": {
+      "$ref": "#/$defs/applicationId"
+    },
+    "state_owner": {
+      "const": "application"
+    },
+    "service_name": {
+      "$ref": "#/$defs/serviceName"
+    },
+    "image_digest": {
+      "$ref": "#/$defs/imageDigest"
+    },
+    "admission_mode": {
+      "enum": [
+        "public",
+        "authenticated",
+        "restricted"
+      ]
+    },
+    "assertion_audience": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/audience"
+        }
+      ]
+    },
+    "platform_issuer": {
+      "$ref": "#/$defs/httpsUri"
+    },
+    "edge_caller_principal": {
+      "$ref": "#/$defs/serviceAccountPrincipal"
+    },
+    "labels": {
+      "$ref": "#/$defs/labels"
+    }
+  },
+  "$defs": {
+    "projectId": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 30,
+      "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+    },
+    "projectNumber": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 19,
+      "pattern": "^[1-9][0-9]{5,18}$"
+    },
+    "region": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 63,
+      "pattern": "^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])$"
+    },
+    "applicationId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]$"
+    },
+    "serviceName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 49,
+      "pattern": "^[a-z](?:[a-z0-9-]{0,47}[a-z0-9])?$"
+    },
+    "imageDigest": {
+      "type": "string",
+      "minLength": 90,
+      "maxLength": 512,
+      "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]-docker\\.pkg\\.dev/[a-z][a-z0-9-]{4,28}[a-z0-9]/[a-z][a-z0-9_-]{0,126}/[a-z][a-z0-9._-]{0,126}@sha256:[0-9a-f]{64}$"
+    },
+    "audience": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]{0,511}$"
+    },
+    "httpsUri": {
+      "type": "string",
+      "minLength": 9,
+      "maxLength": 512,
+      "pattern": "^https://[A-Za-z0-9.-]+(?:/[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]*)?$"
+    },
+    "serviceAccountPrincipal": {
+      "type": "string",
+      "minLength": 30,
+      "maxLength": 256,
+      "pattern": "^serviceAccount:[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\\.iam\\.gserviceaccount\\.com$"
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment",
+        "managed_by",
+        "state_owner",
+        "application_id"
+      ],
+      "properties": {
+        "environment": {
+          "const": "qualification"
+        },
+        "managed_by": {
+          "const": "terraform"
+        },
+        "state_owner": {
+          "const": "application"
+        },
+        "application_id": {
+          "$ref": "#/$defs/applicationId"
+        }
+      }
+    }
+  }
+}

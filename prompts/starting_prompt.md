@@ -8,15 +8,16 @@ networked Shared Edge and production-adapter logic locally through deterministic
 local loopback. The complete AP-EVAL-M6 repository gate passes. AP-M7-W1 defines the exact root
 interfaces, pinned toolchain, configuration contracts, work packages, and AP-EVAL-M7 static gate.
 AP-M7-W2 implements the pinned CLI/provider foundation, committed root locks, local dependency
-setup, and disposable-copy offline validation. No Terraform resource configuration, backend,
-executable cloud workflow, cloud resource, DNS change, credential, deployment, Application
-Adoption, or Live (`L`) evidence is implemented or qualified by that foundation.
+setup, and disposable-copy offline validation. AP-M7-W3 implements the five closed Version 1 non-
+secret configuration schemas, synthetic examples, and bounded deterministic semantic loader. No
+Terraform resource configuration, backend, executable cloud workflow, cloud resource, DNS change,
+credential, deployment, Application Adoption, or Live (`L`) evidence is implemented or qualified.
 
-Use this handoff only after the owner accepts and commits AP-M7-W2 on the bounded AP-M7 branch. The
+Use this handoff only after the owner accepts and commits AP-M7-W3 on the bounded AP-M7 branch. The
 repository extraction handoff records that AP-M6 and the reconciliation pull request merged, the
 owner explicitly declared this dedicated repository canonical, and the separately approved source
-cleanup completed. If those facts, the AP-M7-W1 authority, or the W2 foundation are absent or
-inconsistent, the working
+cleanup completed. If those facts, the AP-M7-W1 authority, the W2 foundation, or the W3 contracts
+are absent or inconsistent, the working
 tree contains unreviewed changes, or the requested work package is out of order, report that
 conflict and stop instead of switching, pulling, resetting, committing, or combining packages
 without owner direction.
@@ -45,10 +46,12 @@ Before editing:
    cannot define generic platform behavior or infrastructure, and cannot authorize Application
    Adoption.
 
-Next task: implement AP-M7-W3, the versioned non-secret configuration contracts, as the next small
-commit. Add only the schemas, synthetic examples, exact validation boundaries, and deterministic
-tests required by AP-M7-W3. Consume the completed pinned setup without changing its versions or
-root ownership. Wait for owner approval before editing the next work package.
+Next task: implement AP-M7-W4, the backend bootstrap root, as the next small commit. Add only the
+internal state-bucket module and bootstrap-root configuration required for one platform-state
+bucket and one state bucket per Fixture Application. Enforce uniform bucket-level access, public-
+access prevention, versioning, bounded noncurrent recovery retention, exclusive ownership labels,
+explicit access intent, and typed non-secret outputs. Duplicate every applicable W3 schema type and
+validation at the root interface. Wait for owner approval before editing the next work package.
 
 The proposal must preserve separate backend-bootstrap, Platform State, and per-Fixture-Application
 State roots; typed non-secret cross-state inputs without `terraform_remote_state`; explicit plan,

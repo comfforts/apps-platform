@@ -266,8 +266,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertIn("AP-M6 supplies repository implementation evidence only", overview)
         self.assertIn("complete credential-free `make check` gate passes", overview)
-        self.assertIn("AP-M7-W2 pinned Terraform foundation implemented", normalized_index)
-        self.assertIn("AP-M7-W2 implements only the pinned Terraform", normalized_overview)
+        self.assertIn("AP-M7-W3 versioned non-secret configuration contracts implemented", normalized_index)
+        self.assertIn("AP-M7-W3 implements only the Version 1 non-secret", normalized_overview)
         self.assertIn("planning consistency only", normalized_index)
         self.assertIn("Integration draft", index)
         self.assertIn(
@@ -638,8 +638,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Leave Finance Assistant requirements, code, infrastructure, Terraform state, DNS",
             "An Integration Draft is not Application Adoption",
             "credential-free, deterministic, and non-mutating",
-            "after the owner accepts and commits AP-M7-W2",
-            "implement AP-M7-W3, the versioned non-secret configuration contracts",
+            "after the owner accepts and commits AP-M7-W3",
+            "implement AP-M7-W4, the backend bootstrap root",
             "Treat absent operator inputs or later authority as unresolved",
             "Do not initialize a Terraform backend",
             "AP-M7 stays on its one bounded branch and pull request",
@@ -675,7 +675,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         for later_slice in (
             "Networked provider runtime — locally implemented",
-            "Terraform and workflow implementation — pinned foundation implemented",
+            "Terraform and workflow implementation — configuration contracts implemented",
             "Non-production qualification deployment — later",
             "Live qualification — later",
             "Finance Application Adoption — later and independent",
@@ -683,7 +683,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(later_slice, index)
         self.assertIn("separate bounded branch and pull request", normalized_index)
         self.assertIn(
-            "implement AP-M7-W3, the versioned non-secret configuration contracts",
+            "implement AP-M7-W4, the backend bootstrap root",
             normalized_prompt,
         )
         self.assertIn("Wait for owner approval before editing the next work package", normalized_prompt)
@@ -939,7 +939,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             normalized_threat_model,
         )
 
-    def test_ap_m7_w2_foundation_paths_are_bounded(
+    def test_ap_m7_w3_configuration_paths_are_bounded(
         self,
     ) -> None:
         layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(
@@ -949,15 +949,20 @@ class ProjectAuthorityTest(unittest.TestCase):
         reserved_paths = (
             "registrations",
             "artifacts",
-            "infrastructure/config",
             "infrastructure/terraform/modules",
             "infrastructure/workflows",
         )
         for relative_path in reserved_paths:
             self.assertFalse(
                 (PROJECT_ROOT / relative_path).exists(),
-                f"AP-M7-W2 must not create later implementation path: {relative_path}",
+                f"AP-M7-W3 must not create later implementation path: {relative_path}",
             )
+
+        config_root = PROJECT_ROOT / "infrastructure/config"
+        self.assertTrue((config_root / "README.md").is_file())
+        self.assertTrue((config_root / "validation.py").is_file())
+        self.assertEqual(len(tuple((config_root / "schemas").glob("*.json"))), 5)
+        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 13)
 
         expected_roots = (
             "infrastructure/terraform/bootstrap",
@@ -1008,7 +1013,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertEqual(prohibited_files, [])
         self.assertTrue((PROJECT_ROOT / ".github/workflows/check.yml").is_file())
 
-    def test_ap_m7_w2_default_gate_has_no_live_operator_command(self) -> None:
+    def test_ap_m7_w3_default_gate_has_no_live_operator_command(self) -> None:
         makefile = (PROJECT_ROOT / "Makefile").read_text(encoding="utf-8")
         evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
             encoding="utf-8"

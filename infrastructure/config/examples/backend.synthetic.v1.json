@@ -1,0 +1,37 @@
+{
+  "contract_version": 1,
+  "configuration_kind": "backend",
+  "configuration_class": "synthetic",
+  "project_id": "synthetic-platform",
+  "region": "us-west1",
+  "state_buckets": [
+    {
+      "state_owner": "platform",
+      "owner_id": "app-platform",
+      "bucket_name": "synthetic-platform-state",
+      "backend_prefix": "platform"
+    },
+    {
+      "state_owner": "application",
+      "owner_id": "fixture-public",
+      "bucket_name": "synthetic-fixture-public-state",
+      "backend_prefix": "fixtures/fixture-public"
+    },
+    {
+      "state_owner": "application",
+      "owner_id": "fixture-authenticated",
+      "bucket_name": "synthetic-fixture-authenticated-state",
+      "backend_prefix": "fixtures/fixture-authenticated"
+    },
+    {
+      "state_owner": "application",
+      "owner_id": "fixture-restricted",
+      "bucket_name": "synthetic-fixture-restricted-state",
+      "backend_prefix": "fixtures/fixture-restricted"
+    }
+  ],
+  "recovery_policy": {
+    "noncurrent_version_retention_days": 90,
+    "newer_versions_to_retain": 20
+  }
+}

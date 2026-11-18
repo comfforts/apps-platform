@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:comfforts:app-platform:infrastructure-config:cross-state-reference:v1",
+  "title": "Cross-State Reference Version 1",
+  "description": "One reviewed typed non-secret value exchanged across independently owned Terraform roots.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "configuration_kind",
+    "configuration_class",
+    "reference"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": 1
+    },
+    "configuration_kind": {
+      "const": "cross-state-reference"
+    },
+    "configuration_class": {
+      "enum": [
+        "operator",
+        "synthetic"
+      ]
+    },
+    "reference": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/backendReference"
+        },
+        {
+          "$ref": "#/$defs/platformReference"
+        },
+        {
+          "$ref": "#/$defs/attachmentReference"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "applicationId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]$"
+    },
+    "attachmentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    },
+    "projectNumber": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 19,
+      "pattern": "^[1-9][0-9]{5,18}$"
+    },
+    "region": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 63,
+      "pattern": "^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])$"
+    },
+    "bucketName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$"
+    },
+    "backendPrefix": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 96,
+      "pattern": "^(?:platform|fixtures/[a-z][a-z0-9-]{1,61}[a-z0-9])$"
+    },
+    "httpsUri": {
+      "type": "string",
+      "minLength": 9,
+      "maxLength": 512,
+      "pattern": "^https://[A-Za-z0-9.-]+(?:/[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]*)?$"
+    },
+    "serviceAccountPrincipal": {
+      "type": "string",
+      "minLength": 30,
+      "maxLength": 256,
+      "pattern": "^serviceAccount:[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\\.iam\\.gserviceaccount\\.com$"
+    },
+    "audience": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]{0,511}$"
+    },
+    "cloudRunReference": {
+      "type": "string",
+      "minLength": 50,
+      "maxLength": 256,
+      "pattern": "^urn:comfforts:app-platform:gcp:cloud-run:[1-9][0-9]{5,18}:[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?:[a-z](?:[a-z0-9-]{0,47}[a-z0-9])?$"
+    },
+    "backendReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference_kind",
+        "state_owner",
+        "owner_id",
+        "bucket_name",
+        "backend_prefix"
+      ],
+      "properties": {
+        "reference_kind": {
+          "const": "backend"
+        },
+        "state_owner": {
+          "enum": [
+            "platform",
+            "application"
+          ]
+        },
+        "owner_id": {
+          "$ref": "#/$defs/applicationId"
+        },
+        "bucket_name": {
+          "$ref": "#/$defs/bucketName"
+        },
+        "backend_prefix": {
+          "$ref": "#/$defs/backendPrefix"
+        }
+      }
+    },
+    "platformReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference_kind",
+        "state_owner",
+        "owner_id",
+        "project_number",
+        "region",
+        "platform_issuer",
+        "edge_caller_principal"
+      ],
+      "properties": {
+        "reference_kind": {
+          "const": "platform"
+        },
+        "state_owner": {
+          "const": "platform"
+        },
+        "owner_id": {
+          "const": "app-platform"
+        },
+        "project_number": {
+          "$ref": "#/$defs/projectNumber"
+        },
+        "region": {
+          "$ref": "#/$defs/region"
+        },
+        "platform_issuer": {
+          "$ref": "#/$defs/httpsUri"
+        },
+        "edge_caller_principal": {
+          "$ref": "#/$defs/serviceAccountPrincipal"
+        }
+      }
+    },
+    "attachmentReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference_kind",
+        "state_owner",
+        "owner_id",
+        "application_id",
+        "attachment_id",
+        "adapter_kind",
+        "resource_reference",
+        "audience"
+      ],
+      "properties": {
+        "reference_kind": {
+          "const": "attachment"
+        },
+        "state_owner": {
+          "const": "application"
+        },
+        "owner_id": {
+          "$ref": "#/$defs/applicationId"
+        },
+        "application_id": {
+          "$ref": "#/$defs/applicationId"
+        },
+        "attachment_id": {
+          "$ref": "#/$defs/attachmentId"
+        },
+        "adapter_kind": {
+          "const": "gcp-cloud-run-v1"
+        },
+        "resource_reference": {
+          "$ref": "#/$defs/cloudRunReference"
+        },
+        "audience": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/audience"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

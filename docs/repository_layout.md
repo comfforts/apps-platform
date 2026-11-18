@@ -1,8 +1,8 @@
 # App Platform repository layout
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
-complete; AP-M7-W2 pinned Terraform foundation implemented; no Terraform resource configuration,
-provider operation, cloud resource, or deployment implemented
+complete; AP-M7-W3 versioned non-secret configuration contracts implemented; no Terraform resource
+configuration, provider operation, cloud resource, or deployment implemented
 
 The project is organized at the dedicated repository root produced by the history-preserving
 subtree extraction. Paths remain project-relative so repository identity does not alter platform
@@ -29,6 +29,7 @@ contracts, verification, or ownership boundaries.
 | `Makefile` | Portable project-local developer and verification interface |
 | `.gitignore` | Platform-local generated, secret, state, and build exclusions |
 | `infrastructure/tools/` | AP-M7 credential-free local dependency setup and disposable-copy offline validation |
+| `infrastructure/config/` | AP-M7-W3 closed Version 1 schemas, synthetic examples, bounded loader, and semantic policy |
 | `infrastructure/terraform/{bootstrap,platform,fixtures/*}/versions.tf` | Exact root-local Terraform and provider constraints; no resource configuration |
 | `infrastructure/terraform/{bootstrap,platform,fixtures/*}/.terraform.lock.hcl` | Identical committed provider selections and signed package checksums |
 
@@ -39,7 +40,7 @@ These locations may be created only by their approved slice:
 | Path | Intended owner |
 | --- | --- |
 | `registrations/` | Future reviewed Live Registration Sets; Fixture registrations remain under `fixtures/` |
-| `infrastructure/config/` | AP-M7 versioned non-secret configuration schemas and synthetic examples |
+| `infrastructure/config/` | AP-M7-W3 versioned non-secret configuration contracts; implemented with no operator values or Terraform resources |
 | `infrastructure/terraform/bootstrap/` | Backend-bootstrap root; W2 foundation present, resource configuration begins only in W4 |
 | `infrastructure/terraform/platform/` | Shared Edge Platform State root; W2 foundation present, resource configuration begins only in W5 |
 | `infrastructure/terraform/fixtures/<application-id>/` | Independently owned Fixture Application State root; W2 foundation present for the three approved fixtures, resource configuration begins only in W6 through W8 |
@@ -48,12 +49,12 @@ These locations may be created only by their approved slice:
 | `catalog/` | Root application catalogue implementation |
 | `artifacts/` | Secret-free reviewed evidence indexes and digests, never raw Live evidence bundles |
 
-The W2 foundation is not authorization to scaffold empty modules, add resource blocks, or imply
-later capabilities. AP-M7 may create its remaining named paths only in work-package order. It may
-add only reviewed static configuration, synthetic examples, inert workflow templates, and
-deterministic tests. Executable cloud workflows, credentials, state, plans, provider calls, and
-Live evidence remain prohibited. Live evidence bundles remain in the private provider evidence
-store rather than the repository.
+The W2 foundation and W3 contracts are not authorization to scaffold empty modules, add resource
+blocks, or imply later capabilities. AP-M7 may create its remaining named paths only in work-
+package order. It may add only reviewed static configuration, synthetic examples, inert workflow
+templates, and deterministic tests. Executable cloud workflows, credentials, state, plans,
+provider calls, and Live evidence remain prohibited. Live evidence bundles remain in the private
+provider evidence store rather than the repository.
 
 ## Completed repository-transition boundary
 

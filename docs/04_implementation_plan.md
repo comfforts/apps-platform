@@ -1273,8 +1273,10 @@ AP-M8 includes, only after the required package approvals:
   GCP Workload Identity Federation, and least-privilege operation identities;
 - one-time backend bootstrap, temporary-state migration, state-lineage and recovery verification,
   and independent backend initialization for Platform State and each Fixture Application State;
-- realization of separately scoped plan, apply, rollback, force-unlock, and destroy workflows from
-  the AP-M7 designs without granting one workflow another operation's authority;
+- repository support for production composition, synthetic network fixtures, pinned images, a
+  provider-backed qualification Registration Set, staged Platform deployment, and separately
+  scoped plan, apply, publication, DNS, rollback, force-unlock, and destroy workflows without
+  granting one operation another's authority;
 - authenticated advisory and exact-main plans, explicit environment approval, source and plan
   digest binding, root-scoped concurrency, and same-job application of the reviewed plan;
 - ordered deployment of the three Fixture Application roots and Platform State root, immutable
@@ -1345,6 +1347,13 @@ inputs, backend prefixes, and evidence destination needed by later packages. Rej
 placeholder, synthetic-as-live, secret-bearing, mutable, cross-owner, discovered, or unapproved
 values before an authenticated command runs.
 
+The manifest is append-only rather than falsely complete before deployment facts exist. Its first
+accepted revision records every then-known value. Image digests, state-lineage digests,
+configuration-object generations, plan digests, and run identifiers enter only through immutable
+successor revisions that name their predecessor and receive a fresh approval before use. The exact
+protected-main source revision is recorded after merge; no commit is required to contain its own
+future identifier.
+
 #### AP-M8-W3 · Protected repository and environment controls
 
 Read back and preserve the extraction checkpoint-3 baseline: default protected `main`, no bypass,
@@ -1353,10 +1362,10 @@ checks`, CodeQL thresholds, full action pins, read-only default permissions, dep
 controls, and the credential-free check workflow. A missing or weakened baseline control stops the
 package.
 
-Under a separate repository-setting approval, create only the reviewed plan, apply, and recovery
-GitHub Environment classes. Each accepts exact `main`, requires a fresh owner review for every job,
-contains no secret, and produces the exact environment-bound OIDC subject. No environment approval
-transfers to another class or operation. The
+Under a separate repository-setting approval, create only the reviewed plan, apply, DNS, and
+recovery GitHub Environment classes. Each accepts exact `main`, requires a fresh owner review for
+every job, contains no secret, and produces the exact environment-bound OIDC subject. No
+environment approval transfers to another class or operation. The
 [qualification-deployment runbook](runbooks/qualification_deployment.md) owns the setting profile,
 proposed-change table, readback fields, and stop conditions. AP-M8-W3 does not render or invoke an
 operator workflow.
@@ -1371,12 +1380,14 @@ workflow ref, one reviewed environment and matching subject, `workflow_dispatch`
 SHA verified by the workflow.
 
 Plan, apply, rollback, force-unlock, and destroy identities are distinct for every enabled root.
-Each receives only its exact backend and owned-resource permissions; unused exceptional identities
-have no binding. Workload identities cannot administer federation, IAM, themselves, billing,
-another root, or an application. Keys, wildcard subjects, broad primitive roles, credentials longer
-than one hour, implicit credential sources, and name-only repository trust are prohibited. Readback
-must prove mappings, conditions, key absence, impersonation principals, direct and inherited roles,
-and scopes before the owner closes the package.
+Artifact publish, generation publish, and qualification DNS also have distinct identities and
+fixed targets, with no backend permission. Each receives only its exact state, owned-resource,
+repository, object, or record permissions; unused exceptional identities have no binding. Workload
+identities cannot administer federation, IAM, themselves, billing, another root, or an application.
+Keys, wildcard subjects, broad primitive roles, credentials longer than one hour, implicit
+credential sources, and name-only repository trust are prohibited. Readback must prove mappings,
+conditions, key absence, impersonation principals, direct and inherited roles, and scopes before
+the owner closes the package.
 
 #### AP-M8-W5 · Backend bootstrap and state lineage
 
@@ -1402,41 +1413,75 @@ migration, dummy state, state push, or invented lineage; empty prefixes remain `
 AP-M8-W9. The [qualification-deployment runbook](runbooks/qualification_deployment.md) owns exact
 prerequisites, invariants, records, and failure stops.
 
-#### AP-M8-W6 · Executable workflow realization
+#### AP-M8-W6 · Deployment support and executable workflow realization
 
-Render only the separately approved plan, exact-main apply, rollback, force-unlock, and destroy
-authorities into executable workflows with exact action pins, operation identities, environment
-protection, source binding, per-root concurrency, and secret-free outcome records. Realization does
-not invoke a workflow or combine exceptional authorities.
+First close the repository dependencies that AP-M7 deliberately left outside static Terraform:
+implement and test the production Shared Edge composition entry point and pinned non-root image,
+one networked synthetic Fixture runtime and pinned non-root image, and a reviewed provider-backed
+qualification Registration Set using `gcp-cloud-run-v1`. Fixture registrations using
+`fixture-in-process-v1` remain AP-M4 evidence and are not deployment inputs.
+
+Add a Version 2 platform deployment configuration that selects `foundation` or `candidate` without
+changing the single Platform State owner or lineage. Foundation creates configuration storage,
+Artifact Registry, identities, KMS/Firestore, logging/evidence, and budget controls without an edge
+image, generation object, or attachments. Candidate requires those exact immutable values, retains
+foundation unchanged, and adds the Shared Edge/load-balancer/certificate resources. Version 1
+remains accepted AP-M7 static evidence; update every Version 2 consumer and deterministic test
+together.
+
+Render only the separately approved root plan/apply, artifact-publish, generation-publish, DNS,
+rollback, force-unlock, and destroy authorities into fixed executable workflows with exact action
+pins, operation identities, environment protection, source binding, per-root concurrency where
+applicable, no-overwrite publication, and secret-free outcome records. Realization does not invoke
+a workflow, build or publish an image, contact a provider, or combine exceptional authorities.
 
 #### AP-M8-W7 · Authenticated plans and deployment preflight
 
-Compile and review the exact Registration Generation inputs, verify immutable artifact and
-configuration digests, run authenticated read-only plans for every root, reconcile the complete
-change and ownership inventory, and obtain the explicit environment approval for the exact
-protected-main revision and plan digests. Any drift, replacement, destroy, unknown service, missing
-dependency, or unreviewed change stops the deployment.
+Bind the exact protected-main revision to the accepted manifest; verify locked tools, actions, base
+images, dependencies, existing APIs/billing, reviewed OAuth/secret/zone/notification references,
+empty backends, bootstrap readback, and the initial provider-backed Registration Set. Run the exact
+authenticated Platform-foundation plan, and review the expected-resource inventories and plan
+policies for later roots without inventing not-yet-created dependency values. Each Fixture root and
+the candidate receives its own fresh authenticated plan and approval only after its exact image,
+platform-reference, attachment, and object-generation inputs exist. Reconcile the complete change
+and ownership inventory and obtain explicit approval for the exact source, configuration,
+expected-resource, and available redacted plan digests. Any drift, replacement, destroy, unknown
+service, missing dependency, unapproved API enablement, provider default, Finance resource, or
+unreviewed change stops deployment.
 
 #### AP-M8-W8 · Operation sequencing and failure authority
 
-Approve the exact root and activation order, dependency handoffs, readback checkpoints, partial-
-failure stop conditions, retry boundary, and owner decisions for rollback, import, recovery,
-force-unlock, state push, destroy, or cleanup before mutation. No failure automatically invokes a
-follow-on operation.
+Approve the fixed initial order: Platform foundation; immutable image publication; platform-
+reference validation; sequential public, authenticated, and restricted Fixture roots; provider-
+backed generation compilation and create-only publication; Platform candidate; then the separately
+approved DNS/TLS checkpoint. Each dependency enters an append-only manifest revision and each stage
+has its own identity, approval, readback, and stop. Approve retry and owner decisions for rollback,
+import, recovery, force-unlock, state push, destroy, or cleanup before mutation. No failure
+automatically invokes a follow-on operation or changes a successful earlier root.
 
 #### AP-M8-W9 · Qualification resource deployment
 
-Apply only the approved roots at the exact protected-main revision using fresh same-job plans,
-root-scoped identities, locks, and checkpoints. Bind the immutable Fixture Application targets,
-Platform resources, Registration Generation, and Shared Edge revision without changing DNS,
-qualifying runtime behavior, or touching a real application.
+Apply Platform foundation at the exact protected-main revision using a fresh same-job plan, then
+create-only publish exact-source images. Apply the three Fixture roots sequentially with the actual
+typed platform reference. Compile the reviewed provider-backed Registration Set from their actual
+attachment references and create-only publish its immutable object. Finally, apply the Platform
+candidate from a fresh same-job plan that preserves foundation and binds the exact image,
+Registration Generation, object generation, and attachments. Candidate deployment changes no DNS,
+qualifies no runtime behavior, and touches no real application.
+
+The first Cloud Run service has no predecessor and may point 100 percent of service traffic to its
+only revision while the hostname has no DNS. This is a dark initial candidate, not zero-percent
+service traffic, a successor-generation activation, or Live evidence. Future pointer changes keep
+ADR-008's separate activation authority.
 
 #### AP-M8-W10 · Qualification DNS and TLS checkpoint
 
 After resource and ownership readback succeeds, require a distinct owner approval for the new
-`apps-staging.comfforts.com` record, its 1,800-second TTL, authoritative and recursive readback, and
-managed-certificate readiness. Failure may change only the new qualification record after
-inspection and never changes an existing or Finance hostname.
+`apps-staging.comfforts.com` A record, its 1,800-second TTL, exact reserved IPv4 address,
+authoritative and recursive readback, and managed-certificate readiness. The DNS identity changes
+no AAAA, wildcard, zone, existing, production, or Finance record. Failure blocks AP-M9; a reversal
+may change only the new qualification A record after a fresh approval. DNS/TLS readiness makes the
+candidate reachable but leaves it deployed and not Live-qualified.
 
 #### AP-M8-W11 · Deployment readback and evidence
 
@@ -1460,10 +1505,11 @@ split across separately approved branches and pull requests where the package ch
 authority surface. A later package may not begin from an unmerged branch, fill a missing input,
 reuse an earlier approval for a different operation, or continue past a failed checkpoint.
 
-The three Fixture Application roots may share a reviewed stage only when each retains its own
-identity, backend, lock, plan, apply, result, and stop boundary. Exact Platform/fixture dependency
-ordering and generation activation remain unresolved until AP-M8-W8; they may not be inferred from
-module internals or provider tolerance.
+The three Fixture Application roots retain separate identities, backends, locks, plans, applies,
+results, and stop boundaries and run sequentially for the initial deployment. The accepted order is
+Platform foundation, image publication, platform-reference validation, public fixture,
+authenticated fixture, restricted fixture, generation publication, Platform candidate, then the
+separate DNS/TLS checkpoint. No provider tolerance or module internal can reorder that sequence.
 
 ### Acceptance criteria
 
@@ -1497,8 +1543,8 @@ AP-M8 is accepted only when all of the following are true:
 AP-M8 crosses from static configuration into protected repository, identity, state, provider, and
 DNS control planes. Exact-source binding, least privilege, state isolation, explicit checkpoints,
 stop-on-partial-failure behavior, and redacted readback reduce but do not eliminate those risks.
-Deployment sequencing, evidence rules, and AP-EVAL-M8 remain incomplete until the later AP-M8-W1
-authority commits; that incompleteness is a hard block on AP-M8-W2.
+Evidence rules and AP-EVAL-M8 remain incomplete until the later AP-M8-W1 authority commits; that
+incompleteness is a hard block on AP-M8-W2.
 
 No credential, token, assertion, session, restricted identity, application payload, state content,
 saved plan, raw provider response, browser state, or unredacted log may enter Git or the retained
@@ -1507,10 +1553,10 @@ coarse operation outcomes are not secrets but remain bounded to the approved rec
 
 ### Limitations and unresolved authority
 
-The protected-control and backend profiles are still proposal authority, not implemented controls.
-AP-M8-W1 does not yet complete the deployment sequence, evidence schema, or AP-EVAL-M8 gate. Those
-are required authority increments, not implementation tasks and not optional skips. Until every
-AP-M8-W1 increment is accepted together, AP-M8-W2 through AP-M8-W12 cannot start.
+The protected-control, backend, and deployment-sequencing profiles are still proposal authority,
+not implemented controls. AP-M8-W1 does not yet complete the evidence schema or AP-EVAL-M8 gate.
+Those are required authority increments, not implementation tasks and not optional skips. Until
+every AP-M8-W1 increment is accepted together, AP-M8-W2 through AP-M8-W12 cannot start.
 
 AP-M8 deployment cannot prove visitor or application behavior, direct-origin denial, real login,
 assertion verification, load, availability, multi-instance behavior, rollback time, recovery,

@@ -2,9 +2,9 @@
 
 Status: authoritative canonical dedicated-root layout; all five repository-extraction checkpoints
 complete; AP-M7 static Terraform, configuration, and inert workflows implemented and passing the
-deterministic repository gate; AP-M8 authority reserves backend-preparation support only; no
-backend or provider operation, cloud resource, IAM mutation, deployment, or Live qualification
-performed
+deterministic repository gate; AP-M8 authority reserves backend preparation and deployment-support
+locations only; no backend or provider operation, cloud resource, IAM mutation, build, publication,
+deployment, DNS change, or Live qualification performed
 
 The project is organized at the dedicated repository root produced by the history-preserving
 subtree extraction. Paths remain project-relative so repository identity does not alter platform
@@ -21,7 +21,7 @@ contracts, verification, or ownership boundaries.
 | `GLOSSARY.md` | Canonical platform vocabulary |
 | `docs/` | Platform design authority, runbooks, and evidence indexes |
 | `docs/runbooks/` | Subordinate operator procedures requiring their own explicit approvals |
-| `docs/runbooks/qualification_deployment.md` | Proposal-only AP-M8 protected-setting, identity, backend, deployment, and evidence checkpoints; no action authority |
+| `docs/runbooks/qualification_deployment.md` | Proposal-only AP-M8 protected-setting, identity, backend, exact deployment sequence, DNS/TLS, and evidence checkpoints; no action authority |
 | `prompts/` | Bounded task entry points that link to authoritative documents |
 | `integrations/` | Inactive application-adoption inputs with no consuming-app authority |
 | `contracts/` | Version 1 schemas, deterministic reference compiler, reviewed contract vectors, and bounded runtime JSON loading |
@@ -53,12 +53,21 @@ These paths are authority reservations, not implemented capabilities or permissi
 | --- | --- |
 | `infrastructure/backend/bootstrap-backend.tf.tmpl` | AP-M8-W5 reviewed empty GCS backend declaration for a private temporary bootstrap-root copy only |
 | `infrastructure/backend/render_bootstrap_backend.py` | AP-M8-W5 credential-free deterministic renderer that refuses overwrite and emits no value, state, credential, or provider data |
+| `edge/production.py` | AP-M8-W6 production composition of only the already accepted Shared Edge adapters |
+| `fixtures/runtime.py` | AP-M8-W6 networked synthetic Fixture Application runtime with independent production assertion verification |
+| `infrastructure/images/shared-edge/Dockerfile` | AP-M8-W6 pinned non-root Shared Edge image definition; no credential or mutable deployment tag |
+| `infrastructure/images/fixture-application/Dockerfile` | AP-M8-W6 pinned non-root reusable synthetic Fixture runtime image definition |
+| `infrastructure/config/schemas/platform-configuration.v2.schema.json` | AP-M8-W6 explicit `foundation`/`candidate` Platform State deployment contract preserving one root and lineage |
+| `infrastructure/deployment/` | AP-M8-W6 credential-free operation-record and exact workflow-configuration renderers; no operator value, credential, state, plan, or provider payload |
+| `registrations/qualification/` | AP-M8-W6 provider-backed initial synthetic Registration Set using reviewed `gcp-cloud-run-v1` references; distinct from AP-M4 Fixture evidence |
+| `.github/workflows/ap-m8-<operation>-<target>.yml` | AP-M8-W6 fixed manual operator workflows, one reviewed operation/target/identity/environment per file |
 
-AP-M8-W5 must implement and test these two files in a repository-only protected-main change before
-requesting backend-mutation approval. They never contain a bucket name, prefix, credential, backend
-state, saved plan, provider response, or deployable operator default. Their presence will not
-authorize bootstrap, migration, initialization, force-copy, force-unlock, state push, import, or
-apply.
+AP-M8-W5 must implement and test the backend files in a repository-only protected-main change
+before requesting backend-mutation approval. AP-M8-W6 must separately implement and test the
+deployment-support paths before authenticated preflight. Reserved paths never contain a credential,
+state, saved plan, provider response, secret, or deployable operator default. Their presence will
+not authorize bootstrap, migration, initialization, build, publication, provider access, DNS,
+traffic, force-copy, force-unlock, state push, import, apply, or recovery.
 
 ## Approved AP-M7 capability locations
 

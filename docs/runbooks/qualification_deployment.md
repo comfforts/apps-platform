@@ -14,7 +14,7 @@ Decisions: ADR-001, ADR-004, ADR-007
 
 Threats: AP-TM-004, AP-TM-005, AP-TM-007 through AP-TM-014
 
-Plan: AP-M8-W1, AP-M8-W3, AP-M8-W4, AP-M8-W5
+Plan: AP-M8-W1, AP-M8-W3 through AP-M8-W10
 
 ## Checkpoint rule
 
@@ -28,7 +28,8 @@ change table containing:
 
 - the protected `main` source revision and clean repository readback;
 - the exact current setting or IAM binding, proposed value, and reason;
-- the environment class, rendered workflow path, root, operation, and operation identity;
+- the environment class, rendered workflow path, root or publication target, operation, and
+  operation identity;
 - the exact GitHub repository and owner numeric identifiers;
 - the Workload Identity Pool and provider resource references;
 - the requested provider permissions and their resource scope;
@@ -38,6 +39,14 @@ change table containing:
 A missing, placeholder, synthetic, secret-bearing, discovered, over-broad, or unreviewed value
 blocks the checkpoint. The operator does not open an authenticated session merely to fill an
 authority gap.
+
+The AP-M8-W2 operator-input manifest is append-only. Its first accepted revision fixes every value
+known before provider mutation. A later package may append one immutable successor revision for a
+fact that can exist only after an earlier approved operation, such as an image digest, state
+lineage digest, configuration-object generation, plan digest, or run identifier. The successor
+names its predecessor and receives a new explicit approval before use; it never edits, replaces,
+or retroactively completes an earlier record. The exact protected-main source revision is recorded
+after the authority change merges, not guessed or self-referentially embedded in that change.
 
 ## AP-M8-W3 protected repository baseline
 
@@ -60,17 +69,19 @@ repair restores the baseline before AP-M8 continues and may not introduce an app
 
 ### Environment classes
 
-AP-M8 uses three distinct protected GitHub Environment classes. Their exact real names are
+AP-M8 uses four distinct protected GitHub Environment classes. Their exact real names are
 AP-M8-W2 operator inputs and may not use a synthetic example value:
 
 | Class | Permitted authority | Required protections |
 | --- | --- | --- |
 | Plan | Authenticated provider and state reads needed for one advisory or exact-main plan | Exact `main` deployment branch; explicit owner review for every job; no environment secret |
-| Apply | Same-job application of one exact reviewed plan for one root | Exact `main` deployment branch; fresh explicit owner review for every job; no environment secret |
+| Apply | Same-job application of one exact reviewed plan for one root, or one immutable artifact/configuration publication | Exact `main` deployment branch; fresh explicit owner review for every job; no environment secret |
+| DNS | The exact qualification-hostname record transaction only | Exact `main` deployment branch; fresh explicit owner review; no environment secret; no authority over another record or zone |
 | Recovery | One separately approved rollback, force-unlock, or destroy operation | Exact `main` deployment branch; fresh operation-specific owner review; no environment secret; no reused approval |
 
 The same person may trigger and approve in this owner-operated demo, but GitHub must still create a
-distinct environment review event after the exact source, root, operation, and digest are visible.
+distinct environment review event after the exact source, root or target, operation, and digest are
+visible.
 There is no approval bypass, branch or tag wildcard, wait-timer substitute, environment credential,
 or unprotected fallback. Non-secret environment variables may hold only reviewed resource
 references from the operator-input manifest.
@@ -89,9 +100,9 @@ AP-M8-W4 federation review, and readback before use.
 AP-M8-W3 does not render a workflow; AP-M8-W6 owns that later change. The protected-source profile
 requires every future executable operator workflow to:
 
-- exist as one reviewed `.github/workflows/` file for one operation and one root, with the root,
-  operation, environment, identity, provider, repository, and protected ref fixed rather than
-  selected by an untrusted dispatch input;
+- exist as one reviewed `.github/workflows/` file for one operation and one root or publication
+  target, with the target, operation, environment, identity, provider, repository, and protected
+  ref fixed rather than selected by an untrusted dispatch input;
 - use `workflow_dispatch` only and reject every repository, ref, revision, environment, root, or
   operation mismatch before requesting credentials;
 - set workflow-level permissions to `contents: read` and grant `id-token: write` only to the single
@@ -138,7 +149,7 @@ exact repository name and numeric identifier, exact repository-owner numeric ide
 names without their numeric identifiers are insufficient because a renamed or recreated repository
 must not inherit trust.
 
-### One identity per root and operation
+### One identity per root or publication operation
 
 No operation identity spans roots or operations. AP-M8-W2 must name one distinct service account
 and one exact workload-identity impersonation binding for every enabled cell in this matrix:
@@ -147,13 +158,17 @@ and one exact workload-identity impersonation binding for every enabled cell in 
 | --- | --- | --- |
 | Plan | Plan | Read the selected root's state and provider metadata and create/delete only its native backend lock; no state-content or provider-resource mutation |
 | Apply | Apply | Read and write the selected root's backend and mutate only resources owned by that root through one reviewed same-job plan |
+| Artifact publish | Apply | Create immutable digest-addressed packages only in the reviewed qualification Artifact Registry repository and read back their digests; no repository administration, overwrite, tag movement, or deletion |
+| Generation publish | Apply | Create and read back only the exact `generations/<n>/compiled.json` object with a zero-generation precondition; no overwrite, deletion, mutable pointer, or other object access |
+| Qualification DNS | DNS | Submit and read back only the reviewed `apps-staging.comfforts.com` A-record transaction in the exact managed zone; no other record or zone mutation |
 | Rollback | Recovery | Read and write the selected root's backend and perform only the reviewed rollback plan for that root |
 | Force-unlock | Recovery | Inspect the selected root's lock and remove only the exact approved lock identifier; no provider-resource mutation |
 | Destroy | Recovery | Read and write the selected root's backend and delete only the exact reviewed resources owned by that root through one reviewed destroy plan |
 
-An identity is enabled only when its rendered workflow path, root, operation, environment, service
-account, exact permission list, resource scopes, and impersonation principal are present in the
-operator manifest. Unused rollback, force-unlock, and destroy cells retain no binding. Import,
+An identity is enabled only when its rendered workflow path, root or exact publication target,
+operation, environment, service account, exact permission list, resource scopes, and impersonation
+principal are present in the operator manifest. Unused rollback, force-unlock, and destroy cells
+retain no binding. Import,
 state push, backend migration, federation administration, IAM administration, and project-wide
 administration remain outside this matrix and require later break-glass authority if ever needed.
 
@@ -383,3 +398,139 @@ saved plan, backend object payload, generated credential file, raw provider resp
 dump, or recovery copy. Passing AP-M8-W5 proves only backend creation, bootstrap-lineage migration,
 policy readback, and empty-root initialization; it does not prove a non-bootstrap apply, state
 recovery, provider runtime, or Live behavior.
+
+## AP-M8-W6 repository deployment support
+
+AP-M7 deliberately stops at static Terraform and inert workflow templates. The present source is
+not an operator-deployable release: it has no production Shared Edge composition entry point, no
+container definitions, no networked Fixture Application runtime, no provider-backed qualification
+Registration Set, and no executable cloud workflow. In addition, the Version 1 platform interface
+requires an image digest, a published configuration-object generation, and three attachment
+references before the same root can create their Artifact Registry and configuration bucket.
+AP-M8-W6 resolves those repository dependencies through protected-main pull requests before any
+AP-M8-W7 authenticated preflight or AP-M8-W9 deployment.
+
+W6 must add and deterministically test only these bounded capabilities:
+
+- a production composition entry point that assembles the already accepted Shared Edge adapters,
+  and a pinned, non-root container definition for that entry point;
+- one networked synthetic Fixture Application runtime that independently verifies the production
+  application assertion and preserves the three fixture applications' separate identity, state,
+  authorization, and failure behavior, plus a pinned non-root container definition;
+- a provider-backed initial qualification Registration Set using `gcp-cloud-run-v1` attachment
+  references under `registrations/qualification/`; the `fixture-in-process-v1` generations under
+  `fixtures/registrations/` remain Fixture evidence and are never deployed as Live inputs;
+- a Version 2 platform deployment configuration and matching root behavior that preserve one
+  Platform State lineage while selecting exactly `foundation` or `candidate` phase;
+- credential-free renderers for the append-only operation record and exact workflow
+  configurations; and
+- fixed `.github/workflows/` files for root plan/apply, artifact publication, generation
+  publication, qualification DNS, and the already approved exceptional operations, each bound to
+  one workflow, identity, environment class, target, and protected-main source.
+
+The Version 1 platform contract remains accepted AP-M7 static evidence and is not silently
+reinterpreted. Version 2 adds an explicit deployment phase and an independently reviewed Artifact
+Registry repository identifier. `foundation` accepts no edge image, published generation, or
+attachment references and may instantiate only platform foundation and control resources.
+`candidate` requires all of those exact immutable values and adds the Shared Edge, load balancer,
+address, and managed-certificate resources. Both phases address the same `platform` backend and
+state lineage; phase selection never creates a sixth root or permits resource import, replacement,
+or deletion. The candidate plan must prove that the previously applied foundation remains
+unchanged.
+
+Executable workflows are repository implementation, not permission to run. They remain unusable
+until their exact protected source, environments, identities, bindings, operator-manifest revision,
+and operation approval all exist. Container and workflow tests use local deterministic substitutes;
+the default `make check` never builds, publishes, authenticates, queries a provider, or mutates a
+repository setting.
+
+## AP-M8-W7 authenticated deployment preflight
+
+Before the first deployment mutation, one proposed-operation record must bind the exact clean
+protected-main revision to the accepted manifest revision and prove all of the following:
+
+- required checks passed with the locked Terraform/provider/Python dependencies and every action,
+  base image, and deployable image input is immutable;
+- billing and the approved provider APIs are already available, and the reviewed OAuth client,
+  redirect, numeric Secret Manager version, managed zone, notification destination, bucket names,
+  environment names, identities, and evidence destination exist as references without exposing a
+  secret;
+- the initial provider-backed Registration Set validates and compiles deterministically, identifies
+  no predecessor, and contains only the three synthetic qualification applications;
+- every empty non-bootstrap backend still reports `not-created`, bootstrap readback still agrees,
+  and no provider or state drift is present;
+- the authenticated Platform-foundation plan uses only exact present inputs; the later Fixture and
+  candidate expected-resource inventories and plan policies are reviewed without inventing image,
+  platform-reference, attachment, or object-generation values, and every later root must receive a
+  fresh authenticated plan after its exact dependencies exist;
+- every available plan contains no destroy, replacement, unknown service, unapproved API
+  enablement, cross-owner resource, Finance resource, or provider default; and
+- the owner has approved the exact source, manifest, configuration, expected-resource inventory,
+  and redacted plan digests before any dependent operation begins.
+
+Planning may confirm availability and render an expected change set. It cannot publish a package,
+reserve a digest, create a state lineage, or discover a value that the accepted manifest was
+required to supply. A runtime-generated fact enters only an approved successor manifest revision.
+
+## AP-M8-W8 and AP-M8-W9 deployment sequence
+
+AP-M8 uses this fixed initial-deployment sequence. Each row has its own protected-environment
+review, operation identity, backend lock where applicable, readback, immutable record revision, and
+stop boundary. Approval or success for one row never authorizes the next.
+
+| Order | Operation | Required result before continuing |
+| --- | --- | --- |
+| 1 | Apply Platform `foundation` | Configuration bucket, Artifact Registry, edge identities, KMS/Firestore resources, logging/evidence controls, and budget controls agree with the exact same-job plan; no Shared Edge, load balancer, certificate, DNS record, image, or generation object exists |
+| 2 | Build and publish images | The Shared Edge and synthetic Fixture runtime are built only from the exact source and pinned bases/dependencies; create-only publication returns reviewed immutable registry digests and leaves no mutable deployment tag authority |
+| 3 | Accept platform reference | Actual foundation outputs validate against the Version 1 cross-state-reference contract and the intended issuer, JWKS, and edge-caller identity; no root reads Platform State directly |
+| 4 | Apply `fixture-public` | The exact image digest and platform reference produce only that application's runtime, identity, ingress, IAM, state, and attachment reference; provider/state readback agrees |
+| 5 | Apply `fixture-authenticated` | The same checks pass in its independent backend and ownership boundary |
+| 6 | Apply `fixture-restricted` | The same checks pass in its independent backend and ownership boundary |
+| 7 | Compile and publish generation | Actual attachment references form the reviewed `gcp-cloud-run-v1` Registration Set; compilation is deterministic; create-only upload with `ifGenerationMatch=0` returns an exact object generation whose content and generation digests read back correctly |
+| 8 | Plan and apply Platform `candidate` | A fresh candidate plan contains only the expected Shared Edge, load balancer, address, and certificate additions, preserves every foundation resource, and binds the exact image digest, object generation, Registration Generation, and three attachments before same-job apply and provider/state readback |
+
+Fixture roots deploy sequentially for the initial environment. A later optimization may not run
+them in parallel without new authority because a failure must stop before another application root
+starts. The typed platform and attachment references are copied as reviewed non-secret values; a
+workflow never reads another root's backend or uses `terraform_remote_state`.
+
+The initial Shared Edge service has no predecessor revision. Its Terraform resource may therefore
+assign 100 percent of the Cloud Run service's internal traffic pointer to its only revision, but
+the qualification hostname has no DNS record during order 8. AP-M8 calls this a **dark initial
+candidate**, not zero-percent Cloud Run traffic, activation, or Live qualification. It does not
+authorize a successor-generation traffic switch. Future generation activation must retain
+ADR-008's complete-generation staging and explicit pointer-change boundary under later authority.
+
+## AP-M8-W10 qualification DNS and TLS checkpoint
+
+DNS is a separate operation after candidate provider/state/ownership readback. The proposed change
+must identify the exact managed zone, the candidate's reserved IPv4 address, the absent current
+record, and one new `apps-staging.comfforts.com` A record with TTL 1,800. The DNS identity may
+submit only that reviewed transaction. It cannot change `apps.comfforts.com`, an existing record,
+an AAAA record, a wildcard, the zone, a Finance hostname, or the load balancer.
+
+After the change, the operator reads back the authoritative zone and independent recursive
+resolvers, then waits for the managed certificate to report provider-ready for the exact hostname.
+An absent, conflicting, or unexpected answer, address mismatch, certificate failure, or unreviewed
+record stops AP-M8 before AP-M9. Reversing only the newly created A record requires a fresh DNS
+approval and cannot guarantee immediate disappearance from recursive caches.
+
+DNS and TLS readiness make the deployed candidate reachable; they do not prove routing, login,
+assertions, application denial, direct-origin denial, failures, availability, or cost behavior.
+Those are AP-M9 Live gates. Until AP-M9 passes, the truthful status is **deployed and not Live-
+qualified**.
+
+## Deployment partial-failure boundary
+
+| Failure point | Mandatory stop |
+| --- | --- |
+| Platform foundation | Publish no image and start no Fixture root; retain exact state/provider readback for owner inspection |
+| Image publication | Start no Fixture root; retain any successfully created immutable package, perform no automatic deletion, retag, or retry |
+| Platform-reference validation or any Fixture root | Start no later Fixture root, publish no generation, and plan no candidate; do not mutate a successful earlier root |
+| Registration compilation or generation publication | Plan no candidate; retain any create-only object for inspection and never overwrite it |
+| Candidate plan or apply | Create no DNS record; inspect the partial provider/state result without automatic rollback, unlock, destroy, import, or state repair |
+| DNS or certificate | Begin no AP-M9 gate; change only the new record after a separately approved exact reversal, if the owner selects it |
+
+No failure enables broader IAM, provider retry, cleanup, state push, force-unlock, import, destroy,
+manual console repair, alternate image, mutable tag, replacement registration, or a skipped
+readback. Each requires its own pre-authorized operation or a new owner-approved recovery record.

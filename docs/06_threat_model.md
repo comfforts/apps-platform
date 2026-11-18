@@ -1,8 +1,8 @@
 # App Platform threat model
 
-Version 1.1 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
+Version 1.2 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
 AP-M7 infrastructure-configuration controls, and proposed AP-M8 protected-source, federated-
-identity, backend-bootstrap, and state-lineage controls;
+identity, backend-bootstrap, state-lineage, and deployment-sequencing controls;
 Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
 implemented locally; no provider operation or live infrastructure is implemented
 
@@ -561,11 +561,11 @@ without claiming implementation:
   protected-environment approval, exact run SHA, reviewed plan digest, non-cancelling root
   concurrency, and the backend lock form independent gates. A plan approval grants no apply or
   recovery authority, and no partial failure automatically advances to another operation.
-- **AP-TM-008 and AP-TM-009:** Every enabled root-operation pair has a distinct service account,
-  rendered workflow, environment class, impersonation binding, backend scope, and provider scope.
-  Plan, apply, rollback, force-unlock, and destroy authority cannot cross a state owner or become
-  another application's runtime, state, or IAM authority. Unused exceptional identities have no
-  binding.
+- **AP-TM-008 and AP-TM-009:** Every enabled root or publication operation has a distinct service
+  account, rendered workflow, environment class, impersonation binding, backend scope where
+  applicable, and provider scope. Plan, apply, artifact publish, generation publish, DNS, rollback,
+  force-unlock, and destroy authority cannot cross a state owner or become another application's
+  runtime, state, or IAM authority. Unused exceptional identities have no binding.
 - **AP-TM-010:** GitHub environments contain no secret; workflows read no Actions secret and retain
   no OIDC token, generated credential, state, saved plan, raw provider response, browser state, or
   authenticated cache. Service-account keys are prohibited. Readback records only the reviewed
@@ -644,6 +644,68 @@ record are in the [qualification-deployment runbook](runbooks/qualification_depl
 the required AP-M8-W5 repository preparation is merged and the later operator checkpoint is
 explicitly approved, these controls supply no backend, state, provider, deployment, or Live
 evidence.
+
+## AP-M8 deployment-sequencing and activation controls
+
+AP-M8-W1 proposes these AP-M8-W6 through AP-M8-W10 controls without creating a workflow, image,
+generation, resource, record, or DNS entry:
+
+- **AP-TM-001 through AP-TM-003:** The initial provider-backed Registration Set contains only the
+  three synthetic qualification applications and exact `gcp-cloud-run-v1` references produced by
+  their independent roots. The complete set compiles before create-only publication, and the
+  candidate binds its exact source, generation, content digest, object generation, edge image, and
+  attachment references. The AP-M4 `fixture-in-process-v1` generations cannot be relabeled as
+  deployed input.
+- **AP-TM-004 through AP-TM-006:** A production Shared Edge composition entry point may assemble
+  only the accepted identity, assertion, verification, resolution, and proxy adapters. The
+  networked Fixture runtime independently verifies the production application assertion and keeps
+  each application's synthetic authorization and state boundary. Repository support and provider
+  deployment still supply no runtime identity or origin-isolation evidence; AP-M9 must exercise it.
+- **AP-TM-007:** A Version 2 `foundation`/`candidate` contract breaks the first-deployment cycle
+  without placeholder image, generation, or attachment values and preserves one Platform State
+  lineage. Source, base image, package, configuration, object-generation, plan, and run digests are
+  added through immutable predecessor-linked operation records. The candidate plan must preserve
+  foundation resources and bind all exact dependencies before apply.
+- **AP-TM-008 and AP-TM-009:** Platform foundation, each Fixture root, immutable artifact
+  publication, immutable generation publication, platform candidate, and DNS are sequential
+  operation boundaries. Typed references cross roots as reviewed data; no operation reads another
+  backend. Artifact, generation, and DNS identities have no Terraform backend authority and can
+  mutate only their exact repository, object, or A record.
+- **AP-TM-010:** Images contain no credential or secret. Builds use exact source, pinned base
+  images, frozen dependencies, non-root runtime users, and no retained build credential. Generated
+  credentials, plans, state, provider responses, compiled object payloads, tokens, sessions,
+  assertions, restricted members, and DNS-provider payloads remain outside Git and retained
+  evidence; only approved digests, references, inventories, and coarse results enter the record.
+- **AP-TM-011:** W6 implements fixed protected-main manual workflows with full action pins,
+  non-persisted checkout credentials, exact identity/environment/target constants, and no Actions
+  secret. Create-only artifact and object publication reject overwrite or mutable deployment tags.
+  The candidate is built and planned from the exact accepted source rather than an unreviewed
+  working tree or provider-discovered default.
+- **AP-TM-012:** Foundation creates only the approved controls and bounded Artifact Registry;
+  image publication cannot delete or administer it. The candidate retains AP-M7 zero-minimum and
+  maximum-instance limits. DNS changes only the one new qualification A record. These constraints
+  do not prove observed load, availability, cost, provider cleanup, or cache behavior.
+- **AP-TM-013:** The first failure stops all dependent stages. A successfully created immutable
+  image, object, root, or state remains for readback and never triggers automatic cleanup, retry,
+  retag, overwrite, rollback, force-unlock, state push, import, destroy, IAM broadening, alternate
+  artifact, or console repair. Candidate failure blocks DNS; DNS or certificate failure blocks
+  AP-M9 and requires a new approval even to reverse only the new record.
+- **AP-TM-014:** Images, Registration Sets, roots, identities, objects, state, hostname, and records
+  remain confined to the App Platform qualification project and synthetic Fixture Applications.
+  No Finance, production, real-application, Integration Draft, or Adoption input can enter the
+  sequence.
+
+The initial candidate has no predecessor and may receive 100 percent of its Cloud Run service's
+traffic pointer before the hostname exists. This is a dark initial candidate, not zero-percent
+traffic, successor-generation activation, or Live proof. The separately approved A record and
+managed-certificate readiness make it reachable but leave it deployed and not Live-qualified.
+ADR-008 pointer-change authority and all runtime claims remain AP-M9 or later work.
+
+The exact W6 dependency closure, W7 preflight, W8/W9 operation order, W10 DNS/TLS checkpoint, and
+partial-failure table are in the subordinate
+[qualification-deployment runbook](runbooks/qualification_deployment.md). Until W6 is merged and
+each later checkpoint is separately approved, this profile supplies no executable or provider
+authority.
 
 ## Unresolved security decisions
 

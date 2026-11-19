@@ -30,6 +30,17 @@ from infrastructure.operator.integration import (
     RegistrationIntent,
     RegistrationLifecycleResult,
 )
+from infrastructure.operator.qualification import (
+    ComponentRevision,
+    FixtureRevision,
+    QualificationCheckObservation,
+    QualificationEvaluator,
+    QualificationLifecycle,
+    QualificationReadback,
+    QualificationRequest,
+    QualificationResult,
+    QualificationStateReader,
+)
 
 __all__ = (
     "DiscoverySnapshot",
@@ -46,9 +57,18 @@ __all__ = (
     "IntegrationBundleResult",
     "LifecycleChangeRequest",
     "LifecycleOperator",
+    "ComponentRevision",
+    "FixtureRevision",
     "OperatorInterrupted",
     "OperatorAdapters",
     "PrepareResult",
+    "QualificationCheckObservation",
+    "QualificationEvaluator",
+    "QualificationLifecycle",
+    "QualificationReadback",
+    "QualificationRequest",
+    "QualificationResult",
+    "QualificationStateReader",
     "PlatformIntegrationReader",
     "PlatformIntegrationState",
     "RegistrationGenerationControl",

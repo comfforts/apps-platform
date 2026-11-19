@@ -214,6 +214,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             cloud_sdk_configuration=configuration,
             working_root=root,
             project_id=PROJECT_ID,
+            project_number="455651441682",
             region=REGION,
             service_name=SERVICE,
             configuration_bucket=BUCKET,
@@ -413,6 +414,99 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                         environment=environment,
                     )
                 )
+
+    def test_attachment_readback_verifies_owner_ingress_audience_and_caller(self) -> None:
+        compiled = _canonical(proposal().compiled_configuration)
+
+        class AttachmentGcloud(FakeGcloud):
+            def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
+                arguments = request.argv[1:]
+                self.requests.append(request)
+                if arguments[:3] == ("run", "services", "describe"):
+                    return ProviderCommandResult(
+                        0,
+                        _canonical(
+                            {
+                                "metadata": {
+                                    "annotations": {
+                                        "run.googleapis.com/ingress": "internal"
+                                    },
+                                    "labels": {
+                                        "environment": "staging",
+                                        "state_owner": "application",
+                                    },
+                                    "name": "fixture-authenticated",
+                                },
+                                "spec": {
+                                    "template": {
+                                        "spec": {
+                                            "containers": [
+                                                {
+                                                    "env": [
+                                                        {
+                                                            "name": (
+                                                                "APP_PLATFORM_ASSERTION_AUDIENCE"
+                                                            ),
+                                                            "value": (
+                                                                "urn:comfforts:app-platform:"
+                                                                "audience:fixture-authenticated"
+                                                            ),
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    }
+                                },
+                                "status": {
+                                    "conditions": [
+                                        {"status": "True", "type": "Ready"}
+                                    ]
+                                },
+                            }
+                        ),
+                        b"",
+                    )
+                if arguments[:3] == ("run", "services", "get-iam-policy"):
+                    return ProviderCommandResult(
+                        0,
+                        _canonical(
+                            {
+                                "bindings": [
+                                    {
+                                        "members": [
+                                            "serviceAccount:"
+                                            "app-platform-edge-caller@"
+                                            f"{PROJECT_ID}.iam.gserviceaccount.com"
+                                        ],
+                                        "role": "roles/run.invoker",
+                                    }
+                                ]
+                            }
+                        ),
+                        b"",
+                    )
+                return ProviderCommandResult(2, b"", b"unexpected")
+
+        reference = (
+            "urn:comfforts:app-platform:gcp:cloud-run:"
+            "455651441682:us-west1:fixture-authenticated"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            fake = AttachmentGcloud(compiled)
+            provider = self._provider(directory, fake)
+
+            target = provider.read_target("staging", reference)
+
+        self.assertTrue(target.exists)
+        self.assertTrue(target.ready)
+        self.assertEqual(target.owner_application_id, "fixture-authenticated")
+        self.assertEqual(target.ingress_mode, "shared_edge_only")
+        self.assertEqual(
+            target.audience,
+            "urn:comfforts:app-platform:audience:fixture-authenticated",
+        )
+        self.assertIn("app-platform-edge-caller", target.caller_grant)
 
 
 if __name__ == "__main__":

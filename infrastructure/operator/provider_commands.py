@@ -11,6 +11,7 @@ import subprocess
 from typing import Any, Protocol
 
 from infrastructure.operator.integration import RegistrationGenerationProposal
+from infrastructure.operator.integration import AttachmentTargetReadback
 from infrastructure.operator.local_generation import (
     GenerationProvider,
     ProviderGenerationActivation,
@@ -30,6 +31,7 @@ _ALLOWED_ENVIRONMENT = {
 _ALLOWED_COMMANDS = {
     ("run", "revisions", "describe"),
     ("run", "services", "describe"),
+    ("run", "services", "get-iam-policy"),
     ("run", "services", "update"),
     ("run", "services", "update-traffic"),
     ("storage", "cat"),
@@ -154,6 +156,7 @@ class GcloudGenerationProvider(GenerationProvider):
         cloud_sdk_configuration: Path,
         working_root: Path,
         project_id: str,
+        project_number: str,
         region: str,
         service_name: str,
         configuration_bucket: str,
@@ -164,6 +167,7 @@ class GcloudGenerationProvider(GenerationProvider):
         self._cloud_sdk_configuration = cloud_sdk_configuration.resolve()
         self._working_root = working_root.resolve()
         self._project_id = project_id
+        self._project_number = project_number
         self._region = region
         self._service_name = service_name
         self._configuration_bucket = configuration_bucket
@@ -181,6 +185,8 @@ class GcloudGenerationProvider(GenerationProvider):
             raise ValueError("provider working root must be a real directory")
         if set(self._authority_emails) != {"apply", "readback", "rollback"}:
             raise ValueError("apply, readback, and rollback authorities are required")
+        if not self._project_number.isdigit():
+            raise ValueError("canonical provider project number is required")
 
     def _environment(self) -> tuple[tuple[str, str], ...]:
         return (
@@ -313,17 +319,42 @@ class GcloudGenerationProvider(GenerationProvider):
             raise GenerationProviderError("GENERATION_REVISION_READBACK_INVALID") from error
 
     def _describe_service(self, authority: str) -> dict[str, Any]:
+        return self._describe_named_service(self._service_name, authority)
+
+    def _describe_named_service(
+        self,
+        service_name: str,
+        authority: str,
+    ) -> dict[str, Any]:
         result = self._run_common(
             "EDGE_SERVICE_READBACK_FAILED",
             "run",
             "services",
             "describe",
-            self._service_name,
+            service_name,
             f"--region={self._region}",
             "--format=json",
             authority=authority,
         )
         return self._json("EDGE_SERVICE_READBACK_INVALID", result.stdout)
+
+    def _try_describe_named_service(
+        self,
+        service_name: str,
+        authority: str,
+    ) -> dict[str, Any] | None:
+        result = self._try_common(
+            "run",
+            "services",
+            "describe",
+            service_name,
+            f"--region={self._region}",
+            "--format=json",
+            authority=authority,
+        )
+        if result.returncode != 0:
+            return None
+        return self._json("ATTACHMENT_TARGET_READBACK_INVALID", result.stdout)
 
     def _describe_revision(
         self,
@@ -617,6 +648,130 @@ class GcloudGenerationProvider(GenerationProvider):
             environment=environment,
             active_generation_digest=values["APP_PLATFORM_GENERATION_DIGEST"],
             component_revisions=tuple(sorted(components)),
+        )
+
+    @staticmethod
+    def _service_environment(service: dict[str, Any]) -> dict[str, str]:
+        try:
+            values = service["spec"]["template"]["spec"]["containers"][0]["env"]
+        except (KeyError, IndexError, TypeError) as error:
+            raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID") from error
+        if not isinstance(values, list):
+            raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID")
+        result: dict[str, str] = {}
+        for item in values:
+            if (
+                not isinstance(item, dict)
+                or not isinstance(item.get("name"), str)
+                or not isinstance(item.get("value"), str)
+            ):
+                raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID")
+            result[item["name"]] = item["value"]
+        return result
+
+    def read_target(
+        self,
+        environment: str,
+        resource_reference: str,
+    ) -> AttachmentTargetReadback:
+        """Read one exact Cloud Run attachment and its edge-caller IAM grant."""
+
+        prefix = (
+            "urn:comfforts:app-platform:gcp:cloud-run:"
+            f"{self._project_number}:{self._region}:"
+        )
+        application_id = resource_reference.removeprefix(prefix)
+        if (
+            environment != "staging"
+            or not resource_reference.startswith(prefix)
+            or not application_id
+            or any(
+                character not in "abcdefghijklmnopqrstuvwxyz0123456789-"
+                for character in application_id
+            )
+        ):
+            raise GenerationProviderError("ATTACHMENT_REFERENCE_INVALID")
+        service = self._try_describe_named_service(application_id, "readback")
+        if service is None:
+            return AttachmentTargetReadback(
+                exists=False,
+                ready=False,
+                owner_application_id=application_id,
+                adapter_kind="gcp-cloud-run-v1",
+                resource_reference=resource_reference,
+                ingress_mode="unavailable",
+                caller_grant="",
+                audience=None,
+            )
+        metadata = service.get("metadata")
+        status = service.get("status")
+        if not isinstance(metadata, dict) or not isinstance(status, dict):
+            raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID")
+        labels = metadata.get("labels", {})
+        annotations = metadata.get("annotations", {})
+        conditions = status.get("conditions", [])
+        if (
+            not isinstance(labels, dict)
+            or not isinstance(annotations, dict)
+            or not isinstance(conditions, list)
+        ):
+            raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID")
+        environment_values = self._service_environment(service)
+        ready = any(
+            isinstance(item, dict)
+            and item.get("type") == "Ready"
+            and item.get("status") == "True"
+            for item in conditions
+        )
+        owner = (
+            application_id
+            if labels.get("state_owner") == "application"
+            and labels.get("environment") == environment
+            else ""
+        )
+        ingress = (
+            "shared_edge_only"
+            if annotations.get("run.googleapis.com/ingress") == "internal"
+            else "unverified"
+        )
+        policy = self._json(
+            "ATTACHMENT_IAM_READBACK_INVALID",
+            self._run_common(
+                "ATTACHMENT_IAM_READBACK_FAILED",
+                "run",
+                "services",
+                "get-iam-policy",
+                application_id,
+                f"--region={self._region}",
+                "--format=json",
+                authority="readback",
+            ).stdout,
+        )
+        bindings = policy.get("bindings")
+        if not isinstance(bindings, list):
+            raise GenerationProviderError("ATTACHMENT_IAM_READBACK_INVALID")
+        expected_caller = (
+            "serviceAccount:app-platform-edge-caller@"
+            f"{self._project_id}.iam.gserviceaccount.com"
+        )
+        caller_grant = ""
+        for binding in bindings:
+            if (
+                isinstance(binding, dict)
+                and binding.get("role") == "roles/run.invoker"
+                and isinstance(binding.get("members"), list)
+                and expected_caller in binding["members"]
+            ):
+                caller_grant = expected_caller
+        return AttachmentTargetReadback(
+            exists=True,
+            ready=ready,
+            owner_application_id=owner,
+            adapter_kind="gcp-cloud-run-v1",
+            resource_reference=resource_reference,
+            ingress_mode=ingress,
+            caller_grant=caller_grant,
+            audience=environment_values.get("APP_PLATFORM_ASSERTION_AUDIENCE"),
         )
 
 

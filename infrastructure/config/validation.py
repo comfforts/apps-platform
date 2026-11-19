@@ -21,7 +21,7 @@ SCHEMA_FILES = (
     "backend-configuration.v1.schema.json",
     "cross-state-reference.v1.schema.json",
     "fixture-configuration.v1.schema.json",
-    "platform-configuration.v1.schema.json",
+    "platform-configuration.v2.schema.json",
     "workflow-configuration.v1.schema.json",
 )
 SCHEMA_IDS = {
@@ -30,7 +30,7 @@ SCHEMA_IDS = {
         "urn:comfforts:app-platform:infrastructure-config:cross-state-reference:v1"
     ),
     "fixture": "urn:comfforts:app-platform:infrastructure-config:fixture:v1",
-    "platform": "urn:comfforts:app-platform:infrastructure-config:platform:v1",
+    "platform": "urn:comfforts:app-platform:infrastructure-config:platform:v2",
     "workflow": "urn:comfforts:app-platform:infrastructure-config:workflow:v1",
 }
 FIXTURE_MODES = {
@@ -182,10 +182,10 @@ def _fixed_operator_violations(value: dict[str, Any]) -> list[Violation]:
         return []
     violations = _reserved_synthetic_violations(value)
     kind = value.get("configuration_kind")
-    if kind in {"backend", "fixture", "platform"}:
+    if kind in {"backend", "fixture"}:
         _field_equals(value, "project_id", FIXED_PROJECT_ID, violations)
         _field_equals(value, "region", FIXED_REGION, violations)
-    if kind in {"fixture", "platform"}:
+    if kind == "fixture":
         _field_equals(value, "project_number", FIXED_PROJECT_NUMBER, violations)
     if kind == "fixture":
         _field_equals(
@@ -195,8 +195,24 @@ def _fixed_operator_violations(value: dict[str, Any]) -> list[Violation]:
             violations,
         )
     if kind == "platform":
-        _field_equals(value, "qualification_hostname", FIXED_HOSTNAME, violations)
         _field_equals(value, "repository", FIXED_REPOSITORY, violations)
+        foundation = value.get("foundation")
+        if isinstance(foundation, dict):
+            expected = {
+                "project_id": FIXED_PROJECT_ID,
+                "project_number": FIXED_PROJECT_NUMBER,
+                "region": FIXED_REGION,
+                "hostname": FIXED_HOSTNAME,
+            }
+            for field, expected_value in expected.items():
+                if foundation.get(field) != expected_value:
+                    violations.append(
+                        _violation(
+                            "CONFIGURATION_POLICY_INVALID",
+                            f"/foundation/{field}",
+                            f"field must equal the reviewed value {expected_value!r}",
+                        )
+                    )
     if kind == "workflow":
         _field_equals(value, "repository", FIXED_REPOSITORY, violations)
         environment = value.get("protected_environment")
@@ -298,44 +314,79 @@ def _backend_violations(value: dict[str, Any]) -> list[Violation]:
 
 def _platform_violations(value: dict[str, Any]) -> list[Violation]:
     violations: list[Violation] = []
-    project_id = value.get("project_id")
-    region = value.get("region")
-    image = value.get("edge_image_digest")
+    phase = value.get("phase")
+    foundation = value.get("foundation")
+    shared_edge = value.get("shared_edge")
+    if phase == "foundation" and shared_edge is not None:
+        violations.append(
+            _violation(
+                "CONFIGURATION_POLICY_INVALID",
+                "/shared_edge",
+                "foundation phase must not contain later Shared Edge values",
+            )
+        )
+    if phase == "shared-edge" and not isinstance(shared_edge, dict):
+        violations.append(
+            _violation(
+                "CONFIGURATION_POLICY_INVALID",
+                "/shared_edge",
+                "Shared Edge phase requires its complete generated input binding",
+            )
+        )
+    if not isinstance(foundation, dict):
+        return violations
+    project_id = foundation.get("project_id")
+    region = foundation.get("region")
+    image = shared_edge.get("edge_image_digest") if isinstance(shared_edge, dict) else None
     if isinstance(image, str) and isinstance(project_id, str) and isinstance(region, str):
         if not image.startswith(f"{region}-docker.pkg.dev/{project_id}/"):
             violations.append(
                 _violation(
                     "CONFIGURATION_POLICY_INVALID",
-                    "/edge_image_digest",
+                    "/shared_edge/edge_image_digest",
                     "edge image scope must match the configured project and region",
                 )
             )
     scoped_fields = {
         "oauth_client_secret_version": f"projects/{project_id}/",
         "signing_key_version": f"projects/{project_id}/locations/{region}/",
-        "managed_zone_resource": f"projects/{project_id}/",
-        "notification_destination": f"projects/{project_id}/",
     }
     for field, prefix in scoped_fields.items():
-        field_value = value.get(field)
+        field_value = shared_edge.get(field) if isinstance(shared_edge, dict) else None
         if isinstance(field_value, str) and not field_value.startswith(prefix):
             violations.append(
                 _violation(
                     "CONFIGURATION_POLICY_INVALID",
-                    f"/{field}",
+                    f"/shared_edge/{field}",
                     "resource reference scope does not match platform configuration",
                 )
             )
-    buckets = [value.get(name) for name in ("configuration_bucket", "log_bucket", "evidence_bucket")]
+    notification = foundation.get("notification_destination")
+    if isinstance(notification, str) and not notification.startswith(f"projects/{project_id}/"):
+        violations.append(
+            _violation(
+                "CONFIGURATION_POLICY_INVALID",
+                "/foundation/notification_destination",
+                "resource reference scope does not match platform configuration",
+            )
+        )
+    buckets = [
+        foundation.get(name)
+        for name in ("configuration_bucket", "log_bucket", "evidence_bucket")
+    ]
     if all(isinstance(bucket, str) for bucket in buckets) and len(set(buckets)) != 3:
         violations.append(
             _violation(
                 "OWNER_CONFLICT",
-                "/configuration_bucket",
+                "/foundation/configuration_bucket",
                 "configuration, log, and evidence buckets must be distinct",
             )
         )
-    generation = value.get("registration_generation")
+    generation = (
+        shared_edge.get("registration_generation")
+        if isinstance(shared_edge, dict)
+        else None
+    )
     if isinstance(generation, dict):
         number = generation.get("generation")
         object_name = generation.get("object_name")
@@ -343,7 +394,7 @@ def _platform_violations(value: dict[str, Any]) -> list[Violation]:
             violations.append(
                 _violation(
                     "CONFIGURATION_POLICY_INVALID",
-                    "/registration_generation/object_name",
+                    "/shared_edge/registration_generation/object_name",
                     "generation object name must bind the declared generation",
                 )
             )

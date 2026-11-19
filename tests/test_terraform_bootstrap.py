@@ -32,7 +32,10 @@ class TerraformBootstrapTest(unittest.TestCase):
         main = (BOOTSTRAP_ROOT / "main.tf").read_text(encoding="utf-8")
 
         self.assertEqual(re.findall(r'^variable "([^"]+)"', variables, re.MULTILINE), ["backend_configuration"])
-        self.assertEqual(re.findall(r'^output "([^"]+)"', outputs, re.MULTILINE), ["backend_reference_set"])
+        self.assertEqual(
+            re.findall(r'^output "([^"]+)"', outputs, re.MULTILINE),
+            ["bootstrap_phase_output"],
+        )
         self.assertEqual(re.findall(r'^module "([^"]+)"', main, re.MULTILINE), ["state_bucket"])
         self.assertIn('source   = "../modules/state-bucket"', main)
         self.assertIn("for_each = local.state_buckets", main)

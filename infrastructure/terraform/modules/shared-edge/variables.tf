@@ -29,14 +29,6 @@ variable "edge_configuration" {
       client_secret_version = string
     })
     signing_key_version = string
-    attachment_references = list(object({
-      state_owner        = string
-      owner_id           = string
-      application_id     = string
-      attachment_id      = string
-      adapter_kind       = string
-      resource_reference = string
-      audience           = string
-    }))
+    tls_enabled         = bool
   })
 }

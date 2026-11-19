@@ -1,0 +1,44 @@
+{
+  "contract_version": 2,
+  "configuration_kind": "platform",
+  "configuration_class": "synthetic",
+  "phase": "shared-edge",
+  "repository": "comfforts/apps-platform",
+  "environment": "staging",
+  "foundation": {
+    "project_id": "synthetic-platform",
+    "project_number": "123456789012",
+    "region": "us-west1",
+    "hostname": "apps.example.invalid",
+    "state_owner": "platform",
+    "configuration_bucket": "synthetic-platform-configuration",
+    "log_bucket": "synthetic-platform-logs",
+    "evidence_bucket": "synthetic-platform-evidence",
+    "artifact_repository_id": "synthetic-images",
+    "oauth_secret_id": "synthetic-oauth-secret",
+    "signing_key_ring_id": "synthetic-platform",
+    "signing_key_id": "synthetic-edge-signing",
+    "billing_account_reference": "billingAccounts/000000-000000-000000",
+    "notification_destination": "projects/synthetic-platform/notificationChannels/1"
+  },
+  "shared_edge": {
+    "edge_image_digest": "us-west1-docker.pkg.dev/synthetic-platform/synthetic-images/shared-edge@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "oauth_client_id": "synthetic-client.apps.example.invalid",
+    "oauth_client_secret_version": "projects/synthetic-platform/secrets/synthetic-oauth-secret/versions/1",
+    "signing_key_version": "projects/synthetic-platform/locations/us-west1/keyRings/synthetic-platform/cryptoKeys/synthetic-edge-signing/cryptoKeyVersions/1",
+    "registration_generation": {
+      "source_revision": "0000000000000000000000000000000000000000",
+      "generation": 1,
+      "generation_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "content_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "object_name": "generations/1/compiled.json",
+      "object_generation": 1
+    },
+    "tls_enabled": true
+  },
+  "labels": {
+    "environment": "staging",
+    "managed_by": "terraform",
+    "state_owner": "platform"
+  }
+}

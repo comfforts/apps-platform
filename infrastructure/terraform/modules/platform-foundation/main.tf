@@ -1,11 +1,4 @@
 locals {
-  signing_key_parts  = split("/", var.foundation_configuration.signing.key_version)
-  oauth_secret_parts = split("/", var.foundation_configuration.oauth.client_secret_version)
-
-  signing_key_ring_name = local.signing_key_parts[5]
-  signing_key_name      = local.signing_key_parts[7]
-  oauth_secret_id       = join("/", slice(local.oauth_secret_parts, 0, 4))
-
   edge_runtime_principal = "serviceAccount:${var.foundation_configuration.identities.edge_runtime_account_id}@${var.foundation_configuration.project_id}.iam.gserviceaccount.com"
   edge_caller_principal  = "serviceAccount:${var.foundation_configuration.identities.edge_caller_account_id}@${var.foundation_configuration.project_id}.iam.gserviceaccount.com"
 }
@@ -84,7 +77,7 @@ resource "google_firestore_field" "session_expiration" {
 resource "google_kms_key_ring" "assertion_signing" {
   project  = var.foundation_configuration.project_id
   location = var.foundation_configuration.region
-  name     = local.signing_key_ring_name
+  name     = var.foundation_configuration.signing_key_ring_id
 
   lifecycle {
     prevent_destroy = true
@@ -92,7 +85,7 @@ resource "google_kms_key_ring" "assertion_signing" {
 }
 
 resource "google_kms_crypto_key" "assertion_signing" {
-  name     = local.signing_key_name
+  name     = var.foundation_configuration.signing_key_id
   key_ring = google_kms_key_ring.assertion_signing.id
   labels   = var.foundation_configuration.labels
   purpose  = "ASYMMETRIC_SIGN"
@@ -116,9 +109,25 @@ resource "google_kms_crypto_key_iam_member" "edge_signer" {
   member        = local.edge_runtime_principal
 }
 
+resource "google_secret_manager_secret" "edge_oauth" {
+  project   = var.foundation_configuration.project_id
+  secret_id = var.foundation_configuration.oauth_secret_id
+  labels    = var.foundation_configuration.labels
+
+  deletion_protection = true
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.foundation_configuration.region
+      }
+    }
+  }
+}
+
 resource "google_secret_manager_secret_iam_member" "edge_oauth_secret_reader" {
   project   = var.foundation_configuration.project_id
-  secret_id = local.oauth_secret_id
+  secret_id = google_secret_manager_secret.edge_oauth.id
   role      = "roles/secretmanager.secretAccessor"
   member    = local.edge_runtime_principal
 }

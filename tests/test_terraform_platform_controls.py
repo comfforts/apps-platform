@@ -26,22 +26,22 @@ class TerraformPlatformControlsTest(unittest.TestCase):
 
         self.assertEqual(
             re.findall(r'^module "([^"]+)"', main, re.MULTILINE),
-            ["platform_foundation", "shared_edge", "platform_controls"],
+            ["platform_foundation", "platform_controls", "shared_edge"],
         )
         self.assertIn('source = "../modules/platform-controls"', main)
         self.assertEqual(main.count("controls_configuration = {"), 1)
         for explicit_input in (
-            "platform_configuration.log_bucket",
-            "platform_configuration.evidence_bucket",
-            "platform_configuration.billing_account_reference",
-            "platform_configuration.notification_destination",
-            '"projectOwner:${var.platform_configuration.project_id}"',
-            'split("/", var.platform_configuration.edge_image_digest)[2]',
+            "foundation.log_bucket",
+            "foundation.evidence_bucket",
+            "foundation.billing_account_reference",
+            "foundation.notification_destination",
+            '"projectOwner:${local.foundation.project_id}"',
+            "foundation.artifact_repository_id",
         ):
             self.assertIn(explicit_input, main)
         self.assertEqual(
             re.findall(r'^variable "([^"]+)"', variables, re.MULTILINE),
-            ["platform_configuration", "fixture_attachment_references"],
+            ["platform_configuration"],
         )
         self.assertNotIn('resource "', main)
         self.assertNotIn('data "', main)

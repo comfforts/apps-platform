@@ -1,23 +1,40 @@
-output "platform_reference_set" {
-  description = "Minimal typed non-secret Platform State references for Fixture Application roots."
+output "foundation_phase_output" {
+  description = "Closed non-secret foundation output for later lifecycle stages."
   value = {
-    fixture_applications = {
-      reference_kind        = "platform"
-      state_owner           = "platform"
-      owner_id              = "app-platform"
-      project_number        = var.platform_configuration.project_number
-      region                = var.platform_configuration.region
-      platform_issuer       = "https://${var.platform_configuration.qualification_hostname}/_platform"
-      public_key_reference  = "https://${var.platform_configuration.qualification_hostname}/.well-known/jwks.json"
-      edge_caller_principal = module.platform_foundation.edge_caller_principal
-    }
+    contract_version = 1
+    output_kind      = "platform-foundation"
+    environment      = var.platform_configuration.environment
+    state_owner      = "platform"
+    owner_id         = "app-platform"
+    project_id       = local.foundation.project_id
+    project_number   = local.foundation.project_number
+    region           = local.foundation.region
+    hostname         = local.foundation.hostname
+    foundation       = module.platform_foundation.foundation_reference
+    controls         = module.platform_controls.foundation_reference
   }
 
   precondition {
     condition = (
       module.platform_foundation.policy_summary.identities.separated &&
-      !module.platform_foundation.policy_summary.identities.service_account_keys
+      !module.platform_foundation.policy_summary.identities.service_account_keys &&
+      !module.platform_foundation.policy_summary.oauth.secret_version_present &&
+      !module.platform_foundation.policy_summary.oauth.secret_value_present
     )
-    error_message = "platform references require separate keyless edge runtime and caller identities."
+    error_message = "foundation output requires separate keyless identities and a secret container without secret material."
   }
+}
+
+output "shared_edge_phase_output" {
+  description = "Closed non-secret Shared Edge output, absent during the foundation phase."
+  value = var.platform_configuration.phase == "shared-edge" ? {
+    contract_version = 1
+    output_kind      = "shared-edge"
+    environment      = var.platform_configuration.environment
+    state_owner      = "platform"
+    owner_id         = "app-platform"
+    project_id       = local.foundation.project_id
+    region           = local.foundation.region
+    edge             = module.shared_edge[0].edge_reference
+  } : null
 }

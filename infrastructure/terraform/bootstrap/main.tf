@@ -5,7 +5,7 @@ locals {
   state_bucket_labels = {
     for owner_id, bucket in local.state_buckets : owner_id => merge(
       {
-        environment = "qualification"
+        environment = "staging"
         managed_by  = "terraform"
         state_owner = bucket.state_owner
       },

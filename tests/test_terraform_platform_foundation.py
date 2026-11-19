@@ -7,15 +7,13 @@ from pathlib import Path
 import re
 import unittest
 
-from infrastructure.config.validation import validate_configuration
-
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TERRAFORM_ROOT = PROJECT_ROOT / "infrastructure" / "terraform"
 PLATFORM_ROOT = TERRAFORM_ROOT / "platform"
 MODULE_ROOT = TERRAFORM_ROOT / "modules" / "platform-foundation"
 PLATFORM_EXAMPLE = (
-    PROJECT_ROOT / "infrastructure/config/examples/platform.synthetic.v1.json"
+    PROJECT_ROOT
+    / "infrastructure/config/examples/platform-foundation.synthetic.v2.json"
 )
 
 
@@ -34,15 +32,15 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
 
         self.assertEqual(
             re.findall(r'^variable "([^"]+)"', variables, re.MULTILINE),
-            ["platform_configuration", "fixture_attachment_references"],
+            ["platform_configuration"],
         )
         self.assertEqual(
             re.findall(r'^output "([^"]+)"', outputs, re.MULTILINE),
-            ["platform_reference_set"],
+            ["foundation_phase_output", "shared_edge_phase_output"],
         )
         self.assertEqual(
             re.findall(r'^module "([^"]+)"', main, re.MULTILINE),
-            ["platform_foundation", "shared_edge", "platform_controls"],
+            ["platform_foundation", "platform_controls", "shared_edge"],
         )
         self.assertIn('source = "../modules/platform-foundation"', main)
         self.assertIn('source = "../modules/shared-edge"', main)
@@ -69,6 +67,7 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
                 ("google_kms_key_ring", "assertion_signing"),
                 ("google_kms_crypto_key", "assertion_signing"),
                 ("google_kms_crypto_key_iam_member", "edge_signer"),
+                ("google_secret_manager_secret", "edge_oauth"),
                 (
                     "google_secret_manager_secret_iam_member",
                     "edge_oauth_secret_reader",
@@ -92,10 +91,11 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             'role          = "roles/cloudkms.signerVerifier"',
             'role   = "roles/storage.objectViewer"',
             'role      = "roles/secretmanager.secretAccessor"',
+            'resource "google_secret_manager_secret" "edge_oauth"',
+            "deletion_protection = true",
             "manual_rotation_days",
             "verification_overlap_hours",
-            "object_upload          = \"deferred\"",
-            "activation             = \"deferred\"",
+            'registration_generation         = "later-stage-input"',
         ):
             self.assertIn(required_control, module)
 
@@ -109,7 +109,6 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             "state_owner",
             "terraform_remote_state",
             'resource "google_storage_bucket_object"',
-            'resource "google_secret_manager_secret"',
             'resource "google_secret_manager_secret_version"',
             'resource "google_service_account_key"',
             'resource "google_kms_crypto_key_version"',
@@ -131,7 +130,7 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
         schema = json.loads(
             (
                 PROJECT_ROOT
-                / "infrastructure/config/schemas/platform-configuration.v1.schema.json"
+                / "infrastructure/config/schemas/platform-configuration.v2.schema.json"
             ).read_text(encoding="utf-8")
         )
         variables = (PLATFORM_ROOT / "variables.tf").read_text(encoding="utf-8")
@@ -139,54 +138,31 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
         for field in schema["required"]:
             self.assertIn(field, variables)
         for mirrored_constraint in (
-            'contract_version == 1',
+            'contract_version == 2',
             'configuration_kind == "platform"',
             '["operator", "synthetic"]',
             'repository == "comfforts/apps-platform"',
-            'state_owner == "platform"',
+            'foundation.state_owner == "platform"',
             "@sha256:[0-9a-f]{64}",
             "/secrets/",
             "/cryptoKeyVersions/",
             "generation_digest",
             "content_digest",
-            'labels.environment == "qualification"',
+            'labels.environment == "staging"',
             'labels.managed_by == "terraform"',
-            "operator platform configuration must use the reviewed non-production scope",
+            "operator platform configuration must use the reviewed staging scope",
         ):
             self.assertIn(mirrored_constraint, variables)
 
-    def test_platform_output_conforms_to_cross_state_contract(self) -> None:
+    def test_foundation_example_contains_no_later_phase_values(self) -> None:
         platform = json.loads(PLATFORM_EXAMPLE.read_text(encoding="utf-8"))
-        reference = {
-            "contract_version": 1,
-            "configuration_kind": "cross-state-reference",
-            "configuration_class": "synthetic",
-            "reference": {
-                "reference_kind": "platform",
-                "state_owner": "platform",
-                "owner_id": "app-platform",
-                "project_number": platform["project_number"],
-                "region": platform["region"],
-                "platform_issuer": (
-                    f"https://{platform['qualification_hostname']}/_platform"
-                ),
-                "public_key_reference": (
-                    f"https://{platform['qualification_hostname']}/.well-known/jwks.json"
-                ),
-                "edge_caller_principal": (
-                    "serviceAccount:app-platform-edge-caller@"
-                    f"{platform['project_id']}.iam.gserviceaccount.com"
-                ),
-            },
-        }
-        self.assertEqual(
-            validate_configuration(
-                reference,
-                "cross-state-reference",
-                allow_synthetic=True,
-            ),
-            (),
-        )
+        self.assertEqual(platform["phase"], "foundation")
+        self.assertIsNone(platform["shared_edge"])
+        foundation = platform["foundation"]
+        self.assertNotIn("edge_image_digest", foundation)
+        self.assertNotIn("oauth_client_id", foundation)
+        self.assertNotIn("signing_key_version", foundation)
+        self.assertNotIn("registration_generation", foundation)
 
     def test_plan_test_uses_only_mocked_plan_mode_and_w3_example(self) -> None:
         test_file = (PLATFORM_ROOT / "tests/foundation.tftest.hcl").read_text(
@@ -195,14 +171,16 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
         self.assertIn('mock_provider "google"', test_file)
         self.assertEqual(test_file.count("command = plan"), 1)
         self.assertNotIn("command = apply", test_file)
-        self.assertIn("../../config/examples/platform.synthetic.v1.json", test_file)
+        self.assertIn(
+            "../../config/examples/platform-foundation.synthetic.v2.json",
+            test_file,
+        )
         for required_policy in (
             "absolute_lifetime_seconds == 28800",
             "POINT_IN_TIME_RECOVERY_DISABLED",
             "manual_rotation_days == 90",
             "verification_overlap_hours == 24",
-            'object_upload == "deferred"',
-            'activation == "deferred"',
+            "secret_version_present",
             "secret_value_present",
             "service_account_keys",
         ):

@@ -10,14 +10,19 @@ run "plans_four_exclusive_recoverable_backends" {
   command = plan
 
   assert {
-    condition     = length(output.backend_reference_set) == 4
-    error_message = "bootstrap must expose exactly four backend references"
+    condition = (
+      output.bootstrap_phase_output.contract_version == 1 &&
+      output.bootstrap_phase_output.output_kind == "bootstrap" &&
+      output.bootstrap_phase_output.environment == "staging" &&
+      length(output.bootstrap_phase_output.lineages) == 5
+    )
+    error_message = "bootstrap must expose one closed typed output with five lineages"
   }
 
   assert {
     condition = alltrue([
-      for reference in values(output.backend_reference_set) :
-      reference.reference_kind == "backend"
+      for reference in values(output.bootstrap_phase_output.lineages) :
+      contains(["platform", "application"], reference.state_owner)
     ])
     error_message = "bootstrap outputs must remain typed backend references"
   }
@@ -39,9 +44,10 @@ run "plans_four_exclusive_recoverable_backends" {
 
   assert {
     condition = toset([
-      for reference in values(output.backend_reference_set) :
-      "${reference.state_owner}:${reference.owner_id}:${reference.backend_prefix}"
+      for reference in values(output.bootstrap_phase_output.lineages) :
+      "${reference.state_owner}:${reference.owner_id}:${reference.prefix}"
       ]) == toset([
+      "platform:app-platform:bootstrap",
       "platform:app-platform:platform",
       "application:fixture-public:fixtures/fixture-public",
       "application:fixture-authenticated:fixtures/fixture-authenticated",
@@ -53,11 +59,13 @@ run "plans_four_exclusive_recoverable_backends" {
   assert {
     condition = alltrue([
       for owner_id, bucket in module.state_bucket :
-      bucket.policy_summary.configured_labels.environment == "qualification" &&
+      bucket.policy_summary.configured_labels.environment == "staging" &&
       bucket.policy_summary.configured_labels.managed_by == "terraform" &&
-      bucket.policy_summary.configured_labels.state_owner == output.backend_reference_set[owner_id].state_owner &&
+      bucket.policy_summary.configured_labels.state_owner == (
+        owner_id == "app-platform" ? "platform" : "application"
+      ) &&
       (
-        output.backend_reference_set[owner_id].state_owner == "platform" ?
+        owner_id == "app-platform" ?
         !contains(keys(bucket.policy_summary.configured_labels), "application_id") :
         bucket.policy_summary.configured_labels.application_id == owner_id
       )

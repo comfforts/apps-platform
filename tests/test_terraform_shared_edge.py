@@ -30,27 +30,30 @@ class TerraformSharedEdgeTest(unittest.TestCase):
 
         self.assertEqual(
             re.findall(r'^module "([^"]+)"', main, re.MULTILINE),
-            ["platform_foundation", "shared_edge", "platform_controls"],
+            ["platform_foundation", "platform_controls", "shared_edge"],
         )
         self.assertIn('source = "../modules/shared-edge"', main)
         self.assertEqual(main.count("edge_configuration = {"), 1)
-        self.assertIn("edge_revision_binding_digest = sha256(jsonencode({", main)
+        self.assertIn(
+            'edge_revision_binding_digest = var.platform_configuration.phase == "shared-edge" ? sha256(jsonencode({',
+            main,
+        )
         self.assertIn("edge_candidate_revision", main)
-        self.assertIn("module.platform_foundation.edge_runtime_email", main)
-        self.assertIn("value.reference", main)
+        self.assertIn(
+            "module.platform_foundation.foundation_reference.edge_runtime_email",
+            main,
+        )
+        self.assertIn('count  = var.platform_configuration.phase == "shared-edge"', main)
         self.assertNotIn('resource "', main)
         self.assertNotIn('data "', main)
 
-        self.assertIn('variable "fixture_attachment_references"', variables)
         for required_validation in (
-            "length(var.fixture_attachment_references) == 3",
-            '"fixture-public"',
-            '"fixture-authenticated"',
-            '"fixture-restricted"',
-            'attachment_id == "primary"',
-            'adapter_kind == "gcp-cloud-run-v1"',
-            "resource_reference == \"urn:comfforts:app-platform:gcp:cloud-run:",
-            "value.reference.audience == null",
+            'contains(["foundation", "shared-edge"]',
+            'phase == "foundation"',
+            "shared_edge.edge_image_digest",
+            "shared_edge.oauth_client_secret_version",
+            "shared_edge.signing_key_version",
+            "shared_edge.registration_generation",
         ):
             self.assertIn(required_validation, variables)
 
@@ -159,7 +162,7 @@ class TerraformSharedEdgeTest(unittest.TestCase):
         ):
             self.assertNotIn(prohibited, main)
 
-    def test_attachment_examples_are_typed_data_not_managed_targets(self) -> None:
+    def test_application_attachment_data_is_not_a_terraform_root_input(self) -> None:
         names = (
             "cross-state-attachment-public.synthetic.v1.json",
             "cross-state-attachment.synthetic.v1.json",
@@ -193,6 +196,9 @@ class TerraformSharedEdgeTest(unittest.TestCase):
         )
 
         module = _terraform_sources(MODULE_ROOT)
+        root = _terraform_sources(PLATFORM_ROOT)
+        self.assertNotIn("fixture_attachment_references", root)
+        self.assertNotIn("attachment_references", module)
         for prohibited in (
             'backend "',
             'provider "',
@@ -214,14 +220,9 @@ class TerraformSharedEdgeTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('mock_provider "google"', test_file)
-        self.assertEqual(test_file.count("command = plan"), 1)
+        self.assertEqual(test_file.count("command = plan"), 2)
         self.assertNotIn("command = apply", test_file)
-        for example in (
-            "cross-state-attachment-public.synthetic.v1.json",
-            "cross-state-attachment.synthetic.v1.json",
-            "cross-state-attachment-restricted.synthetic.v1.json",
-        ):
-            self.assertIn(example, test_file)
+        self.assertIn("platform-shared-edge.synthetic.v2.json", test_file)
         for required_policy in (
             "public_direct_origin",
             "traffic_percent == 100",
@@ -229,7 +230,9 @@ class TerraformSharedEdgeTest(unittest.TestCase):
             "serverless_backend_count == 1",
             "application_runtime_management",
             "attachment_discovery",
+            "application_owned_values",
             "arbitrary_target_url",
+            "plans_reserved_address_before_dns_verified_tls",
         ):
             self.assertIn(required_policy, test_file)
 

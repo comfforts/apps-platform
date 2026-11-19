@@ -3,12 +3,7 @@ mock_provider "google" {
 }
 
 variables {
-  platform_configuration = jsondecode(file("../../config/examples/platform.synthetic.v1.json"))
-  fixture_attachment_references = [
-    jsondecode(file("../../config/examples/cross-state-attachment-public.synthetic.v1.json")),
-    jsondecode(file("../../config/examples/cross-state-attachment.synthetic.v1.json")),
-    jsondecode(file("../../config/examples/cross-state-attachment-restricted.synthetic.v1.json")),
-  ]
+  platform_configuration = jsondecode(file("../../config/examples/platform-foundation.synthetic.v2.json"))
 }
 
 run "plans_bounded_observability_evidence_retention_and_cost_controls" {
@@ -133,7 +128,7 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
       module.platform_controls.policy_summary.runtime_caps.fixture_application.memory == "512Mi" &&
       module.platform_controls.policy_summary.runtime_caps.fixture_application.concurrency == 10 &&
       module.platform_controls.policy_summary.runtime_caps.maximum_stream_seconds == 3300 &&
-      module.platform_controls.policy_summary.labels.required.environment == "qualification" &&
+      module.platform_controls.policy_summary.labels.required.environment == "staging" &&
       module.platform_controls.policy_summary.labels.required.managed_by == "terraform" &&
       module.platform_controls.policy_summary.labels.required.state_owner == "platform" &&
       module.platform_controls.policy_summary.labels.application_id_when_applicable

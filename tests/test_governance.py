@@ -986,11 +986,9 @@ class ProjectAuthorityTest(unittest.TestCase):
 
     def test_ap_m8_authority_branch_contains_no_operational_capability(self) -> None:
         reserved_paths = (
-            "infrastructure/backend",
             "edge/production.py",
             "fixtures/runtime.py",
             "infrastructure/images",
-            "infrastructure/config/schemas/platform-configuration.v2.schema.json",
             "infrastructure/deployment",
             "registrations",
             "artifacts",
@@ -1035,7 +1033,6 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertNotIn(retired_interface, validation)
 
         for later_path in (
-            "infrastructure/backend",
             "infrastructure/deployment",
             "infrastructure/images",
             "edge/production.py",
@@ -1230,7 +1227,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertTrue((config_root / "README.md").is_file())
         self.assertTrue((config_root / "validation.py").is_file())
         self.assertEqual(len(tuple((config_root / "schemas").glob("*.json"))), 5)
-        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 15)
+        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 16)
         module_root = PROJECT_ROOT / "infrastructure/terraform/modules"
         self.assertEqual(
             sorted(path.name for path in module_root.iterdir() if path.is_dir()),

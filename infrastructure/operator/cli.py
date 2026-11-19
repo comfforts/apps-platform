@@ -7,8 +7,19 @@ import json
 from pathlib import Path
 from typing import Callable, Sequence
 
+from contracts import load_json_document
+from contracts.lifecycle import (
+    canonical_lifecycle_bytes,
+    load_lifecycle_document,
+)
 from infrastructure.operator._core import LifecycleOperator
-from infrastructure.operator.local import build_local_operator
+from infrastructure.operator.integration import (
+    ApplicationIntegrationLifecycle,
+    IntegrationBundleRequest,
+    LifecycleChangeRequest,
+    RegistrationIntent,
+)
+from infrastructure.operator.local import LocalFilesystem, build_local_operator
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -19,7 +30,15 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="apps-platform-operator")
     parser.add_argument(
         "operation",
-        choices=("deploy", "prepare", "status"),
+        choices=(
+            "deploy",
+            "detach",
+            "outputs",
+            "prepare",
+            "register",
+            "retire",
+            "status",
+        ),
         help="platform lifecycle operation",
     )
     parser.add_argument(
@@ -37,6 +56,18 @@ def _parser() -> argparse.ArgumentParser:
         "--specification-digest",
         help="exact approved deployment specification digest",
     )
+    parser.add_argument("--application-id")
+    parser.add_argument(
+        "--access-mode",
+        choices=("authenticated", "public", "restricted"),
+    )
+    parser.add_argument("--route-intent")
+    parser.add_argument("--platform-source-revision")
+    parser.add_argument("--platform-generation", type=int)
+    parser.add_argument("--generation-digest")
+    parser.add_argument("--integration-bundle", type=Path)
+    parser.add_argument("--attachment-bundle", type=Path)
+    parser.add_argument("--registration-intent", type=Path)
     return parser
 
 
@@ -44,28 +75,106 @@ def _default_factory(state_directory: Path) -> LifecycleOperator:
     return build_local_operator(PROJECT_ROOT, state_directory)
 
 
+def _default_integration_factory(
+    state_directory: Path,
+) -> ApplicationIntegrationLifecycle:
+    del state_directory
+    raise RuntimeError("APPLICATION_INTEGRATION_ADAPTER_UNAVAILABLE")
+
+
+def _required(arguments: argparse.Namespace, name: str) -> object:
+    value = getattr(arguments, name)
+    if value is None:
+        option = name.replace("_", "-")
+        raise SystemExit(f"{arguments.operation} requires --{option}")
+    return value
+
+
+def _load_input(path: Path, kind: str) -> dict[str, object]:
+    loaded = load_lifecycle_document(path, kind)
+    if loaded.violations or loaded.value is None:
+        raise ValueError(f"invalid {kind}")
+    return loaded.value
+
+
+def _load_registration_intent(path: Path) -> RegistrationIntent:
+    loaded = load_json_document(path, max_bytes=65_536)
+    if loaded.violations or not isinstance(loaded.value, dict):
+        raise ValueError("invalid registration intent")
+    value = loaded.value
+    expected = {
+        "attachment_id",
+        "catalogue_summary",
+        "catalogue_title",
+        "catalogue_visibility",
+        "forwarding_mode",
+        "mount_path",
+        "restricted_members",
+    }
+    if set(value) != expected or not isinstance(value["restricted_members"], list):
+        raise ValueError("invalid registration intent")
+    members: list[tuple[str, str]] = []
+    for member in value["restricted_members"]:
+        if not isinstance(member, dict) or set(member) != {"issuer", "subject"}:
+            raise ValueError("invalid registration intent")
+        issuer = member["issuer"]
+        subject = member["subject"]
+        if not isinstance(issuer, str) or not isinstance(subject, str):
+            raise ValueError("invalid registration intent")
+        members.append((issuer, subject))
+    string_fields = expected - {"restricted_members"}
+    if any(not isinstance(value[field], str) for field in string_fields):
+        raise ValueError("invalid registration intent")
+    return RegistrationIntent(
+        catalogue_visibility=value["catalogue_visibility"],
+        catalogue_title=value["catalogue_title"],
+        catalogue_summary=value["catalogue_summary"],
+        attachment_id=value["attachment_id"],
+        mount_path=value["mount_path"],
+        forwarding_mode=value["forwarding_mode"],
+        restricted_members=tuple(members),
+    )
+
+
+def _print(value: dict[str, object]) -> None:
+    print(json.dumps(value, sort_keys=True, separators=(",", ":")))
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
     operator_factory: Callable[[Path], LifecycleOperator] = _default_factory,
+    integration_factory: Callable[
+        [Path], ApplicationIntegrationLifecycle
+    ] = _default_integration_factory,
 ) -> int:
     arguments = _parser().parse_args(argv)
-    operator = operator_factory(arguments.state_directory)
+    if arguments.operation in {"prepare", "deploy", "status"}:
+        operator = operator_factory(arguments.state_directory)
+    else:
+        try:
+            integration = integration_factory(arguments.state_directory)
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+
     if arguments.operation == "prepare":
         result = operator.prepare(arguments.environment)
-        print(
-            json.dumps(
-                {
-                    "approved": result.approved,
-                    "blockers": list(result.blockers),
-                    "complete": result.complete,
-                    "environment": arguments.environment,
-                    "outcome": result.outcome,
-                    "specification_digest": result.specification_digest,
-                },
-                sort_keys=True,
-                separators=(",", ":"),
-            )
+        _print(
+            {
+                "approved": result.approved,
+                "blockers": list(result.blockers),
+                "complete": result.complete,
+                "environment": arguments.environment,
+                "outcome": result.outcome,
+                "specification_digest": result.specification_digest,
+            }
         )
         return 0 if result.outcome in {"prepared", "unchanged"} else 2
 
@@ -76,27 +185,138 @@ def main(
             arguments.environment,
             arguments.specification_digest,
         )
-        print(
-            json.dumps(
-                {
-                    "blockers": list(result.blockers),
-                    "environment": arguments.environment,
-                    "journal_digest": result.journal_digest,
-                    "outcome": result.outcome,
-                    "specification_digest": arguments.specification_digest,
-                },
-                sort_keys=True,
-                separators=(",", ":"),
-            )
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "journal_digest": result.journal_digest,
+                "outcome": result.outcome,
+                "specification_digest": arguments.specification_digest,
+            }
         )
         return 0 if result.outcome in {"succeeded", "unchanged"} else 2
 
-    status = operator.status(arguments.environment)
-    print(
-        json.dumps(
-            status.environment_status,
-            sort_keys=True,
-            separators=(",", ":"),
+    if arguments.operation == "outputs":
+        result = integration.outputs(
+            IntegrationBundleRequest(
+                environment=arguments.environment,
+                application_id=str(_required(arguments, "application_id")),
+                access_mode=str(_required(arguments, "access_mode")),
+                route_intent=str(_required(arguments, "route_intent")),
+                expected_platform_source_revision=str(
+                    _required(arguments, "platform_source_revision")
+                ),
+                expected_generation=int(
+                    _required(arguments, "platform_generation")
+                ),
+            )
         )
-    )
+        output_path: str | None = None
+        if result.bundle is not None and result.bundle_digest is not None:
+            output_path = (
+                f"environments/{arguments.environment}/bundles/"
+                f"{result.bundle['application_id']}/"
+                f"{result.bundle_digest[7:]}.v1.json"
+            )
+            try:
+                LocalFilesystem(
+                    PROJECT_ROOT,
+                    arguments.state_directory,
+                ).write_state(
+                    output_path,
+                    canonical_lifecycle_bytes(
+                        result.bundle,
+                        "platform-integration-bundle",
+                    )
+                    + b"\n",
+                    replace=False,
+                )
+            except FileExistsError:
+                _print(
+                    {
+                        "blockers": ["INTEGRATION_BUNDLE_PUBLICATION_CONFLICT"],
+                        "bundle_digest": result.bundle_digest,
+                        "bundle_path": output_path,
+                        "environment": arguments.environment,
+                        "outcome": "blocked",
+                    }
+                )
+                return 2
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "bundle_digest": result.bundle_digest,
+                "bundle_path": output_path,
+                "environment": arguments.environment,
+                "outcome": result.outcome,
+            }
+        )
+        return 0 if result.outcome == "generated" else 2
+
+    if arguments.operation == "register":
+        try:
+            integration_bundle = _load_input(
+                Path(_required(arguments, "integration_bundle")),
+                "platform-integration-bundle",
+            )
+            attachment_bundle = _load_input(
+                Path(_required(arguments, "attachment_bundle")),
+                "application-attachment-bundle",
+            )
+            intent = _load_registration_intent(
+                Path(_required(arguments, "registration_intent"))
+            )
+        except ValueError:
+            _print(
+                {
+                    "blockers": ["INTEGRATION_INPUT_INVALID"],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+        result = integration.register(
+            integration_bundle,
+            attachment_bundle,
+            intent,
+        )
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "generation": result.generation,
+                "generation_digest": result.generation_digest,
+                "outcome": result.outcome,
+            }
+        )
+        return 0 if result.outcome in {"activated", "unchanged"} else 2
+    if arguments.operation in {"detach", "retire"}:
+        request = LifecycleChangeRequest(
+            environment=arguments.environment,
+            application_id=str(_required(arguments, "application_id")),
+            expected_platform_source_revision=str(
+                _required(arguments, "platform_source_revision")
+            ),
+            expected_generation_digest=str(
+                _required(arguments, "generation_digest")
+            ),
+        )
+        result = (
+            integration.detach(request)
+            if arguments.operation == "detach"
+            else integration.retire(request)
+        )
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "generation": result.generation,
+                "generation_digest": result.generation_digest,
+                "outcome": result.outcome,
+            }
+        )
+        return 0 if result.outcome in {"activated", "unchanged"} else 2
+
+    status = operator.status(arguments.environment)
+    _print(status.environment_status)
     return 0 if not status.conflicts else 2

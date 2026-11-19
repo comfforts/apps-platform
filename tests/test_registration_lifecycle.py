@@ -16,6 +16,7 @@ from infrastructure.operator.integration import (
     GenerationPublicationReadback,
     IntegrationBundleRequest,
     LifecycleChangeRequest,
+    OperatorInterrupted,
     PlatformIntegrationState,
     RegistrationGenerationProposal,
     RegistrationIntent,
@@ -64,7 +65,10 @@ class FakeAttachmentReader:
 
 
 class FakeTerminal:
-    def __init__(self, confirmations: list[bool] | None = None) -> None:
+    def __init__(
+        self,
+        confirmations: list[bool | BaseException] | None = None,
+    ) -> None:
         self.confirmations = list(confirmations or [True] * 16)
         self.prompts: list[tuple[str, str]] = []
         self.messages: list[str] = []
@@ -74,7 +78,10 @@ class FakeTerminal:
 
     def confirm_exact(self, prompt: str, expected: str) -> bool:
         self.prompts.append((prompt, expected))
-        return self.confirmations.pop(0)
+        result = self.confirmations.pop(0)
+        if isinstance(result, BaseException):
+            raise result
+        return result
 
 
 class FakeGenerationControl:
@@ -396,6 +403,27 @@ class RegistrationLifecycleTest(unittest.TestCase):
         self.assertEqual(
             failed_activation.blockers,
             ("GENERATION_ACTIVATION_MISMATCH",),
+        )
+
+    def test_interrupted_confirmation_resumes_exact_create_only_publication(self) -> None:
+        bundle = self._bundle("fixture-public", "public")
+        attachment = self._attachment(bundle)
+        self.terminal.confirmations = [OperatorInterrupted(), True, True]
+
+        interrupted = self.lifecycle.register(bundle, attachment, self._intent())
+        resumed = self.lifecycle.register(bundle, attachment, self._intent())
+
+        self.assertEqual(interrupted.outcome, "interrupted")
+        self.assertEqual(
+            interrupted.blockers,
+            ("GENERATION_ACTIVATION_INTERRUPTED",),
+        )
+        self.assertEqual(resumed.outcome, "activated")
+        self.assertEqual(len(self.generations.history), 2)
+        self.assertEqual(len(self.generations.publications), 3)
+        self.assertEqual(
+            self.generations.publications[0].generation_digest,
+            self.generations.publications[1].generation_digest,
         )
 
     def test_registration_requires_complete_restricted_policy_and_generation_control(self) -> None:

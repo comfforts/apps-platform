@@ -14,6 +14,7 @@ from contracts.lifecycle import (
     validate_lifecycle_document,
     validate_lifecycle_relationships,
 )
+from infrastructure.operator._interfaces import OperatorInterrupted
 
 
 @dataclass(frozen=True, slots=True)
@@ -537,8 +538,6 @@ class ApplicationIntegrationLifecycle:
             publication = self._generation_control.publish(proposal)
         except Exception:
             return self._registration_blocked("GENERATION_PUBLICATION_FAILED")
-        if not publication.created:
-            return self._registration_blocked("GENERATION_PUBLICATION_CONFLICT")
         if (
             not publication.readback_matches
             or publication.generation_digest != proposal.generation_digest
@@ -555,10 +554,23 @@ class ApplicationIntegrationLifecycle:
         self._terminal.write(
             f"GENERATION {generation} {proposal.generation_digest}"
         )
-        if not self._terminal.confirm_exact(
-            f"Type {expected!r} to activate the exact whole generation: ",
-            expected,
-        ):
+        try:
+            confirmed = self._terminal.confirm_exact(
+                f"Type {expected!r} to activate the exact whole generation: ",
+                expected,
+            )
+        except OperatorInterrupted:
+            return self._registration_blocked(
+                "GENERATION_ACTIVATION_INTERRUPTED",
+                outcome="interrupted",
+                proposal=proposal,
+            )
+        except Exception:
+            return self._registration_blocked(
+                "GENERATION_CONFIRMATION_FAILED",
+                proposal=proposal,
+            )
+        if not confirmed:
             return self._registration_blocked(
                 "GENERATION_NOT_CONFIRMED",
                 outcome="cancelled",
@@ -794,6 +806,7 @@ __all__ = (
     "IntegrationBundleRequest",
     "IntegrationBundleResult",
     "LifecycleChangeRequest",
+    "OperatorInterrupted",
     "PlatformIntegrationReader",
     "PlatformIntegrationState",
     "RegistrationGenerationControl",

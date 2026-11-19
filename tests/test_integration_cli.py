@@ -237,18 +237,36 @@ class IntegrationCliTest(unittest.TestCase):
         )
         self.assertEqual(lifecycle.retirements[0], lifecycle.detaches[0])
 
-    def test_unarmed_local_adapter_fails_closed_without_external_action(self) -> None:
+    def test_local_adapter_fails_closed_without_deployed_readback(self) -> None:
         output = io.StringIO()
 
-        with redirect_stdout(output):
-            exit_code = main(["outputs", "--environment", "staging"])
+        with tempfile.TemporaryDirectory() as directory, redirect_stdout(output):
+            exit_code = main(
+                [
+                    "outputs",
+                    "--environment",
+                    "staging",
+                    "--state-directory",
+                    str(Path(directory) / "operator"),
+                    "--application-id",
+                    "fixture-public",
+                    "--access-mode",
+                    "public",
+                    "--route-intent",
+                    "/fixture-public",
+                    "--platform-source-revision",
+                    SOURCE_REVISION,
+                    "--platform-generation",
+                    "1",
+                ]
+            )
 
         result = json.loads(output.getvalue())
         self.assertEqual(exit_code, 2)
         self.assertEqual(result["outcome"], "blocked")
         self.assertEqual(
             result["blockers"],
-            ["APPLICATION_INTEGRATION_ADAPTER_UNAVAILABLE"],
+            ["PLATFORM_READBACK_FAILED"],
         )
 
 

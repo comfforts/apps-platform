@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 
@@ -271,4 +272,80 @@ def build_local_operator(project_root: Path, state_root: Path) -> LifecycleOpera
             filesystem=LocalFilesystem(resolved_project, state_root),
             clock=SystemClock(),
         )
+    )
+
+
+def _local_generation_provider(
+    project_root: Path,
+    state_root: Path,
+):
+    """Build the closed provider boundary only from explicit private local state."""
+
+    from infrastructure.backend import operation_authorities
+    from infrastructure.operator.provider_commands import (
+        ClosedGcloudRunner,
+        GcloudGenerationProvider,
+    )
+
+    executable_name = shutil.which("gcloud")
+    cloud_sdk_configuration = state_root.resolve() / "cloud-sdk"
+    if executable_name is None or not cloud_sdk_configuration.is_dir():
+        return None
+    if (
+        cloud_sdk_configuration.is_symlink()
+        or cloud_sdk_configuration.stat().st_mode & 0o077
+    ):
+        return None
+    authorities = {
+        authority.action: authority.service_account_email
+        for authority in operation_authorities("staging")
+        if authority.terraform_root == "infrastructure/terraform/platform"
+        and authority.state_owner == "platform"
+        and authority.owner_id == "app-platform"
+        and authority.action in {"apply", "readback", "rollback"}
+    }
+    executable = Path(executable_name).resolve()
+    runner = ClosedGcloudRunner(
+        executable,
+        project_root,
+        cloud_sdk_configuration,
+    )
+    return GcloudGenerationProvider(
+        executable=executable,
+        cloud_sdk_configuration=cloud_sdk_configuration,
+        working_root=project_root,
+        project_id="comfforts-platform-non-prod",
+        project_number="455651441682",
+        region="us-west1",
+        service_name="app-platform-edge",
+        configuration_bucket="comfforts-ap-stg-455651441682-configuration",
+        authority_emails=authorities,
+        runner=runner,
+    )
+
+
+def build_local_integration(
+    project_root: Path,
+    state_root: Path,
+):
+    """Construct local handoff reads and conditionally arm provider mutation."""
+
+    from infrastructure.operator.integration import ApplicationIntegrationLifecycle
+    from infrastructure.operator.local_generation import (
+        LocalRegistrationGenerationControl,
+    )
+    from infrastructure.operator.local_integration import (
+        LocalPlatformIntegrationReader,
+    )
+
+    resolved_project = project_root.resolve()
+    filesystem = LocalFilesystem(resolved_project, state_root)
+    operator = build_local_operator(resolved_project, state_root)
+    provider = _local_generation_provider(resolved_project, state_root)
+    generations = LocalRegistrationGenerationControl(filesystem, provider)
+    return ApplicationIntegrationLifecycle(
+        LocalPlatformIntegrationReader(filesystem, operator, generations),
+        attachment_reader=provider,
+        generation_control=generations if provider is not None else None,
+        terminal=ConsoleTerminal(),
     )

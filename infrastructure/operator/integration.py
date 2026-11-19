@@ -217,7 +217,10 @@ class ApplicationIntegrationLifecycle:
         if request.access_mode not in {"public", "authenticated", "restricted"}:
             return self._blocked("ACCESS_MODE_UNSUPPORTED")
 
-        state = self._platform_reader.read_platform(request.environment)
+        try:
+            state = self._platform_reader.read_platform(request.environment)
+        except Exception:
+            return self._blocked("PLATFORM_READBACK_FAILED")
         if state.environment != request.environment:
             return self._blocked("PLATFORM_ENVIRONMENT_MISMATCH")
         if state.platform_source_revision != request.expected_platform_source_revision:
@@ -335,7 +338,10 @@ class ApplicationIntegrationLifecycle:
 
         environment = integration_bundle["environment"]
         assert isinstance(environment, str)
-        state = self._platform_reader.read_platform(environment)
+        try:
+            state = self._platform_reader.read_platform(environment)
+        except Exception:
+            return self._attachment_blocked("PLATFORM_READBACK_FAILED")
         if not self._matches_platform_state(integration_bundle, state):
             return self._attachment_blocked("PLATFORM_STATE_MISMATCH")
         if self._attachment_reader is None:

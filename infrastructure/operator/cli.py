@@ -20,7 +20,11 @@ from infrastructure.operator.integration import (
     LifecycleChangeRequest,
     RegistrationIntent,
 )
-from infrastructure.operator.local import LocalFilesystem, build_local_operator
+from infrastructure.operator.local import (
+    LocalFilesystem,
+    build_local_integration,
+    build_local_operator,
+)
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 from infrastructure.operator.qualification import QualificationLifecycle
 
@@ -83,8 +87,7 @@ def _default_factory(state_directory: Path) -> LifecycleOperator:
 def _default_integration_factory(
     state_directory: Path,
 ) -> ApplicationIntegrationLifecycle:
-    del state_directory
-    raise RuntimeError("APPLICATION_INTEGRATION_ADAPTER_UNAVAILABLE")
+    return build_local_integration(PROJECT_ROOT, state_directory)
 
 
 def _default_qualification_factory(

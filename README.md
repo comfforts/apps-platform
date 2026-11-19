@@ -1,7 +1,8 @@
 # Comfforts App Platform
 
-Status: AP-M9-W2 retired-manifest cleanup implemented; Contract, Fixture, network-runtime, and
-static Terraform implementation exist; no platform environment is deployed or qualified
+Status: AP-M9-W3 lifecycle contracts and environment profiles implemented; Contract, Fixture,
+network-runtime, and static Terraform implementation exist; no platform environment is deployed
+or qualified
 
 Comfforts App Platform owns the shared hostname edge, catalogue, registration, routing, admission,
 platform identity, and environment lifecycle used by independently owned applications. Applications
@@ -34,8 +35,8 @@ comparison and rollback behavior.
 - AP-M8-W1/W2 are historical merged work from the superseded manifest-driven approach. No real
   manifest was accepted and AP-M8-W3 through AP-M8-W12 never began.
 - AP-M9 is the only active remaining platform milestone. W1 established its operator-driven
-  lifecycle authority, and W2 removed the retired manifest implementation. W3 is next after this
-  cleanup merges.
+  lifecycle authority, W2 removed the retired manifest implementation, and W3 implements the
+  closed environment profiles and digest-bound lifecycle document interfaces. W4 is next.
 
 No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
 application registration, or Live evidence is created merely by the repository implementation.
@@ -62,9 +63,10 @@ the operator presses Enter. It will never request an OAuth secret in the termina
 
 ## Application boundary
 
-The platform generates a non-secret Platform Integration Bundle. The Application Owner consumes
-that bundle, deploys its own assets, and returns an Application Attachment Bundle. Registration
-validates the target without reading or taking ownership of application state.
+The implemented W3 contracts define a non-secret Platform Integration Bundle. They also define an
+Application Attachment Bundle. Generation, application consumption, and registration remain later
+AP-M9 work. Validation preserves application ownership without reading or taking ownership of
+Application State.
 
 Detachment is reversible and permits application destruction/redeployment while preserving the
 application identifier and route. Retirement is terminal. Platform destruction never destroys

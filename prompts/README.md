@@ -4,12 +4,12 @@ Prompts are bounded task entry points, not architecture authority. Each prompt m
 platform documentation required for its task instead of copying requirements, decisions, or
 acceptance criteria.
 
-- [AP-M9-W3 lifecycle-contracts and profiles handoff](starting_prompt.md) starts a new chat from
-  updated, clean `main` only after the AP-M9-W2 pull request merges. It implements closed
-  environment profiles and deterministic lifecycle contracts while preserving the AP-M7
-  configuration surface and the historical AP-M8 record.
+- [AP-M9-W4 interactive lifecycle core handoff](starting_prompt.md) starts a new chat from updated,
+  clean `main` only after the AP-M9-W3 pull request merges. It implements credential-free
+  preparation, explicit digest approval, truthful status, append-only journaling, safe resume, and
+  deterministic adapter fakes while preserving the AP-M7 and W3 interfaces.
 
-The handoff authorizes repository contract and profile implementation only. It does not authorize
-AP-M9-W4 implementation, repository-setting changes, credentials, backend initialization, an
-authenticated plan or apply, a cloud or DNS mutation, deployment, Application Adoption, or Live
-qualification.
+The handoff authorizes repository implementation of the interactive core only. It does not
+authorize AP-M9-W5 implementation, repository-setting changes, credentials, backend
+initialization, an authenticated plan or apply, a cloud or DNS mutation, deployment, Application
+Adoption, or Live qualification.

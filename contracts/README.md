@@ -8,7 +8,7 @@ only inside the App Platform project and are subordinate to the product requirem
 ADRs, and system design. A schema does not provision a resource, activate a registration, verify a
 signature, or qualify runtime behavior.
 
-## Contract inventory
+## AP-M3 contract inventory
 
 | Schema | Stable identifier | Interface |
 | --- | --- | --- |
@@ -21,6 +21,15 @@ signature, or qualify runtime behavior.
 The local schema registry is exactly the identifier-to-path mapping in this table. A validator must
 resolve these URNs from the project checkout and must fail rather than fetch an unknown or remote
 reference.
+
+## AP-M9 lifecycle registry
+
+[`lifecycle/`](lifecycle/README.md) is a separate local registry for the Environment Profile,
+Deployment Specification, Execution Journal, Environment Status, Platform Integration Bundle, and
+Application Attachment Bundle. It reuses the bounded JSON Schema interpreter but does not widen the
+exact AP-M3 registry above or the AP-M7 infrastructure-configuration registry. Its canonical
+digests and cross-document validator are repository contract behavior only; they perform no
+prompt, approval, credential, provider, Terraform, DNS, deployment, or application operation.
 
 The compiler-only platform-configuration input uses the definition at
 urn:comfforts:app-platform:schema:registration-set:v1#/$defs/platformConfiguration. It is not part

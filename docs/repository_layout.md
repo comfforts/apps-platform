@@ -1,6 +1,6 @@
 # App Platform repository layout
 
-Version 1.6 | Status: canonical dedicated repository; AP-M9-W2 cleanup implemented;
+Version 1.7 | Status: canonical dedicated repository; AP-M9-W3 lifecycle contracts implemented;
 no backend, provider, DNS, deployment, or Live operation performed
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
@@ -17,11 +17,13 @@ permission to create a resource or perform an external action.
 | `docs/history/` | superseded delivery records with no action authority |
 | `prompts/` | bounded next-task entry points subordinate to current documents |
 | `contracts/` | Version 1 public schemas, compiler, vectors, and bounded loading |
+| `contracts/lifecycle/` | AP-M9 profiles and lifecycle-document schemas, vectors, digests, and cross-document validation |
 | `fixtures/` | deterministic in-process Fixture platform and synthetic applications |
 | `edge/` | network Shared Edge and production-adapter implementation |
 | `integrations/` | inactive application-adoption drafts |
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
+| `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
 | `infrastructure/terraform/bootstrap/` | AP-M7 static state-bucket owner root |
 | `infrastructure/terraform/platform/` | AP-M7 static Platform State root |
 | `infrastructure/terraform/fixtures/*/` | independent synthetic Application State roots |
@@ -36,14 +38,17 @@ AP-M9-W2 removed the retired AP-M8 operator-manifest files and their active cons
 delivery record remains under `docs/history/`, and the implementation remains recoverable from Git
 history. It is not a current operator input.
 
-## Planned AP-M9 capability locations
+AP-M9-W3 added only deterministic, credential-free repository interfaces. It created no operator
+command, approval, journal, bundle instance, provider resource, state, deployment, or evidence.
 
-These locations describe intended module seams. Their absence is expected until the named AP-M9
-package implements them.
+## AP-M9 capability locations
+
+The implemented profile and lifecycle-contract locations are listed above. The locations below
+describe later module seams; their absence is expected until the named AP-M9 package implements
+them.
 
 | Path | Intended owner |
 | --- | --- |
-| `infrastructure/config/profiles/` | small reviewed staging and production environment profiles |
 | `infrastructure/operator/` | deep interactive Python lifecycle module and bounded adapters |
 | `infrastructure/backend/` | deterministic backend rendering and lineage-preserving helpers |
 | `infrastructure/images/` | reproducible Shared Edge and synthetic Fixture images |

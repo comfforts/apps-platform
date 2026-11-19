@@ -1490,6 +1490,40 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(gate_boundary, normalized_evaluation)
 
+    def test_ap_m9_design_supersedes_the_unexecuted_manifest_path(self) -> None:
+        design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
+            encoding="utf-8"
+        )
+        threat_model = (PROJECT_ROOT / "docs/06_threat_model.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertEqual(
+            design.count("### AP-M9 operator-driven environment lifecycle profile"),
+            1,
+        )
+        self.assertIn(
+            "Historical AP-M8 protected-source and federated-identity profile — superseded",
+            design,
+        )
+        for operation in (
+            "prepare",
+            "deploy",
+            "status",
+            "outputs",
+            "register",
+            "detach",
+            "retire",
+            "qualify",
+            "destroy",
+        ):
+            self.assertIn(operation, design)
+
+        self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", design)
+        self.assertIn("AP-M9 interactive lifecycle controls", threat_model)
+        self.assertIn("operator-attested", threat_model)
+        self.assertIn("No current result proves", threat_model)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 import unittest
 
@@ -169,7 +170,29 @@ class DestructionSpecificationTest(unittest.TestCase):
         ]
         retained["destructive_boundary"] = retained_boundary
 
-        for label, candidate in (("missing", missing), ("retained", retained)):
+        application = deepcopy(result.specification)
+        application_boundary = application["destructive_boundary"]
+        assert isinstance(application_boundary, dict)
+        application_resources = application_boundary["resource_types"]
+        assert isinstance(application_resources, list)
+        application_resources.append("application-state")
+        stages = application["stages"]
+        assert isinstance(stages, list)
+        foundation = next(
+            stage
+            for stage in stages
+            if isinstance(stage, dict)
+            and stage.get("stage_id") == "foundation-destroy"
+        )
+        foundation_resources = foundation["resource_types"]
+        assert isinstance(foundation_resources, list)
+        foundation_resources.append("application-state")
+
+        for label, candidate in (
+            ("missing", missing),
+            ("retained", retained),
+            ("application", application),
+        ):
             with self.subTest(label=label):
                 violations = validate_lifecycle_document(
                     candidate,

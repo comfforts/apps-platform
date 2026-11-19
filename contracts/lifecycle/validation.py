@@ -283,25 +283,35 @@ def _specification_violations(value: dict[str, Any]) -> list[Violation]:
                 for resource in stage["resource_types"]
                 if isinstance(resource, str)
             }
-            prohibited_resources = {
-                "application-runtime",
-                "application-state",
-                "backend-bucket",
-                "evidence-bucket",
-                "fixture-application",
-                "recovery-copy",
-                "state-backend",
+            platform_destroy_resources = {
+                "artifact-registry",
+                "budget",
+                "configuration-bucket",
+                "dns-a-record",
+                "load-balancer",
+                "logging",
+                "managed-certificate",
+                "oauth-client",
+                "oauth-secret-version",
+                "operation-identity",
+                "platform-identity",
+                "reserved-address",
+                "secret-container",
+                "session-store",
+                "shared-edge",
+                "shared-edge-image",
+                "signing-key",
             }
             if (
                 not isinstance(resources, list)
                 or set(resources) != deleted_resources
-                or bool(set(resources) & prohibited_resources)
+                or not set(resources).issubset(platform_destroy_resources)
             ):
                 violations.append(
                     Violation(
                         "DESTRUCTIVE_BOUNDARY_INVALID",
                         "/destructive_boundary/resource_types",
-                        "destroy scope must exactly match deletions and exclude retained or application resources",
+                        "destroy scope must exactly match allowed platform deletions",
                     )
                 )
         elif allowed is not False or resources != []:

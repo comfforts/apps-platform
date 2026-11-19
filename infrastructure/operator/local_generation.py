@@ -64,7 +64,7 @@ class LocalRegistrationGenerationControl:
     def __init__(
         self,
         filesystem: LocalFilesystem,
-        provider: GenerationProvider,
+        provider: GenerationProvider | None,
     ) -> None:
         self._filesystem = filesystem
         self._provider = provider
@@ -224,6 +224,8 @@ class LocalRegistrationGenerationControl:
                 content_digest=proposal.content_digest,
                 readback_matches=True,
             )
+        if self._provider is None:
+            raise RuntimeError("generation provider is unavailable")
         publication = self._provider.stage(
             proposal,
             _canonical(proposal.compiled_configuration),
@@ -289,6 +291,8 @@ class LocalRegistrationGenerationControl:
             or provider["revision_name"] != revision
         ):
             return GenerationActivationReadback(False, generation_digest)
+        if self._provider is None:
+            raise RuntimeError("generation provider is unavailable")
         readback = self._provider.activate(
             environment,
             revision,

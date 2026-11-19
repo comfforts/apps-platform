@@ -37,6 +37,7 @@ class LocalApplicationHandoffsTest(unittest.TestCase):
             record = handoffs.from_bundles(
                 integration,
                 attachment,
+                7,
                 GENERATION_DIGEST,
             )
 
@@ -46,9 +47,15 @@ class LocalApplicationHandoffsTest(unittest.TestCase):
                 "fixture-authenticated",
                 GENERATION_DIGEST,
             )
+            latest = handoffs.latest_for_application(
+                "staging",
+                "fixture-authenticated",
+                8,
+            )
 
         self.assertEqual(observed, record)
         self.assertEqual(observed.fixture_revision.application_id, record.application_id)
+        self.assertEqual(latest, record)
 
     def test_bundle_binding_mismatch_is_rejected_before_state_write(self) -> None:
         integration = json.loads(
@@ -70,6 +77,7 @@ class LocalApplicationHandoffsTest(unittest.TestCase):
             LocalApplicationHandoffs.from_bundles(
                 integration,
                 attachment,
+                7,
                 GENERATION_DIGEST,
             )
 

@@ -403,6 +403,7 @@ def main(
         )
         if (
             result.outcome in {"activated", "unchanged"}
+            and result.generation is not None
             and result.generation_digest is not None
         ):
             try:
@@ -412,6 +413,7 @@ def main(
                 handoff = handoffs.from_bundles(
                     integration_bundle,
                     attachment_bundle,
+                    int(result.generation),
                     result.generation_digest,
                 )
                 if not handoffs.record(handoff):

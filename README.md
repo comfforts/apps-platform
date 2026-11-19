@@ -1,8 +1,7 @@
 # Comfforts App Platform
 
-Status: AP-M9-W3 lifecycle contracts and environment profiles implemented; Contract, Fixture,
-network-runtime, and static Terraform implementation exist; no platform environment is deployed
-or qualified
+Status: AP-M9-W4 credential-free preparation, approval, status, and resumable fake execution
+implemented; no platform environment is deployed or qualified
 
 Comfforts App Platform owns the shared hostname edge, catalogue, registration, routing, admission,
 platform identity, and environment lifecycle used by independently owned applications. Applications
@@ -35,20 +34,32 @@ comparison and rollback behavior.
 - AP-M8-W1/W2 are historical merged work from the superseded manifest-driven approach. No real
   manifest was accepted and AP-M8-W3 through AP-M8-W12 never began.
 - AP-M9 is the only active remaining platform milestone. W1 established its operator-driven
-  lifecycle authority, W2 removed the retired manifest implementation, and W3 implements the
-  closed environment profiles and digest-bound lifecycle document interfaces. W4 is next.
+  lifecycle authority, W2 removed the retired manifest implementation, W3 implemented the closed
+  lifecycle contracts, and AP-M9-W4 implements the deep Python core plus credential-free
+  `platform-prepare` and `platform-status`. W5 is next.
 
 No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
 application registration, or Live evidence is created merely by the repository implementation.
 
-## Planned operator interface
+## Operator interface
 
-AP-M9 will implement these Make targets over one deep interactive Python lifecycle module:
+AP-M9-W4 implements these credential-free targets over one deep interactive Python lifecycle
+module:
 
 ```bash
 make platform-prepare ENVIRONMENT=staging
-make platform-deploy ENVIRONMENT=staging
 make platform-status ENVIRONMENT=staging
+```
+
+Preparation requires clean current `main`, the committed Environment Profile, and the pinned local
+toolchain. It emits one canonical specification into the ignored private `.platform-operator/`
+directory and requests explicit approval of that digest. Status reads local lifecycle state without
+changing it. Production preparation remains blocked by `OWNERSHIP_TRANSFER_REQUIRED`.
+
+The remaining targets are planned and do not exist yet:
+
+```bash
+make platform-deploy ENVIRONMENT=staging
 make platform-outputs ENVIRONMENT=staging APPLICATION=finance-assistant
 make platform-register ENVIRONMENT=staging ATTACHMENT_BUNDLE=/path/to/bundle.json
 make platform-detach ENVIRONMENT=staging APPLICATION=finance-assistant
@@ -57,9 +68,10 @@ make platform-qualify ENVIRONMENT=staging
 make platform-destroy ENVIRONMENT=staging
 ```
 
-These targets do not exist until their named AP-M9 work packages implement and test them. The normal
-deployment wizard will remain active across Google OAuth and Squarespace DNS work and continue when
-the operator presses Enter. It will never request an OAuth secret in the terminal.
+The W4 execution engine is exercised only through deterministic fake adapters; no executable deploy
+path or provider mutation exists. Later packages will keep the deployment wizard active across
+Google OAuth and Squarespace DNS work and continue when the operator presses Enter. It will never
+request an OAuth secret in the terminal.
 
 ## Application boundary
 

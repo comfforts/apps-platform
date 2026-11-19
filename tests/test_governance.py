@@ -49,6 +49,13 @@ class ProjectAuthorityTest(unittest.TestCase):
             "contracts/test-vectors/manifest.v1.json",
             "infrastructure/config/profiles/production.v1.json",
             "infrastructure/config/profiles/staging.v1.json",
+            "infrastructure/operator/__init__.py",
+            "infrastructure/operator/__main__.py",
+            "infrastructure/operator/_core.py",
+            "infrastructure/operator/_interfaces.py",
+            "infrastructure/operator/README.md",
+            "infrastructure/operator/cli.py",
+            "infrastructure/operator/local.py",
             "fixtures/__init__.py",
             "fixtures/applications.py",
             "fixtures/identity.py",
@@ -80,6 +87,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "tests/__init__.py",
             "tests/_network_guard.py",
             "tests/test_observability.py",
+            "tests/test_operator_lifecycle.py",
             "tests/test_proxy.py",
             "tests/test_runtime_qualification.py",
             "tests/test_terraform_qualification.py",
@@ -281,7 +289,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_layout = " ".join(layout.split())
         normalized_overview = " ".join(overview.split())
 
-        self.assertIn("AP-M9-W3 lifecycle contracts implemented", normalized_index)
+        self.assertIn("AP-M9-W4 interactive lifecycle core implemented", normalized_index)
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
         self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
         self.assertIn("AP-M8 | historical", index)
@@ -629,7 +637,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("independent synthetic Application State roots", layout)
 
-    def test_ap_m9_w4_handoff_loads_authority_without_granting_operations(
+    def test_ap_m9_w5_handoff_loads_authority_without_granting_operations(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -639,22 +647,22 @@ class ProjectAuthorityTest(unittest.TestCase):
         for authority in (
             "AGENTS.md",
             "docs/README.md",
-            "AP-M9-W4",
-            "AP-PR-010",
-            "AP-QR-003",
-            "ADR-010",
-            "AP-EVAL-M9-03",
+            "AP-M9-W5",
+            "AP-PR-001 through AP-PR-005",
+            "AP-QR-001 through AP-QR-009",
+            "ADR-004 through ADR-011",
+            "AP-EVAL-M9-04",
             "AP-TM-001",
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M9-W3 lifecycle-contract pull request has merged",
-            "Implement one deep Python lifecycle module",
-            "Add credential-free `platform-prepare` and `platform-status`",
-            "Keep completeness separate from approval",
-            "Inject Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock adapters",
-            "Preserve AP-M7 configuration, Terraform, runtime, Fixture",
-            "Leave AP-M9-W5's deployable Terraform lifecycle",
+            "after the AP-M9-W4 interactive-lifecycle pull request has merged",
+            "Implement only the deployable Terraform lifecycle repository slice",
+            "deterministic backend renderer",
+            "operation identities",
+            "plan canonicalization and policy",
+            "Terraform mocked plans",
+            "Do not authenticate",
             "Run `make check` from the repository root",
             "Do not change repository settings",
             "Finance Assistant",
@@ -662,9 +670,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, normalized_prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
-        self.assertNotIn("terraform apply", prompt)
         self.assertIn(
-            "[AP-M9-W4 interactive lifecycle core handoff](starting_prompt.md)",
+            "[AP-M9-W5 deployable Terraform lifecycle handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -678,10 +685,10 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(f"AP-M9-W{work_package}", index)
         self.assertIn("Each work package is one bounded branch and pull request", normalized_index)
         self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W10"))
-        self.assertIn("AP-M9-W4", normalized_prompt)
-        self.assertIn("interactive lifecycle core", normalized_prompt)
+        self.assertIn("AP-M9-W5", normalized_prompt)
+        self.assertIn("deployable Terraform lifecycle", normalized_prompt)
         self.assertIn("Do not change repository settings", normalized_prompt)
-        self.assertIn("Leave AP-M9-W5's deployable Terraform lifecycle", normalized_prompt)
+        self.assertIn("AP-M9-W6 handoff", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
@@ -1438,6 +1445,40 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("AP-M9 interactive lifecycle controls", threat_model)
         self.assertIn("operator-attested", threat_model)
         self.assertIn("No current result proves", threat_model)
+
+    def test_ap_m9_w4_status_and_w5_handoff_are_bounded(self) -> None:
+        overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+        docs_index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
+        runbook = (
+            PROJECT_ROOT / "docs/runbooks/environment_lifecycle.md"
+        ).read_text(encoding="utf-8")
+        layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(
+            encoding="utf-8"
+        )
+        prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(
+            encoding="utf-8"
+        )
+
+        for document in (overview, docs_index, runbook, layout):
+            self.assertIn("AP-M9-W4", document)
+            self.assertIn("implemented", document.lower())
+        self.assertIn("platform-prepare", overview)
+        self.assertIn("platform-status", overview)
+        self.assertIn("neither command authenticates", runbook.lower())
+        self.assertIn("`infrastructure/operator/`", layout)
+
+        for required in (
+            "AP-M9-W5",
+            "AP-EVAL-M9-04",
+            "feat/ap-m9-deployable-terraform-lifecycle",
+            "backend renderer",
+            "operation identities",
+            "mocked plans",
+            "Do not authenticate",
+            "Do not commit",
+        ):
+            self.assertIn(required, prompt)
+        self.assertNotIn("AP-M9-W4 interactive lifecycle core handoff", prompt)
 
 
 if __name__ == "__main__":

@@ -67,4 +67,5 @@ revisions, address, plan digest, OAuth identifier, and target reference do not d
 resources or accepted operator input.
 
 This package intentionally exposes no prompt, approval, execution, resume, provider, Terraform,
-DNS, credential, or mutation behavior; those remain AP-M9-W4 and later work.
+DNS, credential, or mutation behavior. AP-M9-W4 consumes these documents from the separate deep
+operator module; provider and mutation behavior remain later work.

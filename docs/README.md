@@ -1,7 +1,7 @@
 # App Platform documentation
 
-Version 1.17 | Status: AP-M9-W3 lifecycle contracts implemented; AP-M8-W1/W2 retained as historical
-evidence; no platform environment is deployed or qualified
+Version 1.18 | Status: AP-M9-W4 interactive lifecycle core implemented; AP-M8-W1/W2 retained as
+historical evidence; no platform environment is deployed or qualified
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. Live
@@ -26,7 +26,7 @@ Read these documents completely, in order, before modifying the platform:
 10. [Repository layout](repository_layout.md) — capability placement and transition rules.
 11. [Runbook index](runbooks/README.md) — subordinate operator procedures.
 12. [AP-M9 environment lifecycle](runbooks/environment_lifecycle.md) — current human-operated
-    lifecycle design and its unavailable actions.
+    lifecycle design, implemented local commands, and unavailable external actions.
 13. [Repository extraction runbook](runbooks/repository_extraction.md) and
     [handoff](repository_extraction_handoff.md) — completed canonical repository transition
     procedure and evidence.
@@ -45,7 +45,7 @@ is not part of the active instruction path and cannot authorize an operation.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W3 implemented | operator-driven environment and application lifecycle |
+| AP-M9 | W4 implemented | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
@@ -65,8 +65,9 @@ small reviewable commits, merge it, and only then begin the next package.
 3. **AP-M9-W3 — lifecycle contracts and profiles (implemented):** small staging/production
    profiles, deployment specifications, execution journals, status documents, integration bundles,
    attachment bundles, canonical digests, and cross-document validation.
-4. **AP-M9-W4 — interactive lifecycle core:** implement resumable in-process checkpoints, exact
-   approvals, bounded command execution, redaction, readback, and failure handling.
+4. **AP-M9-W4 — interactive lifecycle core (implemented):** credential-free preparation and
+   status, exact digest approval, append-only journals, redaction, truthful failure state, and
+   resumable deterministic fake execution behind injected adapters.
 5. **AP-M9-W5 — deployable Terraform:** adapt the existing static roots for isolated environment
    state, explicit outputs, and lifecycle orchestration while preserving ownership boundaries.
 6. **AP-M9-W6 — interactive platform deployment:** implement prepare, deploy, status, and outputs,
@@ -81,7 +82,7 @@ small reviewable commits, merge it, and only then begin the next package.
     `OWNERSHIP_TRANSFER_REQUIRED` while Finance Assistant or `apps.comfforts.com` remains
     Finance-owned.
 
-AP-M9-W4 begins only after AP-M9-W3 merges. No staging deployment is available before AP-M9-W8
+AP-M9-W5 begins only after AP-M9-W4 merges. No staging deployment is available before AP-M9-W8
 merges. AP-M9-W9 owns the first real staging operation and requires its own values and approvals.
 Production migration and Application Adoption remain separate owner-controlled work after
 AP-M9-W10.

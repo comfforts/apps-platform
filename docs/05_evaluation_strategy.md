@@ -1,15 +1,17 @@
 # App Platform evaluation strategy
 
-Version 0.9 | Status: AP-M9-W1 evaluation authority merged and AP-M9-W2 cleanup implemented;
-historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded without execution; no AP-M9
-operational result exists
+Version 0.10 | Status: AP-M9-W4 credential-free lifecycle core implemented; historical AP-EVAL-M8
+and standalone AP-EVAL-M9 proposals superseded without execution; no AP-M9 provider or Live result
+exists
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
 the operator-driven lifecycle implementation and staging qualification gate. AP-EVAL-M7 continues
 to qualify only committed configuration and inert templates through deterministic static tests with
-mocked providers. AP-M9-W1 and AP-M9-W2 supply no operational result, and no platform evaluation
-qualifies a consuming application's adoption or product authorization.
+mocked providers. AP-M9-W3 supplies lifecycle Contract evidence and W4 supplies deterministic
+repository evidence for preparation, approval, status, redaction, journaling, and fake resume. No
+result qualifies a provider operation, Live environment, consuming application's adoption, or
+product authorization.
 
 Plan: [App Platform implementation plan](04_implementation_plan.md)
 
@@ -1656,7 +1658,8 @@ application, production availability, cross-cloud behavior, Python-to-Go migrati
 application's principals, data isolation, provider rights, Feature Entitlements, recovery, or
 destruction. Those remain production-cutover, later migration, or Application Adoption evidence.
 
-This definition originated in AP-M9-W1. AP-M9-W2 removes only the retired manifest path and creates
-no profile, lifecycle capability, identity, credential, state, plan, resource, OAuth client,
-secret, DNS record, certificate, application asset, execution journal, evidence bundle,
+This definition originated in AP-M9-W1. AP-M9-W2 removed the retired manifest path, W3 implemented
+the lifecycle contracts, and W4 implements credential-free preparation/status and deterministic
+fake journal execution. They create no identity, credential, Terraform state or plan, provider
+resource, OAuth client, secret, DNS record, certificate, application asset, Live evidence bundle,
 deployment, destruction, or passing operational result.

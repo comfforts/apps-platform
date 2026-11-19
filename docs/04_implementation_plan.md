@@ -1610,8 +1610,9 @@ AP-M9-W1 is merged and establishes the active operator-lifecycle authority. It s
 unexecuted AP-M8-W3 through AP-M8-W12 packages and the previously proposed standalone AP-M9
 Live-qualification milestone. The old proposal produced no implementation, provider resource,
 evidence bundle, or qualification result. AP-M8-W1/W2 remain historical merged work; AP-M9-W2
-removes their retired manifest implementation from the active tree. AP-M9-W3 begins only after
-that cleanup merges.
+removed their retired manifest implementation from the active tree, AP-M9-W3 implemented lifecycle
+contracts and profiles, and AP-M9-W4 implemented the credential-free interactive core. AP-M9-W5
+begins only after W4 merges.
 
 Each AP-M9 repository package begins from updated clean `main`, uses a dedicated branch and pull
 request, passes `make check`, and merges before the next package starts. Repository implementation
@@ -1696,11 +1697,11 @@ plans, and provider payloads are prohibited.
 
 #### AP-M9-W4 · Interactive operator core
 
-Implement the deep Python lifecycle module and thin Make targets for credential-free preparation
-and status. Inject Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock adapters;
-provide deterministic fakes; validate clean source and tools; discover non-secret facts; ask only
-unresolved decisions; compile and approve one specification; journal stages; report truthful
-status; and resume interrupted fake journeys. This package performs no authenticated mutation.
+Implemented the deep Python lifecycle module and thin Make targets for credential-free preparation
+and status. Injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock adapters;
+provided deterministic fakes; validated clean source and tools; discovered non-secret facts;
+compiled and explicitly approved one specification; journaled stages; reported truthful status;
+and resumed interrupted fake journeys. This package performs no authenticated mutation.
 
 #### AP-M9-W5 · Deployable Terraform lifecycle
 

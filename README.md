@@ -1,6 +1,6 @@
 # Comfforts App Platform
 
-Status: AP-M9-W5 deployable Terraform lifecycle implemented and deterministically verified; no
+Status: AP-M9-W6 interactive platform deployment implemented and deterministically verified; no
 platform environment is deployed or qualified
 
 Comfforts App Platform owns the shared hostname edge, catalogue, registration, routing, admission,
@@ -37,30 +37,37 @@ comparison and rollback behavior.
   lifecycle authority, W2 removed the retired manifest implementation, W3 implemented the closed
   lifecycle contracts, W4 implements the deep Python core plus credential-free
   `platform-prepare` and `platform-status`, and W5 implements the phased Terraform lifecycle,
-  backend declarations, operation-authority profiles, and exact plan policy. W6 is next.
+  backend declarations, operation-authority profiles, and exact plan policy. W6 implements the
+  staged deployment engine, closed command boundary, interactive checkpoints, and
+  `platform-deploy`. W7 is next.
 
 No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
 application registration, or Live evidence is created merely by the repository implementation.
 
 ## Operator interface
 
-AP-M9-W4 implements these credential-free targets over one deep interactive Python lifecycle
-module; W5 leaves their interface unchanged:
+AP-M9-W4 and W6 expose these thin targets over one deep interactive Python lifecycle module:
 
 ```bash
 make platform-prepare ENVIRONMENT=staging
 make platform-status ENVIRONMENT=staging
+make platform-deploy ENVIRONMENT=staging SPECIFICATION_DIGEST=sha256:<64-lowercase-hex>
 ```
 
 Preparation requires clean current `main`, the committed Environment Profile, and the pinned local
 toolchain. It emits one canonical specification into the ignored private `.platform-operator/`
 directory and requests explicit approval of that digest. Status reads local lifecycle state without
-changing it. Production preparation remains blocked by `OWNERSHIP_TRANSFER_REQUIRED`.
+changing it. Deploy accepts only the exact current, approved specification digest and journals each
+closed stage. Its engine requires fresh private plans, exact typed confirmations, provider
+readback, same-process OAuth/Squarespace checkpoints, and bounded DNS/TLS polling. Production
+remains blocked by `OWNERSHIP_TRANSFER_REQUIRED`.
 
+The default local construction remains deliberately unarmed until the later qualification and safe-
+destruction package completes; repository checks exercise deployment through deterministic command
+and transcript fakes, and the non-fake Terraform subprocess adapter is not invoked by `make check`.
 The remaining targets are planned and do not exist yet:
 
 ```bash
-make platform-deploy ENVIRONMENT=staging
 make platform-outputs ENVIRONMENT=staging APPLICATION=finance-assistant
 make platform-register ENVIRONMENT=staging ATTACHMENT_BUNDLE=/path/to/bundle.json
 make platform-detach ENVIRONMENT=staging APPLICATION=finance-assistant
@@ -69,11 +76,10 @@ make platform-qualify ENVIRONMENT=staging
 make platform-destroy ENVIRONMENT=staging
 ```
 
-The W5 Terraform phases and planning boundary are exercised only through mocked providers and
-deterministic command fakes; no executable deploy path or provider mutation exists. W6 will keep
-the deployment wizard active across
-Google OAuth and Squarespace DNS work and continue when the operator presses Enter. It will never
-request an OAuth secret in the terminal.
+W6 keeps the deployment wizard active across Google OAuth and Squarespace DNS work and continues
+when the operator presses Enter. It never requests an OAuth secret in the terminal. The pull
+request itself performs no authentication, backend initialization, plan, apply, image publication,
+provider readback, DNS lookup/change, or deployment; AP-M9-W9 remains the first real operation.
 
 ## Application boundary
 

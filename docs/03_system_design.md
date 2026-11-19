@@ -844,9 +844,11 @@ stronger confirmation. `platform-prepare` for production returns
 resource has not completed an explicit ownership transfer.
 
 AP-M9-W1 defines this design, AP-M9-W2 removed the retired manifest implementation, AP-M9-W3
-implemented the profile and lifecycle contracts, AP-M9-W4 implements credential-free local
-preparation/status plus resumable fake execution, and AP-M9-W5 implements the repository-only
-Terraform lifecycle described below. These packages create no identity, credential, state,
+implemented the profile and lifecycle contracts, AP-M9-W4 implemented credential-free local
+preparation/status plus resumable fake execution, AP-M9-W5 implemented the repository-only
+Terraform lifecycle described below, and AP-M9-W6 implemented the unarmed staged deployment engine,
+closed command boundary, exact confirmations, manual checkpoints, readback, and resume. These
+packages create no identity, credential, state,
 provider resource, OAuth client, DNS record, certificate, bundle instance, application change, or
 qualification evidence. Python-to-Go migration remains a later contract-preserving milestone after
 the Python product is delivered and qualified.

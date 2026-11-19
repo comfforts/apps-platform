@@ -1,6 +1,6 @@
 # App Platform repository layout
 
-Version 1.9 | Status: canonical dedicated repository; AP-M9-W5 Terraform lifecycle
+Version 2.0 | Status: canonical dedicated repository; AP-M9-W6 interactive deployment mechanics
 implemented; no backend, provider, DNS, deployment, or Live operation performed
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
@@ -24,7 +24,7 @@ permission to create a resource or perform an external action.
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
-| `infrastructure/operator/` | deep Python preparation, approval, journal, status, resume, local adapters, and thin credential-free CLI |
+| `infrastructure/operator/` | deep Python preparation, exact staged deployment, approval, journal, status, resume, local/command adapters, and thin CLI |
 | `infrastructure/backend/` | AP-M9-W5 backend rendering, lineage, operation authority, plan policy, and fake command integration |
 | `infrastructure/terraform/bootstrap/` | state-bucket owner root with closed bootstrap phase output |
 | `infrastructure/terraform/platform/` | phased foundation and Shared Edge configuration on one Platform State lineage |
@@ -55,9 +55,18 @@ plans, and a deterministic injected command fake. It added no production command
 target, identity, credential, backend operation, saved plan, state, provider request, DNS action,
 resource, deployment, or Live evidence.
 
+AP-M9-W6 added immutable stage contexts, exact private-plan binding, typed plan/action confirmation,
+policy and readback gates, same-process OAuth and Squarespace checkpoints, bounded DNS/TLS polling,
+interruption-safe resume, a shell-free non-fake Terraform subprocess boundary, deterministic
+command/transcript fakes, and the digest-bound `platform-deploy` target. The repository slice did
+not invoke that adapter or create a credential, saved plan, state, backend, identity, image,
+provider resource, OAuth client, secret version, DNS record, certificate, deployment, or Live
+evidence. The default local construction remains unarmed until the later qualification and safe-
+destruction package closes the external-action gate.
+
 ## AP-M9 capability locations
 
-The implemented profile, lifecycle-contract, operator-core, backend, and Terraform locations are
+The implemented profile, lifecycle-contract, operator/deployment, backend, and Terraform locations are
 listed above. The locations below describe later module seams; their absence is expected until the
 named AP-M9 package implements them.
 

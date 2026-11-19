@@ -59,7 +59,11 @@ change in the repository.
 
 ## Branch and review workflow
 
-- Start each approved slice from an updated, clean `main` on a dedicated feature branch.
+- Start each approved slice from an updated, clean `main` on a dedicated semantically named branch.
+- Name branches `<type>/<short-scope>` using the primary change: `docs/` for documentation or
+  governance-only work, `feat/` for product behavior, `fix/` for defect correction, `evidence/`
+  for qualification evidence, and `chore/` for small maintenance. Use an owner-specified branch
+  name when provided; never substitute an author or tool name such as `codex/` for the change type.
 - Keep one bounded slice per pull request. Merge it before starting the next documented slice.
 - Use small coherent commits that remain independently reviewable. When the owner requests
   commit-by-commit review, leave each change uncommitted until approval.

@@ -239,6 +239,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("one bounded slice per pull request", instructions)
         self.assertIn("leave each change uncommitted until approval", instructions)
         self.assertIn("Merge it before starting the next documented slice", instructions)
+        self.assertIn("Name branches `<type>/<short-scope>`", instructions)
+        self.assertIn("`docs/` for documentation or", instructions)
+        self.assertIn("`feat/` for product behavior", instructions)
+        self.assertIn("`fix/` for defect correction", instructions)
+        self.assertIn("`evidence/`", instructions)
+        self.assertIn("`chore/` for small maintenance", instructions)
+        self.assertIn("never substitute an author or tool name such as `codex/`", instructions)
         self.assertIn(
             "AP-M5 selects infrastructure and Live-qualification planning boundaries only",
             instructions,

@@ -32,7 +32,8 @@ EXAMPLE_KINDS = {
     "fixture-authenticated.synthetic.v1.json": "fixture",
     "fixture-public.synthetic.v1.json": "fixture",
     "fixture-restricted.synthetic.v1.json": "fixture",
-    "platform.synthetic.v1.json": "platform",
+    "platform-foundation.synthetic.v2.json": "platform",
+    "platform-shared-edge.synthetic.v2.json": "platform",
     "workflow-apply.synthetic.v1.json": "workflow",
     "workflow-destroy.synthetic.v1.json": "workflow",
     "workflow-force-unlock.synthetic.v1.json": "workflow",
@@ -63,7 +64,7 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                     "backend-configuration.v1.schema.json",
                     "cross-state-reference.v1.schema.json",
                     "fixture-configuration.v1.schema.json",
-                    "platform-configuration.v1.schema.json",
+                    "platform-configuration.v2.schema.json",
                     "workflow-configuration.v1.schema.json",
                 )
             ),
@@ -122,16 +123,21 @@ class InfrastructureConfigurationTest(unittest.TestCase):
             result = load_configuration_document(path, "backend", allow_synthetic=True)
             self.assertEqual(_codes(result.violations), [("JSON_DUPLICATE_KEY", "/contract_version")])
 
-        platform = _example("platform.synthetic.v1.json")
+        platform = _example("platform-shared-edge.synthetic.v2.json")
         platform["secret_value"] = "do-not-commit"
         violations = validate_configuration(platform, "platform", allow_synthetic=True)
         self.assertIn(("FIELD_UNKNOWN", "/secret_value"), _codes(violations))
         self.assertIn(("PROHIBITED_MATERIAL", "/secret_value"), _codes(violations))
 
         platform.pop("secret_value")
-        platform["oauth_client_id"] = "terraform_remote_state.platform"
+        shared_edge = platform["shared_edge"]
+        assert isinstance(shared_edge, dict)
+        shared_edge["oauth_client_id"] = "terraform_remote_state.platform"
         violations = validate_configuration(platform, "platform", allow_synthetic=True)
-        self.assertIn(("PROHIBITED_MATERIAL", "/oauth_client_id"), _codes(violations))
+        self.assertIn(
+            ("PROHIBITED_MATERIAL", "/shared_edge/oauth_client_id"),
+            _codes(violations),
+        )
 
     def test_image_and_secret_references_are_immutable_and_versioned(self) -> None:
         fixture = _example("fixture-authenticated.synthetic.v1.json")
@@ -141,13 +147,41 @@ class InfrastructureConfigurationTest(unittest.TestCase):
             _codes(validate_configuration(fixture, "fixture", allow_synthetic=True)),
         )
 
-        platform = _example("platform.synthetic.v1.json")
-        platform["oauth_client_secret_version"] = (
+        platform = _example("platform-shared-edge.synthetic.v2.json")
+        shared_edge = platform["shared_edge"]
+        assert isinstance(shared_edge, dict)
+        shared_edge["oauth_client_secret_version"] = (
             "projects/synthetic-platform/secrets/synthetic-oauth-secret/versions/latest"
         )
         self.assertIn(
-            ("FIELD_PATTERN", "/oauth_client_secret_version"),
+            ("FIELD_TYPE", "/shared_edge"),
             _codes(validate_configuration(platform, "platform", allow_synthetic=True)),
+        )
+
+    def test_platform_phases_reject_missing_or_early_generated_values(self) -> None:
+        foundation = _example("platform-foundation.synthetic.v2.json")
+        shared_edge = _example("platform-shared-edge.synthetic.v2.json")
+
+        foundation["shared_edge"] = shared_edge["shared_edge"]
+        violations = validate_configuration(
+            foundation,
+            "platform",
+            allow_synthetic=True,
+        )
+        self.assertIn(
+            ("CONFIGURATION_POLICY_INVALID", "/shared_edge"),
+            _codes(violations),
+        )
+
+        shared_edge["shared_edge"] = None
+        violations = validate_configuration(
+            shared_edge,
+            "platform",
+            allow_synthetic=True,
+        )
+        self.assertIn(
+            ("CONFIGURATION_POLICY_INVALID", "/shared_edge"),
+            _codes(violations),
         )
 
     def test_backend_policy_enforces_four_exclusive_state_owners(self) -> None:

@@ -1,6 +1,6 @@
 # App Platform implementation plan
 
-Version 0.10 | Status: AP-M9-W1 merged and AP-M9-W2 retired-manifest cleanup implemented;
+Version 0.11 | Status: AP-M9-W1 through AP-M9-W5 implemented;
 AP-M8-W1/W2 preserved historically; AP-M8-W3 through W12 superseded without execution; every
 external operator action remains pending
 
@@ -8,9 +8,10 @@ This document preserves delivery items 3 through 7 and the completed historical 
 AP-M7 implements and statically validates reviewed Terraform configuration and inert workflow
 templates. AP-M8-W1/W2 implemented a manifest-driven qualification-deployment proposal but no real
 manifest was accepted and no AP-M8-W3 through W12 operation began. AP-M9 supersedes that unexecuted
-path with the operator-driven environment lifecycle below. AP-M9-W1 changed authority documents
-and deterministic governance tests, and AP-M9-W2 removes only the retired interface and its active
-guidance. Neither package authorizes backend initialization, authenticated plan or apply, cloud
+path with the operator-driven environment lifecycle below. AP-M9-W1 through W5 establish active
+governance, remove the retired interface, implement lifecycle contracts and the credential-free
+operator core, and implement the repository-only Terraform lifecycle. No package authorizes
+backend initialization, authenticated plan or apply, cloud
 call, credential, identity, provider resource, DNS mutation, deployment, qualification,
 destruction, production change, or Application Adoption.
 
@@ -1611,8 +1612,8 @@ unexecuted AP-M8-W3 through AP-M8-W12 packages and the previously proposed stand
 Live-qualification milestone. The old proposal produced no implementation, provider resource,
 evidence bundle, or qualification result. AP-M8-W1/W2 remain historical merged work; AP-M9-W2
 removed their retired manifest implementation from the active tree, AP-M9-W3 implemented lifecycle
-contracts and profiles, and AP-M9-W4 implemented the credential-free interactive core. AP-M9-W5
-begins only after W4 merges.
+contracts and profiles, AP-M9-W4 implemented the credential-free interactive core, and AP-M9-W5
+implemented the deployable Terraform lifecycle. AP-M9-W6 begins only after W5 merges.
 
 Each AP-M9 repository package begins from updated clean `main`, uses a dedicated branch and pull
 request, passes `make check`, and merges before the next package starts. Repository implementation
@@ -1705,11 +1706,12 @@ and resumed interrupted fake journeys. This package performs no authenticated mu
 
 #### AP-M9-W5 · Deployable Terraform lifecycle
 
-Reshape the AP-M7 static composition into bootstrap, platform-foundation, and Shared Edge phases
-that preserve exclusive ownership and one platform lineage without placeholder inputs. Implement
-the backend renderer, operation identities, exact local impersonation profile, plan policy,
-environment isolation, typed outputs, and mocked plans. No authenticated plan, backend operation,
-provider mutation, or DNS action occurs in the repository slice.
+Implemented bootstrap, platform-foundation, and Shared Edge phases that preserve exclusive
+ownership and one platform lineage without placeholder inputs. Added exact staging backend
+declarations and a path-bounded renderer, 31 keyless operation-authority intents, local
+impersonation profiles, canonical plan policy, production refusal, closed phase outputs, mocked
+plans, and deterministic command fakes. No authenticated plan, backend operation, provider
+mutation, or DNS action occurred in the repository slice.
 
 #### AP-M9-W6 · Interactive platform deployment
 

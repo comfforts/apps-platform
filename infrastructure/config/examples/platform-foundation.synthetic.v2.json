@@ -1,0 +1,30 @@
+{
+  "contract_version": 2,
+  "configuration_kind": "platform",
+  "configuration_class": "synthetic",
+  "phase": "foundation",
+  "repository": "comfforts/apps-platform",
+  "environment": "staging",
+  "foundation": {
+    "project_id": "synthetic-platform",
+    "project_number": "123456789012",
+    "region": "us-west1",
+    "hostname": "apps.example.invalid",
+    "state_owner": "platform",
+    "configuration_bucket": "synthetic-platform-configuration",
+    "log_bucket": "synthetic-platform-logs",
+    "evidence_bucket": "synthetic-platform-evidence",
+    "artifact_repository_id": "synthetic-images",
+    "oauth_secret_id": "synthetic-oauth-secret",
+    "signing_key_ring_id": "synthetic-platform",
+    "signing_key_id": "synthetic-edge-signing",
+    "billing_account_reference": "billingAccounts/000000-000000-000000",
+    "notification_destination": "projects/synthetic-platform/notificationChannels/1"
+  },
+  "shared_edge": null,
+  "labels": {
+    "environment": "staging",
+    "managed_by": "terraform",
+    "state_owner": "platform"
+  }
+}

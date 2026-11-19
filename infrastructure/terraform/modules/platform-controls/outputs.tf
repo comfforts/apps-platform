@@ -38,6 +38,15 @@ locals {
   ]
 }
 
+output "foundation_reference" {
+  description = "Closed non-secret control references created by the foundation phase."
+  value = {
+    artifact_repository = google_artifact_registry_repository.qualification_images.name
+    evidence_bucket     = google_storage_bucket.evidence.name
+    log_bucket          = google_logging_project_bucket_config.edge.id
+  }
+}
+
 output "policy_summary" {
   description = "Internal plan-test surface for observability, evidence, retention, labels, and cost controls."
   value = {

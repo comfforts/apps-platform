@@ -166,6 +166,8 @@ resource "google_compute_global_address" "edge" {
 }
 
 resource "google_compute_managed_ssl_certificate" "edge" {
+  count = var.edge_configuration.tls_enabled ? 1 : 0
+
   project = var.edge_configuration.project_id
   name    = "app-platform-edge-certificate"
 
@@ -195,20 +197,24 @@ resource "google_compute_url_map" "edge" {
 }
 
 resource "google_compute_target_https_proxy" "edge" {
+  count = var.edge_configuration.tls_enabled ? 1 : 0
+
   project          = var.edge_configuration.project_id
   name             = "app-platform-edge-https"
   url_map          = google_compute_url_map.edge.id
-  ssl_certificates = [google_compute_managed_ssl_certificate.edge.id]
+  ssl_certificates = [google_compute_managed_ssl_certificate.edge[0].id]
 }
 
 resource "google_compute_global_forwarding_rule" "https" {
+  count = var.edge_configuration.tls_enabled ? 1 : 0
+
   project               = var.edge_configuration.project_id
   name                  = "app-platform-edge-https"
   load_balancing_scheme = "EXTERNAL_MANAGED"
   ip_address            = google_compute_global_address.edge.address
   ip_protocol           = "TCP"
   port_range            = "443"
-  target                = google_compute_target_https_proxy.edge.id
+  target                = google_compute_target_https_proxy.edge[0].id
   network_tier          = "PREMIUM"
 }
 

@@ -3,12 +3,7 @@ mock_provider "google" {
 }
 
 variables {
-  platform_configuration = jsondecode(file("../../config/examples/platform.synthetic.v1.json"))
-  fixture_attachment_references = [
-    jsondecode(file("../../config/examples/cross-state-attachment-public.synthetic.v1.json")),
-    jsondecode(file("../../config/examples/cross-state-attachment.synthetic.v1.json")),
-    jsondecode(file("../../config/examples/cross-state-attachment-restricted.synthetic.v1.json")),
-  ]
+  platform_configuration = jsondecode(file("../../config/examples/platform-foundation.synthetic.v2.json"))
 }
 
 run "plans_identity_and_generation_foundation" {
@@ -16,17 +11,18 @@ run "plans_identity_and_generation_foundation" {
 
   assert {
     condition = (
-      length(output.platform_reference_set) == 1 &&
-      output.platform_reference_set.fixture_applications.reference_kind == "platform" &&
-      output.platform_reference_set.fixture_applications.state_owner == "platform" &&
-      output.platform_reference_set.fixture_applications.owner_id == "app-platform" &&
-      output.platform_reference_set.fixture_applications.project_number == "123456789012" &&
-      output.platform_reference_set.fixture_applications.region == "us-west1" &&
-      output.platform_reference_set.fixture_applications.platform_issuer == "https://apps.example.invalid/_platform" &&
-      output.platform_reference_set.fixture_applications.public_key_reference == "https://apps.example.invalid/.well-known/jwks.json" &&
-      output.platform_reference_set.fixture_applications.edge_caller_principal == "serviceAccount:app-platform-edge-caller@synthetic-platform.iam.gserviceaccount.com"
+      output.foundation_phase_output.contract_version == 1 &&
+      output.foundation_phase_output.output_kind == "platform-foundation" &&
+      output.foundation_phase_output.environment == "staging" &&
+      output.foundation_phase_output.state_owner == "platform" &&
+      output.foundation_phase_output.owner_id == "app-platform" &&
+      output.foundation_phase_output.project_number == "123456789012" &&
+      output.foundation_phase_output.region == "us-west1" &&
+      output.foundation_phase_output.hostname == "apps.example.invalid" &&
+      output.foundation_phase_output.foundation.edge_caller_principal == "serviceAccount:app-platform-edge-caller@synthetic-platform.iam.gserviceaccount.com" &&
+      output.shared_edge_phase_output == null
     )
-    error_message = "platform root must expose exactly one minimal typed Fixture Application reference"
+    error_message = "foundation phase must expose only its closed non-secret typed output"
   }
 
   assert {
@@ -38,26 +34,11 @@ run "plans_identity_and_generation_foundation" {
       !module.platform_foundation.policy_summary.configuration_bucket.force_destroy &&
       module.platform_foundation.policy_summary.configuration_bucket.deletion_policy == "PREVENT" &&
       module.platform_foundation.policy_summary.configuration_bucket.runtime_reader_role == "roles/storage.objectViewer" &&
-      module.platform_foundation.policy_summary.configuration_bucket.configured_labels.environment == "qualification" &&
+      module.platform_foundation.policy_summary.configuration_bucket.configured_labels.environment == "staging" &&
       module.platform_foundation.policy_summary.configuration_bucket.configured_labels.managed_by == "terraform" &&
       module.platform_foundation.policy_summary.configuration_bucket.configured_labels.state_owner == "platform"
     )
     error_message = "configuration storage must remain private, versioned, retained, labelled, and runtime-readable only"
-  }
-
-  assert {
-    condition = (
-      module.platform_foundation.policy_summary.registration_generation.source_revision == "0000000000000000000000000000000000000000" &&
-      module.platform_foundation.policy_summary.registration_generation.generation == 1 &&
-      module.platform_foundation.policy_summary.registration_generation.generation_digest == "sha256:0000000000000000000000000000000000000000000000000000000000000000" &&
-      module.platform_foundation.policy_summary.registration_generation.content_digest == "sha256:1111111111111111111111111111111111111111111111111111111111111111" &&
-      module.platform_foundation.policy_summary.registration_generation.object_name == "generations/1/compiled.json" &&
-      module.platform_foundation.policy_summary.registration_generation.object_generation == 1 &&
-      module.platform_foundation.policy_summary.registration_generation.immutable_object_shape &&
-      module.platform_foundation.policy_summary.registration_generation.object_upload == "deferred" &&
-      module.platform_foundation.policy_summary.registration_generation.activation == "deferred"
-    )
-    error_message = "generation metadata must remain immutable reviewed input without upload or activation"
   }
 
   assert {
@@ -82,6 +63,8 @@ run "plans_identity_and_generation_foundation" {
       module.platform_foundation.policy_summary.signing.algorithm == "EC_SIGN_P256_SHA256" &&
       module.platform_foundation.policy_summary.signing.protection_level == "SOFTWARE" &&
       module.platform_foundation.policy_summary.signing.region == "us-west1" &&
+      module.platform_foundation.policy_summary.signing.key_ring_id == "synthetic-platform" &&
+      module.platform_foundation.policy_summary.signing.key_id == "synthetic-edge-signing" &&
       !module.platform_foundation.policy_summary.signing.automatic_rotation &&
       module.platform_foundation.policy_summary.signing.manual_rotation_days == 90 &&
       module.platform_foundation.policy_summary.signing.verification_overlap_hours == 24 &&
@@ -98,8 +81,9 @@ run "plans_identity_and_generation_foundation" {
       module.platform_foundation.policy_summary.identities.separated &&
       !module.platform_foundation.policy_summary.identities.service_account_keys &&
       module.platform_foundation.policy_summary.identities.deletion_policy == "PREVENT" &&
-      module.platform_foundation.policy_summary.oauth.client_id == "synthetic-client.apps.example.invalid" &&
-      module.platform_foundation.policy_summary.oauth.client_secret_version_ref == "projects/synthetic-platform/secrets/synthetic-oauth-secret/versions/1" &&
+      module.platform_foundation.policy_summary.oauth.secret_id == "synthetic-oauth-secret" &&
+      module.platform_foundation.policy_summary.oauth.secret_container == "projects/synthetic-platform/secrets/synthetic-oauth-secret" &&
+      !module.platform_foundation.policy_summary.oauth.secret_version_present &&
       !module.platform_foundation.policy_summary.oauth.secret_value_present &&
       module.platform_foundation.policy_summary.oauth.runtime_reader_role == "roles/secretmanager.secretAccessor" &&
       !module.platform_foundation.policy_summary.application_identity_management &&

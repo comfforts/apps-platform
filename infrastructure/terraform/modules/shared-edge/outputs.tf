@@ -1,5 +1,15 @@
+output "edge_reference" {
+  description = "Closed non-secret Shared Edge phase references."
+  value = {
+    hostname         = var.edge_configuration.qualification_hostname
+    reserved_address = google_compute_global_address.edge.address
+    service_name     = google_cloud_run_v2_service.edge.name
+    tls_enabled      = var.edge_configuration.tls_enabled
+  }
+}
+
 output "policy_summary" {
-  description = "Internal plan-test surface for immutable revision and hostname-forwarding controls."
+  description = "Internal mocked-plan surface for immutable revision and hostname-forwarding controls."
   value = {
     service_name            = var.edge_configuration.service_name
     candidate_revision      = var.edge_configuration.candidate_revision
@@ -8,7 +18,6 @@ output "policy_summary" {
     registration_generation = var.edge_configuration.registration_generation
     binding_versions        = var.edge_configuration.binding_versions
     configuration_bucket    = var.edge_configuration.configuration_bucket
-    attachment_references   = var.edge_configuration.attachment_references
     runtime = {
       region                       = var.edge_configuration.region
       ingress                      = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
@@ -36,10 +45,10 @@ output "policy_summary" {
       ip_version                = "IPV4"
       network_tier              = "PREMIUM"
       load_balancing_scheme     = "EXTERNAL_MANAGED"
-      managed_certificate       = true
+      managed_certificate       = var.edge_configuration.tls_enabled
       http_to_https_redirect    = true
       serverless_backend_count  = 1
-      https_url_map_count       = 1
+      https_url_map_count       = var.edge_configuration.tls_enabled ? 1 : 0
       application_prefix_routes = 0
       cdn                       = false
       waf                       = false
@@ -47,6 +56,7 @@ output "policy_summary" {
     }
     application_runtime_management = false
     attachment_discovery           = false
+    application_owned_values       = false
     arbitrary_target_url           = false
   }
 }

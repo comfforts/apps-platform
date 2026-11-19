@@ -1,19 +1,18 @@
 # App Platform infrastructure configuration contracts
 
-Version 1.5 | Status: AP-M7 contracts and AP-M9-W3 environment profiles implemented; no operator
-or external operation
+Version 1.6 | Status: AP-M9-W5 phased Platform State contract implemented; no external operation
 
 This directory contains closed, non-secret repository configuration contracts. It is subordinate
 to the platform requirements, accepted ADRs, system design, implementation plan, and evaluation
 strategy. A schema or synthetic example does not authorize backend initialization, credential
 lookup, a provider call, repository-setting change, DNS change, or deployment.
 
-## Active AP-M7 inventory
+## Active infrastructure inventory
 
 | Schema | Stable identifier | Interface |
 | --- | --- | --- |
 | `schemas/backend-configuration.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:backend:v1` | four exclusive backend state owners and bounded recovery input |
-| `schemas/platform-configuration.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:platform:v1` | Shared Edge Platform State non-secret inputs |
+| `schemas/platform-configuration.v2.schema.json` | `urn:comfforts:app-platform:infrastructure-config:platform:v2` | foundation and Shared Edge inputs on one Platform State lineage |
 | `schemas/fixture-configuration.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:fixture:v1` | one independent synthetic Application input |
 | `schemas/cross-state-reference.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:cross-state-reference:v1` | typed non-secret references without state reads |
 | `schemas/workflow-configuration.v1.schema.json` | `urn:comfforts:app-platform:infrastructure-config:workflow:v1` | source-bound inert workflow-design input |
@@ -48,10 +47,12 @@ rejection of credential, secret, state, saved-plan, provider-response, private-k
 
 ## Terraform boundary
 
-The AP-M7 bootstrap, platform, and synthetic-application roots duplicate security-critical schema
-constraints at their Terraform interfaces. The deterministic gate rejects disagreement. No root
-may read another root through `terraform_remote_state`; reviewed non-secret references are the
-only exchange shape.
+The bootstrap, phased platform, and synthetic-application roots duplicate security-critical schema
+constraints at their Terraform interfaces. Platform Version 2 removes later generated values from
+the foundation phase and requires a complete Shared Edge binding only in that later phase. Both
+phases retain one Platform State lineage. The deterministic gate rejects disagreement. No root may
+read another root through `terraform_remote_state`; reviewed non-secret references are the only
+exchange shape.
 
 ## AP-M9 environment profiles
 

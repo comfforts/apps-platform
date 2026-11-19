@@ -1,26 +1,16 @@
 variable "foundation_configuration" {
   description = "Complete non-secret implementation input for the Platform State foundation."
   type = object({
-    project_id             = string
-    project_number         = string
-    region                 = string
-    qualification_hostname = string
-    configuration_bucket   = string
-    labels                 = map(string)
-    registration_generation = object({
-      source_revision   = string
-      generation        = number
-      generation_digest = string
-      content_digest    = string
-      object_name       = string
-      object_generation = number
-    })
-    oauth = object({
-      client_id             = string
-      client_secret_version = string
-    })
+    project_id           = string
+    project_number       = string
+    region               = string
+    hostname             = string
+    configuration_bucket = string
+    oauth_secret_id      = string
+    signing_key_ring_id  = string
+    signing_key_id       = string
+    labels               = map(string)
     signing = object({
-      key_version                = string
       manual_rotation_days       = number
       verification_overlap_hours = number
       active_version_count       = number

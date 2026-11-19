@@ -1,15 +1,17 @@
-output "edge_caller_principal" {
-  description = "Deterministic non-secret caller principal for typed fixture references."
-  value       = local.edge_caller_principal
-}
-
-output "edge_runtime_email" {
-  description = "Platform-owned runtime identity email for the Shared Edge revision."
-  value       = google_service_account.edge_runtime.email
+output "foundation_reference" {
+  description = "Closed non-secret references created by the foundation phase."
+  value = {
+    configuration_bucket  = google_storage_bucket.configuration.name
+    edge_caller_principal = local.edge_caller_principal
+    edge_runtime_email    = google_service_account.edge_runtime.email
+    oauth_secret_id       = google_secret_manager_secret.edge_oauth.id
+    session_database      = google_firestore_database.sessions.name
+    signing_key_id        = google_kms_crypto_key.assertion_signing.id
+  }
 }
 
 output "policy_summary" {
-  description = "Internal plan-test surface for identity, generation, session, and signing controls."
+  description = "Internal mocked-plan surface for foundation controls."
   value = {
     configuration_bucket = {
       configured_name             = var.foundation_configuration.configuration_bucket
@@ -22,11 +24,6 @@ output "policy_summary" {
       deletion_policy             = "PREVENT"
       runtime_reader_role         = "roles/storage.objectViewer"
     }
-    registration_generation = merge(var.foundation_configuration.registration_generation, {
-      immutable_object_shape = true
-      object_upload          = "deferred"
-      activation             = "deferred"
-    })
     sessions = {
       database_type                     = "FIRESTORE_NATIVE"
       database_edition                  = "STANDARD"
@@ -42,7 +39,8 @@ output "policy_summary" {
       asynchronous_ttl_is_authorization = false
     }
     signing = {
-      configured_key_version      = var.foundation_configuration.signing.key_version
+      key_ring_id                 = var.foundation_configuration.signing_key_ring_id
+      key_id                      = var.foundation_configuration.signing_key_id
       purpose                     = "ASYMMETRIC_SIGN"
       algorithm                   = "EC_SIGN_P256_SHA256"
       protection_level            = "SOFTWARE"
@@ -65,13 +63,16 @@ output "policy_summary" {
       service_account_keys    = false
     }
     oauth = {
-      client_id                 = var.foundation_configuration.oauth.client_id
-      client_secret_version_ref = var.foundation_configuration.oauth.client_secret_version
-      secret_value_present      = false
-      runtime_reader_role       = "roles/secretmanager.secretAccessor"
+      secret_id              = var.foundation_configuration.oauth_secret_id
+      secret_container       = "projects/${var.foundation_configuration.project_id}/secrets/${var.foundation_configuration.oauth_secret_id}"
+      secret_version_present = false
+      secret_value_present   = false
+      runtime_reader_role    = "roles/secretmanager.secretAccessor"
+      deletion_protection    = true
     }
     application_identity_management = false
     restricted_membership           = false
+    registration_generation         = "later-stage-input"
     compilation                     = "external-reviewed-input"
   }
 }

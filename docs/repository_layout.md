@@ -1,6 +1,6 @@
 # App Platform repository layout
 
-Version 1.8 | Status: canonical dedicated repository; AP-M9-W4 interactive lifecycle core
+Version 1.9 | Status: canonical dedicated repository; AP-M9-W5 Terraform lifecycle
 implemented; no backend, provider, DNS, deployment, or Live operation performed
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
@@ -25,8 +25,9 @@ permission to create a resource or perform an external action.
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
 | `infrastructure/operator/` | deep Python preparation, approval, journal, status, resume, local adapters, and thin credential-free CLI |
-| `infrastructure/terraform/bootstrap/` | AP-M7 static state-bucket owner root |
-| `infrastructure/terraform/platform/` | AP-M7 static Platform State root |
+| `infrastructure/backend/` | AP-M9-W5 backend rendering, lineage, operation authority, plan policy, and fake command integration |
+| `infrastructure/terraform/bootstrap/` | state-bucket owner root with closed bootstrap phase output |
+| `infrastructure/terraform/platform/` | phased foundation and Shared Edge configuration on one Platform State lineage |
 | `infrastructure/terraform/fixtures/*/` | independent synthetic Application State roots |
 | `infrastructure/terraform/modules/` | internal AP-M7 Terraform modules |
 | `infrastructure/workflows/` | inert AP-M7 workflow-design artifacts, not executable workflows |
@@ -48,15 +49,20 @@ resumable journal orchestration exercised through deterministic fakes. It added 
 deploy target, credential, provider request, backend operation, Terraform plan or apply, DNS
 action, platform resource, bundle instance, deployment, or Live evidence.
 
+AP-M9-W5 added exact staging backend declarations, keyless operation-authority profiles, canonical
+plan policy, Version 2 phased Platform State configuration, closed phase outputs, mocked Terraform
+plans, and a deterministic injected command fake. It added no production command adapter, deploy
+target, identity, credential, backend operation, saved plan, state, provider request, DNS action,
+resource, deployment, or Live evidence.
+
 ## AP-M9 capability locations
 
-The implemented profile, lifecycle-contract, and operator-core locations are listed above. The
-locations below describe later module seams; their absence is expected until the named AP-M9
-package implements them.
+The implemented profile, lifecycle-contract, operator-core, backend, and Terraform locations are
+listed above. The locations below describe later module seams; their absence is expected until the
+named AP-M9 package implements them.
 
 | Path | Intended owner |
 | --- | --- |
-| `infrastructure/backend/` | deterministic backend rendering and lineage-preserving helpers |
 | `infrastructure/images/` | reproducible Shared Edge and synthetic Fixture images |
 | `registrations/` | future reviewed provider-backed Registration Sets |
 | `registrations/qualification/` | provider-backed synthetic qualification registrations |

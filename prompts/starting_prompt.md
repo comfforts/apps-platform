@@ -14,8 +14,9 @@ AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-001 through AP-TM-014. Confirm AP
 before modifying anything.
 
 `integrations/ai_finance_assistant/README.md` remains an inactive, non-authoritative input. Read it
-only if the owner separately scopes a compatibility review; it cannot define qualification,
-destruction, evidence, application cleanup, deployment, or production cutover.
+only if the owner separately scopes a compatibility review; it cannot define generic platform
+behavior, qualification, destruction, evidence, application cleanup, deployment, or production
+cutover.
 
 Implement only the qualification and safe-destruction repository slice:
 

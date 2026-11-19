@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 import hashlib
 import json
 import unittest
@@ -14,6 +15,7 @@ from infrastructure.operator.integration import (
     GenerationActivationReadback,
     GenerationPublicationReadback,
     IntegrationBundleRequest,
+    LifecycleChangeRequest,
     PlatformIntegrationState,
     RegistrationGenerationProposal,
     RegistrationIntent,
@@ -418,6 +420,133 @@ class RegistrationLifecycleTest(unittest.TestCase):
         self.assertEqual(invalid_policy.blockers, ("REGISTRATION_INTENT_INVALID",))
         self.assertEqual(unarmed.outcome, "blocked")
         self.assertEqual(unarmed.blockers, ("GENERATION_CONTROL_UNAVAILABLE",))
+
+    def test_detach_reserves_route_and_replacement_reactivates_application(self) -> None:
+        bundle = self._bundle("fixture-public", "public")
+        original_attachment = self._attachment(bundle)
+        registered = self.lifecycle.register(
+            bundle,
+            original_attachment,
+            self._intent(),
+        )
+        assert registered.generation_digest is not None
+
+        detached = self.lifecycle.detach(
+            LifecycleChangeRequest(
+                environment="staging",
+                application_id="fixture-public",
+                expected_platform_source_revision=SOURCE_REVISION,
+                expected_generation_digest=registered.generation_digest,
+            )
+        )
+
+        self.assertEqual(detached.outcome, "activated")
+        current = self.generations.current_proposal
+        assert current is not None
+        registration = current.registration_set["registrations"][0]
+        self.assertEqual(registration["lifecycle"], "suspended")
+        self.assertEqual(registration["route_prefix"], "/fixture-public")
+        self.assertEqual(current.compiled_configuration["catalogue"], [])
+        self.assertEqual(current.compiled_configuration["routes"], [])
+        self.assertEqual(current.compiled_configuration["admission_policies"], [])
+
+        replacement = self._attachment(bundle, revision=2, suffix="-v2")
+        reactivated = self.lifecycle.register(bundle, replacement, self._intent())
+
+        self.assertEqual(reactivated.outcome, "activated")
+        current = self.generations.current_proposal
+        assert current is not None
+        registration = current.registration_set["registrations"][0]
+        self.assertEqual(registration["lifecycle"], "active")
+        self.assertEqual(
+            registration["attachments"][0]["resource_reference"],
+            replacement["target"]["resource_reference"],
+        )
+        self.assertEqual(len(current.compiled_configuration["routes"]), 1)
+
+    def test_retirement_is_terminal_and_preserves_identifier_and_route(self) -> None:
+        bundle = self._bundle("fixture-authenticated", "authenticated")
+        attachment = self._attachment(bundle)
+        registered = self.lifecycle.register(bundle, attachment, self._intent())
+        assert registered.generation_digest is not None
+
+        retired = self.lifecycle.retire(
+            LifecycleChangeRequest(
+                environment="staging",
+                application_id="fixture-authenticated",
+                expected_platform_source_revision=SOURCE_REVISION,
+                expected_generation_digest=registered.generation_digest,
+            )
+        )
+
+        self.assertEqual(retired.outcome, "activated")
+        current = self.generations.current_proposal
+        assert current is not None
+        tombstone = current.registration_set["registrations"][0]
+        self.assertEqual(tombstone["lifecycle"], "retired")
+        self.assertEqual(tombstone["application_id"], "fixture-authenticated")
+        self.assertEqual(tombstone["route_prefix"], "/fixture-authenticated")
+        self.assertEqual(current.compiled_configuration["routes"], [])
+        self.assertEqual(
+            self.lifecycle.register(bundle, attachment, self._intent()).blockers,
+            ("APPLICATION_RETIRED",),
+        )
+
+    def test_lifecycle_change_rejects_unknown_stale_and_wrong_source(self) -> None:
+        bundle = self._bundle("fixture-public", "public")
+        attachment = self._attachment(bundle)
+        registered = self.lifecycle.register(bundle, attachment, self._intent())
+        assert registered.generation_digest is not None
+        base = LifecycleChangeRequest(
+            environment="staging",
+            application_id="fixture-public",
+            expected_platform_source_revision=SOURCE_REVISION,
+            expected_generation_digest=registered.generation_digest,
+        )
+
+        unknown = self.lifecycle.detach(
+            replace(base, application_id="unknown-application")
+        )
+        stale = self.lifecycle.detach(
+            replace(base, expected_generation_digest="sha256:" + ("f" * 64))
+        )
+        wrong_source = self.lifecycle.detach(
+            replace(base, expected_platform_source_revision="c" * 40)
+        )
+
+        self.assertEqual(unknown.blockers, ("APPLICATION_NOT_REGISTERED",))
+        self.assertEqual(stale.blockers, ("GENERATION_CONFLICT",))
+        self.assertEqual(wrong_source.blockers, ("PLATFORM_SOURCE_MISMATCH",))
+
+    def test_repeated_detach_and_retire_are_idempotent_without_new_publication(self) -> None:
+        bundle = self._bundle("fixture-public", "public")
+        attachment = self._attachment(bundle)
+        registered = self.lifecycle.register(bundle, attachment, self._intent())
+        assert registered.generation_digest is not None
+        request = LifecycleChangeRequest(
+            environment="staging",
+            application_id="fixture-public",
+            expected_platform_source_revision=SOURCE_REVISION,
+            expected_generation_digest=registered.generation_digest,
+        )
+        detached = self.lifecycle.detach(request)
+        assert detached.generation_digest is not None
+        publication_count = len(self.generations.publications)
+
+        unchanged_detach = self.lifecycle.detach(
+            replace(request, expected_generation_digest=detached.generation_digest)
+        )
+        retired = self.lifecycle.retire(
+            replace(request, expected_generation_digest=detached.generation_digest)
+        )
+        assert retired.generation_digest is not None
+        unchanged_retire = self.lifecycle.retire(
+            replace(request, expected_generation_digest=retired.generation_digest)
+        )
+
+        self.assertEqual(unchanged_detach.outcome, "unchanged")
+        self.assertEqual(len(self.generations.publications), publication_count + 1)
+        self.assertEqual(unchanged_retire.outcome, "unchanged")
 
 
 if __name__ == "__main__":

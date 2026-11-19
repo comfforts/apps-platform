@@ -175,6 +175,16 @@ class RegistrationLifecycleResult:
     blockers: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class LifecycleChangeRequest:
+    """Exact active-generation precondition for detach or retirement."""
+
+    environment: str
+    application_id: str
+    expected_platform_source_revision: str
+    expected_generation_digest: str
+
+
 class ApplicationIntegrationLifecycle:
     """Generate least-data application handoffs from exact platform readback."""
 
@@ -685,6 +695,93 @@ class ApplicationIntegrationLifecycle:
             )
         return self._publish_and_activate(active_proposal)
 
+    def _transition(
+        self,
+        request: LifecycleChangeRequest,
+        target_lifecycle: str,
+    ) -> RegistrationLifecycleResult:
+        if self._generation_control is None:
+            return self._registration_blocked("GENERATION_CONTROL_UNAVAILABLE")
+        if self._terminal is None:
+            return self._registration_blocked("INTEGRATION_TERMINAL_UNAVAILABLE")
+        platform = self._platform_reader.read_platform(request.environment)
+        if platform.environment != request.environment:
+            return self._registration_blocked("PLATFORM_ENVIRONMENT_MISMATCH")
+        if (
+            platform.platform_source_revision
+            != request.expected_platform_source_revision
+        ):
+            return self._registration_blocked("PLATFORM_SOURCE_MISMATCH")
+        if platform.lifecycle_state != "deployed":
+            return self._registration_blocked("PLATFORM_NOT_DEPLOYED")
+
+        current = self._generation_control.current(request.environment)
+        if current is None:
+            return self._registration_blocked("APPLICATION_NOT_REGISTERED")
+        if current.environment != request.environment:
+            return self._registration_blocked("GENERATION_ENVIRONMENT_MISMATCH")
+        if current.generation_digest != request.expected_generation_digest:
+            return self._registration_blocked("GENERATION_CONFLICT")
+        registration = next(
+            (
+                item
+                for item in current.registration_set["registrations"]
+                if item["application_id"] == request.application_id
+            ),
+            None,
+        )
+        if registration is None:
+            return self._registration_blocked("APPLICATION_NOT_REGISTERED")
+        current_lifecycle = str(registration["lifecycle"])
+        if current_lifecycle == target_lifecycle:
+            return RegistrationLifecycleResult(
+                outcome="unchanged",
+                generation=int(current.registration_set["generation"]),
+                generation_digest=current.generation_digest,
+            )
+        if target_lifecycle == "suspended" and current_lifecycle != "active":
+            blocker = (
+                "APPLICATION_RETIRED"
+                if current_lifecycle == "retired"
+                else "APPLICATION_NOT_ACTIVE"
+            )
+            return self._registration_blocked(blocker)
+        if current_lifecycle == "retired":
+            return self._registration_blocked("APPLICATION_RETIRED")
+
+        successor = copy.deepcopy(registration)
+        successor["lifecycle"] = target_lifecycle
+        successor["registration_revision"] = int(
+            registration["registration_revision"]
+        ) + 1
+        verb = "Detach" if target_lifecycle == "suspended" else "Retire"
+        proposal = self._compile_generation(
+            request.environment,
+            request.expected_platform_source_revision,
+            current,
+            successor,
+            f"{verb} {request.application_id}",
+        )
+        if proposal is None:
+            return self._registration_blocked("REGISTRATION_COMPILATION_FAILED")
+        return self._publish_and_activate(proposal)
+
+    def detach(
+        self,
+        request: LifecycleChangeRequest,
+    ) -> RegistrationLifecycleResult:
+        """Suspend routing without invoking or destroying Application State."""
+
+        return self._transition(request, "suspended")
+
+    def retire(
+        self,
+        request: LifecycleChangeRequest,
+    ) -> RegistrationLifecycleResult:
+        """Activate an immutable terminal tombstone without releasing the route."""
+
+        return self._transition(request, "retired")
+
 
 __all__ = (
     "ApplicationIntegrationLifecycle",
@@ -696,6 +793,7 @@ __all__ = (
     "IntegrationTerminal",
     "IntegrationBundleRequest",
     "IntegrationBundleResult",
+    "LifecycleChangeRequest",
     "PlatformIntegrationReader",
     "PlatformIntegrationState",
     "RegistrationGenerationControl",

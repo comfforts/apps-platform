@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
+import hashlib
+import json
 from typing import Any, Protocol
 
+from contracts import compile_registration_set
 from contracts.lifecycle import (
     lifecycle_digest,
     validate_lifecycle_document,
@@ -90,6 +94,87 @@ class AttachmentValidationResult:
     blockers: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class RegistrationIntent:
+    """Explicit platform-facing registration decisions absent from an attachment."""
+
+    catalogue_visibility: str
+    catalogue_title: str
+    catalogue_summary: str
+    attachment_id: str
+    mount_path: str
+    forwarding_mode: str
+    restricted_members: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationGenerationProposal:
+    """One immutable whole-generation publication input."""
+
+    environment: str
+    registration_set: dict[str, Any]
+    compiled_configuration: dict[str, Any]
+    ownership_manifest: dict[str, Any]
+    generation_digest: str
+    content_digest: str
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationPublicationReadback:
+    """Create-only publication result and exact immutable readback."""
+
+    created: bool
+    publication_reference: str
+    generation_digest: str
+    content_digest: str
+    readback_matches: bool
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationActivationReadback:
+    """Observed active whole-generation pointer after activation."""
+
+    activated: bool
+    active_generation_digest: str
+
+
+class RegistrationGenerationControl(Protocol):
+    """Injected immutable publication and active-pointer boundary."""
+
+    def current(
+        self,
+        environment: str,
+    ) -> RegistrationGenerationProposal | None: ...
+
+    def publish(
+        self,
+        proposal: RegistrationGenerationProposal,
+    ) -> GenerationPublicationReadback: ...
+
+    def activate(
+        self,
+        environment: str,
+        publication_reference: str,
+        generation_digest: str,
+    ) -> GenerationActivationReadback: ...
+
+
+class IntegrationTerminal(Protocol):
+    def write(self, message: str) -> None: ...
+
+    def confirm_exact(self, prompt: str, expected: str) -> bool: ...
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationLifecycleResult:
+    """One complete registration lifecycle outcome."""
+
+    outcome: str
+    generation: int | None
+    generation_digest: str | None
+    blockers: tuple[str, ...] = ()
+
+
 class ApplicationIntegrationLifecycle:
     """Generate least-data application handoffs from exact platform readback."""
 
@@ -98,9 +183,13 @@ class ApplicationIntegrationLifecycle:
         platform_reader: PlatformIntegrationReader,
         *,
         attachment_reader: AttachmentTargetReader | None = None,
+        generation_control: RegistrationGenerationControl | None = None,
+        terminal: IntegrationTerminal | None = None,
     ) -> None:
         self._platform_reader = platform_reader
         self._attachment_reader = attachment_reader
+        self._generation_control = generation_control
+        self._terminal = terminal
 
     @staticmethod
     def _blocked(*blockers: str) -> IntegrationBundleResult:
@@ -280,14 +369,337 @@ class ApplicationIntegrationLifecycle:
             attachment_bundle=attachment_bundle,
         )
 
+    @staticmethod
+    def _registration_blocked(
+        *blockers: str,
+        outcome: str = "blocked",
+        proposal: RegistrationGenerationProposal | None = None,
+    ) -> RegistrationLifecycleResult:
+        return RegistrationLifecycleResult(
+            outcome=outcome,
+            generation=(
+                int(proposal.registration_set["generation"])
+                if proposal is not None
+                else None
+            ),
+            generation_digest=(
+                proposal.generation_digest if proposal is not None else None
+            ),
+            blockers=tuple(sorted(set(blockers))),
+        )
+
+    @staticmethod
+    def _registration_intent_valid(
+        access_mode: object,
+        intent: RegistrationIntent,
+    ) -> bool:
+        if access_mode == "restricted":
+            return bool(intent.restricted_members)
+        return access_mode in {"public", "authenticated"} and not intent.restricted_members
+
+    @staticmethod
+    def _application_registration(
+        integration_bundle: dict[str, Any],
+        attachment_bundle: dict[str, Any],
+        intent: RegistrationIntent,
+        lifecycle: str,
+        registration_revision: int,
+    ) -> dict[str, Any]:
+        access_mode = str(integration_bundle["access_mode"])
+        identity = integration_bundle["identity"]
+        target = attachment_bundle["target"]
+        assert isinstance(identity, dict)
+        assert isinstance(target, dict)
+        admission: dict[str, Any] = {"mode": access_mode}
+        if access_mode == "restricted":
+            admission["members"] = [
+                {"issuer": issuer, "subject": subject}
+                for issuer, subject in sorted(intent.restricted_members)
+            ]
+        return {
+            "contract_version": 1,
+            "application_id": integration_bundle["application_id"],
+            "registration_revision": registration_revision,
+            "route_prefix": integration_bundle["route_intent"],
+            "catalogue": {
+                "visibility": intent.catalogue_visibility,
+                "title": intent.catalogue_title,
+                "summary": intent.catalogue_summary,
+            },
+            "admission": admission,
+            "lifecycle": lifecycle,
+            "attachments": [
+                {
+                    "contract_version": 1,
+                    "owner_application_id": integration_bundle["application_id"],
+                    "attachment_id": intent.attachment_id,
+                    "adapter_kind": target["adapter_kind"],
+                    "resource_reference": target["resource_reference"],
+                    "mount_path": intent.mount_path,
+                    "forwarding_mode": intent.forwarding_mode,
+                    "identity_requirement": (
+                        "none" if access_mode == "public" else "verified"
+                    ),
+                    "audience": identity["audience"],
+                    "ingress_mode": target["ingress_mode"],
+                }
+            ],
+        }
+
+    @staticmethod
+    def _canonical_digest(value: object) -> str:
+        payload = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+    @classmethod
+    def _compile_generation(
+        cls,
+        environment: str,
+        source_revision: str,
+        current: RegistrationGenerationProposal | None,
+        registration: dict[str, Any],
+        change_summary: str,
+    ) -> RegistrationGenerationProposal | None:
+        previous = current.registration_set if current is not None else None
+        registrations = (
+            copy.deepcopy(previous["registrations"])
+            if previous is not None
+            else []
+        )
+        registrations = [
+            item
+            for item in registrations
+            if item["application_id"] != registration["application_id"]
+        ]
+        registrations.append(copy.deepcopy(registration))
+        registrations.sort(key=lambda item: item["application_id"])
+        registration_set = {
+            "contract_version": 1,
+            "generation": (
+                int(previous["generation"]) + 1 if previous is not None else 1
+            ),
+            "previous_generation_digest": (
+                current.generation_digest if current is not None else None
+            ),
+            "proposal": {
+                "source_revision": source_revision,
+                "change_summary": change_summary,
+            },
+            "registrations": registrations,
+        }
+        compilation = compile_registration_set(
+            previous,
+            registration_set,
+            {
+                "contract_version": 1,
+                "enabled_attachment_adapter_kinds": ["gcp-cloud-run-v1"],
+            },
+        )
+        if (
+            compilation.violations
+            or compilation.compiled_configuration is None
+            or compilation.ownership_manifest is None
+            or compilation.generation_digest is None
+        ):
+            return None
+        return RegistrationGenerationProposal(
+            environment=environment,
+            registration_set=registration_set,
+            compiled_configuration=compilation.compiled_configuration,
+            ownership_manifest=compilation.ownership_manifest,
+            generation_digest=compilation.generation_digest,
+            content_digest=cls._canonical_digest(compilation.compiled_configuration),
+        )
+
+    def _publish_and_activate(
+        self,
+        proposal: RegistrationGenerationProposal,
+    ) -> RegistrationLifecycleResult:
+        assert self._generation_control is not None
+        assert self._terminal is not None
+        try:
+            publication = self._generation_control.publish(proposal)
+        except Exception:
+            return self._registration_blocked("GENERATION_PUBLICATION_FAILED")
+        if not publication.created:
+            return self._registration_blocked("GENERATION_PUBLICATION_CONFLICT")
+        if (
+            not publication.readback_matches
+            or publication.generation_digest != proposal.generation_digest
+            or publication.content_digest != proposal.content_digest
+            or not publication.publication_reference
+        ):
+            return self._registration_blocked("GENERATION_READBACK_MISMATCH")
+
+        generation = int(proposal.registration_set["generation"])
+        expected = (
+            f"ACTIVATE {proposal.environment} GENERATION {generation} "
+            f"{proposal.generation_digest}"
+        )
+        self._terminal.write(
+            f"GENERATION {generation} {proposal.generation_digest}"
+        )
+        if not self._terminal.confirm_exact(
+            f"Type {expected!r} to activate the exact whole generation: ",
+            expected,
+        ):
+            return self._registration_blocked(
+                "GENERATION_NOT_CONFIRMED",
+                outcome="cancelled",
+                proposal=proposal,
+            )
+        try:
+            activation = self._generation_control.activate(
+                proposal.environment,
+                publication.publication_reference,
+                proposal.generation_digest,
+            )
+        except Exception:
+            return self._registration_blocked(
+                "GENERATION_ACTIVATION_FAILED",
+                proposal=proposal,
+            )
+        if (
+            not activation.activated
+            or activation.active_generation_digest != proposal.generation_digest
+        ):
+            return self._registration_blocked(
+                "GENERATION_ACTIVATION_MISMATCH",
+                proposal=proposal,
+            )
+        return RegistrationLifecycleResult(
+            outcome="activated",
+            generation=generation,
+            generation_digest=proposal.generation_digest,
+        )
+
+    def register(
+        self,
+        integration_bundle: dict[str, Any],
+        attachment_bundle: dict[str, Any],
+        intent: RegistrationIntent,
+    ) -> RegistrationLifecycleResult:
+        """Validate an attachment and activate only immutable whole generations."""
+
+        attachment = self.validate_attachment(
+            integration_bundle,
+            attachment_bundle,
+        )
+        if attachment.outcome != "validated":
+            return self._registration_blocked(*attachment.blockers)
+        if not self._registration_intent_valid(
+            integration_bundle.get("access_mode"),
+            intent,
+        ):
+            return self._registration_blocked("REGISTRATION_INTENT_INVALID")
+        if self._generation_control is None:
+            return self._registration_blocked("GENERATION_CONTROL_UNAVAILABLE")
+        if self._terminal is None:
+            return self._registration_blocked("INTEGRATION_TERMINAL_UNAVAILABLE")
+
+        environment = str(integration_bundle["environment"])
+        current = self._generation_control.current(environment)
+        if current is not None and current.environment != environment:
+            return self._registration_blocked("GENERATION_ENVIRONMENT_MISMATCH")
+        application_id = str(integration_bundle["application_id"])
+        current_registration = None
+        if current is not None:
+            current_registration = next(
+                (
+                    item
+                    for item in current.registration_set["registrations"]
+                    if item["application_id"] == application_id
+                ),
+                None,
+            )
+        if current_registration is not None and current_registration["lifecycle"] == "retired":
+            return self._registration_blocked("APPLICATION_RETIRED")
+
+        first_lifecycle = "staged" if current_registration is None else "active"
+        desired = self._application_registration(
+            integration_bundle,
+            attachment_bundle,
+            intent,
+            first_lifecycle,
+            (
+                int(current_registration["registration_revision"])
+                if current_registration is not None
+                else 1
+            ),
+        )
+        if current_registration is not None:
+            previous_values = {
+                key: value
+                for key, value in current_registration.items()
+                if key != "registration_revision"
+            }
+            desired_values = {
+                key: value
+                for key, value in desired.items()
+                if key != "registration_revision"
+            }
+            if previous_values == desired_values:
+                return RegistrationLifecycleResult(
+                    outcome="unchanged",
+                    generation=int(current.registration_set["generation"]),
+                    generation_digest=current.generation_digest,
+                )
+            desired["registration_revision"] = (
+                int(current_registration["registration_revision"]) + 1
+            )
+
+        source_revision = str(integration_bundle["platform_source_revision"])
+        proposal = self._compile_generation(
+            environment,
+            source_revision,
+            current,
+            desired,
+            f"Register {application_id}",
+        )
+        if proposal is None:
+            return self._registration_blocked("REGISTRATION_COMPILATION_FAILED")
+        result = self._publish_and_activate(proposal)
+        if result.outcome != "activated" or first_lifecycle == "active":
+            return result
+
+        active = copy.deepcopy(desired)
+        active["lifecycle"] = "active"
+        active["registration_revision"] = int(desired["registration_revision"]) + 1
+        active_proposal = self._compile_generation(
+            environment,
+            source_revision,
+            proposal,
+            active,
+            f"Activate {application_id}",
+        )
+        if active_proposal is None:
+            return self._registration_blocked(
+                "REGISTRATION_COMPILATION_FAILED",
+                proposal=proposal,
+            )
+        return self._publish_and_activate(active_proposal)
+
 
 __all__ = (
     "ApplicationIntegrationLifecycle",
     "AttachmentTargetReadback",
     "AttachmentTargetReader",
     "AttachmentValidationResult",
+    "GenerationActivationReadback",
+    "GenerationPublicationReadback",
+    "IntegrationTerminal",
     "IntegrationBundleRequest",
     "IntegrationBundleResult",
     "PlatformIntegrationReader",
     "PlatformIntegrationState",
+    "RegistrationGenerationControl",
+    "RegistrationGenerationProposal",
+    "RegistrationIntent",
+    "RegistrationLifecycleResult",
 )

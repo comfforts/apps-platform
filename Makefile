@@ -26,7 +26,7 @@ terraform-check: ## Verify the pinned Terraform foundation offline in a disposab
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_terraform_foundation tests.test_infrastructure_config tests.test_backend_lifecycle tests.test_plan_policy tests.test_terraform_lifecycle tests.test_terraform_bootstrap tests.test_terraform_fixtures tests.test_terraform_platform_foundation tests.test_terraform_shared_edge tests.test_terraform_platform_controls tests.test_workflow_templates tests.test_terraform_qualification
 
 operator-check: ## Verify the credential-free interactive lifecycle core with deterministic adapters.
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_application_integration
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_application_integration tests.test_registration_lifecycle
 
 platform-prepare: ## Prepare and explicitly approve one complete lifecycle specification.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator prepare --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"

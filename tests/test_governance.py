@@ -784,8 +784,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         live_gates = re.findall(
             r"^#### (AP-EVAL-M9-\d{2}) ·", evaluation, re.MULTILINE
         )
-        future_boundaries = re.findall(
-            r"^### (AP-EVAL-M[8-9]) ·", evaluation, re.MULTILINE
+        active_lifecycle_boundaries = re.findall(
+            r"^## (AP-EVAL-M9) ·", evaluation, re.MULTILINE
         )
 
         self.assertEqual(
@@ -817,8 +817,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             [f"AP-EVAL-M9-{index:02d}" for index in range(1, 11)],
         )
         self.assertEqual(
-            future_boundaries,
-            ["AP-EVAL-M8", "AP-EVAL-M9"],
+            active_lifecycle_boundaries,
+            ["AP-EVAL-M9"],
         )
         for identifiers in (
             work_packages,
@@ -831,7 +831,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertEqual(len(identifiers), len(set(identifiers)))
 
-    def test_ap_m8_authority_has_complete_unique_work_packages_and_gates(self) -> None:
+    def test_ap_m8_history_and_ap_m9_authority_have_unique_identifiers(self) -> None:
         plan = (PROJECT_ROOT / "docs/04_implementation_plan.md").read_text(
             encoding="utf-8"
         )
@@ -840,20 +840,33 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
 
         work_packages = re.findall(r"^#### (AP-M8-W\d+) ·", plan, re.MULTILINE)
-        evaluation_gates = re.findall(
-            r"^##### (AP-EVAL-M8-\d{2}) ·", evaluation, re.MULTILINE
+        lifecycle_packages = re.findall(
+            r"^#### (AP-M9-W\d+) ·", plan, re.MULTILINE
+        )
+        lifecycle_gates = re.findall(
+            r"^#### (AP-EVAL-M9-\d{2}) ·", evaluation, re.MULTILINE
         )
 
         self.assertEqual(
             work_packages,
-            [f"AP-M8-W{index}" for index in range(1, 13)],
+            ["AP-M8-W1", "AP-M8-W2"],
         )
         self.assertEqual(
-            evaluation_gates,
-            [f"AP-EVAL-M8-{index:02d}" for index in range(1, 11)],
+            lifecycle_packages,
+            [f"AP-M9-W{index}" for index in range(1, 11)],
         )
         self.assertEqual(len(work_packages), len(set(work_packages)))
-        self.assertEqual(len(evaluation_gates), len(set(evaluation_gates)))
+        self.assertEqual(
+            lifecycle_gates,
+            [f"AP-EVAL-M9-{index:02d}" for index in range(1, 11)],
+        )
+        self.assertEqual(len(lifecycle_packages), len(set(lifecycle_packages)))
+        self.assertEqual(len(lifecycle_gates), len(set(lifecycle_gates)))
+        self.assertIn("AP-M8-W3 through W12 superseded without execution", plan)
+        self.assertIn(
+            "Historical standalone Live-qualification gate — withdrawn before implementation",
+            evaluation,
+        )
 
     def test_ap_m8_operator_authorities_are_separate_and_exact(self) -> None:
         runbook = (
@@ -968,8 +981,12 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         normalized = " ".join(evaluation.split())
         ap_m8 = evaluation.split(
-            "### AP-EVAL-M8 · Qualification-deployment gate", 1
-        )[1].split("### AP-EVAL-M9 · Live-qualification gate", 1)[0]
+            "### Historical AP-EVAL-M8 · Manifest-driven qualification-deployment gate — superseded",
+            1,
+        )[1].split(
+            "### Historical standalone Live-qualification gate — withdrawn before implementation",
+            1,
+        )[0]
 
         for bundle_entry in (
             "manifest.v1.json",
@@ -1198,8 +1215,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         for later_slice in (
             "AP-M6 · Networked provider runtime implementation",
             "AP-M7 · Terraform and workflow implementation",
-            "AP-M8 · Non-production qualification deployment",
-            "AP-M9 · Live qualification",
+            "Historical AP-M8 · Manifest-driven qualification deployment — superseded",
+            "AP-M9 · Operator-driven environment lifecycle",
             "Later Application Adoption",
         ):
             self.assertIn(later_slice, plan)

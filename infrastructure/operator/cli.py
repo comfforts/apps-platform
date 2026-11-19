@@ -94,14 +94,14 @@ def _default_qualification_factory(
     state_directory: Path,
 ) -> QualificationLifecycle:
     del state_directory
-    raise RuntimeError("QUALIFICATION_ADAPTER_UNAVAILABLE")
+    raise RuntimeError("W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED")
 
 
 def _default_destruction_factory(
     state_directory: Path,
 ) -> DestructionLifecycle:
     del state_directory
-    raise RuntimeError("DESTRUCTION_ADAPTER_UNAVAILABLE")
+    raise RuntimeError("W9_DESTRUCTION_AUTHORITY_REQUIRED")
 
 
 def _required(arguments: argparse.Namespace, name: str) -> object:

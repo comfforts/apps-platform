@@ -109,10 +109,10 @@ class QualificationDestructionCliTest(unittest.TestCase):
         self.assertEqual(result["last_closed_stage"], "destruction-readback")
         self.assertEqual(destruction.environments, ["staging"])
 
-    def test_unarmed_defaults_fail_closed_without_partial_artifacts(self) -> None:
+    def test_live_authority_gates_fail_closed_without_partial_artifacts(self) -> None:
         for operation, blocker in (
-            ("qualify", "QUALIFICATION_ADAPTER_UNAVAILABLE"),
-            ("destroy", "DESTRUCTION_ADAPTER_UNAVAILABLE"),
+            ("qualify", "W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED"),
+            ("destroy", "W9_DESTRUCTION_AUTHORITY_REQUIRED"),
         ):
             with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
                 state_root = Path(directory) / "operator"

@@ -1,10 +1,8 @@
 # App Platform threat model
 
-Version 1.4 | Status: Fixture-qualified threat model, approved AP-M6 runtime controls, approved
-AP-M7 infrastructure-configuration controls, and accepted AP-M8 protected-source, federated-
-identity, backend-bootstrap, state-lineage, deployment-sequencing, and evidence controls;
-Cloud Run attachment resolution, bounded proxying, read-only status, and redacted completion events
-implemented locally; no provider operation or live infrastructure is implemented
+Version 1.5 | Status: Fixture-qualified threat model, implemented AP-M6 runtime controls,
+implemented AP-M7 infrastructure-configuration controls, and accepted AP-M9 interactive lifecycle
+controls; no provider operation or live infrastructure is deployed
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -549,7 +547,12 @@ performs no backend initialization, credential lookup, provider or metadata requ
 repository mutation, apply, or destroy. A static pass cannot qualify key custody, ingress, IAM,
 logging, budget delivery, rollback, recovery, or any other provider behavior.
 
-## AP-M8 protected-source and federated-identity controls
+## Historical AP-M8 protected-source and federated-identity controls — superseded
+
+This and the following three AP-M8 sections record the accepted but unexecuted manifest-driven
+control proposal at revision `7b6678a7f0b3036d427517dad6bc3bec876d1a44`. ADR-010 through ADR-013
+and the AP-M9 controls below supersede it. The historical sections authorize no implementation,
+identity, credential, state, provider, DNS, or evidence action.
 
 AP-M8-W1 defines the controls below for AP-M8-W3 and AP-M8-W4. They refine the existing threats
 without claiming implementation:
@@ -599,7 +602,7 @@ the subordinate [qualification-deployment runbook](runbooks/qualification_deploy
 is owner-accepted and merged; until the exact W2 manifest and the AP-M8-W3/AP-M8-W4 checkpoints are
 separately approved and executed, these controls produce no provider or Live evidence.
 
-## AP-M8 backend-bootstrap and state-lineage controls
+## Historical AP-M8 backend-bootstrap and state-lineage controls — superseded
 
 AP-M8-W1 defines these AP-M8-W5 controls without creating a backend or state:
 
@@ -646,7 +649,7 @@ the required AP-M8-W5 repository preparation is merged and the later operator ch
 explicitly approved, these controls supply no backend, state, provider, deployment, or Live
 evidence.
 
-## AP-M8 deployment-sequencing and activation controls
+## Historical AP-M8 deployment-sequencing and activation controls — superseded
 
 AP-M8-W1 defines these AP-M8-W6 through AP-M8-W10 controls without creating a workflow, image,
 generation, resource, record, or DNS entry:
@@ -708,7 +711,7 @@ partial-failure table are in the subordinate
 each later checkpoint is separately approved, this profile supplies no executable or provider
 authority.
 
-## AP-M8 deployment-evidence controls
+## Historical AP-M8 deployment-evidence controls — superseded
 
 AP-M8-W1 defines these AP-M8-W11/W12 and AP-EVAL-M8 controls without reading a provider or
 creating evidence:
@@ -745,7 +748,7 @@ creating evidence:
   project/hostname, and three synthetic fixtures. Finance, production, real applications,
   Integration Drafts, cross-project behavior, and Adoption remain unavailable and unchanged.
 
-The authoritative bundle is append-only under one private
+The proposed historical bundle was append-only under one private
 `ap-eval-m8/<source-revision>/<evaluation-id>/` prefix. Per-operation create-only permissions do not
 permit listing or reading another record. Root readback identities cannot write state or provider
 resources. The finalizer may read that exact prefix and create only `manifest.v1.json`,
@@ -755,8 +758,58 @@ or repair a discrepancy.
 AP-EVAL-M8 passes only with ten mandatory passes and zero failures, blocked gates, unexpected
 warnings, prohibited findings, or mandatory skips. Its only positive status claim is deployed and
 not Live-qualified. The exact schema, verifier, gates, and allowed fields are in
-[the evaluation strategy](05_evaluation_strategy.md); collection and failure handling are in the
-[qualification-deployment runbook](runbooks/qualification_deployment.md).
+[the historical evaluation definition](05_evaluation_strategy.md); its collection and failure
+handling were recorded in the superseded qualification-deployment runbook.
+
+## AP-M9 interactive lifecycle controls
+
+AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control refinements:
+
+- **AP-TM-001 through AP-TM-003:** Environment Profiles and platform/application bundles are closed,
+  bounded, non-secret contracts. Discovery cannot add a route, attachment, resource type, provider
+  command, or owner outside the approved Deployment Specification. Registration still compiles one
+  complete generation before activation.
+- **AP-TM-004 through AP-TM-006:** The platform-owned OAuth secret remains readable only by the
+  Shared Edge. Integration bundles expose platform login/assertion values rather than shared
+  signing or OAuth authority. Application targets retain direct-origin denial, independent assertion
+  verification, principals, data isolation, and Feature Entitlements.
+- **AP-TM-007:** One canonical specification, exact-source check, stage-output graph, append-only
+  Execution Journal, exact plan digest, state lock, provider readback, and resume cursor reject stale,
+  concurrent, reordered, repeated, or partial lifecycle changes. A journal cannot authorize a
+  mutation absent from its parent specification.
+- **AP-TM-008 and AP-TM-009:** Environment, Platform State, Fixture Application State, and real
+  Application State remain distinct. Bundles are reference exchange, not backend access. Detach,
+  retire, application destruction, platform destruction, and environment destruction cannot cross
+  an owner.
+- **AP-TM-010:** Terminal prompts never accept a secret payload. OAuth secrets enter Secret Manager
+  directly. Profiles, specifications, journals, bundles, status, logs, and evidence exclude
+  credentials, secret values, state, plans, raw provider responses, browser state, identity claims,
+  restricted membership, and application data.
+- **AP-TM-011:** The lifecycle binds clean reviewed source, pinned tools and dependencies, one
+  environment, an approved specification digest, an operation-specific impersonated identity, an
+  exact plan, and readback. A profile or journal edit, alternate source, wrong project, provider
+  default, console mutation, or unexpected drift stops before continuation.
+- **AP-TM-012:** Preparation inventories every billable resource and destruction names every target.
+  Existing limits, budgets, retention, scale-to-zero, and approved-service controls remain. A
+  budget event never authorizes automated destruction.
+- **AP-TM-013:** Manual OAuth and DNS checkpoints display exact values, wait in the same process,
+  verify readable provider state, distinguish operator attestation from verification, bound polling,
+  record unreadable fields as operator-attested, and stop without insecure fallback. Interruption
+  resumes from closed readback rather than assuming the manual step succeeded.
+- **AP-TM-014:** Staging fixtures remain synthetic. Production preparation fails closed on existing
+  Finance ownership, and a generated bundle remains an inactive input until the application adopts
+  it under its own authority.
+
+The local operator workstation and its short-lived human session are privileged but fallible. The
+lifecycle therefore uses least-privilege service-account impersonation after bootstrap, mode-`0700`
+ephemeral working storage, source and environment checks, exact typed confirmations, prohibited-data
+scans, and post-stage readback. A compromised workstation remains residual risk; no script can make
+an owner credential incapable of out-of-band provider action. Such action is drift and never becomes
+reviewed authority without reconciliation.
+
+AP-M9-W1 defines controls and evaluation authority only. Implementation work must use deterministic
+fake adapters and failure injection before any approved staging operation. No current result proves
+these controls operational.
 
 ## Unresolved security decisions
 
@@ -765,16 +818,16 @@ pass:
 
 | Decision | Required before |
 | --- | --- |
-| Exact OAuth client and secret-version references, image digests, bucket names, billing-account reference, notification destination, managed-zone resource, and initial Live Registration Set | AP-M8 operator-input review |
-| Provider configuration/readback for the selected runtime limits and observed multi-instance abuse behavior | AP-M8 deployment and AP-M9 Live qualification |
-| Exact repository and owner numeric identifiers, protected workflow refs and environment names, federation resources, operation service accounts, permission sets, scopes, and IAM bindings | AP-M8-W2 operator-input acceptance before AP-M8-W3 or AP-M8-W4 |
-| Exact bucket names, root-prefix permission bindings, backend-renderer implementation, and initial owner credential scope | AP-M8-W2 acceptance and AP-M8-W5 repository preparation before backend mutation |
-| Exact Evidence environment, root-readback/finalizer identities, bundle identifier/prefix, schema/verifier implementation, and create-only record permissions | AP-M8-W2/AP-M8-W4 acceptance and AP-M8-W6 implementation before AP-M8-W11 |
-| Backend initialization and bootstrap-lineage migration | AP-M8-W5 operator checkpoint |
-| Non-bootstrap lineage, provider ingress and IAM realization, and direct-origin denial | AP-M8 deployment and AP-M9 Live qualification |
-| Configuration-object publication, candidate revision, traffic pointer, DNS/TLS, readback, and rollback execution | AP-M8 deployment and AP-M9 Live qualification |
-| Provider audit behavior, log/evidence access, retention enforcement, budget delivery, and cleanup behavior | AP-M9 Live evidence collection |
-| Observed scaling, cost, artifact retention, and approved-service behavior | AP-M9 Live qualification |
+| Exact staging profile, profile schema, Deployment Specification, journal, and bundle contracts | AP-M9-W3 acceptance |
+| Interactive discovery, prompt, digest, resume, and fake-adapter behavior | AP-M9-W4 acceptance |
+| Exact state buckets/prefixes, bootstrap identity scope, operation identities, and deployable Terraform phases | AP-M9-W5 acceptance before authenticated bootstrap |
+| Exact OAuth branding constraints, client reference, redirect registration, and Secret Manager target | AP-M9 staging preparation before OAuth console action |
+| Exact managed zone, absent record, allocated address, TTL, and external-DNS acknowledgement | AP-M9 staging deployment before DNS mutation |
+| Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
+| Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
+| Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before staging deployment |
+| Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
+| Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |
 
 An unresolved decision causes its dependent gate to remain unavailable; it is not an accepted risk

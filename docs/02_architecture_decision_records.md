@@ -1,6 +1,7 @@
 # App Platform architecture decision records
 
-Version 0.6 | Status: accepted decisions through initial Live qualification planning; no platform infrastructure is implemented
+Version 0.7 | Status: accepted decisions through the AP-M9 operator-driven environment lifecycle;
+no platform infrastructure is deployed
 
 These records capture hard-to-reverse App Platform boundaries. They are authoritative only for this
 project and do not transfer ownership of an existing application's resources. Requirement
@@ -440,7 +441,7 @@ and qualified.
 
 ## ADR-007 · Separate state roots and use federated protected-main operations
 
-Status: Accepted
+Status: Accepted; routine GitHub-Actions-only execution superseded by ADR-011
 
 Requirements: AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009, AP-QR-001, AP-QR-003,
 AP-QR-004, AP-QR-005, AP-QR-006
@@ -810,3 +811,153 @@ references never give the platform access to application billing or Terraform st
 - The USD 20 budget provides notification and response thresholds, not guaranteed maximum spend.
 - This decision creates no log or evidence bucket, budget, alert, runtime limit, label, cleanup
   policy, incident automation, provider mutation, or Live evidence.
+
+## ADR-010 · Use one interactive lifecycle module instead of an operator-authored manifest
+
+Status: Accepted
+
+Requirements: AP-PR-010, AP-PR-012, AP-QR-004 through AP-QR-009
+
+### Context
+
+The AP-M8 manifest experiment required the operator to collect values that source or provider
+readback can derive, predict facts that exist only after deployment, and maintain an append-only
+document whose interface was comparable in complexity to the implementation. That surface is not
+human-operable and does not provide leverage for the operator.
+
+### Decision
+
+AP-M9 exposes one deep interactive lifecycle module through the prepare, deploy, status, outputs,
+register, detach, retire, qualify, and destroy operations. Stable environment decisions live in a
+small Environment Profile. Preparation discovers or derives available non-secret facts and creates
+one canonical Deployment Specification. Deployment creates the exact stage plans and generated
+facts just in time, validates them against that specification, and records them in a machine-
+generated Execution Journal.
+
+The normal local wizard remains active across provider-console and external-DNS work. It displays
+the exact manual action, waits for an Enter acknowledgement, verifies every readable fact, and
+continues without requiring another invocation. Rerunning is recovery after interruption, not the
+normal checkpoint interface.
+
+The AP-M8 operator-manifest schema, chain, prompt, and manual-input workflow are retired in the
+next repository slice. Their merged history remains evidence that the approach was implemented and
+superseded; it is not active deployment authority.
+
+### Consequences
+
+- The operator learns one small interface rather than Terraform-root and manifest internals.
+- Generated facts remain digest-bound without becoming operator inputs.
+- Deterministic tests exercise the same lifecycle interface with fake command adapters.
+- No AP-M9 repository change alone authorizes credentials or an external mutation.
+
+## ADR-011 · Bind interactive mutation to short-lived operation identities and exact plans
+
+Status: Accepted
+
+Requirements: AP-PR-010, AP-QR-001, AP-QR-004 through AP-QR-009
+
+Supersedes: ADR-007 only where ADR-007 requires routine mutation to execute exclusively inside
+GitHub Actions. ADR-007's independent roots, remote state, locking, recovery, exclusive ownership,
+no-key, exact-source, exact-plan, and readback decisions remain accepted.
+
+### Context
+
+The product operator is a human running one local interactive lifecycle. Dividing one deployment
+across many protected jobs would require repeated UI approvals and cannot directly support the
+same-process OAuth and Squarespace checkpoints. Routine broad owner credentials would make the
+local interface convenient at the cost of least privilege.
+
+### Decision
+
+The local lifecycle verifies clean reviewed source and an approved Deployment Specification before
+mutation. After the one-time identity bootstrap, it uses short-lived human authentication only to
+impersonate an operation-specific service account. Each operation identity is limited to one
+environment, state owner, and action. No service-account key or long-lived credential is created.
+
+Every Terraform mutation creates a fresh exact plan, canonical digest, policy result, and owner
+confirmation in the same execution that applies that plan. Provider and state readback close the
+stage. An unexpected change stops without automatic unlock, state push, rollback, cleanup, or
+scope broadening. Repository checks and source review remain protected, but GitHub workflow
+execution is not the product's routine interactive interface.
+
+### Consequences
+
+- The operator can complete one deployment without switching between local lifecycle invocations.
+- Source binding is enforced by the lifecycle and retained evidence rather than by a remote runner
+  alone.
+- Identity bootstrap and break-glass remain separately approved high-risk operations.
+- A later remote execution adapter requires its own decision and parity evidence.
+
+## ADR-012 · Exchange versioned non-secret bundles across platform and application ownership
+
+Status: Accepted
+
+Requirements: AP-PR-002, AP-PR-007, AP-PR-009, AP-PR-011, AP-PR-012, AP-QR-001 through AP-QR-004,
+AP-QR-006, AP-QR-008, AP-QR-009
+
+### Context
+
+Applications require environment-specific platform values before they can deploy an eligible
+runtime, while the platform cannot know the application-owned attachment until that deployment
+finishes. Reading another Terraform state or sharing a hand-maintained configuration would couple
+the owners and weaken provenance.
+
+### Decision
+
+The platform produces one Platform Integration Bundle for a named application, environment, access
+mode, and platform revision. The application consumes it under its own authority and returns an
+Application Attachment Bundle bound to the exact platform-bundle digest. Both bundles are closed,
+versioned, canonical, non-secret contracts.
+
+The platform bundle contains only values the application needs, such as hostname, login/logout
+endpoints when applicable, assertion issuer, JWKS URI, application audience, edge-caller identity,
+attachment contract, and qualification status. An OAuth client identifier appears only when the
+consumer interface requires it. The platform-owned OAuth client secret never appears as a value or
+application-readable secret reference.
+
+Registration validates the returned bundle, target metadata, owner, ingress, caller grant,
+audience, and current platform-bundle digest before activation. Neither bundle grants state access
+or transfers resource ownership.
+
+### Consequences
+
+- Applications can deploy and destroy independently using an explicit platform contract.
+- Bundle digests expose stale handoffs without coupling either owner to another backend.
+- Application Adoption remains application-owned and cannot be inferred from bundle generation.
+
+## ADR-013 · Isolate environments and distinguish detachment from permanent retirement
+
+Status: Accepted
+
+Requirements: AP-PR-007, AP-PR-010 through AP-PR-012, AP-QR-001, AP-QR-005 through AP-QR-009
+
+### Context
+
+Staging must qualify the platform without changing the existing production hostname. Applications
+also need repeatable test and replacement cycles without making route identity reusable or treating
+temporary removal as permanent retirement.
+
+### Decision
+
+Each Platform Environment has independent profile, project, state, identities, OAuth client,
+DNS/TLS resources, evidence, bundles, approvals, and destructive authority. Production preparation
+fails with `OWNERSHIP_TRANSFER_REQUIRED` while `apps.comfforts.com` or another requested resource
+has a different state owner. Staging evidence cannot authorize or qualify production.
+
+Detachment maps to the reversible suspended registration lifecycle: the application disappears
+from routing and catalogue, its target is never invoked, and its identifier and route remain
+reserved. A direct request receives a generic platform-owned temporary-unavailability response.
+The Application Owner may destroy and later redeploy its assets, return a replacement attachment,
+and reactivate through a new Registration Generation.
+
+Retirement remains terminal. Its tombstone keeps the identifier reserved and returns a generic
+platform-owned permanent-removal response. Route release is a separate future authority; it never
+follows automatically from detachment, retirement, application destruction, or environment
+destruction.
+
+### Consequences
+
+- Fixture qualification can repeat through detach, redeploy, and reactivate without inventing new
+  identities or weakening retirement.
+- Production ownership cannot be inferred from a matching hostname or resource name.
+- Platform destruction refuses active attachments and never destroys Application State.

@@ -11,11 +11,11 @@ evaluation gates. Every external mutation still requires the approval named by i
   It performed no cloud, DNS, identity, Terraform, deployment, or Application Adoption action.
 - [Repository extraction handoff](../repository_extraction_handoff.md) records the secret-free
   extraction, workflow, repository-setting, reconciliation, cutover, and cleanup evidence.
-- [AP-M8 qualification deployment](qualification_deployment.md) is the accepted AP-M8-W1 procedure
-  for protected repository, federation, backend, deployment, DNS/TLS, and evidence checkpoints.
-  AP-M8-W2 implements only its local manifest contract and validator. Until one exact post-merge
-  real manifest and digest are explicitly owner-accepted, it authorizes no AP-M8-W3 implementation
-  or operator action.
+- [AP-M9 environment lifecycle](environment_lifecycle.md) is the current operator-product design.
+  Its commands remain unavailable until their named AP-M9 packages implement and qualify them.
+- [Historical AP-M8 qualification deployment](qualification_deployment.md) preserves the
+  superseded manifest-driven procedure. It is excluded from the active reading order and provides
+  no current action authority.
 
 Runbooks never contain credentials, Terraform state, saved plans, authenticated browser state, or
 unredacted provider output. A failed or incomplete procedure stops for inspection and does not

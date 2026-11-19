@@ -1,8 +1,11 @@
-# AP-M8 qualification-deployment runbook
+# Historical AP-M8 qualification-deployment runbook — superseded
 
-Status: AP-M8-W1 owner-accepted and merged; AP-M8-W2 deterministic repository support implemented;
-first real manifest acceptance and every repository setting, identity, credential, backend,
-provider, DNS, traffic, or deployment action pending
+Status: historical record at source revision `7b6678a7f0b3036d427517dad6bc3bec876d1a44`;
+superseded by AP-M9; no active instruction or action authority
+
+This file preserves the prior manifest-driven procedure for review history. Do not follow it as an
+operator runbook. The current design is [AP-M9 environment lifecycle](environment_lifecycle.md).
+AP-M8-W3 through AP-M8-W12 never began, and no real operator manifest was accepted.
 
 This runbook is subordinate to the App Platform requirements, accepted ADRs, system design,
 implementation plan, evaluation strategy, and threat model. It defines the human checkpoints for

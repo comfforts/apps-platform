@@ -44,11 +44,13 @@ change in the repository.
   no backend initialization, authenticated plan or apply, credential or federation configuration,
   provider call, repository-setting change, cloud or DNS mutation, deployment, Live claim, or
   Application Adoption.
-- The AP-M8 authority slice may define qualification-deployment work packages, prerequisites,
-  operator checkpoints, and AP-EVAL-M8 only. Until that complete authority is owner-accepted,
-  merged, and separately invoked, it authorizes no repository-setting change, federation or IAM
-  binding, credential use, backend operation, authenticated plan or apply, provider call, image or
-  generation publication, DNS or traffic change, deployment, recovery action, Live claim, or
+- AP-M8-W1/W2 are historical merged work. AP-M8-W3 through AP-M8-W12 are superseded and must not
+  be resumed. The historical manifest implementation remains only until AP-M9-W2 removes it.
+- AP-M9-W1 authorizes governance and documentation rebaselining only. Each later AP-M9 package
+  requires its predecessor to be merged and its own approved authority. Until the relevant package
+  is implemented and invoked, AP-M9 authorizes no repository-setting change, federation or IAM
+  binding, credential use, backend operation, authenticated plan or apply, provider call, OAuth
+  client, image publication, DNS or traffic change, deployment, destructive action, Live claim, or
   Application Adoption.
 - Keep platform implementation, contracts, tests, prompts, and evidence inside this dedicated
   canonical repository. Extraction does not make Finance Assistant authority applicable here. The
@@ -57,7 +59,11 @@ change in the repository.
 
 ## Branch and review workflow
 
-- Start each approved slice from an updated, clean `main` on a dedicated feature branch.
+- Start each approved slice from an updated, clean `main` on a dedicated semantically named branch.
+- Name branches `<type>/<short-scope>` using the primary change: `docs/` for documentation or
+  governance-only work, `feat/` for product behavior, `fix/` for defect correction, `evidence/`
+  for qualification evidence, and `chore/` for small maintenance. Use an owner-specified branch
+  name when provided; never substitute an author or tool name such as `codex/` for the change type.
 - Keep one bounded slice per pull request. Merge it before starting the next documented slice.
 - Use small coherent commits that remain independently reviewable. When the owner requests
   commit-by-commit review, leave each change uncommitted until approval.
@@ -67,6 +73,8 @@ change in the repository.
   repository progress; it does not by itself qualify runtime or cloud behavior.
 - Follow the completed/next sequence in [docs/README.md](docs/README.md); do not infer a new sequence
   from branch names or discussion history.
+- Treat the AP-M9 `platform-*` interface as planned until its named work package implements it.
+  Never substitute the historical AP-M8 manifest procedure for a missing AP-M9 capability.
 
 ## Verification
 

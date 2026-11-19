@@ -1,157 +1,91 @@
 # Comfforts App Platform
 
-Status: AP-M7 is locally implemented and passes its deterministic AP-EVAL-M7 repository gate.
-AP-M8-W1 is owner-accepted and merged. AP-M8-W2 implements the closed non-secret operator-manifest
-contract and deterministic chain validator locally; post-merge acceptance of the first real
-manifest and every external operator action remain pending.
-Immutable generation loading, catalogue and routing, Platform Sessions and admission, identity
-assertions and application verification, Cloud Run attachment resolution, bounded HTTP, SSE, and
-WebSocket proxying, read-only status, correlation, adapter-health observations, and redacted
-completion events are implemented locally. AP-M4 remains Fixture-qualified and AP-M5 remains
-planning-validated. AP-M6 and AP-M7 supply repository implementation evidence only. AP-M7-W2
-implements the pinned Terraform foundation,
-and AP-M7-W3 implements only the Version 1 non-secret configuration schemas, synthetic examples,
-and deterministic loader and semantic policy. AP-M7-W4 implements static backend-bootstrap and
-state-bucket configuration. AP-M7-W5 implements three isolated Fixture Application roots, one
-internal runtime module, and typed attachment references with plan-only mocked-provider tests.
-AP-M7-W6 implements the Platform State identity and immutable-generation foundation. AP-M7-W7
-implements the immutable Shared Edge candidate and hostname-forwarding topology. AP-M7-W8
-implements the bounded observability, evidence-retention, artifact-retention, label, scaling, and
-cost-control intent. AP-M7-W9 implements the five inert operator-workflow authority templates, and
-AP-M7-W10 binds AP-EVAL-M7-01 through AP-EVAL-M7-10 and all prior regressions into the default
-credential-free gate. All Terraform roots pass offline initialization, validation, and plan-only
-mocked-provider tests; every workflow template passes static non-mutation policy. AP-M7-W11 records
-this static result and the post-merge handoff boundary. No backend was initialized, provider
-operation performed, cloud resource created, generation uploaded or activated, or deployment,
-Live evidence, or Application Adoption qualified.
+Status: AP-M9-W1 governance rebaseline in review; Contract, Fixture, network-runtime, and static
+Terraform implementation exist; no platform environment is deployed or qualified
 
-The accepted AP-M8-W1 profile defines AP-M8-W1 through AP-M8-W12 and AP-EVAL-M8-01 through
-AP-EVAL-M8-10, including protected repository environments, operation-specific federation and
-identity boundaries, four state buckets preserving five independent root lineages, private local
-bootstrap and migration, Version 2 foundation/candidate phases, the fixed deployment order,
-DNS/TLS approval, readback, and a closed private evidence bundle. Its deterministic governance
-checks prove only that this authority is internally complete. AP-M8-W2 adds one deep local
-configuration interface for closed revision validation, canonical digests, immutable-input
-comparison, and append-only predecessor chains. Only an explicitly synthetic example is committed.
-The first real manifest must be created after this branch merges, bound to that exact protected-main
-revision, validated, and explicitly accepted by digest outside Git. No executable workflow,
-repository setting, federation, credential, backend, provider, build, publication, generation,
-DNS, deployment, evidence, recovery, or destructive action is authorized.
+Comfforts App Platform owns the shared hostname edge, catalogue, registration, routing, admission,
+platform identity, and environment lifecycle used by independently owned applications. Applications
+retain their runtimes, data, stores, providers, secrets, principals, Feature Entitlements, and
+Application State.
 
-Comfforts App Platform is a separately governed project in its canonical dedicated repository. The
-history-preserving extraction, dedicated-repository settings, reconciliation, explicit authority
-cutover, and source-repository cleanup are complete. Nothing in the extraction changed the current
-Finance Assistant deployment, requirements, or Terraform ownership.
+The product goal is a compact human-operated lifecycle for isolated staging and production
+environments:
 
-The project will be implemented and qualified with deterministic fixture applications before any
-Finance Assistant migration is proposed. Draft application integrations remain inactive until the
-consuming application adopts them through its own requirements and release process.
+```text
+prepare -> approve -> deploy -> status -> outputs -> qualify -> destroy
+                                      |
+                                      v
+                 application deploy -> register -> detach/retire
+```
+
+The implementation remains Python for AP-M9. A Python-to-Go migration is deliberately deferred
+until the Python product is delivered and qualified so the existing implementation can provide
+comparison and rollback behavior.
+
+## Current authority and status
+
+- AP-M3 implements Version 1 contracts and deterministic compilation.
+- AP-M4 Fixture-qualifies the in-process reference platform with three synthetic applications.
+- AP-M5 records provider, identity, state, lifecycle, evidence, and cost planning.
+- AP-M6 implements the networked Shared Edge and production adapters behind deterministic fakes and
+  process-local loopback tests.
+- AP-M7 implements statically verified Terraform configuration and inert workflow templates. It
+  performs no backend or provider operation.
+- AP-M8-W1/W2 are historical merged work from the superseded manifest-driven approach. No real
+  manifest was accepted and AP-M8-W3 through AP-M8-W12 never began.
+- AP-M9 is the only active remaining platform milestone. W1 establishes its operator-driven
+  lifecycle authority; W2 will remove the retired manifest implementation.
+
+No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
+application registration, or Live evidence is created merely by the repository implementation.
+
+## Planned operator interface
+
+AP-M9 will implement these Make targets over one deep interactive Python lifecycle module:
+
+```bash
+make platform-prepare ENVIRONMENT=staging
+make platform-deploy ENVIRONMENT=staging
+make platform-status ENVIRONMENT=staging
+make platform-outputs ENVIRONMENT=staging APPLICATION=finance-assistant
+make platform-register ENVIRONMENT=staging ATTACHMENT_BUNDLE=/path/to/bundle.json
+make platform-detach ENVIRONMENT=staging APPLICATION=finance-assistant
+make platform-retire ENVIRONMENT=staging APPLICATION=finance-assistant
+make platform-qualify ENVIRONMENT=staging
+make platform-destroy ENVIRONMENT=staging
+```
+
+These targets do not exist until their named AP-M9 work packages implement and test them. The normal
+deployment wizard will remain active across Google OAuth and Squarespace DNS work and continue when
+the operator presses Enter. It will never request an OAuth secret in the terminal.
+
+## Application boundary
+
+The platform generates a non-secret Platform Integration Bundle. The Application Owner consumes
+that bundle, deploys its own assets, and returns an Application Attachment Bundle. Registration
+validates the target without reading or taking ownership of application state.
+
+Detachment is reversible and permits application destruction/redeployment while preserving the
+application identifier and route. Retirement is terminal. Platform destruction never destroys
+Application State.
+
+Finance Assistant and `apps.comfforts.com` remain Finance-owned until a separate Finance adoption
+and production ownership-transfer procedure completes. Production preparation must stop with
+`OWNERSHIP_TRANSFER_REQUIRED` rather than importing or mutating those resources.
 
 ## Local verification
 
-From the dedicated repository root:
+From the repository root:
 
 ```bash
 make terraform-setup
 make check
 ```
 
-`terraform-setup` downloads only the checksum-pinned public Terraform CLI and locked provider into
-the ignored project-local cache. `check` is credential-free, offline, and non-mutating. It does not
-access GCP, DNS, IAP, provider accounts, or the live Finance Assistant deployment.
+`terraform-setup` installs checksum-pinned public tooling into the ignored local cache. `make check`
+is deterministic, credential-free, network-free after setup, and non-mutating. Authenticated plans,
+applies, OAuth, DNS, provider readback, qualification, and destruction use later explicit operator
+actions only.
 
-## Project authority
-
-Read `AGENTS.md` before changing this project and follow the authority and reading order in
-`docs/README.md`. Product requirements, accepted architecture decisions, system design, threat
-model, AP-M3 through AP-M8 plan and evaluation authority, and Version 1 contracts are authoritative
-within their declared boundaries. The contract layer supplies Contract (`C`) evidence, and the
-in-process harness supplies Fixture (`F`) evidence only; AP-M5 supplies planning authority rather
-than provider or deployed evidence.
-
-AP-M3 through AP-M5 are merged and pass their deterministic gates. AP-M6-W1 through AP-M6-W11 are
-implemented locally, and the complete credential-free `make check` gate passes. AP-M6-W2 supplies
-the locked dependency environment and closed-default ASGI foundation. AP-M6-W3 adds bounded
-compiled-generation parsing, exact object/content/generation binding, and an injected
-Cloud Storage source adapter. It performs no provider call during construction or verification and
-cannot discover, compile, activate, or mutate a generation. AP-M6-W4 renders the compiled catalogue
-and performs canonical, lifecycle-aware route and mount selection.
-AP-M6-W5 adds Google OIDC authorization-code-with-PKCE behavior, opaque host-only eight-hour
-Platform Sessions, Firestore and in-memory session adapters, optional public identity, exact
-issuer-and-subject restricted admission, and platform-owned logout. Deterministic tests replace
-provider and Firestore I/O; no OAuth credential or provider operation is required. No AP-M6 package
-authorizes Terraform, cloud, DNS, identity configuration, deployment, or Live mutation.
-
-AP-M6-W6 replaces admitted identity at the route handoff with a minimized, application-audience-
-bound ES256 assertion. It adds deterministic and Cloud KMS signing adapters, public-only JWKS with
-current/overlap keys, and an independent application verifier with bounded caching and fail-closed
-refresh behavior. Fixed synthetic keys and provider fakes exercise the adapters locally; no KMS
-key, credential, external request, or provider resource is used.
-
-AP-M6-W7 strictly parses the `gcp-cloud-run-v1` resource URN and resolves only that exact service
-through an injected Cloud Run metadata adapter. Resolution requires matching project, region,
-service, Application State owner, readiness, application audience, and an unconditional edge-caller
-Invoker grant before the provider-derived target can reach the internal handoff. Deterministic
-metadata exercises success and every closed mismatch; no provider call, IAM mutation, target
-request, credential, or cloud resource is used.
-
-AP-M6-W8 forwards an eligible resolved request through one bounded application proxy. It preserves
-the rewritten path and raw query, obtains a Cloud Run service-identity token, strips hop-by-hop and
-visitor-controlled identity headers, installs the platform assertion, and supports buffered HTTP,
-streaming HTTP/SSE, uploads, downloads, and bidirectional WebSockets. Exact request, response,
-message, timeout, concurrency, and process-local rate limits fail closed and cancel bounded work.
-Production transports are exercised only against ephemeral loopback servers or deterministic
-fakes; no external target, service identity, credential, cloud resource, or Live route is used.
-
-AP-M6-W9 adds an operator-authorization seam and a read-only `/_platform/status` operation exposing
-only source revision, generation facts, and coarse local adapter health. One generated correlation
-identifier follows each HTTP or WebSocket boundary into application delivery and any identity
-assertion. A typed completion-event allow-list retains only revision/generation facts, normalized
-application and route identifiers, coarse outcome, status class, latency, correlation, and
-non-secret component versions. Tests prove prohibited request, response, identity, visitor,
-provider, credential, state, and plan data cannot enter that shape. An injected standard-logging
-adapter exists, but no log bucket, sink, retention rule, operator identity configuration, provider
-call, credential, or Live readback is created or qualified.
-
-AP-M6-W10 enforces the complete AP-EVAL-M6 matrix, including exact numeric boundaries, immutable
-generation and identity paths, fake-provider parity, streaming cancellation and isolation,
-loopback-only networking, history-independent extraction, dependency locking, redaction, and all
-prior regressions. AP-M6-W11 reconciles this status. AP-M7-W1 defines the detailed Terraform-and-
-workflow implementation authority. AP-M7-W2 implements its pinned, credential-free Terraform
-foundation and deterministic offline root validation. AP-M7-W3 implements the five closed
-configuration contract families. AP-M7-W4 implements the deep bootstrap root and internal hardened
-state-bucket module without an IAM principal, backend operation, or provider call. AP-M7-W5
-implements the three deep Fixture Application roots and their internal Cloud Run runtime module,
-runtime identities, protected ingress, edge-only Invoker intent, bounded scaling, required labels,
-non-secret platform references, and typed `gcp-cloud-run-v1` attachment outputs. All provider
-behavior is mocked and plan-only. AP-M7-W6 implements the deep Platform foundation module and root
-for private versioned configuration storage, immutable generation metadata, Firestore Native
-Platform Sessions with TTL and eight-hour application expiry intent, separate edge runtime and
-caller identities, regional software ES256 signing with manual-rotation intent, versioned OAuth
-secret references, least-privilege access intent, and minimal typed platform outputs. AP-M7-W7
-implements the deep Shared Edge module and Platform State composition for one immutable Cloud Run
-candidate, closed direct-origin posture, bounded scaling and timeout profile, typed Fixture
-Application references consumed only as data, one global address and serverless backend, managed-
-certificate intent, hostname-only HTTPS forwarding, and HTTP-to-HTTPS redirect. All provider
-behavior remains mocked and plan-only; no DNS record, application runtime, credential, backend
-operation, provider operation, deployment, or Live evidence exists. AP-M7-W8 adds a regional
-seven-day log bucket, minimized internal sink, and `_Default`-bucket exclusion, private 30-day
-evidence storage, explicit owner-readable access intent, a USD 20 notification-only budget,
-dry-run-first Artifact Registry retention, required-label and runtime-cap policy, and explicit
-prohibited-capability assertions. It uploads no evidence or image, exports no log, and performs no
-automatic budget or cleanup mutation. AP-M7-W9 adds parseable, non-executable advisory-plan,
-exact-main apply, rollback, force-unlock, and destroy templates outside `.github/workflows/`. They
-use only unresolved operator placeholders, full-length action pins, read-only default permissions,
-protected-main/source and plan-digest binding, root concurrency, runner-temporary plans, same-job
-plan/apply, explicit destructive confirmation, and secret-free outcome metadata. AP-M7-W10
-enforces the complete AP-EVAL-M7 matrix, history-independent extraction, offline copy-local provider
-use, plan-only mocked tests for every root, warning and prohibited-artifact failure, and all prior
-regressions. AP-M7-W11 reconciles this static status. AP-M8-W1's complete qualification-deployment
-authority and deterministic governance checks are owner-accepted and merged. AP-M8-W2 implements
-only the local operator-manifest contract and chain validator. It is not a real manifest,
-AP-EVAL-M8 deployment evidence, or permission to begin AP-M8-W3 and creates no deployment or
-mutation authority.
-
-All platform files are project-relative at the dedicated repository root. Repository extraction
-preserved their history. The separately reviewed source cleanup removed the historical colocated
-tree and containing-repository CI wrapper; it supplied no platform implementation authority.
+Read [AGENTS.md](AGENTS.md) before changing the project and follow the authority order in
+[docs/README.md](docs/README.md).

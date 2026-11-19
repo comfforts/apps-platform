@@ -30,7 +30,10 @@ class ProjectAuthorityTest(unittest.TestCase):
             "docs/README.md",
             "docs/repository_extraction_handoff.md",
             "docs/repository_layout.md",
+            "docs/history/README.md",
+            "docs/history/ap_m8_manifest_delivery.md",
             "docs/runbooks/README.md",
+            "docs/runbooks/environment_lifecycle.md",
             "docs/runbooks/repository_extraction.md",
             "contracts/README.md",
             "contracts/validation.py",
@@ -236,6 +239,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("one bounded slice per pull request", instructions)
         self.assertIn("leave each change uncommitted until approval", instructions)
         self.assertIn("Merge it before starting the next documented slice", instructions)
+        self.assertIn("Name branches `<type>/<short-scope>`", instructions)
+        self.assertIn("`docs/` for documentation or", instructions)
+        self.assertIn("`feat/` for product behavior", instructions)
+        self.assertIn("`fix/` for defect correction", instructions)
+        self.assertIn("`evidence/`", instructions)
+        self.assertIn("`chore/` for small maintenance", instructions)
+        self.assertIn("never substitute an author or tool name such as `codex/`", instructions)
         self.assertIn(
             "AP-M5 selects infrastructure and Live-qualification planning boundaries only",
             instructions,
@@ -253,64 +263,32 @@ class ProjectAuthorityTest(unittest.TestCase):
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(encoding="utf-8")
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+        history = (
+            PROJECT_ROOT / "docs/history/ap_m8_manifest_delivery.md"
+        ).read_text(encoding="utf-8")
         normalized_index = " ".join(index.split())
         normalized_layout = " ".join(layout.split())
         normalized_overview = " ".join(overview.split())
 
-        self.assertIn(
-            "AP-M8-W1 owner-accepted and merged",
-            normalized_index,
-        )
-        self.assertIn("Contract (`C`) evidence", normalized_index)
-        self.assertIn("Fixture (`F`) evidence", normalized_index)
-        self.assertIn(
-            "Live (`L`) and Adoption (`A`) evidence remain unavailable",
-            normalized_index,
-        )
-        self.assertIn("AP-M6", overview)
-        self.assertIn("AP-M4 remains Fixture-qualified", normalized_overview)
-        self.assertIn(
-            "bounded HTTP, SSE, and WebSocket proxying",
-            normalized_overview,
-        )
-        self.assertIn(
-            "AP-M6 and AP-M7 supply repository implementation evidence only",
-            overview,
-        )
-        self.assertIn("complete credential-free `make check` gate passes", overview)
-        self.assertIn("AP-M7-W7 implements one immutable", normalized_index)
-        self.assertIn("AP-M7-W7 implements the deep Shared Edge module", normalized_overview)
-        self.assertIn("AP-M7-W8 implements a regional seven-day log bucket", normalized_index)
-        self.assertIn("AP-M7-W8 adds a regional seven-day log bucket", normalized_overview)
-        self.assertIn("AP-M7-W9 implements separate inert advisory-plan", normalized_index)
-        self.assertIn("AP-M7-W9 adds parseable, non-executable", normalized_overview)
-        self.assertIn("AP-M7-W10 binds AP-EVAL-M7-01", normalized_index)
-        self.assertIn("AP-M7-W11 reconciles this static status", normalized_overview)
-        self.assertIn("AP-M8-W1 owner-accepted and merged", normalized_layout)
-        self.assertIn(
-            "post-merge real-manifest acceptance and every external operator action pending",
-            normalized_index,
-        )
-        self.assertIn(
-            "The first real manifest must be created after this branch merges",
-            normalized_overview,
-        )
-        self.assertIn("planning consistency only", normalized_index)
-        self.assertIn("Integration draft", index)
-        self.assertIn(
-            "authoritative canonical dedicated-root layout",
-            normalized_layout,
-        )
-        self.assertIn(
-            "all five repository-extraction checkpoints complete",
-            normalized_layout,
-        )
+        self.assertIn("AP-M9-W1 governance rebaseline in review", normalized_index)
+        self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
+        self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
+        self.assertIn("AP-M8 | historical", index)
+        self.assertIn("AP-M9-W1 — governance rebaseline", index)
+        self.assertIn("AP-M9-W10 — production readiness", index)
+        self.assertIn("AP-M8-W3 through AP-M8-W12 never began", normalized_overview)
+        self.assertIn("no platform environment is deployed or qualified", normalized_overview)
+        self.assertIn("Platform Integration Bundle", overview)
+        self.assertIn("Application Attachment Bundle", overview)
+        self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", overview)
+        self.assertIn("canonical dedicated repository", normalized_layout)
+        self.assertIn("docs/history/", layout)
+        self.assertIn("Planned AP-M9 capability locations", layout)
         self.assertIn("`contracts/`", layout)
         self.assertIn("`fixtures/`", layout)
-        self.assertIn("Version 1 schemas", layout)
-        self.assertIn("three independent Fixture Applications", layout)
-        self.assertIn("history-preserving subtree extraction", normalized_layout)
-        self.assertIn("run `make check` from the dedicated repository root", layout)
+        self.assertIn("history-preserving extraction", normalized_layout)
+        self.assertIn("7b6678a7f0b3036d427517dad6bc3bec876d1a44", history)
+        self.assertIn("no real operator manifest had been accepted", history)
 
         for current_entry_point in (
             PROJECT_ROOT / "AGENTS.md",
@@ -339,12 +317,9 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_handoff = " ".join(handoff.split())
 
         self.assertIn("[Runbook index](runbooks/README.md)", index)
+        self.assertIn("[Repository extraction runbook](runbooks/repository_extraction.md)", index)
         self.assertIn(
-            "[Repository extraction runbook](runbooks/repository_extraction.md)",
-            index,
-        )
-        self.assertIn(
-            "[Repository extraction handoff](repository_extraction_handoff.md)",
+            "[handoff](repository_extraction_handoff.md)",
             index,
         )
         self.assertIn(
@@ -439,8 +414,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         observed = re.findall(r"^### (AP-(?:PR|QR)-\d{3}) ·", requirements, re.MULTILINE)
         expected = {
-            *(f"AP-PR-{index:03d}" for index in range(1, 10)),
-            *(f"AP-QR-{index:03d}" for index in range(1, 7)),
+            *(f"AP-PR-{index:03d}" for index in range(1, 13)),
+            *(f"AP-QR-{index:03d}" for index in range(1, 10)),
         }
 
         self.assertEqual(set(observed), expected)
@@ -458,7 +433,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Fixture Applications",
             "Integration Draft",
             "Finance Assistant migration",
-            "no platform capability is implemented",
+            "does not change a consuming",
         ):
             self.assertIn(boundary, requirements)
 
@@ -480,9 +455,13 @@ class ProjectAuthorityTest(unittest.TestCase):
                 "ADR-007",
                 "ADR-008",
                 "ADR-009",
+                "ADR-010",
+                "ADR-011",
+                "ADR-012",
+                "ADR-013",
             ],
         )
-        self.assertEqual(decisions.count("Status: Accepted"), 9)
+        self.assertEqual(decisions.count("Status: Accepted"), 13)
         normalized_decisions = " ".join(decisions.split())
         for identifier in (
             "AP-PR-001",
@@ -636,9 +615,9 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(boundary, decisions)
         self.assertIn("## Application Adoption", glossary)
-        self.assertIn("app-owned test state", layout)
+        self.assertIn("independent synthetic Application State roots", layout)
 
-    def test_ap_m8_handoff_loads_authority_without_granting_operations(
+    def test_ap_m9_w2_handoff_loads_authority_without_granting_operations(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -648,37 +627,29 @@ class ProjectAuthorityTest(unittest.TestCase):
         for authority in (
             "AGENTS.md",
             "docs/README.md",
-            "GLOSSARY.md",
-            "docs/01_product_requirements.md",
-            "docs/02_architecture_decision_records.md",
-            "docs/03_system_design.md",
-            "docs/04_implementation_plan.md",
-            "docs/05_evaluation_strategy.md",
-            "docs/06_threat_model.md",
-            "docs/repository_layout.md",
-            "contracts/README.md",
-            "fixtures/registrations/README.md",
+            "AP-M9-W2",
+            "AP-PR-010",
+            "AP-QR-007",
+            "ADR-010",
+            "AP-EVAL-M9-02",
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M8-W2 pull request has merged to `main`",
-            "owner explicitly requests the post-merge W2 manifest-acceptance checkpoint",
-            "create the first real, non-secret manifest revision",
-            "owner-approved private working directory outside Git",
-            "-m infrastructure.config.operator_manifest",
-            "Wait for explicit owner acceptance of that exact digest",
-            "Do not commit the real manifest",
-            "Do not begin AP-M8-W3 repository or environment settings",
+            "after the AP-M9-W1 governance-rebaseline pull request has merged",
+            "Remove `infrastructure/config/schemas/operator-input-manifest.v1.schema.json`",
+            "Preserve every AP-M7 configuration contract and consumer",
+            "Leave AP-M9-W3 contracts and profiles unimplemented",
+            "Run `make check` from the repository root",
+            "Do not create an operator manifest",
             "Do not change repository settings",
-            "not a reason to query GitHub or GCP",
-            "Every later external action retains its own explicit owner checkpoint",
+            "Finance Assistant",
         ):
             self.assertIn(boundary, normalized_prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertNotIn("terraform apply", prompt)
         self.assertIn(
-            "[AP-M8-W2 manifest-acceptance handoff](starting_prompt.md)",
+            "[AP-M9-W2 retired-manifest cleanup handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -688,36 +659,14 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_index = " ".join(index.split())
         normalized_prompt = " ".join(prompt.split())
 
-        for completed in (
-            "Governance foundation — complete",
-            "Requirements and decisions — complete",
-        ):
-            self.assertIn(completed, index)
-        self.assertIn("System design and versioned contracts — complete", index)
-        self.assertIn(
-            "Deterministic fixtures — complete and Fixture-qualified",
-            index,
-        )
-        self.assertIn(
-            "Platform infrastructure planning — implemented and planning-validated",
-            index,
-        )
-        for later_slice in (
-            "Networked provider runtime — locally implemented",
-            "Terraform and workflow implementation — locally implemented and statically verified",
-            "Non-production qualification deployment — W1 accepted; W2 repository support implemented",
-            "Live qualification — later",
-            "Finance Application Adoption — later and independent",
-        ):
-            self.assertIn(later_slice, index)
-        self.assertIn("separate bounded branch and pull request", normalized_index)
-        self.assertIn(
-            "create the first real, non-secret manifest revision",
-            normalized_prompt,
-        )
-        self.assertIn("Wait for explicit owner acceptance of that exact digest", normalized_prompt)
+        for work_package in range(1, 11):
+            self.assertIn(f"AP-M9-W{work_package}", index)
+        self.assertIn("Each work package is one bounded branch and pull request", normalized_index)
+        self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W10"))
+        self.assertIn("AP-M9-W2", normalized_prompt)
+        self.assertIn("retired manifest cleanup", normalized_prompt)
         self.assertIn("Do not change repository settings", normalized_prompt)
-        self.assertIn("Do not begin AP-M8-W3", normalized_prompt)
+        self.assertIn("Leave AP-M9-W3 contracts and profiles unimplemented", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
@@ -780,8 +729,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         live_gates = re.findall(
             r"^#### (AP-EVAL-M9-\d{2}) ·", evaluation, re.MULTILINE
         )
-        future_boundaries = re.findall(
-            r"^### (AP-EVAL-M[8-9]) ·", evaluation, re.MULTILINE
+        active_lifecycle_boundaries = re.findall(
+            r"^## (AP-EVAL-M9) ·", evaluation, re.MULTILINE
         )
 
         self.assertEqual(
@@ -813,8 +762,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             [f"AP-EVAL-M9-{index:02d}" for index in range(1, 11)],
         )
         self.assertEqual(
-            future_boundaries,
-            ["AP-EVAL-M8", "AP-EVAL-M9"],
+            active_lifecycle_boundaries,
+            ["AP-EVAL-M9"],
         )
         for identifiers in (
             work_packages,
@@ -827,7 +776,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertEqual(len(identifiers), len(set(identifiers)))
 
-    def test_ap_m8_authority_has_complete_unique_work_packages_and_gates(self) -> None:
+    def test_ap_m8_history_and_ap_m9_authority_have_unique_identifiers(self) -> None:
         plan = (PROJECT_ROOT / "docs/04_implementation_plan.md").read_text(
             encoding="utf-8"
         )
@@ -836,20 +785,33 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
 
         work_packages = re.findall(r"^#### (AP-M8-W\d+) ·", plan, re.MULTILINE)
-        evaluation_gates = re.findall(
-            r"^##### (AP-EVAL-M8-\d{2}) ·", evaluation, re.MULTILINE
+        lifecycle_packages = re.findall(
+            r"^#### (AP-M9-W\d+) ·", plan, re.MULTILINE
+        )
+        lifecycle_gates = re.findall(
+            r"^#### (AP-EVAL-M9-\d{2}) ·", evaluation, re.MULTILINE
         )
 
         self.assertEqual(
             work_packages,
-            [f"AP-M8-W{index}" for index in range(1, 13)],
+            ["AP-M8-W1", "AP-M8-W2"],
         )
         self.assertEqual(
-            evaluation_gates,
-            [f"AP-EVAL-M8-{index:02d}" for index in range(1, 11)],
+            lifecycle_packages,
+            [f"AP-M9-W{index}" for index in range(1, 11)],
         )
         self.assertEqual(len(work_packages), len(set(work_packages)))
-        self.assertEqual(len(evaluation_gates), len(set(evaluation_gates)))
+        self.assertEqual(
+            lifecycle_gates,
+            [f"AP-EVAL-M9-{index:02d}" for index in range(1, 11)],
+        )
+        self.assertEqual(len(lifecycle_packages), len(set(lifecycle_packages)))
+        self.assertEqual(len(lifecycle_gates), len(set(lifecycle_gates)))
+        self.assertIn("AP-M8-W3 through W12 superseded without execution", plan)
+        self.assertIn(
+            "Historical standalone Live-qualification gate — withdrawn before implementation",
+            evaluation,
+        )
 
     def test_ap_m8_operator_authorities_are_separate_and_exact(self) -> None:
         runbook = (
@@ -964,8 +926,12 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         normalized = " ".join(evaluation.split())
         ap_m8 = evaluation.split(
-            "### AP-EVAL-M8 · Qualification-deployment gate", 1
-        )[1].split("### AP-EVAL-M9 · Live-qualification gate", 1)[0]
+            "### Historical AP-EVAL-M8 · Manifest-driven qualification-deployment gate — superseded",
+            1,
+        )[1].split(
+            "### Historical standalone Live-qualification gate — withdrawn before implementation",
+            1,
+        )[0]
 
         for bundle_entry in (
             "manifest.v1.json",
@@ -1057,8 +1023,9 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertEqual(example["configuration_class"], "synthetic")
         self.assertEqual(example["generated_facts"], [])
         self.assertEqual(example["predecessor_manifest_digest"], None)
-        self.assertIn("owner-approved non-Git", config_index)
-        self.assertIn("AP-M8-W2 creates no protected environment", config_index)
+        self.assertIn("Retired AP-M8 inventory", config_index)
+        self.assertIn("ADR-010 retired this manifest", config_index)
+        self.assertIn("pending removal in AP-M9-W2", config_index)
 
         operator_manifests = [
             path
@@ -1194,8 +1161,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         for later_slice in (
             "AP-M6 · Networked provider runtime implementation",
             "AP-M7 · Terraform and workflow implementation",
-            "AP-M8 · Non-production qualification deployment",
-            "AP-M9 · Live qualification",
+            "Historical AP-M8 · Manifest-driven qualification deployment — superseded",
+            "AP-M9 · Operator-driven environment lifecycle",
             "Later Application Adoption",
         ):
             self.assertIn(later_slice, plan)
@@ -1340,11 +1307,11 @@ class ProjectAuthorityTest(unittest.TestCase):
             "`infrastructure/config/`",
             "`infrastructure/terraform/bootstrap/`",
             "`infrastructure/terraform/platform/`",
-            "`infrastructure/terraform/fixtures/<application-id>/`",
+            "`infrastructure/terraform/fixtures/*/`",
             "`infrastructure/workflows/`",
             "`artifacts/`",
-            "`docs/runbooks/`",
-            "not authorization to scaffold empty modules",
+            "`docs/`",
+            "Do not create a reserved path merely because this document names it",
         ):
             self.assertIn(reserved_reference, layout)
 
@@ -1485,6 +1452,40 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-EVAL-M4 passes only when all nine gates",
         ):
             self.assertIn(gate_boundary, normalized_evaluation)
+
+    def test_ap_m9_design_supersedes_the_unexecuted_manifest_path(self) -> None:
+        design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
+            encoding="utf-8"
+        )
+        threat_model = (PROJECT_ROOT / "docs/06_threat_model.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertEqual(
+            design.count("### AP-M9 operator-driven environment lifecycle profile"),
+            1,
+        )
+        self.assertIn(
+            "Historical AP-M8 protected-source and federated-identity profile — superseded",
+            design,
+        )
+        for operation in (
+            "prepare",
+            "deploy",
+            "status",
+            "outputs",
+            "register",
+            "detach",
+            "retire",
+            "qualify",
+            "destroy",
+        ):
+            self.assertIn(operation, design)
+
+        self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", design)
+        self.assertIn("AP-M9 interactive lifecycle controls", threat_model)
+        self.assertIn("operator-attested", threat_model)
+        self.assertIn("No current result proves", threat_model)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1",
+  "title": "Application Attachment Bundle Version 1",
+  "description": "Application-owned target posture bound to one exact Platform Integration Bundle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "document_kind",
+    "environment",
+    "application_id",
+    "attachment_revision",
+    "platform_integration_bundle_digest",
+    "application_source_revision",
+    "target"
+  ],
+  "properties": {
+    "contract_version": {"const": 1},
+    "document_kind": {"const": "application-attachment-bundle"},
+    "environment": {"enum": ["production", "staging"]},
+    "application_id": {"$ref": "#/$defs/applicationId"},
+    "attachment_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "platform_integration_bundle_digest": {"$ref": "#/$defs/digest"},
+    "application_source_revision": {"$ref": "#/$defs/sourceRevision"},
+    "target": {"$ref": "#/$defs/target"}
+  },
+  "$defs": {
+    "applicationId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]$"
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 71,
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "sourceRevision": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 40,
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "nullableAudience": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 512,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._~:/@-]+$"
+        }
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_application_id",
+        "adapter_kind",
+        "resource_reference",
+        "ingress_mode",
+        "caller_grant",
+        "audience"
+      ],
+      "properties": {
+        "owner_application_id": {"$ref": "#/$defs/applicationId"},
+        "adapter_kind": {"const": "gcp-cloud-run-v1"},
+        "resource_reference": {
+          "type": "string",
+          "minLength": 40,
+          "maxLength": 324,
+          "pattern": "^urn:comfforts:app-platform:gcp:cloud-run:[1-9][0-9]{5,18}:[a-z][a-z0-9-]{1,61}[a-z0-9]:[a-z][a-z0-9-]{1,61}[a-z0-9]$"
+        },
+        "ingress_mode": {"const": "shared_edge_only"},
+        "caller_grant": {
+          "type": "string",
+          "minLength": 50,
+          "maxLength": 320,
+          "pattern": "^serviceAccount:[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\\.iam\\.gserviceaccount\\.com$"
+        },
+        "audience": {"$ref": "#/$defs/nullableAudience"}
+      }
+    }
+  }
+}

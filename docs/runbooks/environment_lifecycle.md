@@ -1,12 +1,13 @@
 # AP-M9 environment lifecycle runbook
 
-Status: AP-M9-W1 authority merged and AP-M9-W2 cleanup implemented; operator commands and external
+Status: AP-M9-W3 lifecycle contracts and profiles implemented; operator commands and external
 actions are unavailable
 
 This runbook describes the intended human experience. It is subordinate to AP-PR-010 through
 AP-PR-012, AP-QR-007 through AP-QR-009, ADR-010 through ADR-013, AP-M9-W1 through AP-M9-W10, and
-AP-EVAL-M9. AP-M9-W1 and AP-M9-W2 create no command, credential, identity, backend, cloud resource,
-DNS record, certificate, deployment, or Live evidence.
+AP-EVAL-M9. AP-M9-W1 through AP-M9-W3 create no command, credential, identity, backend, cloud
+resource, DNS record, certificate, deployment, or Live evidence. W3 implements only the closed
+profiles and lifecycle document interfaces consumed by later work.
 
 ## Planned environment flow
 

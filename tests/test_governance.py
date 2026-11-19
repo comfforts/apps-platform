@@ -36,8 +36,19 @@ class ProjectAuthorityTest(unittest.TestCase):
             "docs/runbooks/environment_lifecycle.md",
             "docs/runbooks/repository_extraction.md",
             "contracts/README.md",
+            "contracts/lifecycle/README.md",
+            "contracts/lifecycle/__init__.py",
+            "contracts/lifecycle/validation.py",
+            "contracts/lifecycle/schemas/application-attachment-bundle.v1.schema.json",
+            "contracts/lifecycle/schemas/deployment-specification.v1.schema.json",
+            "contracts/lifecycle/schemas/environment-profile.v1.schema.json",
+            "contracts/lifecycle/schemas/environment-status.v1.schema.json",
+            "contracts/lifecycle/schemas/execution-journal.v1.schema.json",
+            "contracts/lifecycle/schemas/platform-integration-bundle.v1.schema.json",
             "contracts/validation.py",
             "contracts/test-vectors/manifest.v1.json",
+            "infrastructure/config/profiles/production.v1.json",
+            "infrastructure/config/profiles/staging.v1.json",
             "fixtures/__init__.py",
             "fixtures/applications.py",
             "fixtures/identity.py",
@@ -270,7 +281,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_layout = " ".join(layout.split())
         normalized_overview = " ".join(overview.split())
 
-        self.assertIn("AP-M9-W2 retired-manifest cleanup implemented", normalized_index)
+        self.assertIn("AP-M9-W3 lifecycle contracts implemented", normalized_index)
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
         self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
         self.assertIn("AP-M8 | historical", index)
@@ -283,7 +294,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", overview)
         self.assertIn("canonical dedicated repository", normalized_layout)
         self.assertIn("docs/history/", layout)
-        self.assertIn("Planned AP-M9 capability locations", layout)
+        self.assertIn("AP-M9 capability locations", layout)
         self.assertIn("`contracts/`", layout)
         self.assertIn("`fixtures/`", layout)
         self.assertIn("history-preserving extraction", normalized_layout)
@@ -618,7 +629,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("independent synthetic Application State roots", layout)
 
-    def test_ap_m9_w3_handoff_loads_authority_without_granting_operations(
+    def test_ap_m9_w4_handoff_loads_authority_without_granting_operations(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -628,21 +639,22 @@ class ProjectAuthorityTest(unittest.TestCase):
         for authority in (
             "AGENTS.md",
             "docs/README.md",
-            "AP-M9-W3",
+            "AP-M9-W4",
             "AP-PR-010",
             "AP-QR-003",
             "ADR-010",
-            "AP-EVAL-M9-02",
+            "AP-EVAL-M9-03",
             "AP-TM-001",
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M9-W2 retired-manifest cleanup pull request has merged",
-            "Add small, closed, committed non-secret profiles",
-            "Add closed, versioned contracts for the Deployment Specification",
-            "Implement deterministic canonicalization, digest binding",
+            "after the AP-M9-W3 lifecycle-contract pull request has merged",
+            "Implement one deep Python lifecycle module",
+            "Add credential-free `platform-prepare` and `platform-status`",
+            "Keep completeness separate from approval",
+            "Inject Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock adapters",
             "Preserve AP-M7 configuration, Terraform, runtime, Fixture",
-            "Leave AP-M9-W4's interactive operator module",
+            "Leave AP-M9-W5's deployable Terraform lifecycle",
             "Run `make check` from the repository root",
             "Do not change repository settings",
             "Finance Assistant",
@@ -652,7 +664,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("## ADR-", prompt)
         self.assertNotIn("terraform apply", prompt)
         self.assertIn(
-            "[AP-M9-W3 lifecycle-contracts and profiles handoff](starting_prompt.md)",
+            "[AP-M9-W4 interactive lifecycle core handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -666,10 +678,10 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(f"AP-M9-W{work_package}", index)
         self.assertIn("Each work package is one bounded branch and pull request", normalized_index)
         self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W10"))
-        self.assertIn("AP-M9-W3", normalized_prompt)
-        self.assertIn("lifecycle-contracts", normalized_prompt)
+        self.assertIn("AP-M9-W4", normalized_prompt)
+        self.assertIn("interactive lifecycle core", normalized_prompt)
         self.assertIn("Do not change repository settings", normalized_prompt)
-        self.assertIn("Leave AP-M9-W4's interactive operator module", normalized_prompt)
+        self.assertIn("Leave AP-M9-W5's deployable Terraform lifecycle", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(

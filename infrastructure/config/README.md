@@ -1,7 +1,7 @@
 # App Platform infrastructure configuration contracts
 
-Version 1.4 | Status: AP-M7 contracts implemented; retired AP-M8 operator-manifest implementation
-removed by AP-M9-W2; no accepted operator input or external operation
+Version 1.5 | Status: AP-M7 contracts and AP-M9-W3 environment profiles implemented; no operator
+or external operation
 
 This directory contains closed, non-secret repository configuration contracts. It is subordinate
 to the platform requirements, accepted ADRs, system design, implementation plan, and evaluation
@@ -53,5 +53,10 @@ constraints at their Terraform interfaces. The deterministic gate rejects disagr
 may read another root through `terraform_remote_state`; reviewed non-secret references are the
 only exchange shape.
 
-AP-M9-W3 owns new small environment profiles and versioned lifecycle bundles. Do not extend these
-AP-M7 contracts to infer that later interface.
+## AP-M9 environment profiles
+
+`profiles/` contains the closed, small staging and disabled-production Environment Profiles. Their
+schema, bounded loader, deterministic canonicalization, digest, and policy live in
+[`contracts/lifecycle/`](../../contracts/lifecycle/README.md). They are stable owner decisions, not
+AP-M7 configuration documents or generated deployment inventories. Do not add discovered values,
+credentials, secrets, state, plans, provider payloads, or execution results to a profile.

@@ -8,7 +8,7 @@ governance-check: ## Verify the standalone project shell without credentials or 
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_governance tests.test_finance_integration_draft
 
 contract-check: ## Verify versioned contracts without credentials or external services.
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_contracts
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_contracts tests.test_lifecycle_contracts tests.test_lifecycle_vectors
 
 fixture-check: ## Verify the deterministic in-process fixture edge without external services.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_fixtures

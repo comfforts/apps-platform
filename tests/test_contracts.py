@@ -191,6 +191,11 @@ class ContractSchemaTest(unittest.TestCase):
             "check: governance-check contract-check fixture-check", makefile
         )
         self.assertIn("contract-check:", makefile)
+        self.assertIn(
+            "tests.test_contracts tests.test_lifecycle_contracts "
+            "tests.test_lifecycle_vectors",
+            makefile,
+        )
         self.assertIn("fixture-check:", makefile)
         self.assertIn("runtime-check:", makefile)
         self.assertIn("terraform-check:", makefile)

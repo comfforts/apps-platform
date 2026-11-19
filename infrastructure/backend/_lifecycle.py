@@ -52,6 +52,34 @@ class RenderedBackend:
     created: bool
 
 
+@dataclass(frozen=True, slots=True)
+class OperationAuthority:
+    """One exact local impersonation scope; it creates no identity or token."""
+
+    environment: str
+    terraform_root: str
+    state_owner: str
+    owner_id: str
+    project_id: str
+    action: str
+    service_account_id: str
+    service_account_email: str
+    backend_bucket: str
+    backend_prefix: str
+    backend_access: tuple[str, ...]
+    provider_access: str
+    credential_source: str = "short-lived-human-adc"
+    token_lifetime_seconds: int = 3600
+    service_account_key_allowed: bool = False
+    self_administration_allowed: bool = False
+
+    @property
+    def impersonation_environment(self) -> tuple[tuple[str, str], ...]:
+        """Return the only non-secret environment binding for this authority."""
+
+        return (("GOOGLE_IMPERSONATE_SERVICE_ACCOUNT", self.service_account_email),)
+
+
 def backend_declarations(environment: str) -> tuple[BackendDeclaration, ...]:
     """Return the exact reviewed phase bindings for an enabled environment."""
 
@@ -111,6 +139,75 @@ def backend_declarations(environment: str) -> tuple[BackendDeclaration, ...]:
             )
         ),
     )
+
+
+_BACKEND_ACCESS = {
+    "apply": ("read-state", "write-state", "lock"),
+    "bootstrap": (),
+    "destroy": ("read-state", "write-state", "lock"),
+    "plan": ("read-state", "lock"),
+    "readback": ("read-metadata",),
+    "recovery": ("read-state", "write-state", "lock", "recovery-copy"),
+    "rollback": ("read-state", "write-state", "lock"),
+}
+_PROVIDER_ACCESS = {
+    "apply": "mutate-owned-resources",
+    "bootstrap": "create-backend-and-operation-identities",
+    "destroy": "destroy-owned-resources",
+    "plan": "read-owned-resources",
+    "readback": "read-owned-resources",
+    "recovery": "none",
+    "rollback": "mutate-owned-resources",
+}
+_ROOT_CODES = {
+    "infrastructure/terraform/bootstrap": "bootstrap",
+    "infrastructure/terraform/platform": "platform",
+    "infrastructure/terraform/fixtures/fixture-public": "fxpub",
+    "infrastructure/terraform/fixtures/fixture-authenticated": "fxauth",
+    "infrastructure/terraform/fixtures/fixture-restricted": "fxrest",
+}
+
+
+def operation_authorities(environment: str) -> tuple[OperationAuthority, ...]:
+    """Return exact keyless operation scopes for every independent lineage."""
+
+    declarations = backend_declarations(environment)
+    lineages: list[BackendDeclaration] = []
+    observed: set[tuple[str, str]] = set()
+    for declaration in declarations:
+        lineage = (declaration.bucket, declaration.prefix)
+        if lineage not in observed:
+            observed.add(lineage)
+            lineages.append(declaration)
+
+    values: list[OperationAuthority] = []
+    actions = ("plan", "apply", "readback", "rollback", "destroy", "recovery")
+    for declaration in lineages:
+        selected_actions = actions
+        if declaration.phase == "bootstrap":
+            selected_actions = ("bootstrap", *actions)
+        root_code = _ROOT_CODES[declaration.terraform_root]
+        for action in selected_actions:
+            account_id = f"ap-stg-{root_code}-{action}"
+            values.append(
+                OperationAuthority(
+                    environment=declaration.environment,
+                    terraform_root=declaration.terraform_root,
+                    state_owner=declaration.state_owner,
+                    owner_id=declaration.owner_id,
+                    project_id=declaration.project_id,
+                    action=action,
+                    service_account_id=account_id,
+                    service_account_email=(
+                        f"{account_id}@{declaration.project_id}.iam.gserviceaccount.com"
+                    ),
+                    backend_bucket=declaration.bucket,
+                    backend_prefix=declaration.prefix,
+                    backend_access=_BACKEND_ACCESS[action],
+                    provider_access=_PROVIDER_ACCESS[action],
+                )
+            )
+    return tuple(values)
 
 
 def _backend_bytes(declaration: BackendDeclaration) -> bytes:

@@ -439,8 +439,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         observed = re.findall(r"^### (AP-(?:PR|QR)-\d{3}) ·", requirements, re.MULTILINE)
         expected = {
-            *(f"AP-PR-{index:03d}" for index in range(1, 10)),
-            *(f"AP-QR-{index:03d}" for index in range(1, 7)),
+            *(f"AP-PR-{index:03d}" for index in range(1, 13)),
+            *(f"AP-QR-{index:03d}" for index in range(1, 10)),
         }
 
         self.assertEqual(set(observed), expected)
@@ -458,7 +458,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Fixture Applications",
             "Integration Draft",
             "Finance Assistant migration",
-            "no platform capability is implemented",
+            "does not change a consuming",
         ):
             self.assertIn(boundary, requirements)
 
@@ -480,9 +480,13 @@ class ProjectAuthorityTest(unittest.TestCase):
                 "ADR-007",
                 "ADR-008",
                 "ADR-009",
+                "ADR-010",
+                "ADR-011",
+                "ADR-012",
+                "ADR-013",
             ],
         )
-        self.assertEqual(decisions.count("Status: Accepted"), 9)
+        self.assertEqual(decisions.count("Status: Accepted"), 13)
         normalized_decisions = " ".join(decisions.split())
         for identifier in (
             "AP-PR-001",

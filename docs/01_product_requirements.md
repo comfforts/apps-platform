@@ -1,6 +1,7 @@
 # App Platform product requirements
 
-Version 0.1 | Status: requirements authority; no platform capability is implemented
+Version 0.2 | Status: requirements authority through the AP-M9 operator lifecycle; operational
+qualification remains unavailable
 
 This document defines what Comfforts App Platform must provide and the ownership boundaries it must
 preserve. It is authoritative for the platform project only. It does not change a consuming
@@ -14,9 +15,12 @@ application catalogue, registration, routing, and admission concerns that must b
 applications. Each Registered Application retains its own runtime, data, providers, rights, and
 feature authorization.
 
-The initial intended hostname is `apps.comfforts.com`. Hostnames, cloud projects, regions, and
-application registrations must be configuration rather than assumptions embedded in reusable
-platform behavior.
+The platform must support independently configured non-production and production Platform
+Environments. The intended hostnames are `apps-staging.comfforts.com` and `apps.comfforts.com`,
+but hostnames, cloud projects, regions, and application registrations remain environment
+configuration rather than assumptions embedded in reusable platform behavior. Existing production
+resources remain under their current owner until an explicit ownership-transfer and adoption
+procedure completes.
 
 ## Actors
 
@@ -98,6 +102,44 @@ application's own requirements, decisions, contracts, tests, and release process
 qualification must not depend on Finance Assistant migration, and platform documentation must not
 silently change Finance Assistant behavior or ownership.
 
+### AP-PR-010 · Operator-controlled environment lifecycle
+
+A Platform Operator must be able to prepare, deploy, inspect, qualify, and destroy one explicitly
+selected Platform Environment through a small interactive interface. Preparation must discover or
+derive available non-secret facts, request only genuine owner decisions, and produce one complete
+digest-bound Deployment Specification before mutation. Deployment must execute its approved stages
+in one interactive session, pause at unavoidable provider-console or external-DNS checkpoints, and
+resume safely after interruption without requiring a hand-authored inventory of generated facts.
+
+The lifecycle must keep non-production and production configuration, state, identity, DNS, OAuth,
+evidence, and approvals independent. Production preparation must stop when an existing resource has
+another owner; it must never import, replace, or claim that resource implicitly.
+
+### AP-PR-011 · Versioned platform and application handoff
+
+The platform must generate a versioned, digest-bound Platform Integration Bundle containing only
+the non-secret environment and identity values a named application needs to deploy an eligible
+attachment. The Application Owner retains deployment authority and returns a versioned Application
+Attachment Bundle identifying the application-owned target and the exact Platform Integration
+Bundle it consumed. The platform must validate the bundle and provider posture before a complete
+Registration Generation may route traffic to the attachment.
+
+An integration bundle must never contain an OAuth client secret, credential payload, Terraform
+state, application provider key, or a platform secret reference that the application is not
+authorized to consume.
+
+### AP-PR-012 · Reversible attachment and terminal retirement
+
+The platform must support detaching an application without releasing its immutable application
+identifier or route reservation, allowing the Application Owner to destroy and later redeploy its
+assets before supplying a replacement attachment and reactivating the registration. A detached
+route must remain platform-controlled and invoke no application target.
+
+Retirement is a distinct permanent transition. A retired application identifier remains a
+tombstone and cannot reactivate. Route release, if later required, is an explicit separately
+reviewed operation and never follows automatically from detachment, retirement, application
+destruction, or platform-environment destruction.
+
 ## Quality requirements
 
 ### AP-QR-001 · Exclusive resource and state ownership
@@ -140,6 +182,32 @@ Documentation and automation must distinguish proposed, implemented, deployed, a
 behavior. A failed registration or platform change must preserve or restore the last reviewed
 working configuration, and evidence must record failures, limitations, and skipped qualifications
 without implying success.
+
+### AP-QR-007 · Human-operable automation
+
+The normal operator interface must be interactive, documented, and compact. It must discover facts
+available from reviewed source and provider readback, derive deterministic values, explain each
+manual action at the point of use, and accept an Enter-to-continue acknowledgement without making
+the operator restart the lifecycle. Generated execution records must be machine-produced rather
+than hand-authored. An interrupted operation must report its last accepted stage and provide a safe
+resume path.
+
+### AP-QR-008 · Environment isolation
+
+Every Platform Environment must have distinct configuration, state, identities, OAuth client,
+DNS/TLS resources, evidence, integration bundles, and destructive authority. An operation must name
+exactly one environment and must fail before mutation when a source, project, hostname, state,
+identity, or ownership fact belongs to another environment. Staging evidence cannot qualify
+production.
+
+### AP-QR-009 · Bounded mutation and readback
+
+Every mutating lifecycle must bind an approved Deployment Specification, exact source revision,
+stage target, exact Terraform plan, and provider readback. A stage may consume a declared output of
+an earlier stage without making the original specification incomplete. Any unapproved resource
+type, owner, environment, destructive action, or scope expansion stops the lifecycle and requires
+new preparation and approval. Manual provider steps must be recorded as operator-attested when no
+readback exists and must never be described as provider-verified.
 
 ## Security, privacy, and rights invariants
 

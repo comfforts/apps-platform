@@ -41,6 +41,13 @@ from infrastructure.operator.qualification import (
     QualificationResult,
     QualificationStateReader,
 )
+from infrastructure.operator.rollback import (
+    GenerationRollbackLifecycle,
+    ReviewedGeneration,
+    ReviewedGenerationControl,
+    RollbackRequest,
+    RollbackResult,
+)
 
 __all__ = (
     "DiscoverySnapshot",
@@ -52,6 +59,7 @@ __all__ = (
     "AttachmentTargetReader",
     "AttachmentValidationResult",
     "GenerationActivationReadback",
+    "GenerationRollbackLifecycle",
     "GenerationPublicationReadback",
     "IntegrationBundleRequest",
     "IntegrationBundleResult",
@@ -75,6 +83,10 @@ __all__ = (
     "RegistrationGenerationProposal",
     "RegistrationIntent",
     "RegistrationLifecycleResult",
+    "ReviewedGeneration",
+    "ReviewedGenerationControl",
+    "RollbackRequest",
+    "RollbackResult",
     "StageContext",
     "StageExecution",
     "StatusResult",

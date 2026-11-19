@@ -23,7 +23,7 @@ contract-check: ## Verify versioned contracts without credentials or external se
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_contracts tests.test_lifecycle_contracts tests.test_lifecycle_vectors tests.test_qualification_contracts
 
 fixture-check: ## Verify the deterministic in-process fixture edge without external services.
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_fixtures
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_fixtures tests.test_networked_fixtures
 
 runtime-check: ## Verify the Shared Edge interface without credentials or external network access.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_edge_runtime tests.test_proxy tests.test_observability tests.test_runtime_qualification

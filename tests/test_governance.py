@@ -989,7 +989,6 @@ class ProjectAuthorityTest(unittest.TestCase):
         reserved_paths = (
             "edge/production.py",
             "fixtures/runtime.py",
-            "infrastructure/images",
             "infrastructure/deployment",
             "registrations",
             "artifacts",
@@ -1035,7 +1034,6 @@ class ProjectAuthorityTest(unittest.TestCase):
 
         for later_path in (
             "infrastructure/deployment",
-            "infrastructure/images",
             "edge/production.py",
             "fixtures/runtime.py",
             "registrations/qualification",

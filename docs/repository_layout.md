@@ -1,6 +1,6 @@
 # App Platform repository layout
 
-Version 1.5 | Status: canonical dedicated repository; AP-M9-W1 governance rebaseline in review;
+Version 1.6 | Status: canonical dedicated repository; AP-M9-W2 cleanup implemented;
 no backend, provider, DNS, deployment, or Live operation performed
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
@@ -21,7 +21,7 @@ permission to create a resource or perform an external action.
 | `edge/` | network Shared Edge and production-adapter implementation |
 | `integrations/` | inactive application-adoption drafts |
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
-| `infrastructure/config/` | AP-M7 non-secret configuration contracts; also contains the retired AP-M8 operator-manifest implementation pending AP-M9-W2 removal |
+| `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/terraform/bootstrap/` | AP-M7 static state-bucket owner root |
 | `infrastructure/terraform/platform/` | AP-M7 static Platform State root |
 | `infrastructure/terraform/fixtures/*/` | independent synthetic Application State roots |
@@ -32,8 +32,9 @@ permission to create a resource or perform an external action.
 | `pyproject.toml`, `uv.lock` | direct dependencies and frozen resolution |
 | `.gitignore` | generated, secret, state, plan, cache, and build exclusions |
 
-The AP-M8-W2 operator-manifest files remain present only because AP-M9-W1 is a governance slice.
-AP-M9-W2 removes them and their active consumers. They are not a current operator input.
+AP-M9-W2 removed the retired AP-M8 operator-manifest files and their active consumers. The factual
+delivery record remains under `docs/history/`, and the implementation remains recoverable from Git
+history. It is not a current operator input.
 
 ## Planned AP-M9 capability locations
 

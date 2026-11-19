@@ -1,6 +1,6 @@
 # App Platform documentation
 
-Version 1.15 | Status: AP-M9-W1 governance rebaseline in review; AP-M8-W1/W2 retained as
+Version 1.16 | Status: AP-M9-W2 retired-manifest cleanup implemented; AP-M8-W1/W2 retained as
 historical evidence; no platform environment is deployed or qualified
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
@@ -45,7 +45,7 @@ is not part of the active instruction path and cannot authorize an operation.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W1 in review | operator-driven environment and application lifecycle |
+| AP-M9 | W2 implemented | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
@@ -56,10 +56,12 @@ retroactively turn them into deployment evidence.
 Each work package is one bounded branch and pull request. Start it from updated, clean `main`, use
 small reviewable commits, merge it, and only then begin the next package.
 
-1. **AP-M9-W1 — governance rebaseline:** define the product lifecycle, authority, architecture,
-   threat controls, plan, evaluation, documentation routing, and historical boundary.
-2. **AP-M9-W2 — retired manifest cleanup:** remove the operator-manifest schema, validator,
-   synthetic example, command, tests, and obsolete active guidance without changing AP-M7 assets.
+1. **AP-M9-W1 — governance rebaseline (merged):** define the product lifecycle, authority,
+   architecture, threat controls, plan, evaluation, documentation routing, and historical
+   boundary.
+2. **AP-M9-W2 — retired manifest cleanup (implemented):** remove the operator-manifest schema,
+   validator, synthetic example, command, tests, and obsolete active guidance without changing
+   AP-M7 assets.
 3. **AP-M9-W3 — lifecycle contracts and profiles:** implement small staging/production profiles,
    deployment specifications, execution journals, integration bundles, and attachment bundles.
 4. **AP-M9-W4 — interactive lifecycle core:** implement resumable in-process checkpoints, exact
@@ -78,7 +80,8 @@ small reviewable commits, merge it, and only then begin the next package.
     `OWNERSHIP_TRANSFER_REQUIRED` while Finance Assistant or `apps.comfforts.com` remains
     Finance-owned.
 
-No staging deployment is available before AP-M9-W8 merges. AP-M9-W9 owns the first real staging
+AP-M9-W3 begins only after AP-M9-W2 merges. No staging deployment is available before AP-M9-W8
+merges. AP-M9-W9 owns the first real staging
 operation and requires its own values and approvals. Production migration and Application Adoption
 remain separate owner-controlled work after AP-M9-W10.
 

@@ -843,8 +843,9 @@ stronger confirmation. `platform-prepare` for production returns
 `OWNERSHIP_TRANSFER_REQUIRED` while the Finance-owned production edge or any other requested
 resource has not completed an explicit ownership transfer.
 
-AP-M9-W1 defines this design only. It creates no profile, lifecycle code, identity, credential,
-state, provider resource, OAuth client, DNS record, certificate, bundle, application change, or
+AP-M9-W1 defines this design, and AP-M9-W2 removes the retired manifest implementation without
+adding a profile or lifecycle capability. Neither package creates an identity, credential, state,
+provider resource, OAuth client, DNS record, certificate, bundle, application change, or
 qualification evidence. Python-to-Go migration remains a later contract-preserving milestone after
 the Python product is delivered and qualified.
 

@@ -270,7 +270,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_layout = " ".join(layout.split())
         normalized_overview = " ".join(overview.split())
 
-        self.assertIn("AP-M9-W1 governance rebaseline in review", normalized_index)
+        self.assertIn("AP-M9-W2 retired-manifest cleanup implemented", normalized_index)
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
         self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
         self.assertIn("AP-M8 | historical", index)
@@ -289,6 +289,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("history-preserving extraction", normalized_layout)
         self.assertIn("7b6678a7f0b3036d427517dad6bc3bec876d1a44", history)
         self.assertIn("no real operator manifest had been accepted", history)
+        self.assertIn("AP-M9-W2 removed the schema", history)
 
         for current_entry_point in (
             PROJECT_ROOT / "AGENTS.md",

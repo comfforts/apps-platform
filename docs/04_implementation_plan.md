@@ -1,6 +1,6 @@
 # App Platform implementation plan
 
-Version 0.9 | Status: AP-M9-W1 governance rebaseline accepted for repository implementation;
+Version 0.10 | Status: AP-M9-W1 merged and AP-M9-W2 retired-manifest cleanup implemented;
 AP-M8-W1/W2 preserved historically; AP-M8-W3 through W12 superseded without execution; every
 external operator action remains pending
 
@@ -8,10 +8,11 @@ This document preserves delivery items 3 through 7 and the completed historical 
 AP-M7 implements and statically validates reviewed Terraform configuration and inert workflow
 templates. AP-M8-W1/W2 implemented a manifest-driven qualification-deployment proposal but no real
 manifest was accepted and no AP-M8-W3 through W12 operation began. AP-M9 supersedes that unexecuted
-path with the operator-driven environment lifecycle below. AP-M9-W1 changes authority documents and
-deterministic governance tests only; it authorizes no backend initialization, authenticated plan or
-apply, cloud call, credential, identity, provider resource, DNS mutation, deployment,
-qualification, destruction, production change, or Application Adoption.
+path with the operator-driven environment lifecycle below. AP-M9-W1 changed authority documents
+and deterministic governance tests, and AP-M9-W2 removes only the retired interface and its active
+guidance. Neither package authorizes backend initialization, authenticated plan or apply, cloud
+call, credential, identity, provider resource, DNS mutation, deployment, qualification,
+destruction, production change, or Application Adoption.
 
 Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
@@ -1605,11 +1606,12 @@ cannot grant a Feature Entitlement, activate an Integration Draft, or become App
 
 ### Authority status
 
-AP-M9-W1 is the active governance-only rebaseline. It supersedes the unexecuted AP-M8-W3 through
-AP-M8-W12 packages and the previously proposed standalone AP-M9 Live-qualification milestone. The
-old proposal produced no implementation, provider resource, evidence bundle, or qualification
-result. AP-M8-W1/W2 remain historical merged work; their manifest implementation is removed only by
-AP-M9-W2 after this authority merges.
+AP-M9-W1 is merged and establishes the active operator-lifecycle authority. It supersedes the
+unexecuted AP-M8-W3 through AP-M8-W12 packages and the previously proposed standalone AP-M9
+Live-qualification milestone. The old proposal produced no implementation, provider resource,
+evidence bundle, or qualification result. AP-M8-W1/W2 remain historical merged work; AP-M9-W2
+removes their retired manifest implementation from the active tree. AP-M9-W3 begins only after
+that cleanup merges.
 
 Each AP-M9 repository package begins from updated clean `main`, uses a dedicated branch and pull
 request, passes `make check`, and merges before the next package starts. Repository implementation
@@ -1678,9 +1680,9 @@ package changes documentation and tests only and authorizes no external action.
 
 #### AP-M9-W2 · Retired manifest-path cleanup
 
-Remove the operator-input-manifest schema, synthetic example, chain loader, command, exports,
-manifest-specific tests, obsolete acceptance prompt, and inactive workflow assumptions that serve
-only the superseded path. Preserve reusable Terraform, runtime, fixture, contract, state, security,
+Removed the operator-input-manifest schema, synthetic example, chain loader, command, exports,
+manifest-specific tests, obsolete acceptance prompt, and inactive workflow assumptions that served
+only the superseded path. Preserved reusable Terraform, runtime, fixture, contract, state, security,
 and deterministic verification assets. Git history and the historical status record preserve the
 removed implementation.
 

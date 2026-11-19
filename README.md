@@ -1,7 +1,7 @@
 # Comfforts App Platform
 
-Status: AP-M9-W1 governance rebaseline in review; Contract, Fixture, network-runtime, and static
-Terraform implementation exist; no platform environment is deployed or qualified
+Status: AP-M9-W2 retired-manifest cleanup implemented; Contract, Fixture, network-runtime, and
+static Terraform implementation exist; no platform environment is deployed or qualified
 
 Comfforts App Platform owns the shared hostname edge, catalogue, registration, routing, admission,
 platform identity, and environment lifecycle used by independently owned applications. Applications
@@ -33,8 +33,9 @@ comparison and rollback behavior.
   performs no backend or provider operation.
 - AP-M8-W1/W2 are historical merged work from the superseded manifest-driven approach. No real
   manifest was accepted and AP-M8-W3 through AP-M8-W12 never began.
-- AP-M9 is the only active remaining platform milestone. W1 establishes its operator-driven
-  lifecycle authority; W2 will remove the retired manifest implementation.
+- AP-M9 is the only active remaining platform milestone. W1 established its operator-driven
+  lifecycle authority, and W2 removed the retired manifest implementation. W3 is next after this
+  cleanup merges.
 
 No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
 application registration, or Live evidence is created merely by the repository implementation.

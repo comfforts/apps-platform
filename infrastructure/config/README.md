@@ -1,7 +1,7 @@
 # App Platform infrastructure configuration contracts
 
-Version 1.3 | Status: AP-M7 contracts implemented; AP-M8 operator-manifest implementation retired
-by ADR-010 and pending removal in AP-M9-W2; no accepted operator input or external operation
+Version 1.4 | Status: AP-M7 contracts implemented; retired AP-M8 operator-manifest implementation
+removed by AP-M9-W2; no accepted operator input or external operation
 
 This directory contains closed, non-secret repository configuration contracts. It is subordinate
 to the platform requirements, accepted ADRs, system design, implementation plan, and evaluation
@@ -22,17 +22,12 @@ lookup, a provider call, repository-setting change, DNS change, or deployment.
 documents unless a caller explicitly selects `allow_synthetic=True`. They are neither defaults nor
 deployable operator values.
 
-## Retired AP-M8 inventory
+## Removed AP-M8 interface
 
-The following files remain only until AP-M9-W2 removes their code and tests:
-
-- `schemas/operator-input-manifest.v1.schema.json`;
-- `examples/operator-input-manifest.synthetic.v1.json`;
-- `operator_manifest.py`; and
-- manifest-specific code in `validation.py` and the package interface.
-
-ADR-010 retired this manifest as an operator interface. Do not create, validate, accept, or deploy
-from a real manifest. The factual delivery record is in
+AP-M9-W2 removed the retired operator-manifest schema, synthetic example, command, loader,
+validator, digest logic, exports, and dedicated tests. The active package exposes only the AP-M7
+configuration contracts listed above. Do not recreate or route an operator through the retired
+interface. The factual delivery record is in
 [`docs/history/ap_m8_manifest_delivery.md`](../../docs/history/ap_m8_manifest_delivery.md).
 
 ## Loader interface

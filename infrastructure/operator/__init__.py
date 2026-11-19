@@ -13,6 +13,14 @@ from infrastructure.operator._interfaces import (
     StatusResult,
 )
 from infrastructure.operator.deployment import DeploymentExecutor
+from infrastructure.operator.destruction import (
+    DESTRUCTIBLE_PLATFORM_RESOURCES,
+    RETAINED_PLATFORM_RESOURCES,
+    DestructionPreparationResult,
+    DestructionRequest,
+    DestructionSnapshot,
+    compile_destruction_specification,
+)
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
     AttachmentTargetReadback,
@@ -52,6 +60,11 @@ from infrastructure.operator.rollback import (
 __all__ = (
     "DiscoverySnapshot",
     "DeploymentExecutor",
+    "DESTRUCTIBLE_PLATFORM_RESOURCES",
+    "RETAINED_PLATFORM_RESOURCES",
+    "DestructionPreparationResult",
+    "DestructionRequest",
+    "DestructionSnapshot",
     "ExecutionResult",
     "GitSnapshot",
     "ApplicationIntegrationLifecycle",
@@ -90,4 +103,5 @@ __all__ = (
     "StageContext",
     "StageExecution",
     "StatusResult",
+    "compile_destruction_specification",
 )

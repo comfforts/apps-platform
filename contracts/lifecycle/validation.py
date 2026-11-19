@@ -273,12 +273,35 @@ def _specification_violations(value: dict[str, Any]) -> list[Violation]:
                         "destroy specifications require an explicit destructive boundary",
                     )
                 )
-            if resources == []:
+            deleted_resources = {
+                resource
+                for stage in stages
+                if isinstance(stage, dict)
+                and isinstance(stage.get("actions"), list)
+                and "delete" in stage["actions"]
+                and isinstance(stage.get("resource_types"), list)
+                for resource in stage["resource_types"]
+                if isinstance(resource, str)
+            }
+            prohibited_resources = {
+                "application-runtime",
+                "application-state",
+                "backend-bucket",
+                "evidence-bucket",
+                "fixture-application",
+                "recovery-copy",
+                "state-backend",
+            }
+            if (
+                not isinstance(resources, list)
+                or set(resources) != deleted_resources
+                or bool(set(resources) & prohibited_resources)
+            ):
                 violations.append(
                     Violation(
                         "DESTRUCTIVE_BOUNDARY_INVALID",
                         "/destructive_boundary/resource_types",
-                        "destroy specifications require explicit destructive resource types",
+                        "destroy scope must exactly match deletions and exclude retained or application resources",
                     )
                 )
         elif allowed is not False or resources != []:

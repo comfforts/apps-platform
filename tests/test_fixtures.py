@@ -1231,7 +1231,10 @@ class FixtureLifecycleTest(unittest.TestCase):
         self.assertEqual(self._snapshots(), before_suspension)
         self.assertNotIn("/public", self._catalogue().links)
         suspended = self.edge.handle(Request("GET", "/public"))
-        self.assertEqual((suspended.status, suspended.outcome), (404, "route_closed"))
+        self.assertEqual(
+            (suspended.status, suspended.outcome, suspended.body),
+            (503, "application_detached", b"temporarily unavailable\n"),
+        )
         self.assertEqual(
             self._snapshots()["fixture-public"],
             before_suspension["fixture-public"],
@@ -1316,7 +1319,10 @@ class FixtureLifecycleTest(unittest.TestCase):
                 headers=self._session_headers(),
             )
         )
-        self.assertEqual((retired.status, retired.outcome), (404, "route_closed"))
+        self.assertEqual(
+            (retired.status, retired.outcome, retired.body),
+            (410, "application_retired", b"permanently removed\n"),
+        )
         self.assertEqual(
             self._snapshots()["fixture-authenticated"],
             before_retirement["fixture-authenticated"],
@@ -1349,7 +1355,7 @@ class FixtureLifecycleTest(unittest.TestCase):
                     headers=self._session_headers(),
                 )
             ).status,
-            404,
+            410,
         )
 
         state_before_rollback = self._snapshots()

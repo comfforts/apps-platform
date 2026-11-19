@@ -2490,6 +2490,11 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self,
     ) -> None:
         document = compiled_generation()
+        expected = {
+            "staged": (404, b"not found\n"),
+            "suspended": (503, b"temporarily unavailable\n"),
+            "retired": (410, b"permanently removed\n"),
+        }
         for lifecycle in ("staged", "suspended", "retired"):
             application_id = f"{lifecycle}-app"
             route_prefix = f"/{lifecycle}"
@@ -2546,8 +2551,7 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
                 _, (status, _, body) = asyncio.run(
                     request_during_lifespan(app, route_prefix)
                 )
-                self.assertEqual(status, 404)
-                self.assertEqual(body, b"not found\n")
+                self.assertEqual((status, body), expected[lifecycle])
         self.assertFalse(handoff.requests)
 
     def test_inconsistent_compiled_route_projection_fails_closed(self) -> None:

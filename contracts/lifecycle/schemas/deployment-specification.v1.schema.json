@@ -20,7 +20,9 @@
     "contract_version": {"const": 1},
     "document_kind": {"const": "deployment-specification"},
     "environment": {"enum": ["production", "staging"]},
-    "operation": {"enum": ["deploy", "destroy", "qualify"]},
+    "operation": {
+      "enum": ["deploy", "destroy", "detach", "qualify", "register", "retire"]
+    },
     "profile_digest": {"$ref": "#/$defs/digest"},
     "source": {"$ref": "#/$defs/source"},
     "stages": {

@@ -33,6 +33,15 @@ DEPLOYMENT_SPECIFICATION_SCHEMA_ID = (
 EXECUTION_JOURNAL_SCHEMA_ID = (
     "urn:comfforts:app-platform:lifecycle:execution-journal:v1"
 )
+ENVIRONMENT_STATUS_SCHEMA_ID = (
+    "urn:comfforts:app-platform:lifecycle:environment-status:v1"
+)
+PLATFORM_INTEGRATION_BUNDLE_SCHEMA_ID = (
+    "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1"
+)
+APPLICATION_ATTACHMENT_BUNDLE_SCHEMA_ID = (
+    "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1"
+)
 
 
 def _profile(name: str) -> dict[str, object]:
@@ -140,6 +149,136 @@ def _journal(specification: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _completed_journal(specification: dict[str, object]) -> dict[str, object]:
+    journal = _journal(specification)
+    entries = journal["entries"]
+    assert isinstance(entries, list)
+    entries.extend(
+        [
+            {
+                "sequence": 2,
+                "stage_id": "foundation",
+                "stage_input_digest": _digest("3"),
+                "outcome": "succeeded",
+                "plan_digest": _digest("4"),
+                "outputs": [{"name": "reserved-address", "value": "203.0.113.10"}],
+                "manual_acknowledgement": "not-required",
+            },
+            {
+                "sequence": 3,
+                "stage_id": "external-dns",
+                "stage_input_digest": _digest("5"),
+                "outcome": "succeeded",
+                "plan_digest": None,
+                "outputs": [{"name": "dns-attestation", "value": "verified"}],
+                "manual_acknowledgement": "provider-verified",
+            },
+        ]
+    )
+    journal["status"] = "succeeded"
+    return journal
+
+
+def _status(
+    profile: dict[str, object],
+    specification: dict[str, object],
+    journal: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "contract_version": 1,
+        "document_kind": "environment-status",
+        "environment": "staging",
+        "profile_digest": lifecycle_digest(profile, "environment-profile"),
+        "source_revision": "a" * 40,
+        "specification_digest": lifecycle_digest(
+            specification,
+            "deployment-specification",
+        ),
+        "journal_digest": lifecycle_digest(journal, "execution-journal"),
+        "lifecycle_state": "deployed",
+        "last_closed_stage": "external-dns",
+        "blockers": [],
+        "qualification_status": "unqualified",
+    }
+
+
+def _integration_bundle(
+    profile: dict[str, object],
+    specification: dict[str, object],
+    journal: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "contract_version": 1,
+        "document_kind": "platform-integration-bundle",
+        "environment": "staging",
+        "application_id": "fixture-authenticated",
+        "access_mode": "authenticated",
+        "route_intent": "/fixture-authenticated",
+        "generation": 1,
+        "profile_digest": lifecycle_digest(profile, "environment-profile"),
+        "platform_source_revision": "a" * 40,
+        "specification_digest": lifecycle_digest(
+            specification,
+            "deployment-specification",
+        ),
+        "journal_digest": lifecycle_digest(journal, "execution-journal"),
+        "endpoints": {
+            "external_origin": "https://apps-staging.comfforts.com",
+            "issuer": "https://apps-staging.comfforts.com/_platform",
+            "jwks_uri": "https://apps-staging.comfforts.com/.well-known/jwks.json",
+            "oauth_redirect_uri": (
+                "https://apps-staging.comfforts.com/_platform/auth/callback"
+            ),
+        },
+        "identity": {
+            "oauth_client_id": "1234567890-appsplatform.apps.googleusercontent.com",
+            "audience": (
+                "urn:comfforts:app-platform:audience:fixture-authenticated"
+            ),
+            "edge_caller_reference": (
+                "serviceAccount:apps-platform-edge@"
+                "comfforts-platform-non-prod.iam.gserviceaccount.com"
+            ),
+        },
+        "attachment_contract": {
+            "adapter_kind": "gcp-cloud-run-v1",
+            "ingress_mode": "shared_edge_only",
+        },
+        "qualification_status": "unqualified",
+    }
+
+
+def _attachment_bundle(integration_bundle: dict[str, object]) -> dict[str, object]:
+    return {
+        "contract_version": 1,
+        "document_kind": "application-attachment-bundle",
+        "environment": "staging",
+        "application_id": "fixture-authenticated",
+        "attachment_revision": 1,
+        "platform_integration_bundle_digest": lifecycle_digest(
+            integration_bundle,
+            "platform-integration-bundle",
+        ),
+        "application_source_revision": "b" * 40,
+        "target": {
+            "owner_application_id": "fixture-authenticated",
+            "adapter_kind": "gcp-cloud-run-v1",
+            "resource_reference": (
+                "urn:comfforts:app-platform:gcp:cloud-run:455651441682:"
+                "us-west1:fixture-authenticated"
+            ),
+            "ingress_mode": "shared_edge_only",
+            "caller_grant": (
+                "serviceAccount:apps-platform-edge@"
+                "comfforts-platform-non-prod.iam.gserviceaccount.com"
+            ),
+            "audience": (
+                "urn:comfforts:app-platform:audience:fixture-authenticated"
+            ),
+        },
+    }
+
+
 class EnvironmentProfileContractTest(unittest.TestCase):
     def test_environment_profile_schema_registry_is_local_and_closed(self) -> None:
         registry = load_lifecycle_schemas()
@@ -150,6 +289,9 @@ class EnvironmentProfileContractTest(unittest.TestCase):
                 ENVIRONMENT_PROFILE_SCHEMA_ID,
                 DEPLOYMENT_SPECIFICATION_SCHEMA_ID,
                 EXECUTION_JOURNAL_SCHEMA_ID,
+                ENVIRONMENT_STATUS_SCHEMA_ID,
+                PLATFORM_INTEGRATION_BUNDLE_SCHEMA_ID,
+                APPLICATION_ATTACHMENT_BUNDLE_SCHEMA_ID,
             },
         )
 
@@ -431,6 +573,238 @@ class SpecificationAndJournalContractTest(unittest.TestCase):
             ("SCOPE_EXPANSION", "/journal/entries/0/outputs/0/name"),
             _codes(violations),
         )
+
+
+class StatusAndHandoffContractTest(unittest.TestCase):
+    def _documents(
+        self,
+    ) -> tuple[
+        dict[str, object],
+        dict[str, object],
+        dict[str, object],
+        dict[str, object],
+    ]:
+        profile = _profile("staging.v1.json")
+        specification = _specification()
+        specification["profile_digest"] = lifecycle_digest(
+            profile,
+            "environment-profile",
+        )
+        journal = _completed_journal(specification)
+        status = _status(profile, specification, journal)
+        return profile, specification, journal, status
+
+    def test_status_truthfully_binds_profile_specification_journal_and_progress(self) -> None:
+        profile, specification, journal, status = self._documents()
+
+        self.assertEqual(validate_lifecycle_document(status, "environment-status"), ())
+        self.assertEqual(
+            validate_lifecycle_relationships(
+                profile=profile,
+                specification=specification,
+                journal=journal,
+                status=status,
+            ),
+            (),
+        )
+
+        stale = copy.deepcopy(status)
+        stale["journal_digest"] = _digest("f")
+        stale["last_closed_stage"] = "preflight"
+        violations = validate_lifecycle_relationships(
+            profile=profile,
+            specification=specification,
+            journal=journal,
+            status=stale,
+        )
+        self.assertIn(("DIGEST_MISMATCH", "/status/journal_digest"), _codes(violations))
+        self.assertIn(
+            ("STATUS_PROGRESS_INVALID", "/status/last_closed_stage"),
+            _codes(violations),
+        )
+
+    def test_disabled_production_status_has_no_invented_execution_facts(self) -> None:
+        profile = _profile("production.v1.json")
+        status = {
+            "contract_version": 1,
+            "document_kind": "environment-status",
+            "environment": "production",
+            "profile_digest": lifecycle_digest(profile, "environment-profile"),
+            "source_revision": None,
+            "specification_digest": None,
+            "journal_digest": None,
+            "lifecycle_state": "blocked",
+            "last_closed_stage": None,
+            "blockers": ["OWNERSHIP_TRANSFER_REQUIRED"],
+            "qualification_status": "not-run",
+        }
+
+        self.assertEqual(validate_lifecycle_document(status, "environment-status"), ())
+        self.assertEqual(
+            validate_lifecycle_relationships(profile=profile, status=status),
+            (),
+        )
+
+    def test_status_rejects_cross_environment_profile_and_source(self) -> None:
+        profile, specification, journal, status = self._documents()
+        production = _profile("production.v1.json")
+        status["environment"] = "production"
+        status["profile_digest"] = lifecycle_digest(
+            production,
+            "environment-profile",
+        )
+        status["source_revision"] = "c" * 40
+
+        violations = validate_lifecycle_relationships(
+            profile=production,
+            specification=specification,
+            journal=journal,
+            status=status,
+        )
+
+        paths = {item.path for item in violations}
+        self.assertIn("/status/environment", paths)
+        self.assertIn("/status/source_revision", paths)
+
+    def test_integration_bundle_contains_only_access_mode_specific_non_secret_values(self) -> None:
+        profile, specification, journal, status = self._documents()
+        bundle = _integration_bundle(profile, specification, journal)
+
+        self.assertEqual(
+            validate_lifecycle_document(bundle, "platform-integration-bundle"),
+            (),
+        )
+        self.assertEqual(
+            validate_lifecycle_relationships(
+                profile=profile,
+                specification=specification,
+                journal=journal,
+                status=status,
+                integration_bundle=bundle,
+            ),
+            (),
+        )
+
+        public = copy.deepcopy(bundle)
+        public["application_id"] = "fixture-public"
+        public["access_mode"] = "public"
+        public["route_intent"] = "/fixture-public"
+        identity = public["identity"]
+        assert isinstance(identity, dict)
+        identity["oauth_client_id"] = None
+        identity["audience"] = None
+        endpoints = public["endpoints"]
+        assert isinstance(endpoints, dict)
+        endpoints["issuer"] = None
+        endpoints["jwks_uri"] = None
+        endpoints["oauth_redirect_uri"] = None
+        self.assertEqual(
+            validate_lifecycle_document(public, "platform-integration-bundle"),
+            (),
+        )
+
+        identity["oauth_client_secret"] = "must-not-cross-the-boundary"
+        violations = validate_lifecycle_document(public, "platform-integration-bundle")
+        self.assertIn(("FIELD_UNKNOWN", "/identity/oauth_client_secret"), _codes(violations))
+        self.assertIn(
+            ("PROHIBITED_MATERIAL", "/identity/oauth_client_secret"),
+            _codes(violations),
+        )
+
+    def test_authenticated_bundle_requires_oauth_client_id_and_audience(self) -> None:
+        profile, specification, journal, _ = self._documents()
+        bundle = _integration_bundle(profile, specification, journal)
+        identity = bundle["identity"]
+        assert isinstance(identity, dict)
+        identity["oauth_client_id"] = None
+        identity["audience"] = None
+
+        violations = validate_lifecycle_document(
+            bundle,
+            "platform-integration-bundle",
+        )
+
+        self.assertIn(
+            ("IDENTITY_HANDOFF_INVALID", "/identity/oauth_client_id"),
+            _codes(violations),
+        )
+        self.assertIn(
+            ("IDENTITY_HANDOFF_INVALID", "/identity/audience"),
+            _codes(violations),
+        )
+
+    def test_attachment_bundle_binds_application_owner_and_exact_integration_digest(self) -> None:
+        profile, specification, journal, status = self._documents()
+        integration = _integration_bundle(profile, specification, journal)
+        attachment = _attachment_bundle(integration)
+
+        self.assertEqual(
+            validate_lifecycle_document(attachment, "application-attachment-bundle"),
+            (),
+        )
+        self.assertEqual(
+            validate_lifecycle_relationships(
+                profile=profile,
+                specification=specification,
+                journal=journal,
+                status=status,
+                integration_bundle=integration,
+                attachment_bundle=attachment,
+            ),
+            (),
+        )
+
+        stale = copy.deepcopy(attachment)
+        stale["platform_integration_bundle_digest"] = _digest("f")
+        violations = validate_lifecycle_relationships(
+            integration_bundle=integration,
+            attachment_bundle=stale,
+        )
+        self.assertIn(
+            ("DIGEST_MISMATCH", "/attachment_bundle/platform_integration_bundle_digest"),
+            _codes(violations),
+        )
+
+        wrong_owner = copy.deepcopy(attachment)
+        target = wrong_owner["target"]
+        assert isinstance(target, dict)
+        target["owner_application_id"] = "other-application"
+        violations = validate_lifecycle_relationships(
+            integration_bundle=integration,
+            attachment_bundle=wrong_owner,
+        )
+        self.assertIn(
+            ("OWNER_CONFLICT", "/attachment_bundle/target/owner_application_id"),
+            _codes(violations),
+        )
+
+        wrong_caller = copy.deepcopy(attachment)
+        target = wrong_caller["target"]
+        assert isinstance(target, dict)
+        target["caller_grant"] = (
+            "serviceAccount:other-app@other-project.iam.gserviceaccount.com"
+        )
+        violations = validate_lifecycle_relationships(
+            integration_bundle=integration,
+            attachment_bundle=wrong_caller,
+        )
+        self.assertIn(
+            ("ATTACHMENT_POSTURE_INVALID", "/attachment_bundle/target/caller_grant"),
+            _codes(violations),
+        )
+
+    def test_bundle_rejects_mutable_references_and_raw_material(self) -> None:
+        profile, specification, journal, _ = self._documents()
+        bundle = _integration_bundle(profile, specification, journal)
+        bundle["image_reference"] = "image:latest"
+
+        violations = validate_lifecycle_document(
+            bundle,
+            "platform-integration-bundle",
+        )
+
+        self.assertIn(("FIELD_UNKNOWN", "/image_reference"), _codes(violations))
+        self.assertIn(("PROHIBITED_MATERIAL", "/image_reference"), _codes(violations))
 
 
 if __name__ == "__main__":

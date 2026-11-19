@@ -22,19 +22,31 @@ PROFILE_DIRECTORY = (
     LIFECYCLE_DIRECTORY.parents[1] / "infrastructure" / "config" / "profiles"
 )
 SCHEMA_FILES = (
+    "application-attachment-bundle.v1.schema.json",
     "deployment-specification.v1.schema.json",
     "environment-profile.v1.schema.json",
+    "environment-status.v1.schema.json",
     "execution-journal.v1.schema.json",
+    "platform-integration-bundle.v1.schema.json",
 )
 SCHEMA_IDS = {
+    "application-attachment-bundle": (
+        "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1"
+    ),
     "deployment-specification": (
         "urn:comfforts:app-platform:lifecycle:deployment-specification:v1"
     ),
     "environment-profile": (
         "urn:comfforts:app-platform:lifecycle:environment-profile:v1"
     ),
+    "environment-status": (
+        "urn:comfforts:app-platform:lifecycle:environment-status:v1"
+    ),
     "execution-journal": (
         "urn:comfforts:app-platform:lifecycle:execution-journal:v1"
+    ),
+    "platform-integration-bundle": (
+        "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1"
     ),
 }
 
@@ -303,6 +315,153 @@ def _journal_violations(value: dict[str, Any]) -> list[Violation]:
     return violations
 
 
+def _status_violations(value: dict[str, Any]) -> list[Violation]:
+    violations: list[Violation] = []
+    state = value.get("lifecycle_state")
+    blockers = value.get("blockers")
+    execution_fields = (
+        "source_revision",
+        "specification_digest",
+        "journal_digest",
+    )
+    if state in {"absent", "blocked"}:
+        for field in execution_fields:
+            if value.get(field) is not None:
+                violations.append(
+                    Violation(
+                        "STATUS_INVALID",
+                        f"/{field}",
+                        "an absent or blocked environment has no execution binding",
+                    )
+                )
+        if state == "blocked" and blockers == []:
+            violations.append(
+                Violation(
+                    "STATUS_INVALID",
+                    "/blockers",
+                    "a blocked environment must identify at least one blocker",
+                )
+            )
+    else:
+        for field in execution_fields:
+            if not isinstance(value.get(field), str):
+                violations.append(
+                    Violation(
+                        "STATUS_INVALID",
+                        f"/{field}",
+                        "an execution status requires source and digest bindings",
+                    )
+                )
+        if state in {"deployed", "destroyed"} and blockers != []:
+            violations.append(
+                Violation(
+                    "STATUS_INVALID",
+                    "/blockers",
+                    "a terminal successful status cannot retain blockers",
+                )
+            )
+    if value.get("qualification_status") == "qualified" and state != "deployed":
+        violations.append(
+            Violation(
+                "STATUS_INVALID",
+                "/qualification_status",
+                "only a deployed environment can be qualified",
+            )
+        )
+    return violations
+
+
+def _integration_bundle_violations(value: dict[str, Any]) -> list[Violation]:
+    violations: list[Violation] = []
+    access_mode = value.get("access_mode")
+    identity = value.get("identity")
+    endpoints = value.get("endpoints")
+    application_id = value.get("application_id")
+    if isinstance(identity, dict):
+        oauth_client_id = identity.get("oauth_client_id")
+        audience = identity.get("audience")
+        if access_mode == "public":
+            if oauth_client_id is not None:
+                violations.append(
+                    Violation(
+                        "IDENTITY_HANDOFF_INVALID",
+                        "/identity/oauth_client_id",
+                        "a public application does not receive an OAuth client identifier",
+                    )
+                )
+            if audience is not None:
+                violations.append(
+                    Violation(
+                        "IDENTITY_HANDOFF_INVALID",
+                        "/identity/audience",
+                        "a public application does not receive a verified-identity audience",
+                    )
+                )
+        else:
+            if not isinstance(oauth_client_id, str):
+                violations.append(
+                    Violation(
+                        "IDENTITY_HANDOFF_INVALID",
+                        "/identity/oauth_client_id",
+                        "an authenticated application requires an OAuth client identifier",
+                    )
+                )
+            expected_audience = (
+                f"urn:comfforts:app-platform:audience:{application_id}"
+                if isinstance(application_id, str)
+                else None
+            )
+            if audience != expected_audience:
+                violations.append(
+                    Violation(
+                        "IDENTITY_HANDOFF_INVALID",
+                        "/identity/audience",
+                        "application audience must be scoped to the named application",
+                    )
+                )
+    if isinstance(endpoints, dict):
+        environment = value.get("environment")
+        hostname = {
+            "staging": "apps-staging.comfforts.com",
+            "production": "apps.comfforts.com",
+        }.get(environment)
+        if hostname is not None:
+            expected = {
+                "external_origin": f"https://{hostname}",
+                "issuer": f"https://{hostname}/_platform",
+                "jwks_uri": f"https://{hostname}/.well-known/jwks.json",
+                "oauth_redirect_uri": f"https://{hostname}/_platform/auth/callback",
+            }
+            for field, expected_value in expected.items():
+                actual = endpoints.get(field)
+                if access_mode == "public" and field != "external_origin":
+                    expected_value = None
+                if actual != expected_value:
+                    violations.append(
+                        Violation(
+                            "ENVIRONMENT_BINDING_INVALID",
+                            f"/endpoints/{field}",
+                            "endpoint does not match the selected environment and access mode",
+                        )
+                    )
+    return violations
+
+
+def _attachment_bundle_violations(value: dict[str, Any]) -> list[Violation]:
+    target = value.get("target")
+    if not isinstance(target, dict):
+        return []
+    if target.get("owner_application_id") != value.get("application_id"):
+        return [
+            Violation(
+                "OWNER_CONFLICT",
+                "/target/owner_application_id",
+                "attachment target owner must equal the bundle application",
+            )
+        ]
+    return []
+
+
 def validate_lifecycle_document(
     value: Any,
     expected_kind: str,
@@ -333,6 +492,12 @@ def validate_lifecycle_document(
             violations.extend(_specification_violations(value))
         elif expected_kind == "execution-journal":
             violations.extend(_journal_violations(value))
+        elif expected_kind == "environment-status":
+            violations.extend(_status_violations(value))
+        elif expected_kind == "platform-integration-bundle":
+            violations.extend(_integration_bundle_violations(value))
+        elif expected_kind == "application-attachment-bundle":
+            violations.extend(_attachment_bundle_violations(value))
     return _ordered(violations)
 
 
@@ -356,6 +521,7 @@ def _prefixed_violations(
 
 def validate_lifecycle_relationships(
     *,
+    profile: dict[str, Any] | None = None,
     specification: dict[str, Any] | None = None,
     journal: dict[str, Any] | None = None,
     previous_journal: dict[str, Any] | None = None,
@@ -367,9 +533,21 @@ def validate_lifecycle_relationships(
 
     violations: list[Violation] = []
     documents = (
+        ("profile", profile, "environment-profile"),
         ("specification", specification, "deployment-specification"),
         ("journal", journal, "execution-journal"),
         ("previous_journal", previous_journal, "execution-journal"),
+        ("status", status, "environment-status"),
+        (
+            "integration_bundle",
+            integration_bundle,
+            "platform-integration-bundle",
+        ),
+        (
+            "attachment_bundle",
+            attachment_bundle,
+            "application-attachment-bundle",
+        ),
     )
     for prefix, document, kind in documents:
         if document is not None:
@@ -379,9 +557,27 @@ def validate_lifecycle_relationships(
                     validate_lifecycle_document(document, kind),
                 )
             )
-    del status, integration_bundle, attachment_bundle
     if violations:
         return _ordered(violations)
+
+    if profile is not None and specification is not None:
+        if specification.get("environment") != profile.get("environment"):
+            violations.append(
+                _relationship_violation(
+                    "ENVIRONMENT_BINDING_INVALID",
+                    "/specification/environment",
+                    "specification environment does not match its profile",
+                )
+            )
+        expected_profile_digest = lifecycle_digest(profile, "environment-profile")
+        if specification.get("profile_digest") != expected_profile_digest:
+            violations.append(
+                _relationship_violation(
+                    "DIGEST_MISMATCH",
+                    "/specification/profile_digest",
+                    "specification is not bound to the exact environment profile",
+                )
+            )
 
     if specification is not None and journal is not None:
         expected_digest = lifecycle_digest(specification, "deployment-specification")
@@ -507,6 +703,246 @@ def validate_lifecycle_relationships(
                             "an existing journal entry cannot be removed or rewritten",
                         )
                     )
+
+    if status is not None:
+        if profile is not None:
+            if status.get("environment") != profile.get("environment"):
+                violations.append(
+                    _relationship_violation(
+                        "ENVIRONMENT_BINDING_INVALID",
+                        "/status/environment",
+                        "status environment does not match its profile",
+                    )
+                )
+            if status.get("profile_digest") != lifecycle_digest(
+                profile,
+                "environment-profile",
+            ):
+                violations.append(
+                    _relationship_violation(
+                        "DIGEST_MISMATCH",
+                        "/status/profile_digest",
+                        "status is not bound to the exact environment profile",
+                    )
+                )
+        if specification is not None:
+            source = specification.get("source")
+            revision = source.get("revision") if isinstance(source, dict) else None
+            if status.get("source_revision") != revision:
+                violations.append(
+                    _relationship_violation(
+                        "DOCUMENT_RELATION_INVALID",
+                        "/status/source_revision",
+                        "status source revision does not match the specification",
+                    )
+                )
+            if status.get("specification_digest") != lifecycle_digest(
+                specification,
+                "deployment-specification",
+            ):
+                violations.append(
+                    _relationship_violation(
+                        "DIGEST_MISMATCH",
+                        "/status/specification_digest",
+                        "status is not bound to the exact specification",
+                    )
+                )
+            if status.get("environment") != specification.get("environment"):
+                violations.append(
+                    _relationship_violation(
+                        "ENVIRONMENT_BINDING_INVALID",
+                        "/status/environment",
+                        "status environment does not match the specification",
+                    )
+                )
+        if journal is not None:
+            if status.get("journal_digest") != lifecycle_digest(
+                journal,
+                "execution-journal",
+            ):
+                violations.append(
+                    _relationship_violation(
+                        "DIGEST_MISMATCH",
+                        "/status/journal_digest",
+                        "status is not bound to the exact journal",
+                    )
+                )
+            entries = journal.get("entries")
+            closed_stages = (
+                [
+                    entry.get("stage_id")
+                    for entry in entries
+                    if isinstance(entry, dict) and entry.get("outcome") == "succeeded"
+                ]
+                if isinstance(entries, list)
+                else []
+            )
+            expected_last_closed = closed_stages[-1] if closed_stages else None
+            if status.get("last_closed_stage") != expected_last_closed:
+                violations.append(
+                    _relationship_violation(
+                        "STATUS_PROGRESS_INVALID",
+                        "/status/last_closed_stage",
+                        "status does not identify the journal's last closed stage",
+                    )
+                )
+            operation = journal.get("operation")
+            expected_state = {
+                "cancelled": "cancelled",
+                "failed": "failed",
+                "running": {
+                    "deploy": "deploying",
+                    "destroy": "destroying",
+                    "detach": "updating",
+                    "qualify": "qualifying",
+                    "register": "updating",
+                    "retire": "updating",
+                }.get(operation),
+                "succeeded": "destroyed" if operation == "destroy" else "deployed",
+                "waiting": "waiting",
+            }.get(journal.get("status"))
+            if status.get("lifecycle_state") != expected_state:
+                violations.append(
+                    _relationship_violation(
+                        "STATUS_PROGRESS_INVALID",
+                        "/status/lifecycle_state",
+                        "status lifecycle state does not match the journal outcome",
+                    )
+                )
+
+    if integration_bundle is not None:
+        related_documents = (
+            ("profile", profile),
+            ("specification", specification),
+            ("journal", journal),
+            ("status", status),
+        )
+        for _, document in related_documents:
+            if document is not None and integration_bundle.get("environment") != document.get(
+                "environment"
+            ):
+                violations.append(
+                    _relationship_violation(
+                        "ENVIRONMENT_BINDING_INVALID",
+                        "/integration_bundle/environment",
+                        "integration bundle crosses an environment boundary",
+                    )
+                )
+                break
+        if profile is not None and integration_bundle.get("profile_digest") != lifecycle_digest(
+            profile,
+            "environment-profile",
+        ):
+            violations.append(
+                _relationship_violation(
+                    "DIGEST_MISMATCH",
+                    "/integration_bundle/profile_digest",
+                    "integration bundle is not bound to the exact profile",
+                )
+            )
+        if specification is not None:
+            source = specification.get("source")
+            revision = source.get("revision") if isinstance(source, dict) else None
+            if integration_bundle.get("platform_source_revision") != revision:
+                violations.append(
+                    _relationship_violation(
+                        "DOCUMENT_RELATION_INVALID",
+                        "/integration_bundle/platform_source_revision",
+                        "integration bundle source does not match the specification",
+                    )
+                )
+            if integration_bundle.get("specification_digest") != lifecycle_digest(
+                specification,
+                "deployment-specification",
+            ):
+                violations.append(
+                    _relationship_violation(
+                        "DIGEST_MISMATCH",
+                        "/integration_bundle/specification_digest",
+                        "integration bundle is not bound to the exact specification",
+                    )
+                )
+        if journal is not None and integration_bundle.get("journal_digest") != lifecycle_digest(
+            journal,
+            "execution-journal",
+        ):
+            violations.append(
+                _relationship_violation(
+                    "DIGEST_MISMATCH",
+                    "/integration_bundle/journal_digest",
+                    "integration bundle is not bound to the exact journal",
+                )
+            )
+        if status is not None and integration_bundle.get(
+            "qualification_status"
+        ) != status.get("qualification_status"):
+            violations.append(
+                _relationship_violation(
+                    "DOCUMENT_RELATION_INVALID",
+                    "/integration_bundle/qualification_status",
+                    "integration bundle qualification must equal the environment status",
+                )
+            )
+
+    if integration_bundle is not None and attachment_bundle is not None:
+        if attachment_bundle.get("platform_integration_bundle_digest") != lifecycle_digest(
+            integration_bundle,
+            "platform-integration-bundle",
+        ):
+            violations.append(
+                _relationship_violation(
+                    "DIGEST_MISMATCH",
+                    "/attachment_bundle/platform_integration_bundle_digest",
+                    "attachment bundle is not bound to the exact integration bundle",
+                )
+            )
+        for field in ("environment", "application_id"):
+            if attachment_bundle.get(field) != integration_bundle.get(field):
+                violations.append(
+                    _relationship_violation(
+                        "DOCUMENT_RELATION_INVALID",
+                        f"/attachment_bundle/{field}",
+                        f"attachment bundle {field} does not match the integration bundle",
+                    )
+                )
+        target = attachment_bundle.get("target")
+        contract = integration_bundle.get("attachment_contract")
+        identity = integration_bundle.get("identity")
+        if isinstance(target, dict):
+            if target.get("owner_application_id") != integration_bundle.get(
+                "application_id"
+            ):
+                violations.append(
+                    _relationship_violation(
+                        "OWNER_CONFLICT",
+                        "/attachment_bundle/target/owner_application_id",
+                        "application attachment target retains the named application owner",
+                    )
+                )
+            if isinstance(contract, dict):
+                for field in ("adapter_kind", "ingress_mode"):
+                    if target.get(field) != contract.get(field):
+                        violations.append(
+                            _relationship_violation(
+                                "ATTACHMENT_POSTURE_INVALID",
+                                f"/attachment_bundle/target/{field}",
+                                f"attachment target {field} violates the integration contract",
+                            )
+                        )
+            if isinstance(identity, dict):
+                posture = {
+                    "caller_grant": "edge_caller_reference",
+                    "audience": "audience",
+                }
+                for target_field, identity_field in posture.items():
+                    if target.get(target_field) != identity.get(identity_field):
+                        violations.append(
+                            _relationship_violation(
+                                "ATTACHMENT_POSTURE_INVALID",
+                                f"/attachment_bundle/target/{target_field}",
+                                "attachment target posture does not match the integration bundle",
+                            )
+                        )
     return _ordered(violations)
 
 

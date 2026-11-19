@@ -1,7 +1,6 @@
 # AP-M9 lifecycle contracts
 
-Version 1 | Status: AP-M9-W3 profiles, specifications, and journals implemented; no operator or
-provider action
+Version 1 | Status: AP-M9-W3 lifecycle contracts implemented; no operator or provider action
 
 This package owns the closed, non-secret AP-M9 Environment Profile and lifecycle document
 interfaces. It is separate from the exact AP-M3 public-contract registry and the AP-M7
@@ -37,6 +36,9 @@ prefixed with `sha256:`.
 | `schemas/environment-profile.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:environment-profile:v1` | stable decisions for one isolated environment |
 | `schemas/deployment-specification.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:deployment-specification:v1` | exact source, ordered stages, allow-lists, output bindings, checkpoints, readback, stop behavior, and destructive boundary |
 | `schemas/execution-journal.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:execution-journal:v1` | machine-generated, append-only, digest-chained execution progress |
+| `schemas/environment-status.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:environment-status:v1` | truthful environment progress, blockers, and qualification state |
+| `schemas/platform-integration-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1` | application-scoped non-secret platform endpoints, identity values, caller, attachment contract, and qualification status |
+| `schemas/application-attachment-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1` | application-owned target posture bound to an exact integration bundle digest |
 
 Specification validation requires every consumed output to be declared by an earlier stage,
 unique stage identifiers, explicit action and resource-type allow-lists, stop-on-failure behavior,
@@ -48,6 +50,16 @@ digest; limits entries and outputs to declared specification stages; requires ev
 output; and proves that a later journal revision preserves every preceding entry and carries the
 exact predecessor digest. A journal records a plan digest, never a saved or raw plan.
 
-Environment Status and application handoff schemas are added by the remaining AP-M9-W3 commits.
+Environment Status binds the exact profile, source, specification, journal, last closed stage, and
+journal outcome. A disabled production status carries `OWNERSHIP_TRANSFER_REQUIRED` without
+inventing a source, specification, journal, or generated resource.
+
+An integration bundle contains an OAuth client identifier and application audience only for an
+authenticated access mode. A public bundle omits those identity values. No bundle admits an OAuth
+client secret, application provider key, credential payload, Terraform state, saved plan, raw
+provider response, or platform secret reference. Attachment validation preserves application
+ownership and matches the integration bundle's application, environment, adapter, ingress, edge
+caller, audience, and digest; it does not transfer target ownership to Platform State.
+
 This package intentionally exposes no prompt, approval, execution, resume, provider, Terraform,
 DNS, credential, or mutation behavior; those remain AP-M9-W4 and later work.

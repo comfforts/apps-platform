@@ -21,7 +21,9 @@
     "contract_version": {"const": 1},
     "document_kind": {"const": "execution-journal"},
     "environment": {"enum": ["production", "staging"]},
-    "operation": {"enum": ["deploy", "destroy", "qualify"]},
+    "operation": {
+      "enum": ["deploy", "destroy", "detach", "qualify", "register", "retire"]
+    },
     "source_revision": {"$ref": "#/$defs/sourceRevision"},
     "specification_digest": {"$ref": "#/$defs/digest"},
     "journal_revision": {

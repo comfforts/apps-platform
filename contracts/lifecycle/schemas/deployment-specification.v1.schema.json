@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:comfforts:app-platform:lifecycle:deployment-specification:v1",
+  "title": "Deployment Specification Version 1",
+  "description": "Complete digest-bound scope and ordered stages for one environment lifecycle operation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "document_kind",
+    "environment",
+    "operation",
+    "profile_digest",
+    "source",
+    "stages",
+    "failure_behavior",
+    "destructive_boundary"
+  ],
+  "properties": {
+    "contract_version": {"const": 1},
+    "document_kind": {"const": "deployment-specification"},
+    "environment": {"enum": ["production", "staging"]},
+    "operation": {"enum": ["deploy", "destroy", "qualify"]},
+    "profile_digest": {"$ref": "#/$defs/digest"},
+    "source": {"$ref": "#/$defs/source"},
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {"$ref": "#/$defs/stage"}
+    },
+    "failure_behavior": {"const": "stop"},
+    "destructive_boundary": {"$ref": "#/$defs/destructiveBoundary"}
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "minLength": 71,
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "revision"],
+      "properties": {
+        "repository": {"const": "comfforts/apps-platform"},
+        "revision": {
+          "type": "string",
+          "minLength": 40,
+          "maxLength": 40,
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage_id", "output_name"],
+      "properties": {
+        "stage_id": {"$ref": "#/$defs/name"},
+        "output_name": {"$ref": "#/$defs/name"}
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage_id",
+        "actions",
+        "resource_types",
+        "consumes",
+        "produces",
+        "manual_checkpoint",
+        "readback"
+      ],
+      "properties": {
+        "stage_id": {"$ref": "#/$defs/name"},
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {"enum": ["create", "delete", "read", "update"]}
+        },
+        "resource_types": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/name"}
+        },
+        "consumes": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/binding"}
+        },
+        "produces": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/name"}
+        },
+        "manual_checkpoint": {
+          "enum": ["external-dns", "none", "provider-console"]
+        },
+        "readback": {
+          "enum": ["not-applicable", "operator-attested", "provider-verified"]
+        }
+      }
+    },
+    "destructiveBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "resource_types"],
+      "properties": {
+        "allowed": {"enum": [false, true]},
+        "resource_types": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/name"}
+        }
+      }
+    }
+  }
+}

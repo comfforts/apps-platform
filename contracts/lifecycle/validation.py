@@ -18,11 +18,23 @@ from contracts.validation import (
 
 LIFECYCLE_DIRECTORY = Path(__file__).resolve().parent
 SCHEMA_DIRECTORY = LIFECYCLE_DIRECTORY / "schemas"
-PROFILE_DIRECTORY = LIFECYCLE_DIRECTORY.parents[1] / "infrastructure" / "config" / "profiles"
-SCHEMA_FILES = ("environment-profile.v1.schema.json",)
+PROFILE_DIRECTORY = (
+    LIFECYCLE_DIRECTORY.parents[1] / "infrastructure" / "config" / "profiles"
+)
+SCHEMA_FILES = (
+    "deployment-specification.v1.schema.json",
+    "environment-profile.v1.schema.json",
+    "execution-journal.v1.schema.json",
+)
 SCHEMA_IDS = {
+    "deployment-specification": (
+        "urn:comfforts:app-platform:lifecycle:deployment-specification:v1"
+    ),
     "environment-profile": (
         "urn:comfforts:app-platform:lifecycle:environment-profile:v1"
+    ),
+    "execution-journal": (
+        "urn:comfforts:app-platform:lifecycle:execution-journal:v1"
     ),
 }
 
@@ -41,10 +53,12 @@ _PROHIBITED_KEYS = {
 }
 _PROHIBITED_VALUE_MARKERS = (
     "-----begin private key-----",
+    ":latest",
     ".tfplan",
     ".tfstate",
     "ghp_",
     "terraform_remote_state",
+    "/versions/latest",
     "ya29.",
 )
 _PLACEHOLDER_MARKERS = (
@@ -166,6 +180,129 @@ def _profile_violations(value: dict[str, Any]) -> list[Violation]:
     ]
 
 
+def _specification_violations(value: dict[str, Any]) -> list[Violation]:
+    stages = value.get("stages")
+    if not isinstance(stages, list):
+        return []
+    violations: list[Violation] = []
+    declared_outputs: dict[str, set[str]] = {}
+    for index, stage in enumerate(stages):
+        if not isinstance(stage, dict):
+            continue
+        stage_id = stage.get("stage_id")
+        stage_path = f"/stages/{index}"
+        if isinstance(stage_id, str):
+            if stage_id in declared_outputs:
+                violations.append(
+                    Violation(
+                        "STAGE_DUPLICATE",
+                        f"{stage_path}/stage_id",
+                        "stage identifier must be unique within a specification",
+                    )
+                )
+            produces = stage.get("produces")
+            declared_outputs[stage_id] = (
+                {item for item in produces if isinstance(item, str)}
+                if isinstance(produces, list)
+                else set()
+            )
+        consumes = stage.get("consumes")
+        if not isinstance(consumes, list):
+            continue
+        prior_stage_ids = {
+            item.get("stage_id")
+            for item in stages[:index]
+            if isinstance(item, dict) and isinstance(item.get("stage_id"), str)
+        }
+        for binding_index, binding in enumerate(consumes):
+            if not isinstance(binding, dict):
+                continue
+            binding_path = f"{stage_path}/consumes/{binding_index}"
+            producer = binding.get("stage_id")
+            output_name = binding.get("output_name")
+            if producer not in prior_stage_ids:
+                violations.append(
+                    Violation(
+                        "STAGE_BINDING_INVALID",
+                        f"{binding_path}/stage_id",
+                        "stage output must come from a declared earlier stage",
+                    )
+                )
+            elif output_name not in declared_outputs.get(producer, set()):
+                violations.append(
+                    Violation(
+                        "STAGE_BINDING_INVALID",
+                        f"{binding_path}/output_name",
+                        "stage output is not declared by its producer",
+                    )
+                )
+    operation = value.get("operation")
+    boundary = value.get("destructive_boundary")
+    if isinstance(boundary, dict):
+        allowed = boundary.get("allowed")
+        resources = boundary.get("resource_types")
+        if operation == "destroy":
+            if allowed is not True:
+                violations.append(
+                    Violation(
+                        "DESTRUCTIVE_BOUNDARY_INVALID",
+                        "/destructive_boundary/allowed",
+                        "destroy specifications require an explicit destructive boundary",
+                    )
+                )
+            if resources == []:
+                violations.append(
+                    Violation(
+                        "DESTRUCTIVE_BOUNDARY_INVALID",
+                        "/destructive_boundary/resource_types",
+                        "destroy specifications require explicit destructive resource types",
+                    )
+                )
+        elif allowed is not False or resources != []:
+            violations.append(
+                Violation(
+                    "DESTRUCTIVE_BOUNDARY_INVALID",
+                    "/destructive_boundary/allowed",
+                    "non-destroy specifications cannot authorize destructive scope",
+                )
+            )
+    return violations
+
+
+def _journal_violations(value: dict[str, Any]) -> list[Violation]:
+    violations: list[Violation] = []
+    revision = value.get("journal_revision")
+    predecessor = value.get("previous_journal_digest")
+    if revision == 1 and predecessor is not None:
+        violations.append(
+            Violation(
+                "JOURNAL_CHAIN_INVALID",
+                "/previous_journal_digest",
+                "journal revision 1 has no predecessor",
+            )
+        )
+    if isinstance(revision, int) and revision > 1 and not isinstance(predecessor, str):
+        violations.append(
+            Violation(
+                "JOURNAL_CHAIN_INVALID",
+                "/previous_journal_digest",
+                "later journal revisions require the predecessor digest",
+            )
+        )
+    entries = value.get("entries")
+    if isinstance(entries, list):
+        for index, entry in enumerate(entries):
+            if isinstance(entry, dict) and entry.get("sequence") != index + 1:
+                violations.append(
+                    Violation(
+                        "JOURNAL_SEQUENCE_INVALID",
+                        f"/entries/{index}/sequence",
+                        "journal entry sequence must be contiguous and one-based",
+                    )
+                )
+    return violations
+
+
 def validate_lifecycle_document(
     value: Any,
     expected_kind: str,
@@ -192,6 +329,184 @@ def validate_lifecycle_document(
             )
         if expected_kind == "environment-profile":
             violations.extend(_profile_violations(value))
+        elif expected_kind == "deployment-specification":
+            violations.extend(_specification_violations(value))
+        elif expected_kind == "execution-journal":
+            violations.extend(_journal_violations(value))
+    return _ordered(violations)
+
+
+def _relationship_violation(code: str, path: str, message: str) -> Violation:
+    return Violation(code, path, message)
+
+
+def _prefixed_violations(
+    prefix: str,
+    violations: tuple[Violation, ...],
+) -> list[Violation]:
+    return [
+        Violation(
+            item.code,
+            f"/{prefix}{item.path}" if item.path else f"/{prefix}",
+            item.message,
+        )
+        for item in violations
+    ]
+
+
+def validate_lifecycle_relationships(
+    *,
+    specification: dict[str, Any] | None = None,
+    journal: dict[str, Any] | None = None,
+    previous_journal: dict[str, Any] | None = None,
+    status: dict[str, Any] | None = None,
+    integration_bundle: dict[str, Any] | None = None,
+    attachment_bundle: dict[str, Any] | None = None,
+) -> tuple[Violation, ...]:
+    """Validate digest, environment, source, stage, and append-only relationships."""
+
+    violations: list[Violation] = []
+    documents = (
+        ("specification", specification, "deployment-specification"),
+        ("journal", journal, "execution-journal"),
+        ("previous_journal", previous_journal, "execution-journal"),
+    )
+    for prefix, document, kind in documents:
+        if document is not None:
+            violations.extend(
+                _prefixed_violations(
+                    prefix,
+                    validate_lifecycle_document(document, kind),
+                )
+            )
+    del status, integration_bundle, attachment_bundle
+    if violations:
+        return _ordered(violations)
+
+    if specification is not None and journal is not None:
+        expected_digest = lifecycle_digest(specification, "deployment-specification")
+        if journal.get("specification_digest") != expected_digest:
+            violations.append(
+                _relationship_violation(
+                    "DIGEST_MISMATCH",
+                    "/journal/specification_digest",
+                    "journal is not bound to the exact specification digest",
+                )
+            )
+        for field in ("environment", "operation"):
+            if journal.get(field) != specification.get(field):
+                violations.append(
+                    _relationship_violation(
+                        "DOCUMENT_RELATION_INVALID",
+                        f"/journal/{field}",
+                        f"journal {field} does not match the specification",
+                    )
+                )
+        source = specification.get("source")
+        expected_revision = source.get("revision") if isinstance(source, dict) else None
+        if journal.get("source_revision") != expected_revision:
+            violations.append(
+                _relationship_violation(
+                    "DOCUMENT_RELATION_INVALID",
+                    "/journal/source_revision",
+                    "journal source revision does not match the specification",
+                )
+            )
+        stages = specification.get("stages")
+        declared_stages = (
+            {
+                stage.get("stage_id"): stage
+                for stage in stages
+                if isinstance(stage, dict) and isinstance(stage.get("stage_id"), str)
+            }
+            if isinstance(stages, list)
+            else {}
+        )
+        entries = journal.get("entries")
+        if isinstance(entries, list):
+            for index, entry in enumerate(entries):
+                if not isinstance(entry, dict):
+                    continue
+                entry_path = f"/journal/entries/{index}"
+                stage = declared_stages.get(entry.get("stage_id"))
+                if stage is None:
+                    violations.append(
+                        _relationship_violation(
+                            "SCOPE_EXPANSION",
+                            f"{entry_path}/stage_id",
+                            "journal cannot name a stage outside its specification",
+                        )
+                    )
+                    allowed_outputs: set[str] = set()
+                else:
+                    produces = stage.get("produces")
+                    allowed_outputs = (
+                        {item for item in produces if isinstance(item, str)}
+                        if isinstance(produces, list)
+                        else set()
+                    )
+                outputs = entry.get("outputs")
+                if isinstance(outputs, list):
+                    for output_index, output in enumerate(outputs):
+                        if (
+                            isinstance(output, dict)
+                            and output.get("name") not in allowed_outputs
+                        ):
+                            violations.append(
+                                _relationship_violation(
+                                    "SCOPE_EXPANSION",
+                                    f"{entry_path}/outputs/{output_index}/name",
+                                    "journal output is not declared by its specification stage",
+                                )
+                            )
+                    if (
+                        stage is not None
+                        and entry.get("outcome") == "succeeded"
+                        and {output.get("name") for output in outputs if isinstance(output, dict)}
+                        != allowed_outputs
+                    ):
+                        violations.append(
+                            _relationship_violation(
+                                "STAGE_OUTPUT_INCOMPLETE",
+                                f"{entry_path}/outputs",
+                            "a succeeded stage must record every declared output exactly once",
+                            )
+                        )
+
+    if previous_journal is not None and journal is not None:
+        previous_revision = previous_journal.get("journal_revision")
+        if (
+            not isinstance(previous_revision, int)
+            or journal.get("journal_revision") != previous_revision + 1
+        ):
+            violations.append(
+                _relationship_violation(
+                    "JOURNAL_CHAIN_INVALID",
+                    "/journal/journal_revision",
+                    "journal revision must advance its predecessor by one",
+                )
+            )
+        expected_predecessor = lifecycle_digest(previous_journal, "execution-journal")
+        if journal.get("previous_journal_digest") != expected_predecessor:
+            violations.append(
+                _relationship_violation(
+                    "DIGEST_MISMATCH",
+                    "/journal/previous_journal_digest",
+                    "journal predecessor digest is stale or incorrect",
+                )
+            )
+        previous_entries = previous_journal.get("entries")
+        current_entries = journal.get("entries")
+        if isinstance(previous_entries, list) and isinstance(current_entries, list):
+            for index, entry in enumerate(previous_entries):
+                if index >= len(current_entries) or current_entries[index] != entry:
+                    violations.append(
+                        _relationship_violation(
+                            "JOURNAL_NOT_APPEND_ONLY",
+                            f"/journal/entries/{index}",
+                            "an existing journal entry cannot be removed or rewritten",
+                        )
+                    )
     return _ordered(violations)
 
 

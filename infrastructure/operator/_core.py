@@ -355,20 +355,39 @@ class LifecycleOperator:
         if pointer is None or pointer.get("specification_digest") != specification_digest:
             return None
         revision = pointer.get("journal_revision")
-        digest = pointer.get("journal_digest")
-        if not isinstance(revision, int) or not isinstance(digest, str):
+        pointer_digest = pointer.get("journal_digest")
+        if not isinstance(revision, int) or not isinstance(pointer_digest, str):
             raise ValueError("current journal pointer is invalid")
-        relative_path = (
-            f"{self._state_directory(environment)}/journals/"
-            f"{specification_digest[7:]}/{revision:08d}.v1.json"
-        )
-        loaded = load_lifecycle_document(
-            self._adapters.filesystem.state_path(relative_path),
-            "execution-journal",
-        )
-        if loaded.value is None or loaded.digest != digest or loaded.violations:
-            raise ValueError("stored execution journal is invalid or digest-mismatched")
-        return loaded.value, digest
+        specification = self._load_specification(environment, specification_digest)
+        previous: dict[str, Any] | None = None
+        current: dict[str, Any] | None = None
+        current_digest: str | None = None
+        for expected_revision in range(1, revision + 1):
+            relative_path = (
+                f"{self._state_directory(environment)}/journals/"
+                f"{specification_digest[7:]}/{expected_revision:08d}.v1.json"
+            )
+            loaded = load_lifecycle_document(
+                self._adapters.filesystem.state_path(relative_path),
+                "execution-journal",
+            )
+            if loaded.value is None or loaded.digest is None or loaded.violations:
+                raise ValueError("stored journal chain contains an invalid revision")
+            if loaded.value.get("journal_revision") != expected_revision:
+                raise ValueError("stored journal chain has a reordered revision")
+            relationships = validate_lifecycle_relationships(
+                specification=specification,
+                journal=loaded.value,
+                previous_journal=previous,
+            )
+            if relationships:
+                raise ValueError("stored journal chain is not append-only or digest-bound")
+            previous = loaded.value
+            current = loaded.value
+            current_digest = loaded.digest
+        if current is None or current_digest != pointer_digest:
+            raise ValueError("stored journal chain does not match its current pointer")
+        return current, current_digest
 
     def _has_conflicting_journal(
         self,
@@ -880,8 +899,9 @@ class LifecycleOperator:
                 journal,
                 previous,
             )
+            displayed_outcome = "failed" if blocker is not None else result.outcome
             self._adapters.terminal.write(
-                f"Stage {stage_id} closed with outcome {journal['status']}."
+                f"Stage {stage_id} closed with outcome {displayed_outcome}."
             )
             if blocker is not None:
                 return ExecutionResult(

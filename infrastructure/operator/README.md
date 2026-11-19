@@ -17,11 +17,12 @@ make platform-prepare ENVIRONMENT=staging
 make platform-status ENVIRONMENT=staging
 ```
 
-Preparation loads one committed profile, verifies local source/repository/tool facts, builds the
-complete nine-stage Deployment Specification, writes its canonical bytes, and asks for explicit
-approval of the exact digest. Completeness is established before approval. A cancelled approval
-leaves the complete specification unapproved; a source or profile change produces another digest
-and requires another approval. Production remains blocked by `OWNERSHIP_TRANSFER_REQUIRED`.
+Preparation loads one committed profile, verifies local source/repository/tool facts without
+forwarding ambient credential variables to the tool probe, builds the complete nine-stage
+Deployment Specification, writes its canonical bytes, and asks for explicit approval of the exact
+digest. Completeness is established before approval. A cancelled approval leaves the complete
+specification unapproved; a source or profile change produces another digest and requires another
+approval. Production remains blocked by `OWNERSHIP_TRANSFER_REQUIRED`.
 
 Status reads the current local specification and journal chain without writing a file. Before an
 execution journal exists, an environment remains truthfully `absent`; an approved specification is
@@ -35,7 +36,7 @@ mode `0600`. The documents contain no credential, secret payload, Terraform stat
 raw provider response. They are generated local operation records, not committed evidence.
 
 Journal execution is available in W4 only when a caller injects a deterministic stage executor.
-Tests prove append-only revisions, exact specification binding, last-closed-stage resume, truthful
-waiting/failure/cancellation, scope-conflict rejection, and prohibited-output redaction. The real
-CLI exposes no `deploy` command. AP-M9-W5 and W6 own Terraform lifecycle support and interactive
-deployment respectively.
+Tests prove the complete append-only digest chain, exact specification binding, last-closed-stage
+resume, truthful waiting/failure/cancellation, scope-conflict rejection, and prohibited-output
+redaction. The real CLI exposes no `deploy` command. AP-M9-W5 and W6 own Terraform lifecycle
+support and interactive deployment respectively.

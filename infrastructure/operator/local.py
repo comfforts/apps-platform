@@ -26,6 +26,16 @@ from infrastructure.tools.terraform_setup import (
 )
 
 
+def _credential_free_environment() -> dict[str, str]:
+    environment = {
+        name: os.environ[name]
+        for name in ("LANG", "LC_ALL", "LC_CTYPE", "PATH", "TMPDIR")
+        if name in os.environ
+    }
+    environment["CHECKPOINT_DISABLE"] = "1"
+    return environment
+
+
 class LocalFilesystem:
     """Keep private generated operator state separate from committed source."""
 
@@ -188,7 +198,7 @@ class PinnedTerraform:
                 check=True,
                 capture_output=True,
                 text=True,
-                env={**os.environ, "CHECKPOINT_DISABLE": "1"},
+                env=_credential_free_environment(),
             )
             version = json.loads(observed.stdout).get("terraform_version")
             terraform_record = manifest.get("terraform", {})

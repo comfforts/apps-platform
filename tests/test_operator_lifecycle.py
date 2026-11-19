@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 import io
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -20,6 +22,7 @@ from infrastructure.operator import (
 )
 from infrastructure.operator.local import LocalFilesystem
 from infrastructure.operator.cli import main as operator_main
+from infrastructure.operator import local as local_adapters
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -510,6 +513,103 @@ class OperatorLifecycleTest(unittest.TestCase):
             operator.status("staging")
 
             self.assertFalse(state_root.exists())
+
+    def test_status_rejects_tampering_in_any_retained_journal_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_root = Path(directory)
+            executor = FakeExecutor(
+                [
+                    StageExecution(
+                        outcome="succeeded",
+                        outputs=(("preflight-attestation", "verified"),),
+                    ),
+                    OperatorInterrupted(),
+                ]
+            )
+            operator, _ = self._operator(state_root, executor=executor)
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+            operator.execute("staging", prepared.specification_digest)
+            first_revision = next(state_root.rglob("00000001.v1.json"))
+            tampered = json.loads(first_revision.read_text(encoding="utf-8"))
+            tampered["status"] = "waiting"
+            first_revision.write_text(
+                json.dumps(tampered, sort_keys=True, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "journal chain"):
+                operator.status("staging")
+
+    def test_terraform_probe_removes_ambient_credential_variables(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            terraform = root / "terraform"
+            provider = root / "terraform-provider-google_8.11.0_test.zip"
+            terraform.write_bytes(b"terraform-binary")
+            provider.write_bytes(b"provider-package")
+            manifest = root / "manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "terraform": {
+                            "binary_sha256": hashlib.sha256(
+                                terraform.read_bytes()
+                            ).hexdigest(),
+                            "version": "1.17.2",
+                        },
+                        "google_provider": {
+                            "sha256": hashlib.sha256(
+                                provider.read_bytes()
+                            ).hexdigest(),
+                            "version": "8.11.0",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            completed = subprocess.CompletedProcess(
+                [str(terraform), "version", "-json"],
+                0,
+                stdout='{"terraform_version":"1.17.2"}',
+                stderr="",
+            )
+            with (
+                mock.patch.object(local_adapters, "TERRAFORM", terraform),
+                mock.patch.object(local_adapters, "MANIFEST", manifest),
+                mock.patch.object(local_adapters, "MIRROR_ROOT", root),
+                mock.patch.object(
+                    local_adapters.subprocess,
+                    "run",
+                    return_value=completed,
+                ) as run,
+                mock.patch.dict(
+                    local_adapters.os.environ,
+                    {
+                        "GOOGLE_CREDENTIALS": "prohibited",
+                        "GOOGLE_APPLICATION_CREDENTIALS": "prohibited",
+                        "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE": "prohibited",
+                        "GH_TOKEN": "prohibited",
+                        "GITHUB_TOKEN": "prohibited",
+                        "TF_TOKEN_example_com": "prohibited",
+                        "TF_CLI_ARGS": "prohibited",
+                    },
+                ),
+            ):
+                result = local_adapters.PinnedTerraform().inspect()
+
+            self.assertEqual(result.blockers, ())
+            environment = run.call_args.kwargs["env"]
+            for name in (
+                "GOOGLE_CREDENTIALS",
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE",
+                "GH_TOKEN",
+                "GITHUB_TOKEN",
+                "TF_TOKEN_example_com",
+                "TF_CLI_ARGS",
+            ):
+                self.assertNotIn(name, environment)
 
 
 if __name__ == "__main__":

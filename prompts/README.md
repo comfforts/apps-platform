@@ -4,13 +4,10 @@ Prompts are bounded task entry points, not architecture authority. Each prompt m
 platform documentation required for its task instead of copying requirements, decisions, or
 acceptance criteria.
 
-- [AP-M8-W2 manifest-acceptance handoff](starting_prompt.md) starts a new chat from updated, clean
-  `main` only after the W2 repository-support pull request merges. The prompt loads the accepted
-  authority and implemented local manifest interface before the first real manifest is created and
-  validated outside Git.
+- [AP-M9-W2 retired-manifest cleanup handoff](starting_prompt.md) starts a new chat from updated,
+  clean `main` only after the AP-M9-W1 pull request merges. It removes the obsolete AP-M8 manifest
+  interface while preserving AP-M7 configuration behavior and the historical record.
 
-The handoff prompt authorizes only the post-merge creation, deterministic validation, and explicit
-owner acceptance of one bounded non-secret AP-M8-W2 manifest revision. It does not authorize
-AP-M8-W3, repository-setting changes, federation, credentials, backend initialization, an
-authenticated plan or apply, a cloud or DNS mutation, deployment, Application Adoption, or Live
-qualification.
+The handoff authorizes repository cleanup only. It does not authorize AP-M9-W3 implementation,
+repository-setting changes, credentials, backend initialization, an authenticated plan or apply,
+a cloud or DNS mutation, deployment, Application Adoption, or Live qualification.

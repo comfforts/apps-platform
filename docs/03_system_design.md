@@ -499,13 +499,13 @@ the apply by source and plan digests. Each workflow identity is limited to its n
 operation. One concurrency guard and the backend lock prevent competing mutations.
 
 The dedicated repository is fixed as `comfforts/apps-platform`, with protected `main` as the only
-normal source ref. Exact repository numeric identifiers, workflow files, protected environment
-names, federation resources, operation service accounts, and IAM bindings must be reviewed before a
-federation binding can exist. Until the complete AP-M8 authority is accepted and each named
-checkpoint is separately approved, this remains planning authority only. Local checks, validation,
-read-only local planning, and readback remain available, but normal local apply is prohibited. An
-owner-declared break-glass operation uses short-lived credentials, exact targets, state backup,
-readback, and reconciliation; it never uses a stored service-account key.
+normal source ref. AP-M9 preparation may discover read-only repository identifiers, but every
+workflow, environment, federation resource, operation identity, and IAM binding is presented for
+exact review before it can exist. Local checks remain credential-free. External planning,
+readback, and mutation become available only through their implemented AP-M9 operator stage and
+exact approval; normal ad hoc local apply is prohibited. An owner-declared break-glass operation
+uses short-lived credentials, exact targets, state backup, readback, and reconciliation; it never
+uses a stored service-account key.
 
 Bootstrap, import, force-unlock, state push, backend changes, rollback, and destroy are explicit
 operator procedures rather than hidden Terraform side effects. A provider error stops for

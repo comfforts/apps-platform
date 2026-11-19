@@ -1,240 +1,121 @@
 # App Platform documentation
 
-Version 1.14 | Status: AP-M8-W1 owner-accepted and merged; AP-M8-W2 operator-manifest contract and
-deterministic chain validation implemented locally; post-merge real-manifest acceptance and every
-external operator action pending; deployment, Live, and Adoption qualification unavailable
+Version 1.15 | Status: AP-M9-W1 governance rebaseline in review; AP-M8-W1/W2 retained as
+historical evidence; no platform environment is deployed or qualified
 
-This directory is the design authority for Comfforts App Platform. AP-M3 supplies Contract (`C`)
-evidence through the logical design, threat boundary, Version 1 schemas, deterministic compiler,
-and reviewed vectors. AP-M4 supplies Fixture (`F`) evidence through a synchronous in-process
-reference edge, synthetic identity boundary, three independent Fixture Applications, reviewed
-registration generations, and deterministic lifecycle journeys. AP-M5 supplies accepted provider
-topology, identity, state, operator, lifecycle, evidence, incident, and cost planning plus a
-deterministic planning gate. AP-M6 supplies locally tested repository implementation of the
-networked Shared Edge and production-adapter logic through deterministic fakes and process-local
-loopback. Live (`L`) and Adoption (`A`) evidence remain unavailable. No deployed Shared Edge,
-provider identity, cloud resource, DNS change, application migration, or production credential is
-implemented.
-Repository extraction is governed by a reviewed runbook. Its history-preserving extraction, root
-check, dedicated-repository settings, reconciliation merge, explicit canonical-authority cutover,
-and separately reviewed source-repository cleanup are complete. This dedicated repository is the
-sole App Platform authority; the extraction supplied no Terraform, cloud, or application authority.
+This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
+(`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. Live
+(`L`) and Application Adoption (`A`) evidence do not. Repository implementation does not imply a
+credential, backend, provider, DNS, deployment, or application-adoption action.
 
-## Current reading order and authority
+## Reading order
 
-1. [Project overview](../README.md) states the current operational status and project boundary.
-2. [Domain glossary](../GLOSSARY.md) supplies canonical governance terms.
-3. [Product requirements](01_product_requirements.md) defines required behavior, quality, scope, and
-   ownership boundaries.
-4. [Architecture decision records](02_architecture_decision_records.md) constrain shared-edge,
-   application, registration, state, provider, identity, and operator boundaries.
-5. [System design](03_system_design.md) defines logical modules, interfaces, lifecycle, state
-   ownership, selected Live topology, and unresolved implementation inputs.
-6. [Threat model](06_threat_model.md) defines trust zones, threats, controls, and evidence classes.
-7. [AP-M3 through AP-M8 implementation plan](04_implementation_plan.md) owns delivery items 3
-   through 8 and separates static Terraform, qualification deployment, and Live work.
-8. [Evaluation strategy](05_evaluation_strategy.md) defines AP-M3 through AP-M8 deterministic gates
-   and the future AP-M9 claim boundary.
-9. [Version 1 contract index](../contracts/README.md) owns machine interfaces subordinate to the
-   requirements, accepted decisions, and system design.
-10. [Repository layout](repository_layout.md) defines dedicated-root capability ownership and
-    repository-transition rules.
-11. [Runbook index](runbooks/README.md) owns subordinate, explicitly approved operator procedures.
-12. [Repository extraction runbook](runbooks/repository_extraction.md) defines the history,
-    verification, mutation, and authority-cutover gates for the dedicated repository.
-13. [Repository extraction handoff](repository_extraction_handoff.md) records the secret-free
-    evidence for all five completed extraction checkpoints and the canonical repository boundary.
-14. [Prompt ownership](../prompts/README.md) keeps task entry points separate from specifications.
-15. [AP-M8-W2 acceptance handoff](../prompts/starting_prompt.md) provides a bounded post-merge entry
-    point for creating, validating, and explicitly accepting the first real non-secret manifest.
+Read these documents completely, in order, before modifying the platform:
 
-AP-M3 Contract behavior, AP-M4 Fixture behavior, and AP-M5 planning authority are merged and pass
-their deterministic gates. AP-M6-W1 through AP-M6-W11 are implemented locally, and the complete
-AP-EVAL-M6 gate passes. AP-M6-W2 implements the locked dependency environment and closed-default
-ASGI foundation. AP-M6-W3 implements bounded immutable-generation
-loading and a locally tested Cloud Storage source adapter; it performs no provider operation.
-AP-M6-W4 implements escaped catalogue projection, canonical path closure, registered route and
-mount selection, and path rewriting. AP-M6-W5 implements the Google OIDC and opaque Platform
-Session boundary, public/authenticated/restricted admission, exact restricted membership, absolute
-expiry, safe logout, and production/fake provider and store seams. AP-M6-W6 implements minimized
-ES256 assertions, exact application audiences, Cloud KMS and deterministic signing seams,
-public-only current/overlap JWKS, visitor-
-value replacement, and independent application verification with bounded key caching. AP-M6-W7
-implements strict Cloud Run URN parsing, injected production/fake metadata adapters, and exact
-readiness, owner, audience, and edge-caller grant checks. AP-M6-W8 implements bounded HTTP,
-HTTP-stream, SSE, upload, download, and WebSocket delivery with service identity, header
-replacement, cancellation, timeouts, concurrency, and process-local rate limits. Deterministic
-verification uses only fakes and ephemeral loopback transports; it performs no provider operation.
-AP-M6-W9 implements operator-authorized generation status, shared correlation, coarse local adapter
-health, and one typed redacted completion event per request or stream. It configures no operator
-identity, provider log sink, bucket, retention, or Live readback. AP-M6-W10 binds all runtime and
-prior regression gates into the default check, enforces loopback-only tests and clean extraction,
-and verifies exact limits, isolation, and redaction. AP-M6-W11 records only local implementation
-status and hands the next task to AP-M7 after merge. An absent behavior or later authority must not
-be inferred from planning documents, fixture code, branch history, discussion, or an Integration
-Draft.
+1. [Project overview](../README.md) — current product boundary and status.
+2. [Domain glossary](../GLOSSARY.md) — canonical terms.
+3. [Product requirements](01_product_requirements.md) — AP-PR-001 through AP-PR-012 and AP-QR-001
+   through AP-QR-009.
+4. [Architecture decision records](02_architecture_decision_records.md) — ADR-001 through ADR-013.
+5. [System design](03_system_design.md) — interfaces, ownership, lifecycle, and provider design.
+6. [Threat model](06_threat_model.md) — trust zones, threats, controls, and evidence classes.
+7. [Implementation plan](04_implementation_plan.md) — the active AP-M9-W1 through AP-M9-W10
+   sequence and historical milestone records.
+8. [Evaluation strategy](05_evaluation_strategy.md) — AP-EVAL-M9 gates and claim boundaries.
+9. [Contract index](../contracts/README.md) — public machine interfaces.
+10. [Repository layout](repository_layout.md) — capability placement and transition rules.
+11. [Runbook index](runbooks/README.md) — subordinate operator procedures.
+12. [AP-M9 environment lifecycle](runbooks/environment_lifecycle.md) — current human-operated
+    lifecycle design and its unavailable actions.
+13. [Repository extraction runbook](runbooks/repository_extraction.md) and
+    [handoff](repository_extraction_handoff.md) — completed canonical repository transition
+    procedure and evidence.
+14. [Prompt index](../prompts/README.md) — bounded next-task entry points.
 
-AP-M7-W1 through AP-M7-W11 are implemented locally, and the complete AP-EVAL-M7 gate passes.
-That result covers only static Terraform configuration, Version 1 configuration contracts,
-plan-only mocked-provider tests, inert workflow templates, offline extraction, and prior repository
-regressions. It proves no backend, provider, repository-setting, federation, deployment, DNS,
-Live, or Adoption behavior.
+The material under [`docs/history/`](history/README.md) preserves superseded delivery evidence. It
+is not part of the active instruction path and cannot authorize an operation.
 
-AP-M8-W1 is owner-accepted and merged, and its deterministic governance gate passes. It defines
-AP-M8-W1 through AP-M8-W12,
-AP-EVAL-M8-01 through AP-EVAL-M8-10, five protected environment classes, ten operation-specific
-identity authorities, four state buckets preserving five independent root lineages, the private
-bootstrap and migration boundary, Version 2 foundation/candidate phases, the fixed eight-stage
-deployment order, the separate DNS/TLS checkpoint, and a closed private evidence bundle with
-mandatory pass/fail/blocked/unavailable semantics. These definitions neither implement the
-reserved paths nor authorize a repository setting, identity, backend, provider, build,
-publication, generation, DNS, deployment, readback, evidence, recovery, or destructive action.
-AP-M8-W2 now implements the closed Version 1 operator-manifest revision schema, pure bounded
-loading, canonical digesting, immutable-input and predecessor-chain policy, and explicitly
-synthetic regression material. It contains no real operator manifest and performs no discovery or
-external access. After the W2 pull request merges, the owner must validate and explicitly accept
-one real non-secret manifest and its digest for that exact protected-main revision. AP-M8-W3
-through AP-M8-W12 remain unavailable until that checkpoint passes. AP-M9 remains separate.
+## Milestone status
 
-## Incremental delivery sequence
+| Milestone | Status | Evidence boundary |
+| --- | --- | --- |
+| AP-M3 | complete | Version 1 contracts and deterministic compilation |
+| AP-M4 | complete | in-process Fixture qualification |
+| AP-M5 | complete | infrastructure and Live-qualification planning |
+| AP-M6 | complete | network runtime tested with fakes and loopback |
+| AP-M7 | complete | static Terraform and inert workflow templates |
+| AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
+| AP-M9 | W1 in review | operator-driven environment and application lifecycle |
 
-Each numbered item is a separate bounded branch and pull request. Start it from updated `main`, use
-small reviewable commits, merge it, and only then begin the next item.
+AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
+AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
+retroactively turn them into deployment evidence.
 
-1. **Governance foundation — complete:** standalone project root, authority routing, extraction
-   boundary, local checks, and extraction-owned root workflow.
-2. **Requirements and decisions — complete:** product/quality requirements, accepted ownership,
-   admission and fixture-first ADRs, handoff prompt, and inactive Finance integration package.
-3. **System design and versioned contracts — complete:** AP-M3 defines the logical platform, threat
-   and evidence boundary, Version 1 machine contracts, deterministic compiler, and reviewed
-   vectors. Its pull request is merged, and its repository behavior supplies Contract evidence.
-4. **Deterministic fixtures — complete and Fixture-qualified:** AP-M4 defines and exercises the
-   bounded in-process reference edge, synthetic identity, three independent fixtures, reviewed
-   registrations, lifecycle, failure isolation, and rollback. Its merged implementation supplies
-   Fixture evidence without a socket, credential, provider, Terraform, cloud resource, DNS
-   mutation, or application migration.
-5. **Platform infrastructure planning — implemented and planning-validated:** AP-M5 records
-   ADR-005 through ADR-009, the provider-specific design, AP-M5 plan, AP-EVAL-M5, and future claim
-   boundaries. It creates no runtime, Terraform, workflow authority, cloud resource, DNS change, or
-   Live evidence. Its merged evidence proves planning consistency only.
-6. **Networked provider runtime — locally implemented:** AP-M6 implements the deep ASGI module,
-   locked dependency policy, exact request profile, eleven work packages, and ten deterministic
-   gates. The default gate passes with deterministic fakes and process-local loopback. This is
-   repository implementation evidence only: AP-M6 performs no Terraform, cloud mutation,
-   deployment, Live qualification, or Application Adoption. Repository extraction, reconciliation,
-   canonical cutover, and source cleanup are complete.
-7. **Terraform and workflow implementation — locally implemented and statically verified:** AP-M7-W1
-   defines the root interfaces, configuration contracts, work packages, and deterministic
-   AP-EVAL-M7 gate. AP-M7-W2 implements exact CLI/provider constraints, committed root locks,
-   ignored local dependencies, and disposable-copy offline format/init/validate checks. AP-M7-W3
-   implements five closed Version 1 configuration schema families, synthetic examples, and bounded
-   deterministic loading and semantic policy. AP-M7-W4 implements one internal state-bucket module,
-   the bootstrap root, four exclusive state owners, recovery controls, and typed backend references
-   tested only through plan-mode mocked providers. AP-M7-W5 implements one internal Fixture
-   Application module and independent public, authenticated, and restricted roots with runtime
-   identities, internal-only ingress, edge-caller Invoker intent, bounded scaling, non-secret
-   identity references, and typed attachment outputs. AP-M7-W6 implements private versioned
-   configuration storage, immutable generation metadata without object upload, Firestore Native
-   session settings and TTL, separate edge identities, regional software ES256 signing with manual
-   rotation and overlap intent, version-only OAuth secret references, minimal IAM intent, and typed
-   platform outputs. AP-M7-W7 implements one immutable, explicitly selected Cloud Run edge
-   candidate with the approved region, identity, ingress, scale, concurrency, and timeout profile;
-   three typed Fixture Application references consumed only as data; one global address, managed-
-   certificate intent, serverless backend, hostname-level URL map without application prefixes,
-   HTTPS forwarding, and HTTP-to-HTTPS redirect. Static and mocked-plan checks reject DNS, CDN,
-   WAF, arbitrary target URLs, application runtime ownership, direct-origin exposure, and
-   fragmented provider routing. AP-M7-W8 implements a regional seven-day log bucket, minimized
-   internal sink with prohibited-field exclusions, `_Default`-bucket exclusion for Shared Edge
-   revision logs, private 30-day evidence storage, owner-readable access intent, notification-only
-   USD 20 budget thresholds, dry-run-first image retention, required labels, exact runtime caps,
-   and prohibited-capability policy. Static and mocked-plan checks reject external log export, raw
-   evidence objects, public evidence access, automatic budget mutation, active cleanup deletion,
-   and later provider services. AP-M7-W9 implements separate inert advisory-plan, exact-main apply,
-   rollback, force-unlock, and destroy templates under `infrastructure/workflows/`. Static checks
-   enforce full-length action pins, read-only default permissions, protected environment and main
-   placeholders, exact source/plan binding, root concurrency, same-job plan/apply, explicit
-   destructive targets, stop-on-partial-failure behavior, runner-temporary plans, secret-free
-   outcome metadata, and absence from `.github/workflows/`. AP-M7-W10 binds AP-EVAL-M7-01 through
-   AP-EVAL-M7-10 and all prior regression gates into `make check`; it enforces offline copy-local
-   provider use, history-independent extraction, explicit plan-only mocked tests for every root,
-   warning failure, prohibited-artifact scanning, and complete work-package and threat traceability.
-   AP-M7-W11 records only static repository implementation and the post-merge handoff. AP-M7
-   performs no authenticated plan or apply and supplies no provider, deployment, Live, or Adoption
-   evidence.
-8. **Non-production qualification deployment — W1 accepted; W2 repository support implemented:**
-   AP-M8-W1 defines the complete staged authority and deterministic evaluation profile. AP-M8-W2
-   implements only the non-secret append-only manifest contract and deterministic chain validator.
-   The first real manifest is created and accepted after merge; every external mutation remains
-   unavailable and retains its own later approval.
-9. **Live qualification — later:** AP-M9 must execute the approved Live gates against the exact
-   deployed revision and retain redacted evidence before any Live-qualified claim.
-10. **Finance Application Adoption — later and independent:** use the inactive integration package
-    only after platform qualification and Finance-owned adoption approval.
+## Active AP-M9 sequence
 
-The suggested names are workflow guidance, not product authority. A slice is complete only when its
-declared repository checks pass and its pull request is merged; deployed or qualified status still
-requires the evidence named by its later evaluation authority.
+Each work package is one bounded branch and pull request. Start it from updated, clean `main`, use
+small reviewable commits, merge it, and only then begin the next package.
 
-## Document precedence
+1. **AP-M9-W1 — governance rebaseline:** define the product lifecycle, authority, architecture,
+   threat controls, plan, evaluation, documentation routing, and historical boundary.
+2. **AP-M9-W2 — retired manifest cleanup:** remove the operator-manifest schema, validator,
+   synthetic example, command, tests, and obsolete active guidance without changing AP-M7 assets.
+3. **AP-M9-W3 — lifecycle contracts and profiles:** implement small staging/production profiles,
+   deployment specifications, execution journals, integration bundles, and attachment bundles.
+4. **AP-M9-W4 — interactive lifecycle core:** implement resumable in-process checkpoints, exact
+   approvals, bounded command execution, redaction, readback, and failure handling.
+5. **AP-M9-W5 — deployable Terraform:** adapt the existing static roots for isolated environment
+   state, explicit outputs, and lifecycle orchestration while preserving ownership boundaries.
+6. **AP-M9-W6 — interactive platform deployment:** implement prepare, deploy, status, and outputs,
+   including human OAuth and external-DNS checkpoints.
+7. **AP-M9-W7 — application lifecycle:** implement registration, reversible detachment, and
+   terminal retirement using versioned bundles.
+8. **AP-M9-W8 — qualification and safe destruction:** implement revision-bound qualification and
+   environment destruction that never destroys Application State.
+9. **AP-M9-W9 — staging operation:** deploy and qualify `apps-staging.comfforts.com` with synthetic
+   applications under new explicit owner approvals.
+10. **AP-M9-W10 — production readiness:** prove the production handoff and stop with
+    `OWNERSHIP_TRANSFER_REQUIRED` while Finance Assistant or `apps.comfforts.com` remains
+    Finance-owned.
 
-Conflicts are resolved in this order:
+No staging deployment is available before AP-M9-W8 merges. AP-M9-W9 owns the first real staging
+operation and requires its own values and approvals. Production migration and Application Adoption
+remain separate owner-controlled work after AP-M9-W10.
 
-1. Requirements specification
-2. Accepted architecture decision records
-3. System design
-4. Versioned contract index and schemas
-5. Implementation plan
-6. Evaluation strategy and threat-specific evidence requirements
-7. Runbooks and delivery evidence
-8. Prompts
+## Authority and claim discipline
 
-Current AP-M3 and AP-M4 authorities authorize the Version 1 contract implementation, deterministic
-in-process Fixture harness, and their Contract and Fixture evidence. AP-M5 authorizes planning, and
-AP-M6 authorizes only local provider-runtime implementation and tests after AP-M6-W1 acceptance.
-AP-M7 authorizes only static Terraform configuration and inert workflow templates after AP-M7-W1
-acceptance. AP-M8-W1 is owner-accepted and merged. AP-M8-W2 authorizes only its repository contract,
-validator, synthetic examples, and post-merge manifest-acceptance checkpoint. AP-M8-W3 through
-AP-M8-W12 retain their own work-package or operator approvals. Deployment, Live qualification, and
-Application Adoption remain separate AP-M8, AP-M9, or application-owned gates.
+Conflicts are resolved in this order: requirements, accepted ADRs, system design, public contracts,
+implementation plan, evaluation strategy and threat evidence, runbooks and delivery evidence, then
+prompts. A later document cannot silently broaden an earlier authority.
 
-## Scope labels
+Use these status meanings:
 
-- **Governance foundation:** project authority, vocabulary, layout, agent routing, and checks without
-  product behavior.
-- **Proposed:** a requirement or decision awaiting its named validation and approval.
-- **Implemented:** repository behavior exists and passes deterministic checks; no live operation is
+- **Planned:** authority or behavior is described but not implemented.
+- **Implemented:** repository behavior exists and passes deterministic checks; no live action is
   implied.
-- **Qualified:** the declared evaluation gate has revision-scoped evidence.
-- **Integration draft:** a non-authoritative input for a consuming application.
-- **Historical evidence:** an immutable account of an earlier implementation or qualification.
+- **Qualified:** the named evaluation gate has revision-scoped evidence.
+- **Integration draft:** a non-authoritative input awaiting adoption by its consuming application.
+- **Historical evidence:** an immutable record that provides no current action authority.
 
-## Application boundary
-
-The App Platform owns only the boundaries assigned by its product requirements and accepted
-decisions. Application data, provider rights, Feature Entitlements, and product behavior remain
-under each application's own authority. Nothing under this subtree changes the active Finance
-Assistant requirements, contracts, Terraform state, DNS, IAP configuration, or deployment.
+The App Platform owns only shared platform boundaries. Application data, stores, providers,
+secrets, principals, entitlements, runtime deployment, and Application State remain application
+owned. Finance Assistant and `apps.comfforts.com` remain unchanged until their own adoption and
+ownership-transfer authorities are approved.
 
 ## Inactive integration inputs
 
-- [Finance Assistant integration draft](../integrations/ai_finance_assistant/README.md) preserves a
-  proposed edge-ownership transfer and future Finance documentation deltas. It is not platform or
-  Finance authority, implementation evidence, or permission to migrate an application.
+[`integrations/ai_finance_assistant/README.md`](../integrations/ai_finance_assistant/README.md) is
+discoverable compatibility material, not part of the platform authority chain. Read it only for an
+explicitly scoped compatibility or adoption task. It cannot define generic platform behavior or
+activate an application adoption.
 
-Read an Integration Draft only after the platform authorities above and only when its consuming
-application or a proposed interface makes it relevant. A draft cannot weaken generic platform
-requirements or silently specialize the platform around one application.
+## Evidence and secret boundary
 
-## Evidence discipline
+Keep credentials, OAuth client secrets, Terraform state, saved plans, authenticated browser state,
+provider payloads, and unredacted Live evidence outside Git. The future Platform Integration Bundle
+and Application Attachment Bundle are non-secret. Secret consumers receive stable secret-manager
+references, not secret values.
 
-Passing contract and Fixture tests are revision-scoped Contract and Fixture evidence. Passing
-AP-EVAL-M5 proves planning consistency only. Passing AP-EVAL-M6 proves only the locally tested
-runtime implementation named by that gate. Passing AP-EVAL-M7 proves only static Terraform,
-configuration-contract, and inert workflow-template implementation at the evaluated revision.
-Passing the AP-M8-W1 governance checks proves only that its accepted authority is internally
-complete and closed. Passing the AP-M8-W2 repository checks proves only the local manifest contract,
-canonical digest, predecessor policy, and synthetic examples; it is not acceptance of a real
-manifest or AP-EVAL-M8 deployment evidence. None is deployed or operational evidence. Each future
-capability must pass its named gate and, where applicable, retain secret-free Live evidence.
-Credentials, Terraform state, saved plans, authenticated browser state, and unredacted external
-payloads are never committed.
+Run `make check` from the repository root for the credential-free, deterministic, non-mutating
+repository gate. Authenticated plans, applies, DNS changes, identity changes, qualification, and
+destruction must use later explicit AP-M9 operator targets and approvals.

@@ -67,7 +67,7 @@ class FinanceIntegrationDraftTest(unittest.TestCase):
         self.assertIn("only if the owner separately scopes", normalized_prompt)
         self.assertIn("non-authoritative", normalized_prompt)
         self.assertIn("cannot define generic platform behavior", normalized_prompt)
-        self.assertIn("Inactive application-adoption inputs", layout)
+        self.assertIn("inactive application-adoption inputs", layout)
 
     def test_transfer_contract_preserves_exclusive_ownership_and_finance_boundaries(self) -> None:
         contract = (PACKAGE_ROOT / "edge_migration_contract.draft.md").read_text(

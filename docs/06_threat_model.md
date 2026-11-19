@@ -1,7 +1,7 @@
 # App Platform threat model
 
-Version 1.8 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
-implemented AP-M9-W6 repository lifecycle controls; no provider operation or live
+Version 1.9 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
+implemented AP-M9-W7 repository lifecycle controls; no provider operation or live
 infrastructure is deployed
 
 This document defines the security and privacy threats created by the logical App Platform design,
@@ -814,9 +814,12 @@ redaction, and interruption-safe fake execution through injected adapters, AP-M9
 exact backend, operation-authority, phase, output, and plan-policy declarations through mocked
 providers and command fakes, and AP-M9-W6 implements fresh private-plan binding, exact typed
 confirmation, shell-free commands, same-process OAuth/DNS checkpoints, bounded DNS/TLS polling,
-readback, redacted transcripts, and last-closed-stage resume. The non-fake command adapter remains
-uninvoked and the default local construction remains unarmed. No current result proves an identity,
-backend, provider, OAuth, DNS,
+readback, redacted transcripts, and last-closed-stage resume. AP-M9-W7 implements least-data
+application outputs, current-platform and target-posture checks, create-only immutable whole-
+generation publication, exact activation confirmation, detached/retired route isolation, and
+interruption-safe retry. The non-fake command adapter remains uninvoked and all application-
+integration effects remain injected; the default local construction remains unarmed.
+No current result proves an identity, backend, provider, OAuth, DNS,
 deployment, or Live control operational.
 
 ## Unresolved security decisions

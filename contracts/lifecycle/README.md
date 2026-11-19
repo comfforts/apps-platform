@@ -1,6 +1,7 @@
 # AP-M9 lifecycle contracts
 
-Version 1 | Status: AP-M9-W3 lifecycle contracts implemented; no operator or provider action
+Version 1 | Status: AP-M9-W3 contracts and AP-M9-W7 application-lifecycle consumers implemented;
+no provider action
 
 This package owns the closed, non-secret AP-M9 Environment Profile and lifecycle document
 interfaces. It is separate from the exact AP-M3 public-contract registry and the AP-M7
@@ -67,5 +68,8 @@ revisions, address, plan digest, OAuth identifier, and target reference do not d
 resources or accepted operator input.
 
 This package intentionally exposes no prompt, approval, execution, resume, provider, Terraform,
-DNS, credential, or mutation behavior. AP-M9-W4 consumes these documents from the separate deep
-operator module; provider and mutation behavior remain later work.
+DNS, credential, or mutation behavior. The separate deep operator module consumes these documents:
+W4 for preparation/status, W6 for staged deployment, and W7 for least-data output generation,
+attachment validation, and immutable whole-generation application lifecycle. The W7 provider and
+generation-control seams remain injected and locally unarmed; live provider behavior remains later
+work.

@@ -1,6 +1,6 @@
 # App Platform evaluation strategy
 
-Version 0.12 | Status: AP-M9-W6 interactive deployment repository controls implemented; historical AP-EVAL-M8
+Version 0.13 | Status: AP-M9-W7 application lifecycle repository controls implemented; historical AP-EVAL-M8
 and standalone AP-EVAL-M9 proposals superseded without execution; no AP-M9 provider or Live result
 exists
 
@@ -12,8 +12,10 @@ mocked providers. AP-M9-W3 supplies lifecycle Contract evidence, W4 supplies det
 repository evidence for preparation, approval, status, redaction, journaling, and fake resume, and
 W5 supplies deterministic backend, authority, plan-policy, phase-output, mocked-plan, and command-
 fake evidence. W6 supplies exact-plan/action binding, typed confirmation, same-process manual
-checkpoint, bounded-poll, transcript-redaction, stop-on-discrepancy, and resume evidence. No
-result qualifies a provider operation, Live environment, consuming application's adoption, or
+checkpoint, bounded-poll, transcript-redaction, stop-on-discrepancy, and resume evidence. W7
+supplies deterministic least-data output, attachment/target validation, immutable generation,
+activation, detach/reactivate, retirement, route-response, interruption, and conflict evidence.
+No result qualifies a provider operation, Live environment, consuming application's adoption, or
 product authorization.
 
 Plan: [App Platform implementation plan](04_implementation_plan.md)
@@ -1664,7 +1666,8 @@ destruction. Those remain production-cutover, later migration, or Application Ad
 This definition originated in AP-M9-W1. AP-M9-W2 removed the retired manifest path, W3 implemented
 the lifecycle contracts, W4 implemented credential-free preparation/status and deterministic fake
 journal execution, W5 implemented repository-only Terraform lifecycle policy and mocked plans, and
-W6 implemented the unarmed interactive deployment engine plus closed command boundary. They create
-no identity, credential, Terraform state or saved plan, provider
+W6 implemented the unarmed interactive deployment engine plus closed command boundary. W7
+implemented application handoff and registration lifecycle controls behind injected boundaries.
+They create no identity, credential, Terraform state or saved plan, provider
 resource, OAuth client, secret, DNS record, certificate, application asset, Live evidence bundle,
 deployment, destruction, or passing operational result.

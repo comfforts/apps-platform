@@ -1,7 +1,7 @@
 # App Platform contracts
 
-Version 1 | Status: machine-contract authority; fixture adapter and AP-M6 generation/routing
-consumers implemented, no attachment provider adapter
+Version 1 | Status: machine-contract authority; fixture, AP-M6 runtime, and AP-M9-W7 application
+lifecycle consumers implemented; no live attachment provider adapter
 
 This directory defines the versioned machine interfaces for AP-M3. The contracts are authoritative
 only inside the App Platform project and are subordinate to the product requirements, accepted

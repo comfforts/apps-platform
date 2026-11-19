@@ -203,6 +203,7 @@ class DeploymentExecutor:
         self._terminal = terminal
         self._commands = commands
         self._waiter = waiter or _ImmediateWaiter()
+        self._seen_saved_plans: set[Path] = set()
         if not self._working_root.is_dir():
             raise ValueError("deployment working root must already exist")
         if stat.S_IMODE(self._working_root.stat().st_mode) & 0o077:
@@ -233,6 +234,9 @@ class DeploymentExecutor:
             return self._failure("SAVED_PLAN_PATH_INVALID")
         if stat.S_IMODE(resolved.stat().st_mode) & 0o077:
             return self._failure("SAVED_PLAN_NOT_PRIVATE")
+        if resolved in self._seen_saved_plans:
+            return self._failure("SAVED_PLAN_NOT_FRESH")
+        self._seen_saved_plans.add(resolved)
         digest = f"sha256:{hashlib.sha256(resolved.read_bytes()).hexdigest()}"
         return ExactTerraformPlan(
             saved_plan_path=resolved,

@@ -9,7 +9,12 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from infrastructure.operator import StageContext
+from infrastructure.operator import (
+    LifecycleOperator,
+    OperatorAdapters,
+    OperatorInterrupted,
+    StageContext,
+)
 from infrastructure.operator.deployment import (
     ActionProposal,
     CheckpointVerification,
@@ -21,6 +26,13 @@ from infrastructure.operator.deployment import (
     TerraformPlanArtifact,
     TerraformReadback,
 )
+from infrastructure.operator.local import LocalFilesystem
+from tests.test_operator_lifecycle import (
+    FakeDiscovery,
+    FakeGit,
+    FakeTerraform,
+    FixedClock,
+)
 
 
 SOURCE_REVISION = "4" * 40
@@ -31,6 +43,7 @@ RESOURCE_TYPES = {
     "platform-foundation": "google_storage_bucket",
     "shared-edge": "google_compute_global_address",
 }
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _context(stage_id: str, produces: tuple[str, ...]) -> StageContext:
@@ -57,9 +70,14 @@ def _context(stage_id: str, produces: tuple[str, ...]) -> StageContext:
 @dataclass
 class FakeTerminal:
     typed_approvals: list[bool] = field(default_factory=lambda: [True])
+    approvals: list[bool] = field(default_factory=lambda: [True])
     confirmations: list[tuple[str, str]] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
     pauses: list[str] = field(default_factory=list)
+
+    def confirm(self, prompt: str) -> bool:
+        self.confirmations.append((prompt, "yes"))
+        return self.approvals.pop(0)
 
     def confirm_exact(self, prompt: str, expected: str) -> bool:
         self.confirmations.append((prompt, expected))
@@ -102,7 +120,7 @@ class FakeCommands:
     def create_terraform_plan(self, request: object) -> TerraformPlanArtifact:
         self.planned.append(request)
         phase = str(getattr(request, "phase"))
-        path = self.working_root / f"{phase}.tfplan"
+        path = self.working_root / f"{phase}-{len(self.planned):04d}.tfplan"
         path.write_bytes(b"private saved plan")
         path.chmod(0o600)
         return TerraformPlanArtifact(
@@ -240,7 +258,11 @@ class FakeCommands:
         attempt: int,
     ) -> CheckpointVerification:
         self.manual_verifications.append((context, attempt))
-        outcome = self.checkpoint_outcomes.pop(0)
+        outcome = (
+            self.checkpoint_outcomes.pop(0)
+            if self.checkpoint_outcomes
+            else "succeeded"
+        )
         if outcome == "waiting":
             return CheckpointVerification(
                 outcome="waiting",
@@ -289,6 +311,44 @@ class PlatformDeploymentTest(unittest.TestCase):
             ),
             selected_terminal,
             selected_commands,
+        )
+
+    def _lifecycle_operator(
+        self,
+        state_root: Path,
+        terminal: FakeTerminal,
+        executor: DeploymentExecutor,
+        *,
+        git: FakeGit | None = None,
+    ) -> LifecycleOperator:
+        return LifecycleOperator(
+            OperatorAdapters(
+                git=git or FakeGit(),
+                github=FakeDiscovery(
+                    "github",
+                    (("repository", "comfforts/apps-platform"),),
+                ),
+                gcp=FakeDiscovery(
+                    "gcp",
+                    (
+                        ("project_id", "comfforts-platform-non-prod"),
+                        ("project_number", "455651441682"),
+                        ("region", "us-west1"),
+                    ),
+                ),
+                terraform=FakeTerraform(),
+                dns=FakeDiscovery(
+                    "dns",
+                    (
+                        ("provider_class", "squarespace-v1"),
+                        ("hostname", "apps-staging.comfforts.com"),
+                    ),
+                ),
+                terminal=terminal,
+                filesystem=LocalFilesystem(PROJECT_ROOT, state_root),
+                clock=FixedClock(),
+                executor=executor,
+            )
         )
 
     def test_exact_private_plan_is_policy_checked_confirmed_applied_and_read_back(
@@ -621,6 +681,126 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(result.blockers, ("PROHIBITED_ACTION_MATERIAL",))
         self.assertEqual(terminal.messages, [])
         self.assertEqual(terminal.confirmations, [])
+
+    def test_complete_first_deployment_transcript_and_no_change_are_truthful(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            working_root = base / "work"
+            working_root.mkdir(mode=0o700)
+            state_root = base / "state"
+            terminal = FakeTerminal(
+                typed_approvals=[True] * 5,
+                approvals=[True],
+            )
+            commands = FakeCommands(working_root)
+            executor = DeploymentExecutor(
+                working_root,
+                terminal,
+                commands,
+                waiter=FakeWaiter(),
+            )
+            operator = self._lifecycle_operator(
+                state_root,
+                terminal,
+                executor,
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            deployed = operator.execute("staging", prepared.specification_digest)
+            call_counts = (
+                len(commands.planned),
+                len(commands.executed_actions),
+                len(commands.manual_preparations),
+            )
+            unchanged = operator.execute("staging", prepared.specification_digest)
+
+        self.assertEqual(deployed.outcome, "succeeded")
+        assert deployed.journal is not None
+        self.assertEqual(
+            [entry["stage_id"] for entry in deployed.journal["entries"]],
+            [
+                "preflight",
+                "bootstrap",
+                "foundation",
+                "image-publish",
+                "oauth-configuration",
+                "shared-edge",
+                "external-dns",
+                "tls-readiness",
+                "readback",
+            ],
+        )
+        self.assertEqual(call_counts, (4, 1, 2))
+        self.assertEqual(unchanged.outcome, "unchanged")
+        self.assertEqual(
+            (
+                len(commands.planned),
+                len(commands.executed_actions),
+                len(commands.manual_preparations),
+            ),
+            call_counts,
+        )
+        transcript = "\n".join(
+            [
+                *(prompt for prompt, _ in terminal.confirmations),
+                *terminal.messages,
+                *terminal.pauses,
+            ]
+        )
+        self.assertIn("Comfforts Apps Staging", transcript)
+        self.assertIn("apps-staging.comfforts.com", transcript)
+        self.assertNotIn("oauth_client_secret", transcript)
+
+    def test_interruption_resumes_without_repeating_any_closed_mutation(self) -> None:
+        @dataclass
+        class InterruptOnceTerminal(FakeTerminal):
+            interrupt_once: bool = True
+
+            def pause(self, prompt: str) -> None:
+                super().pause(prompt)
+                if self.interrupt_once:
+                    self.interrupt_once = False
+                    raise OperatorInterrupted()
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            working_root = base / "work"
+            working_root.mkdir(mode=0o700)
+            terminal = InterruptOnceTerminal(
+                typed_approvals=[True] * 5,
+                approvals=[True],
+            )
+            commands = FakeCommands(working_root)
+            executor = DeploymentExecutor(
+                working_root,
+                terminal,
+                commands,
+                waiter=FakeWaiter(),
+            )
+            operator = self._lifecycle_operator(
+                base / "state",
+                terminal,
+                executor,
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            interrupted = operator.execute("staging", prepared.specification_digest)
+            closed_plan_count = len(commands.planned)
+            closed_action_count = len(commands.executed_actions)
+            resumed = operator.execute("staging", prepared.specification_digest)
+            last_closed_stage = operator.status("staging").environment_status[
+                "last_closed_stage"
+            ]
+
+        self.assertEqual(interrupted.outcome, "interrupted")
+        self.assertEqual(closed_plan_count, 2)
+        self.assertEqual(closed_action_count, 1)
+        self.assertEqual(resumed.outcome, "succeeded")
+        self.assertEqual(len(commands.planned), 4)
+        self.assertEqual(len(commands.executed_actions), 1)
+        self.assertEqual(last_closed_stage, "readback")
 
 
 if __name__ == "__main__":

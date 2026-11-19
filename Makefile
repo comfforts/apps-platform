@@ -1,8 +1,8 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check
 
-check: governance-check contract-check fixture-check runtime-check terraform-check ## Run every implemented deterministic platform check.
+check: governance-check contract-check fixture-check runtime-check terraform-check operator-check ## Run every implemented deterministic platform check.
 
 governance-check: ## Verify the standalone project shell without credentials or external services.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_governance tests.test_finance_integration_draft
@@ -21,3 +21,6 @@ terraform-setup: ## Install pinned Terraform dependencies into the ignored proje
 
 terraform-check: ## Verify the pinned Terraform foundation offline in a disposable copy.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_terraform_foundation tests.test_infrastructure_config tests.test_terraform_bootstrap tests.test_terraform_fixtures tests.test_terraform_platform_foundation tests.test_terraform_shared_edge tests.test_terraform_platform_controls tests.test_workflow_templates tests.test_terraform_qualification
+
+operator-check: ## Verify the credential-free interactive lifecycle core with deterministic adapters.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_operator_lifecycle

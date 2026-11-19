@@ -618,7 +618,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("independent synthetic Application State roots", layout)
 
-    def test_ap_m9_w2_handoff_loads_authority_without_granting_operations(
+    def test_ap_m9_w3_handoff_loads_authority_without_granting_operations(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -628,20 +628,22 @@ class ProjectAuthorityTest(unittest.TestCase):
         for authority in (
             "AGENTS.md",
             "docs/README.md",
-            "AP-M9-W2",
+            "AP-M9-W3",
             "AP-PR-010",
-            "AP-QR-007",
+            "AP-QR-003",
             "ADR-010",
             "AP-EVAL-M9-02",
+            "AP-TM-001",
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M9-W1 governance-rebaseline pull request has merged",
-            "Remove `infrastructure/config/schemas/operator-input-manifest.v1.schema.json`",
-            "Preserve every AP-M7 configuration contract and consumer",
-            "Leave AP-M9-W3 contracts and profiles unimplemented",
+            "after the AP-M9-W2 retired-manifest cleanup pull request has merged",
+            "Add small, closed, committed non-secret profiles",
+            "Add closed, versioned contracts for the Deployment Specification",
+            "Implement deterministic canonicalization, digest binding",
+            "Preserve AP-M7 configuration, Terraform, runtime, Fixture",
+            "Leave AP-M9-W4's interactive operator module",
             "Run `make check` from the repository root",
-            "Do not create an operator manifest",
             "Do not change repository settings",
             "Finance Assistant",
         ):
@@ -650,7 +652,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("## ADR-", prompt)
         self.assertNotIn("terraform apply", prompt)
         self.assertIn(
-            "[AP-M9-W2 retired-manifest cleanup handoff](starting_prompt.md)",
+            "[AP-M9-W3 lifecycle-contracts and profiles handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -664,10 +666,10 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(f"AP-M9-W{work_package}", index)
         self.assertIn("Each work package is one bounded branch and pull request", normalized_index)
         self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W10"))
-        self.assertIn("AP-M9-W2", normalized_prompt)
-        self.assertIn("retired manifest cleanup", normalized_prompt)
+        self.assertIn("AP-M9-W3", normalized_prompt)
+        self.assertIn("lifecycle-contracts", normalized_prompt)
         self.assertIn("Do not change repository settings", normalized_prompt)
-        self.assertIn("Leave AP-M9-W3 contracts and profiles unimplemented", normalized_prompt)
+        self.assertIn("Leave AP-M9-W4's interactive operator module", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import re
+from types import MappingProxyType
 from typing import Any, Mapping, Protocol
 
 from contracts.lifecycle import (
@@ -31,6 +33,62 @@ _VERIFICATIONS = {
     "provider-verified",
     "runtime-verified",
 }
+QUALIFICATION_CHECK_CAPABILITIES: Mapping[str, tuple[str, ...]] = MappingProxyType(
+    {
+        "admission-identity": (
+            "public-admission",
+            "authenticated-admission",
+            "restricted-admission",
+            "oauth",
+            "session",
+            "logout",
+        ),
+        "assertion-jwks": ("signed-assertion", "jwks"),
+        "attachment-posture": ("attachment-iam",),
+        "catalogue-routing": ("catalogue", "route-selection", "mount-rewrite"),
+        "direct-origin-denial": ("direct-origin-denial",),
+        "dns-tls": ("dns", "tls"),
+        "isolation-limits": (
+            "cross-application-isolation",
+            "failure-isolation",
+            "http",
+            "sse",
+            "websocket",
+            "upload",
+            "download",
+            "stream-limits",
+            "timeout",
+            "concurrency",
+        ),
+        "lifecycle-rollback": (
+            "detachment",
+            "reactivation",
+            "retirement",
+            "rollback",
+            "cache-window",
+        ),
+        "redaction": ("redaction",),
+        "source-integrity": (
+            "source-revision",
+            "component-revisions",
+            "fixture-revisions",
+            "active-generation",
+        ),
+    }
+)
+_CHECK_VERIFICATIONS = {
+    "admission-identity": "runtime-verified",
+    "assertion-jwks": "runtime-verified",
+    "attachment-posture": "provider-verified",
+    "catalogue-routing": "runtime-verified",
+    "direct-origin-denial": "provider-verified",
+    "dns-tls": "provider-verified",
+    "isolation-limits": "runtime-verified",
+    "lifecycle-rollback": "provider-verified",
+    "redaction": "deterministic",
+    "source-integrity": "deterministic",
+}
+_BLOCKER = re.compile(r"[A-Z][A-Z0-9_]{2,63}")
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -94,6 +152,137 @@ class QualificationEvaluator(Protocol):
         self,
         current: QualificationReadback,
     ) -> tuple[QualificationCheckObservation, ...]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class QualificationProbeRequest:
+    check_id: str
+    capabilities: tuple[str, ...]
+    current: QualificationReadback
+
+
+@dataclass(frozen=True, slots=True)
+class QualificationProbeOutcome:
+    outcome: str
+    observation: Mapping[str, object]
+    blockers: tuple[str, ...] = ()
+
+
+class QualificationProbe(Protocol):
+    def evaluate(
+        self,
+        request: QualificationProbeRequest,
+    ) -> QualificationProbeOutcome: ...
+
+
+@dataclass(frozen=True, slots=True)
+class QualificationFailureInjection:
+    """Explicit repository-test-only failure selected by closed check identifier."""
+
+    check_id: str
+    blocker: str
+
+    def __post_init__(self) -> None:
+        if self.check_id not in _CHECKS:
+            raise ValueError("unknown qualification check")
+        if _BLOCKER.fullmatch(self.blocker) is None:
+            raise ValueError("failure injection blocker must be a coarse code")
+
+
+class QualificationSuiteEvaluator:
+    """Run the complete closed qualification profile through one probe seam."""
+
+    def __init__(
+        self,
+        probe: QualificationProbe,
+        *,
+        failure_injections: tuple[QualificationFailureInjection, ...] = (),
+    ) -> None:
+        identifiers = [item.check_id for item in failure_injections]
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("duplicate qualification failure injection")
+        self._probe = probe
+        self._injections = {
+            item.check_id: item.blocker for item in failure_injections
+        }
+
+    @staticmethod
+    def _invalid(check_id: str) -> QualificationCheckObservation:
+        return QualificationCheckObservation(
+            check_id=check_id,
+            outcome="fail",
+            verification=_CHECK_VERIFICATIONS[check_id],
+            observation={
+                "check_id": check_id,
+                "outcome": "invalid-probe-result",
+            },
+            blockers=("QUALIFICATION_PROBE_RESULT_INVALID",),
+        )
+
+    def evaluate(
+        self,
+        current: QualificationReadback,
+    ) -> tuple[QualificationCheckObservation, ...]:
+        observations: list[QualificationCheckObservation] = []
+        for check_id in sorted(QUALIFICATION_CHECK_CAPABILITIES):
+            injected = self._injections.get(check_id)
+            if injected is not None:
+                observations.append(
+                    QualificationCheckObservation(
+                        check_id=check_id,
+                        outcome="fail",
+                        verification="deterministic",
+                        observation={
+                            "check_id": check_id,
+                            "outcome": "injected-failure",
+                        },
+                        blockers=(injected,),
+                    )
+                )
+                continue
+            request = QualificationProbeRequest(
+                check_id=check_id,
+                capabilities=QUALIFICATION_CHECK_CAPABILITIES[check_id],
+                current=current,
+            )
+            try:
+                result = self._probe.evaluate(request)
+            except Exception:
+                observations.append(
+                    QualificationCheckObservation(
+                        check_id=check_id,
+                        outcome="fail",
+                        verification=_CHECK_VERIFICATIONS[check_id],
+                        observation={
+                            "check_id": check_id,
+                            "outcome": "probe-failed",
+                        },
+                        blockers=("QUALIFICATION_PROBE_FAILED",),
+                    )
+                )
+                continue
+            valid = (
+                result.outcome in {"blocked", "fail", "pass", "unavailable"}
+                and isinstance(result.observation, Mapping)
+                and all(_BLOCKER.fullmatch(item) for item in result.blockers)
+                and (
+                    (result.outcome == "pass" and not result.blockers)
+                    or (result.outcome != "pass" and bool(result.blockers))
+                )
+            )
+            if not valid:
+                observations.append(self._invalid(check_id))
+                continue
+            observations.append(
+                QualificationCheckObservation(
+                    check_id=check_id,
+                    outcome=result.outcome,
+                    verification=_CHECK_VERIFICATIONS[check_id],
+                    observation=result.observation,
+                    blockers=tuple(sorted(set(result.blockers))),
+                )
+            )
+        return tuple(observations)
 
 
 @dataclass(frozen=True, slots=True)
@@ -276,13 +465,19 @@ class QualificationLifecycle:
 
 
 __all__ = (
+    "QUALIFICATION_CHECK_CAPABILITIES",
     "ComponentRevision",
     "FixtureRevision",
     "QualificationCheckObservation",
     "QualificationEvaluator",
+    "QualificationFailureInjection",
     "QualificationLifecycle",
+    "QualificationProbe",
+    "QualificationProbeOutcome",
+    "QualificationProbeRequest",
     "QualificationReadback",
     "QualificationRequest",
     "QualificationResult",
     "QualificationStateReader",
+    "QualificationSuiteEvaluator",
 )

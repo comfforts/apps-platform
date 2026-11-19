@@ -13,16 +13,28 @@ from infrastructure.operator._interfaces import (
     StatusResult,
 )
 from infrastructure.operator.deployment import DeploymentExecutor
+from infrastructure.operator.integration import (
+    ApplicationIntegrationLifecycle,
+    IntegrationBundleRequest,
+    IntegrationBundleResult,
+    PlatformIntegrationReader,
+    PlatformIntegrationState,
+)
 
 __all__ = (
     "DiscoverySnapshot",
     "DeploymentExecutor",
     "ExecutionResult",
     "GitSnapshot",
+    "ApplicationIntegrationLifecycle",
+    "IntegrationBundleRequest",
+    "IntegrationBundleResult",
     "LifecycleOperator",
     "OperatorInterrupted",
     "OperatorAdapters",
     "PrepareResult",
+    "PlatformIntegrationReader",
+    "PlatformIntegrationState",
     "StageContext",
     "StageExecution",
     "StatusResult",

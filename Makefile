@@ -1,6 +1,8 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
+ENVIRONMENT ?= staging
+OPERATOR_STATE_DIRECTORY ?= .platform-operator
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-prepare platform-status
 
 check: governance-check contract-check fixture-check runtime-check terraform-check operator-check ## Run every implemented deterministic platform check.
 
@@ -24,3 +26,9 @@ terraform-check: ## Verify the pinned Terraform foundation offline in a disposab
 
 operator-check: ## Verify the credential-free interactive lifecycle core with deterministic adapters.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_operator_lifecycle
+
+platform-prepare: ## Prepare and explicitly approve one complete lifecycle specification.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator prepare --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"
+
+platform-status: ## Report local desired and execution state without changing it.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator status --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"

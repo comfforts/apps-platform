@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from infrastructure.operator import (
     DiscoverySnapshot,
@@ -16,6 +19,7 @@ from infrastructure.operator import (
     StageExecution,
 )
 from infrastructure.operator.local import LocalFilesystem
+from infrastructure.operator.cli import main as operator_main
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -447,6 +451,65 @@ class OperatorLifecycleTest(unittest.TestCase):
                 ["OWNERSHIP_TRANSFER_REQUIRED"],
             )
             self.assertEqual(after, before)
+
+    def test_cli_exposes_only_prepare_and_status_with_canonical_safe_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            operator, _ = self._operator(Path(directory))
+
+            prepare_stdout = io.StringIO()
+            with mock.patch("sys.stdout", prepare_stdout):
+                prepare_code = operator_main(
+                    ["prepare", "--environment", "staging"],
+                    operator_factory=lambda _: operator,
+                )
+            prepared = json.loads(prepare_stdout.getvalue().splitlines()[-1])
+
+            status_stdout = io.StringIO()
+            with mock.patch("sys.stdout", status_stdout):
+                status_code = operator_main(
+                    ["status", "--environment", "staging"],
+                    operator_factory=lambda _: operator,
+                )
+            status = json.loads(status_stdout.getvalue())
+
+            self.assertEqual(prepare_code, 0)
+            self.assertEqual(prepared["outcome"], "prepared")
+            self.assertTrue(prepared["approved"])
+            self.assertRegex(prepared["specification_digest"], r"^sha256:[0-9a-f]{64}$")
+            self.assertEqual(status_code, 0)
+            self.assertEqual(status["lifecycle_state"], "absent")
+
+            stderr = io.StringIO()
+            with mock.patch("sys.stderr", stderr):
+                with self.assertRaises(SystemExit):
+                    operator_main(
+                        ["deploy", "--environment", "staging"],
+                        operator_factory=lambda _: operator,
+                    )
+            self.assertIn("invalid choice", stderr.getvalue())
+
+    def test_make_targets_are_shallow_and_private_state_is_ignored(self) -> None:
+        makefile = (PROJECT_ROOT / "Makefile").read_text(encoding="utf-8")
+        gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
+
+        self.assertIn("platform-prepare:", makefile)
+        self.assertIn("platform-status:", makefile)
+        self.assertIn("-m infrastructure.operator prepare", makefile)
+        self.assertIn("-m infrastructure.operator status", makefile)
+        self.assertNotIn("platform-deploy:", makefile)
+        self.assertIn(".platform-operator/", gitignore)
+
+    def test_local_filesystem_does_not_create_state_during_read_only_status(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_root = Path(directory) / "not-created"
+            operator, _ = self._operator(
+                state_root,
+                terminal=FakeTerminal([]),
+            )
+
+            operator.status("staging")
+
+            self.assertFalse(state_root.exists())
 
 
 if __name__ == "__main__":

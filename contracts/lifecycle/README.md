@@ -61,5 +61,10 @@ provider response, or platform secret reference. Attachment validation preserves
 ownership and matches the integration bundle's application, environment, adapter, ingress, edge
 caller, audience, and digest; it does not transfer target ownership to Platform State.
 
+`test-vectors/valid/` contains one canonical, fully digest-bound synthetic staging chain covering
+the five lifecycle documents. The vectors are deterministic contract examples only: their source
+revisions, address, plan digest, OAuth identifier, and target reference do not describe deployed
+resources or accepted operator input.
+
 This package intentionally exposes no prompt, approval, execution, resume, provider, Terraform,
 DNS, credential, or mutation behavior; those remain AP-M9-W4 and later work.

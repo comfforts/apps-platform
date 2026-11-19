@@ -11,7 +11,9 @@ from infrastructure.operator import (
     DiscoverySnapshot,
     GitSnapshot,
     LifecycleOperator,
+    OperatorInterrupted,
     OperatorAdapters,
+    StageExecution,
 )
 from infrastructure.operator.local import LocalFilesystem
 
@@ -81,6 +83,38 @@ class FixedClock:
         return "2026-11-19T18:00:00Z"
 
 
+@dataclass
+class FakeExecutor:
+    scripted: list[StageExecution | BaseException] = field(default_factory=list)
+    calls: list[str] = field(default_factory=list)
+
+    def execute(
+        self,
+        stage: dict[str, object],
+        inputs: tuple[tuple[str, str], ...],
+    ) -> StageExecution:
+        stage_id = str(stage["stage_id"])
+        self.calls.append(stage_id)
+        if self.scripted:
+            selected = self.scripted.pop(0)
+            if isinstance(selected, BaseException):
+                raise selected
+            return selected
+        checkpoint = stage["manual_checkpoint"]
+        acknowledgement = {
+            "external-dns": "provider-verified",
+            "provider-console": "operator-attested",
+        }.get(checkpoint, "not-required")
+        return StageExecution(
+            outcome="succeeded",
+            outputs=tuple(
+                (str(name), f"observed-{name}") for name in stage["produces"]
+            ),
+            plan_digest=None,
+            manual_acknowledgement=acknowledgement,
+        )
+
+
 class OperatorLifecycleTest(unittest.TestCase):
     def _operator(
         self,
@@ -92,6 +126,7 @@ class OperatorLifecycleTest(unittest.TestCase):
         gcp: FakeDiscovery | None = None,
         terraform: FakeTerraform | None = None,
         dns: FakeDiscovery | None = None,
+        executor: FakeExecutor | None = None,
     ) -> tuple[LifecycleOperator, FakeTerminal]:
         selected_terminal = terminal or FakeTerminal([True])
         adapters = OperatorAdapters(
@@ -122,6 +157,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             terminal=selected_terminal,
             filesystem=LocalFilesystem(PROJECT_ROOT, state_root),
             clock=FixedClock(),
+            executor=executor,
         )
         return LifecycleOperator(adapters), selected_terminal
 
@@ -253,6 +289,164 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertNotEqual(second.specification_digest, first.specification_digest)
             self.assertTrue(second.approved)
             self.assertEqual(len(terminal.prompts), 2)
+
+    def test_interrupted_execution_resumes_after_the_last_closed_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            executor = FakeExecutor(
+                [
+                    StageExecution(
+                        outcome="succeeded",
+                        outputs=(("preflight-attestation", "verified"),),
+                    ),
+                    OperatorInterrupted(),
+                ]
+            )
+            operator, _ = self._operator(Path(directory), executor=executor)
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            interrupted = operator.execute(
+                "staging",
+                prepared.specification_digest,
+            )
+            status_after_interruption = operator.status("staging")
+
+            self.assertEqual(interrupted.outcome, "interrupted")
+            self.assertEqual(
+                status_after_interruption.environment_status["lifecycle_state"],
+                "deploying",
+            )
+            self.assertEqual(
+                status_after_interruption.environment_status["last_closed_stage"],
+                "preflight",
+            )
+
+            resumed = operator.execute("staging", prepared.specification_digest)
+
+            self.assertEqual(resumed.outcome, "succeeded")
+            self.assertEqual(executor.calls.count("preflight"), 1)
+            self.assertEqual(executor.calls.count("bootstrap"), 2)
+            self.assertEqual(
+                operator.status("staging").environment_status["lifecycle_state"],
+                "deployed",
+            )
+
+    def test_waiting_failure_and_cancellation_remain_truthful(self) -> None:
+        cases = {
+            "waiting": "waiting",
+            "failed": "failed",
+            "cancelled": "cancelled",
+        }
+        for outcome, expected_state in cases.items():
+            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory:
+                executor = FakeExecutor([StageExecution(outcome=outcome)])
+                operator, _ = self._operator(Path(directory), executor=executor)
+                prepared = operator.prepare("staging")
+                assert prepared.specification_digest is not None
+
+                result = operator.execute("staging", prepared.specification_digest)
+                status = operator.status("staging")
+
+                self.assertEqual(result.outcome, outcome)
+                self.assertEqual(
+                    status.environment_status["lifecycle_state"],
+                    expected_state,
+                )
+                self.assertIsNone(status.environment_status["last_closed_stage"])
+
+    def test_changed_scope_conflicts_with_an_unclosed_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            git = FakeGit()
+            executor = FakeExecutor([StageExecution(outcome="waiting")])
+            terminal = FakeTerminal([True])
+            operator, _ = self._operator(
+                Path(directory),
+                git=git,
+                executor=executor,
+                terminal=terminal,
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+            operator.execute("staging", prepared.specification_digest)
+            git.revision = "b" * 40
+
+            conflict = operator.prepare("staging")
+
+            self.assertEqual(conflict.outcome, "blocked")
+            self.assertEqual(conflict.blockers, ("ACTIVE_JOURNAL_CONFLICT",))
+            self.assertEqual(len(terminal.prompts), 1)
+
+    def test_execution_rejects_stale_or_missing_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            git = FakeGit()
+            executor = FakeExecutor()
+            operator, _ = self._operator(
+                Path(directory),
+                git=git,
+                executor=executor,
+                terminal=FakeTerminal([False]),
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            unapproved = operator.execute("staging", prepared.specification_digest)
+            git.revision = "b" * 40
+            stale = operator.execute("staging", prepared.specification_digest)
+
+            self.assertEqual(unapproved.outcome, "blocked")
+            self.assertIn("SPECIFICATION_NOT_APPROVED", unapproved.blockers)
+            self.assertEqual(stale.outcome, "blocked")
+            self.assertIn("SOURCE_REVISION_MISMATCH", stale.blockers)
+            self.assertEqual(executor.calls, [])
+
+    def test_prohibited_stage_output_fails_without_reaching_the_terminal_or_journal(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            terminal = FakeTerminal([True])
+            executor = FakeExecutor(
+                [
+                    StageExecution(
+                        outcome="succeeded",
+                        outputs=(("preflight-attestation", "ya29.private-token"),),
+                    )
+                ]
+            )
+            operator, _ = self._operator(
+                Path(directory),
+                terminal=terminal,
+                executor=executor,
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            result = operator.execute("staging", prepared.specification_digest)
+
+            self.assertEqual(result.outcome, "failed")
+            self.assertIn("PROHIBITED_STAGE_OUTPUT", result.blockers)
+            transcript = "\n".join([*terminal.prompts, *terminal.messages])
+            self.assertNotIn("ya29.", transcript)
+            self.assertNotIn("private-token", transcript)
+
+    def test_status_is_read_only_and_production_reports_its_profile_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_root = Path(directory)
+            operator, _ = self._operator(state_root, terminal=FakeTerminal([]))
+            before = sorted(path.relative_to(state_root) for path in state_root.rglob("*"))
+
+            staging = operator.status("staging")
+            production = operator.status("production")
+            after = sorted(path.relative_to(state_root) for path in state_root.rglob("*"))
+
+            self.assertEqual(staging.environment_status["lifecycle_state"], "absent")
+            self.assertEqual(
+                production.environment_status["lifecycle_state"], "blocked"
+            )
+            self.assertEqual(
+                production.environment_status["blockers"],
+                ["OWNERSHIP_TRANSFER_REQUIRED"],
+            )
+            self.assertEqual(after, before)
 
 
 if __name__ == "__main__":

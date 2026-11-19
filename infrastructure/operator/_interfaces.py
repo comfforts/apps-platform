@@ -40,6 +40,39 @@ class PrepareResult:
     blockers: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class StageExecution:
+    """One deterministic adapter result for a specification stage."""
+
+    outcome: str
+    outputs: tuple[tuple[str, str], ...] = ()
+    plan_digest: str | None = None
+    manual_acknowledgement: str = "not-required"
+
+
+@dataclass(frozen=True, slots=True)
+class StatusResult:
+    """One read-only lifecycle reconciliation result."""
+
+    environment_status: dict[str, Any]
+    conflicts: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionResult:
+    """Result of deterministic stage orchestration against an injected executor."""
+
+    outcome: str
+    journal: dict[str, Any] | None
+    journal_digest: str | None
+    status: StatusResult
+    blockers: tuple[str, ...] = ()
+
+
+class OperatorInterrupted(Exception):
+    """Signal an ordinary process interruption before the current stage closes."""
+
+
 class GitAdapter(Protocol):
     def inspect(self) -> GitSnapshot: ...
 
@@ -78,6 +111,14 @@ class ClockAdapter(Protocol):
     def now(self) -> str: ...
 
 
+class StageExecutor(Protocol):
+    def execute(
+        self,
+        stage: dict[str, object],
+        inputs: tuple[tuple[str, str], ...],
+    ) -> StageExecution: ...
+
+
 @dataclass(frozen=True, slots=True)
 class OperatorAdapters:
     """All ambient and side-effecting dependencies of the lifecycle core."""
@@ -90,3 +131,4 @@ class OperatorAdapters:
     terminal: TerminalAdapter
     filesystem: FilesystemAdapter
     clock: ClockAdapter
+    executor: StageExecutor | None = None

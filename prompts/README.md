@@ -4,12 +4,12 @@ Prompts are bounded task entry points, not architecture authority. Each prompt m
 platform documentation required for its task instead of copying requirements, decisions, or
 acceptance criteria.
 
-- [AP-M9-W5 deployable Terraform lifecycle handoff](starting_prompt.md) starts a new chat from
-  updated, clean `main` only after the AP-M9-W4 pull request merges. It reshapes the AP-M7 static
-  roots into lifecycle phases, implements deterministic backend rendering, identity and
-  impersonation profiles, plan policy, typed outputs, and mocked plans while preserving W4.
+- [AP-M9-W6 interactive platform deployment handoff](starting_prompt.md) starts a new chat from
+  updated, clean `main` only after the AP-M9-W5 pull request merges. It composes the implemented
+  lifecycle core and Terraform policy into one staged interactive deployment engine exercised
+  through deterministic command and transcript fakes.
 
-The handoff authorizes repository implementation of the Terraform lifecycle only. It does not
-authorize AP-M9-W6 implementation, repository-setting changes, credentials, backend initialization
-or migration, an authenticated plan or apply, a cloud or DNS mutation, deployment, Application
-Adoption, or Live qualification.
+The handoff authorizes repository implementation of deployment mechanics only. The pull request
+must not authenticate, initialize or migrate a real backend, run an authenticated plan or apply,
+mutate cloud or DNS, create credentials, deploy staging, change Finance Assistant, claim
+Application Adoption, or collect Live evidence.

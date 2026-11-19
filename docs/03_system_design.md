@@ -844,11 +844,69 @@ stronger confirmation. `platform-prepare` for production returns
 resource has not completed an explicit ownership transfer.
 
 AP-M9-W1 defines this design, AP-M9-W2 removed the retired manifest implementation, AP-M9-W3
-implemented the profile and lifecycle contracts, and AP-M9-W4 implements credential-free local
-preparation/status plus resumable fake execution. These packages create no identity, credential,
-state, provider resource, OAuth client, DNS record, certificate, bundle instance, application
-change, or qualification evidence. Python-to-Go migration remains a later contract-preserving
-milestone after the Python product is delivered and qualified.
+implemented the profile and lifecycle contracts, AP-M9-W4 implements credential-free local
+preparation/status plus resumable fake execution, and AP-M9-W5 implements the repository-only
+Terraform lifecycle described below. These packages create no identity, credential, state,
+provider resource, OAuth client, DNS record, certificate, bundle instance, application change, or
+qualification evidence. Python-to-Go migration remains a later contract-preserving milestone after
+the Python product is delivered and qualified.
+
+### AP-M9-W5 deployable Terraform lifecycle
+
+The active Terraform seam is now three ordered phases:
+
+```text
+bootstrap(backend_configuration) -> bootstrap_phase_output
+platform(platform_configuration{phase=foundation}) -> foundation_phase_output
+platform(platform_configuration{phase=shared-edge, shared_edge_binding=complete})
+    -> shared_edge_phase_output
+```
+
+Foundation and Shared Edge use the same `infrastructure/terraform/platform` root and the same
+`platform` backend prefix. Changing phase cannot transfer ownership, import a resource, or create a
+second Platform State lineage. Foundation accepts no edge image, OAuth client identifier, OAuth
+secret version, signing key version, Registration Generation, or Application Attachment. Those
+generated facts enter only through a complete Version 2 Shared Edge binding. Application
+attachments remain inside the compiled Registration Generation and never become Terraform target
+inputs.
+
+Staging fixes four backend buckets and five lineages:
+
+| Bucket | Prefix | State owner |
+| --- | --- | --- |
+| `comfforts-ap-stg-455651441682-platform-state` | `bootstrap` | Platform State |
+| `comfforts-ap-stg-455651441682-platform-state` | `platform` | Platform State |
+| `comfforts-ap-stg-455651441682-fixture-public-state` | `fixtures/fixture-public` | Fixture Application State |
+| `comfforts-ap-stg-455651441682-fixture-authenticated-state` | `fixtures/fixture-authenticated` | Fixture Application State |
+| `comfforts-ap-stg-455651441682-fixture-restricted-state` | `fixtures/fixture-restricted` | Fixture Application State |
+
+The backend renderer writes canonical `gcs` declarations only beneath a caller-approved private
+working root, uses mode `0600`, returns a content digest, is idempotent for identical content, and
+refuses traversal or replacement. It does not invoke Terraform or access a backend.
+
+The operation-authority profile contains 31 distinct keyless identity intents in project
+`comfforts-platform-non-prod`. Root codes are `bootstrap`, `platform`, `fxpub`, `fxauth`, and
+`fxrest`. Each root has `plan`, `apply`, `readback`, `rollback`, `destroy`, and `recovery` identities
+named `ap-stg-<root-code>-<action>`; the bootstrap root also has
+`ap-stg-bootstrap-bootstrap`. The full email appends
+`@comfforts-platform-non-prod.iam.gserviceaccount.com`. Each intent is limited to its environment,
+root, owner, bucket/prefix, action, exact backend/provider capability, and a 3,600-second
+`GOOGLE_IMPERSONATE_SERVICE_ACCOUNT` binding. Service-account keys and self-administration are
+prohibited. These are data declarations only; W5 creates no account, binding, credential, or token.
+
+Plan policy accepts only a redacted observation bound to the exact environment, source revision,
+state owner, owner identifier, root, phase, project, explicitly configured Google provider, and
+phase resource/action inventory. It sorts that projection before hashing. Raw plans, before/after
+values, provider payloads, and state never enter the canonical summary. A mismatch, ambient
+provider default, unexpected resource/action, replacement, or non-destructive delete yields
+ordered violations and no consumable plan digest.
+
+The Shared Edge phase can first reserve the address with TLS disabled. Certificate and HTTPS
+resources become eligible only after the later deployment engine has completed the external-DNS
+checkpoint. Bootstrap, foundation, and edge outputs are closed, typed, non-secret projections.
+Mocked providers and an injected deterministic command fake exercise the same composition; no
+production command adapter or operator deploy target exists in W5. Production returns
+`OWNERSHIP_TRANSFER_REQUIRED` before rendering or command invocation.
 
 ### AP-M7 Terraform configuration profile
 

@@ -1,7 +1,7 @@
 # Comfforts App Platform
 
-Status: AP-M9-W4 credential-free preparation, approval, status, and resumable fake execution
-implemented; no platform environment is deployed or qualified
+Status: AP-M9-W5 deployable Terraform lifecycle implemented and deterministically verified; no
+platform environment is deployed or qualified
 
 Comfforts App Platform owns the shared hostname edge, catalogue, registration, routing, admission,
 platform identity, and environment lifecycle used by independently owned applications. Applications
@@ -35,8 +35,9 @@ comparison and rollback behavior.
   manifest was accepted and AP-M8-W3 through AP-M8-W12 never began.
 - AP-M9 is the only active remaining platform milestone. W1 established its operator-driven
   lifecycle authority, W2 removed the retired manifest implementation, W3 implemented the closed
-  lifecycle contracts, and AP-M9-W4 implements the deep Python core plus credential-free
-  `platform-prepare` and `platform-status`. W5 is next.
+  lifecycle contracts, W4 implements the deep Python core plus credential-free
+  `platform-prepare` and `platform-status`, and W5 implements the phased Terraform lifecycle,
+  backend declarations, operation-authority profiles, and exact plan policy. W6 is next.
 
 No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
 application registration, or Live evidence is created merely by the repository implementation.
@@ -44,7 +45,7 @@ application registration, or Live evidence is created merely by the repository i
 ## Operator interface
 
 AP-M9-W4 implements these credential-free targets over one deep interactive Python lifecycle
-module:
+module; W5 leaves their interface unchanged:
 
 ```bash
 make platform-prepare ENVIRONMENT=staging
@@ -68,8 +69,9 @@ make platform-qualify ENVIRONMENT=staging
 make platform-destroy ENVIRONMENT=staging
 ```
 
-The W4 execution engine is exercised only through deterministic fake adapters; no executable deploy
-path or provider mutation exists. Later packages will keep the deployment wizard active across
+The W5 Terraform phases and planning boundary are exercised only through mocked providers and
+deterministic command fakes; no executable deploy path or provider mutation exists. W6 will keep
+the deployment wizard active across
 Google OAuth and Squarespace DNS work and continue when the operator presses Enter. It will never
 request an OAuth secret in the terminal.
 

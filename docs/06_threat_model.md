@@ -1,7 +1,7 @@
 # App Platform threat model
 
-Version 1.6 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
-implemented AP-M9-W4 credential-free lifecycle controls; no provider operation or live
+Version 1.7 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
+implemented AP-M9-W5 repository lifecycle controls; no provider operation or live
 infrastructure is deployed
 
 This document defines the security and privacy threats created by the logical App Platform design,
@@ -808,10 +808,12 @@ an owner credential incapable of out-of-band provider action. Such action is dri
 reviewed authority without reconciliation.
 
 AP-M9-W1 defines controls and evaluation authority, AP-M9-W2 removed the retired manifest attack
-surface, AP-M9-W3 implemented the closed lifecycle contracts, and AP-M9-W4 implements local
+surface, AP-M9-W3 implemented the closed lifecycle contracts, AP-M9-W4 implements local
 source/tool discovery, exact digest approval, append-only journal revisions, truthful status,
-redaction, and interruption-safe fake execution through injected adapters. No current result proves
-the later identity, Terraform, provider, OAuth, DNS, deployment, or Live controls operational.
+redaction, and interruption-safe fake execution through injected adapters, and AP-M9-W5 implements
+exact backend, operation-authority, phase, output, and plan-policy declarations through mocked
+providers and command fakes. No current result proves an identity, backend, provider, OAuth, DNS,
+deployment, or Live control operational.
 
 ## Unresolved security decisions
 
@@ -822,7 +824,6 @@ pass:
 | --- | --- |
 | Exact staging profile, profile schema, Deployment Specification, journal, and bundle contracts | AP-M9-W3 acceptance |
 | Interactive discovery, prompt, digest, resume, and fake-adapter behavior | AP-M9-W4 acceptance |
-| Exact state buckets/prefixes, bootstrap identity scope, operation identities, and deployable Terraform phases | AP-M9-W5 acceptance before authenticated bootstrap |
 | Exact OAuth branding constraints, client reference, redirect registration, and Secret Manager target | AP-M9 staging preparation before OAuth console action |
 | Exact managed zone, absent record, allocated address, TTL, and external-DNS acknowledgement | AP-M9 staging deployment before DNS mutation |
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |

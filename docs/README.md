@@ -1,6 +1,6 @@
 # App Platform documentation
 
-Version 1.18 | Status: AP-M9-W4 interactive lifecycle core implemented; AP-M8-W1/W2 retained as
+Version 1.19 | Status: AP-M9-W5 deployable Terraform lifecycle implemented; AP-M8-W1/W2 retained as
 historical evidence; no platform environment is deployed or qualified
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
@@ -45,7 +45,7 @@ is not part of the active instruction path and cannot authorize an operation.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W4 implemented | operator-driven environment and application lifecycle |
+| AP-M9 | W5 implemented | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
@@ -68,10 +68,12 @@ small reviewable commits, merge it, and only then begin the next package.
 4. **AP-M9-W4 — interactive lifecycle core (implemented):** credential-free preparation and
    status, exact digest approval, append-only journals, redaction, truthful failure state, and
    resumable deterministic fake execution behind injected adapters.
-5. **AP-M9-W5 — deployable Terraform:** adapt the existing static roots for isolated environment
-   state, explicit outputs, and lifecycle orchestration while preserving ownership boundaries.
-6. **AP-M9-W6 — interactive platform deployment:** implement prepare, deploy, status, and outputs,
-   including human OAuth and external-DNS checkpoints.
+5. **AP-M9-W5 — deployable Terraform (implemented):** phased bootstrap, foundation, and Shared
+   Edge configuration; exact backend and keyless operation-authority declarations; canonical plan
+   policy; closed outputs; mocked plans; and deterministic command fakes.
+6. **AP-M9-W6 — interactive platform deployment:** implement the staged deployment engine,
+   including human OAuth and external-DNS checkpoints, while preserving the W4 prepare/status
+   interface.
 7. **AP-M9-W7 — application lifecycle:** implement registration, reversible detachment, and
    terminal retirement using versioned bundles.
 8. **AP-M9-W8 — qualification and safe destruction:** implement revision-bound qualification and
@@ -82,7 +84,7 @@ small reviewable commits, merge it, and only then begin the next package.
     `OWNERSHIP_TRANSFER_REQUIRED` while Finance Assistant or `apps.comfforts.com` remains
     Finance-owned.
 
-AP-M9-W5 begins only after AP-M9-W4 merges. No staging deployment is available before AP-M9-W8
+AP-M9-W6 begins only after AP-M9-W5 merges. No staging operation is authorized before AP-M9-W8
 merges. AP-M9-W9 owns the first real staging operation and requires its own values and approvals.
 Production migration and Application Adoption remain separate owner-controlled work after
 AP-M9-W10.

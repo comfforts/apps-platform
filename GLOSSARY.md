@@ -32,6 +32,28 @@ digests, outcomes, declared outputs, manual acknowledgements, and resume positio
 hand-authored authority and contains no credential, secret payload, Terraform state, or raw
 provider response.
 
+## Terraform Phase
+
+One bounded bootstrap, platform-foundation, or Shared Edge configuration step. Foundation and
+Shared Edge are different phases of the same Platform State root and lineage, not independent
+owners or backends.
+
+## Backend Declaration
+
+A generated non-secret Terraform backend block binding one exact root lineage to its reviewed GCS
+bucket and prefix. Rendering a declaration does not initialize, migrate, read, or write a backend.
+
+## Operation Authority
+
+One exact environment, root, state owner, action, and short-lived service-account impersonation
+scope. An authority profile contains no credential and creates no identity or IAM binding.
+
+## Canonical Plan Summary
+
+The deterministic non-secret projection of a Terraform plan used for policy and digest binding. It
+contains scope and resource/action inventory, not raw before/after values, state, provider payloads,
+or credentials.
+
 ## Colocated Project
 
 A repository-transition term for a standalone project whose canonical files temporarily lived

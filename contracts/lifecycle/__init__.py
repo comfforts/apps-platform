@@ -8,6 +8,7 @@ from contracts.lifecycle.validation import (
     load_lifecycle_document,
     load_lifecycle_schemas,
     validate_lifecycle_document,
+    validate_lifecycle_material,
     validate_lifecycle_relationships,
 )
 
@@ -19,5 +20,6 @@ __all__ = (
     "load_lifecycle_document",
     "load_lifecycle_schemas",
     "validate_lifecycle_document",
+    "validate_lifecycle_material",
     "validate_lifecycle_relationships",
 )

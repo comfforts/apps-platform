@@ -501,6 +501,12 @@ def validate_lifecycle_document(
     return _ordered(violations)
 
 
+def validate_lifecycle_material(value: Any) -> tuple[Violation, ...]:
+    """Reject secret, state, plan, provider-payload, and placeholder material."""
+
+    return _ordered(_scan_prohibited(value))
+
+
 def _relationship_violation(code: str, path: str, message: str) -> Violation:
     return Violation(code, path, message)
 

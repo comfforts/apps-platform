@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 from pathlib import Path
 import stat
@@ -15,6 +16,10 @@ from infrastructure.operator.local_generation import (
     ProviderGenerationActivation,
     ProviderGenerationPublication,
 )
+from infrastructure.operator.local_qualification import (
+    ProviderQualificationSnapshot,
+)
+from infrastructure.operator.qualification import ComponentRevision
 
 
 _ALLOWED_ENVIRONMENT = {
@@ -174,8 +179,8 @@ class GcloudGenerationProvider(GenerationProvider):
             raise ValueError("Cloud SDK configuration must be a real private directory")
         if not self._working_root.is_dir() or self._working_root.is_symlink():
             raise ValueError("provider working root must be a real directory")
-        if set(self._authority_emails) != {"apply", "rollback"}:
-            raise ValueError("apply and rollback authorities are required")
+        if set(self._authority_emails) != {"apply", "readback", "rollback"}:
+            raise ValueError("apply, readback, and rollback authorities are required")
 
     def _environment(self) -> tuple[tuple[str, str], ...]:
         return (
@@ -528,6 +533,90 @@ class GcloudGenerationProvider(GenerationProvider):
             activated=True,
             active_revision_name=revision_name,
             active_generation_digest=generation_digest,
+        )
+
+    @staticmethod
+    def _component_digest(value: object) -> str:
+        payload = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+    def read_current(self, environment: str) -> ProviderQualificationSnapshot:
+        """Read the one active revision and its closed component bindings."""
+
+        if environment != "staging":
+            raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
+        service = self._describe_service("readback")
+        traffic = service.get("status", {}).get("traffic")
+        if not isinstance(traffic, list):
+            raise GenerationProviderError("GENERATION_TRAFFIC_READBACK_INVALID")
+        active = [
+            (item.get("revisionName"), item.get("percent"))
+            for item in traffic
+            if isinstance(item, dict)
+            and isinstance(item.get("revisionName"), str)
+            and isinstance(item.get("percent"), int)
+            and item["percent"] > 0
+        ]
+        if len(active) != 1 or active[0][1] != 100:
+            raise GenerationProviderError("GENERATION_TRAFFIC_READBACK_MISMATCH")
+        revision_name = str(active[0][0])
+        revision = self._describe_revision(revision_name, "readback")
+        if revision is None:
+            raise GenerationProviderError("GENERATION_REVISION_READBACK_MISSING")
+        values = self._revision_environment(revision)
+        required = {
+            "APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST",
+            "APP_PLATFORM_GENERATION_DIGEST",
+            "APP_PLATFORM_OAUTH_CLIENT_ID",
+            "APP_PLATFORM_SIGNING_KEY_VERSION",
+        }
+        if not required <= set(values):
+            raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
+        _, image = self._revision_values(revision)
+        marker = "@sha256:"
+        if marker not in image:
+            raise GenerationProviderError("GENERATION_REVISION_INVARIANT_MISMATCH")
+        image_digest = "sha256:" + image.rsplit(marker, maxsplit=1)[1]
+        if len(image_digest) != 71:
+            raise GenerationProviderError("GENERATION_REVISION_INVARIANT_MISMATCH")
+        components = (
+            ComponentRevision("oauth-client", self._component_digest(
+                values["APP_PLATFORM_OAUTH_CLIENT_ID"]
+            )),
+            ComponentRevision(
+                "registration-configuration",
+                values["APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST"],
+            ),
+            ComponentRevision(
+                "shared-edge-image",
+                image_digest,
+            ),
+            ComponentRevision(
+                "shared-edge-revision",
+                self._component_digest(
+                    {
+                        "environment": values,
+                        "revision_name": revision_name,
+                    }
+                ),
+            ),
+            ComponentRevision(
+                "signing-key-version",
+                self._component_digest(
+                    values["APP_PLATFORM_SIGNING_KEY_VERSION"]
+                ),
+            ),
+        )
+        return ProviderQualificationSnapshot(
+            environment=environment,
+            active_generation_digest=values["APP_PLATFORM_GENERATION_DIGEST"],
+            component_revisions=tuple(sorted(components)),
         )
 
 

@@ -26,6 +26,9 @@ APPLY_IDENTITY = f"ap-stg-platform-apply@{PROJECT_ID}.iam.gserviceaccount.com"
 ROLLBACK_IDENTITY = (
     f"ap-stg-platform-rollback@{PROJECT_ID}.iam.gserviceaccount.com"
 )
+READBACK_IDENTITY = (
+    f"ap-stg-platform-readback@{PROJECT_ID}.iam.gserviceaccount.com"
+)
 GENERATION_DIGEST = "sha256:" + ("a" * 64)
 CONTENT_DIGEST = "sha256:" + ("b" * 64)
 SOURCE_REVISION = "c" * 40
@@ -119,6 +122,11 @@ class FakeGcloud:
             "APP_PLATFORM_GENERATION_DIGEST": digest,
             "APP_PLATFORM_REGISTRATION_GENERATION": "7",
             "APP_PLATFORM_SOURCE_REVISION": SOURCE_REVISION,
+            "APP_PLATFORM_OAUTH_CLIENT_ID": "client.apps.googleusercontent.com",
+            "APP_PLATFORM_SIGNING_KEY_VERSION": (
+                f"projects/{PROJECT_ID}/locations/{REGION}/keyRings/platform/"
+                "cryptoKeys/edge/cryptoKeyVersions/1"
+            ),
         }
         return _canonical(
             {
@@ -211,6 +219,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             configuration_bucket=BUCKET,
             authority_emails={
                 "apply": APPLY_IDENTITY,
+                "readback": READBACK_IDENTITY,
                 "rollback": ROLLBACK_IDENTITY,
             },
             runner=fake,
@@ -328,6 +337,38 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         self.assertEqual(
             str(caught.exception),
             "GENERATION_REVISION_BINDING_MISMATCH",
+        )
+
+    def test_qualification_readback_uses_readback_identity_and_exact_traffic(self) -> None:
+        compiled = _canonical(proposal().compiled_configuration)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(
+                compiled,
+                object_created=True,
+                revision_created=True,
+                active=True,
+            )
+            provider = self._provider(directory, fake)
+
+            current = provider.read_current("staging")
+
+        self.assertEqual(current.active_generation_digest, GENERATION_DIGEST)
+        self.assertEqual(
+            {item.name for item in current.component_revisions},
+            {
+                "oauth-client",
+                "registration-configuration",
+                "shared-edge-image",
+                "shared-edge-revision",
+                "signing-key-version",
+            },
+        )
+        self.assertTrue(
+            all(
+                f"--impersonate-service-account={READBACK_IDENTITY}"
+                in request.argv
+                for request in fake.requests
+            )
         )
 
     def test_closed_runner_rejects_credential_override_and_unreviewed_command(self) -> None:

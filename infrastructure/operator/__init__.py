@@ -12,9 +12,11 @@ from infrastructure.operator._interfaces import (
     StageExecution,
     StatusResult,
 )
+from infrastructure.operator.deployment import DeploymentExecutor
 
 __all__ = (
     "DiscoverySnapshot",
+    "DeploymentExecutor",
     "ExecutionResult",
     "GitSnapshot",
     "LifecycleOperator",

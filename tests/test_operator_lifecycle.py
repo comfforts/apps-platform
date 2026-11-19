@@ -661,6 +661,13 @@ class OperatorLifecycleTest(unittest.TestCase):
             ):
                 self.assertNotIn(name, environment)
 
+    def test_console_terminal_requires_exact_typed_confirmation_and_enter_pause(self) -> None:
+        terminal = local_adapters.ConsoleTerminal()
+        with mock.patch("builtins.input", side_effect=["wrong", "APPLY exact", ""]):
+            self.assertFalse(terminal.confirm_exact("prompt", "APPLY exact"))
+            self.assertTrue(terminal.confirm_exact("prompt", "APPLY exact"))
+            self.assertIsNone(terminal.pause("Press Enter"))
+
 
 if __name__ == "__main__":
     unittest.main()

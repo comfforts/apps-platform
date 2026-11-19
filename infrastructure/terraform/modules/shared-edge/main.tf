@@ -120,6 +120,14 @@ resource "google_cloud_run_v2_service" "edge" {
     revision = var.edge_configuration.candidate_revision
     percent  = 100
   }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].revision,
+      template[0].containers[0].env,
+      traffic,
+    ]
+  }
 }
 
 resource "google_cloud_run_v2_service_iam_member" "load_balancer_invoker" {

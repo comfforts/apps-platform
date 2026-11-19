@@ -21,6 +21,7 @@ from infrastructure.operator.integration import (
     RegistrationIntent,
 )
 from infrastructure.operator.local import LocalFilesystem, build_local_operator
+from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 from infrastructure.operator.qualification import QualificationLifecycle
 
 
@@ -400,6 +401,32 @@ def main(
             attachment_bundle,
             intent,
         )
+        if (
+            result.outcome in {"activated", "unchanged"}
+            and result.generation_digest is not None
+        ):
+            try:
+                handoffs = LocalApplicationHandoffs(
+                    LocalFilesystem(PROJECT_ROOT, arguments.state_directory)
+                )
+                handoff = handoffs.from_bundles(
+                    integration_bundle,
+                    attachment_bundle,
+                    result.generation_digest,
+                )
+                if not handoffs.record(handoff):
+                    raise ValueError("handoff record readback mismatch")
+            except (FileExistsError, ValueError):
+                _print(
+                    {
+                        "blockers": ["APPLICATION_HANDOFF_RECORD_FAILED"],
+                        "environment": arguments.environment,
+                        "generation": result.generation,
+                        "generation_digest": result.generation_digest,
+                        "outcome": "blocked",
+                    }
+                )
+                return 2
         _print(
             {
                 "blockers": list(result.blockers),

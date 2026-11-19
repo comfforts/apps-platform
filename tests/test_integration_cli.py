@@ -168,6 +168,8 @@ class IntegrationCliTest(unittest.TestCase):
                     "register",
                     "--environment",
                     "staging",
+                    "--state-directory",
+                    str(Path(directory) / "operator"),
                     "--integration-bundle",
                     str(
                         VECTORS
@@ -183,12 +185,25 @@ class IntegrationCliTest(unittest.TestCase):
                 ],
                 lifecycle,
             )
+            handoff_path = (
+                Path(directory)
+                / "operator/environments/staging/applications/"
+                "fixture-authenticated/handoffs/"
+                f"{GENERATION_DIGEST[7:]}.v1.json"
+            )
+            handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
 
         self.assertEqual(code, 0)
         self.assertEqual(result["outcome"], "activated")
         self.assertEqual(result["generation"], 7)
         self.assertNotIn("restricted_members", json.dumps(result))
         self.assertNotIn("resource_reference", json.dumps(result))
+        self.assertEqual(
+            handoff["registration_generation_digest"],
+            GENERATION_DIGEST,
+        )
+        self.assertNotIn("restricted_members", handoff)
+        self.assertNotIn("target", handoff)
         self.assertEqual(len(lifecycle.registrations), 1)
         self.assertEqual(lifecycle.registrations[0][2].attachment_id, "primary")
 

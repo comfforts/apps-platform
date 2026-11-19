@@ -1,15 +1,17 @@
 # AP-M9 environment lifecycle runbook
 
-Status: AP-M9-W6 interactive deployment mechanics implemented; external actions remain
+Status: AP-M9-W7 application integration mechanics implemented; external actions remain
 unavailable until their later operator gates
 
 This runbook describes the intended human experience. It is subordinate to AP-PR-010 through
 AP-PR-012, AP-QR-007 through AP-QR-009, ADR-010 through ADR-013, AP-M9-W1 through AP-M9-W10, and
-AP-EVAL-M9. AP-M9-W1 through AP-M9-W6 create no credential, identity, backend, cloud resource, DNS
+AP-EVAL-M9. AP-M9-W1 through AP-M9-W7 create no credential, identity, backend, cloud resource, DNS
 record, certificate, deployment, or Live evidence. W3 implements the closed profiles and lifecycle
 documents, W4 implements credential-free local preparation/status, W5 implements the exact
 Terraform phase, backend, operation-authority, and plan-policy seams, and W6 implements staged
-execution, exact typed confirmation, manual checkpoints, readback, and resume.
+execution, exact typed confirmation, manual checkpoints, readback, and resume. W7 implements
+least-data bundle generation, exact attachment validation, immutable whole-generation activation,
+reversible detachment/reactivation, and terminal retirement behind injected boundaries.
 
 ## Environment flow
 
@@ -28,8 +30,8 @@ execution, exact typed confirmation, manual checkpoints, readback, and resume.
    approved secret-manager surface and never into the platform terminal, journal, or bundle.
 5. `platform-status` reports desired, observed, and last-qualified state without changing it.
 6. `platform-outputs` writes a versioned non-secret Platform Integration Bundle for an application
-   owner. It may contain an OAuth client identifier and stable secret-manager references, never an
-   OAuth client secret.
+   owner. It may contain an OAuth client identifier for a protected application, never an OAuth
+   client secret, secret-manager reference, restricted-member set, or another application's value.
 7. The application owner deploys Application State and returns an Application Attachment Bundle.
    `platform-register` validates and activates that attachment. `platform-detach` suspends routing
    reversibly; `platform-retire` terminates the application identity while reserving its route.
@@ -55,7 +57,7 @@ destroys those assets.
 
 ## Current operator rule
 
-After W6 merges, `make platform-prepare ENVIRONMENT=staging` may be used from clean current `main`
+After W7 merges, `make platform-prepare ENVIRONMENT=staging` may be used from clean current `main`
 to create and explicitly approve one complete specification in the ignored private
 `.platform-operator/` directory. It performs only local Git, profile, repository-identity, and
 pinned-tool discovery. `make platform-status ENVIRONMENT=staging` reads the local status without
@@ -69,4 +71,13 @@ interactive entry point, but the default local construction remains deliberately
 qualification and safe-destruction package completes. The non-fake Terraform subprocess boundary
 is implemented and closed to shell interpolation, ambient credentials, path escape, target/replace,
 state push, import, force-unlock, and lock bypass; repository tests invoke only deterministic
-recording fakes. `make check` remains credential-free, deterministic, and non-mutating.
+recording fakes.
+
+W7 adds `platform-outputs`, `platform-register`, `platform-detach`, and `platform-retire`. Outputs
+writes canonical create-only bundles beneath `.platform-operator/`. Register accepts an exact
+integration bundle, attachment bundle, and strict private registration intent; it publishes and
+activates only complete immutable generations after readback and exact typed confirmation. Detach
+and retire require the expected active-generation digest. Interrupted confirmation can resume only
+the identical create-only publication. Until W8 arms the provider and generation-control adapters,
+these local targets fail closed with `APPLICATION_INTEGRATION_ADAPTER_UNAVAILABLE` and perform no
+partial external work. `make check` remains credential-free, deterministic, and non-mutating.

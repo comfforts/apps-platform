@@ -289,7 +289,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_layout = " ".join(layout.split())
         normalized_overview = " ".join(overview.split())
 
-        self.assertIn("AP-M9-W6 interactive platform deployment implemented", normalized_index)
+        self.assertIn("AP-M9-W7 application integration lifecycle implemented", normalized_index)
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
         self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
         self.assertIn("AP-M8 | historical", index)
@@ -637,7 +637,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("independent synthetic Application State roots", layout)
 
-    def test_ap_m9_w7_handoff_loads_authority_without_granting_operations(
+    def test_ap_m9_w8_handoff_loads_authority_without_granting_operations(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -647,22 +647,22 @@ class ProjectAuthorityTest(unittest.TestCase):
         for authority in (
             "AGENTS.md",
             "docs/README.md",
-            "AP-M9-W7",
-            "AP-PR-001 through AP-PR-007",
+            "AP-M9-W8",
+            "AP-PR-001 through AP-PR-012",
             "AP-QR-001 through AP-QR-009",
-            "ADR-001 through ADR-006",
-            "AP-EVAL-M9-06",
+            "ADR-001 through ADR-013",
+            "AP-EVAL-M9-09",
             "AP-TM-001",
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M9-W6 interactive-deployment pull request has merged",
-            "Implement only the application integration lifecycle repository slice",
-            "Platform Integration Bundle",
-            "Application Attachment Bundle",
-            "platform-detach",
-            "platform-retire",
-            "deterministic contract, command, transcript, generation, attachment, and route-lifecycle tests",
+            "after the AP-M9-W7 application-lifecycle pull request has merged",
+            "Implement only the qualification and safe-destruction repository slice",
+            "platform-qualify",
+            "platform-destroy",
+            "qualification-evidence contract",
+            "complete-generation rollback",
+            "deterministic contract, command, transcript, evidence, qualification, rollback, destruction",
             "Do not authenticate or run a real",
             "Run `make check` from the repository root",
             "Do not change repository settings",
@@ -672,7 +672,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W7 application integration lifecycle handoff](starting_prompt.md)",
+            "[AP-M9-W8 qualification and safe destruction handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -686,10 +686,10 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(f"AP-M9-W{work_package}", index)
         self.assertIn("Each work package is one bounded branch and pull request", normalized_index)
         self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W10"))
-        self.assertIn("AP-M9-W7", normalized_prompt)
-        self.assertIn("application integration lifecycle", normalized_prompt)
+        self.assertIn("AP-M9-W8", normalized_prompt)
+        self.assertIn("qualification and safe destruction", normalized_prompt)
         self.assertIn("Do not authenticate", normalized_prompt)
-        self.assertIn("AP-M9-W8 handoff", normalized_prompt)
+        self.assertIn("AP-M9-W9 staging-operation handoff", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
@@ -1444,7 +1444,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("operator-attested", threat_model)
         self.assertIn("No current result proves", threat_model)
 
-    def test_ap_m9_w6_status_and_w7_handoff_are_bounded(self) -> None:
+    def test_ap_m9_w7_status_and_w8_handoff_are_bounded(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         docs_index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         runbook = (
@@ -1459,7 +1459,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_prompt = " ".join(prompt.split())
 
         for document in (overview, docs_index, runbook, layout):
-            self.assertIn("AP-M9-W6", document)
+            self.assertIn("AP-M9-W7", document)
             self.assertIn("implemented", document.lower())
         self.assertIn("platform-prepare", overview)
         self.assertIn("platform-status", overview)
@@ -1468,17 +1468,17 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("`infrastructure/operator/`", layout)
 
         for required in (
-            "AP-M9-W7",
-            "AP-EVAL-M9-06",
-            "feat/ap-m9-application-integration-lifecycle",
-            "application integration lifecycle",
-            "platform-register",
-            "complete-generation",
+            "AP-M9-W8",
+            "AP-EVAL-M9-09",
+            "feat/ap-m9-qualification-safe-destruction",
+            "qualification and safe destruction",
+            "platform-qualify",
+            "platform-destroy",
             "Do not authenticate",
             "Do not commit",
         ):
             self.assertIn(required, normalized_prompt)
-        self.assertNotIn("AP-M9-W6 interactive platform deployment handoff", prompt)
+        self.assertNotIn("AP-M9-W7 application integration lifecycle handoff", prompt)
 
 
 if __name__ == "__main__":

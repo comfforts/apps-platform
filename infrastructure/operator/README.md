@@ -1,6 +1,6 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W6 interactive deployment mechanics implemented; no external operation performed
+Status: AP-M9-W7 application integration lifecycle implemented; no external operation performed
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -17,6 +17,28 @@ make platform-status ENVIRONMENT=staging
 make platform-deploy \
   ENVIRONMENT=staging \
   SPECIFICATION_DIGEST=sha256:<64-lowercase-hex>
+make platform-outputs \
+  ENVIRONMENT=staging \
+  APPLICATION_ID=fixture-authenticated \
+  ACCESS_MODE=authenticated \
+  ROUTE_INTENT=/fixture-authenticated \
+  PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
+  PLATFORM_GENERATION=1
+make platform-register \
+  ENVIRONMENT=staging \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.json
+make platform-detach \
+  ENVIRONMENT=staging \
+  APPLICATION_ID=fixture-authenticated \
+  PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
+  GENERATION_DIGEST=sha256:<64-lowercase-hex>
+make platform-retire \
+  ENVIRONMENT=staging \
+  APPLICATION_ID=fixture-authenticated \
+  PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
+  GENERATION_DIGEST=sha256:<64-lowercase-hex>
 ```
 
 Preparation is credential-free. It loads one committed profile, verifies local source/repository/
@@ -33,20 +55,31 @@ use the same digest-bound confirmation model. OAuth and DNS display exact non-se
 wait for Enter in the same process, and then use provider-verified or explicitly operator-attested
 readback with bounded DNS/TLS polling.
 
+Outputs generates one canonical application-scoped bundle beneath the private operator directory
+without exposing a secret or another application's values. Register accepts the exact integration
+bundle, application-owned attachment bundle, and a strict private registration-intent document. It
+validates current platform and target posture, publishes the complete immutable generation
+create-only, verifies readback, and requires exact typed activation. Detach and retire require the
+expected active-generation digest; replacement attachment registration reactivates a suspended
+application. Interrupted confirmation may resume only the identical publication.
+
 The default local construction remains deliberately unarmed until AP-M9-W8 completes qualification
-and safe-destruction controls. The repository gate drives deployment only through deterministic
-command fakes and transcript tests. The non-fake Terraform command adapter is implemented behind
-the injected boundary, uses absolute executable paths and argv, and is not invoked by `make check`.
+and safe-destruction controls. Therefore the W7 integration targets report
+`APPLICATION_INTEGRATION_ADAPTER_UNAVAILABLE` outside injected tests; they do not perform partial
+work. The repository gate drives deployment and application integration only through deterministic
+fakes and transcript tests. The non-fake Terraform command adapter is implemented behind the
+injected boundary, uses absolute executable paths and argv, and is not invoked by `make check`.
 It rejects path escape, ambient credential variables, shell interpolation, target/replace, lock
 bypass, import, state push, and force-unlock.
 
 ## Private local state
 
-Generated specifications, approval bindings, immutable journal revisions, and current pointers use
-the ignored `.platform-operator/` directory by default. Directories use mode `0700` and files use
-mode `0600`. Documents contain no credential, secret payload, Terraform state, saved plan, raw
-provider response, or browser state. Private plans and raw command results never become journal
-content.
+Generated specifications, approval bindings, immutable journal revisions, current pointers, and
+create-only application-scoped integration bundles use the ignored `.platform-operator/` directory
+by default. Directories use mode `0700` and files use mode `0600`. Registration intent is a strict
+private operator input; restricted members are never echoed in terminal results. Documents contain
+no credential, secret payload, Terraform state, saved plan, raw provider response, or browser
+state. Private plans and raw command results never become journal content.
 
 An interruption leaves the current stage open and resumes after the last closed stage. A closed
 mutation is never repeated. Waiting, cancellation, command failure, policy refusal, mismatched

@@ -203,6 +203,22 @@ class ReferenceEdge:
 
         route = _select_route(self._compiled_configuration["routes"], request.path)
         if route is None:
+            lifecycle = _reserved_application_lifecycle(
+                self._compiled_configuration["application_states"],
+                request.path,
+            )
+            if lifecycle == "suspended":
+                return _plain_response(
+                    503,
+                    "application_detached",
+                    "temporarily unavailable",
+                )
+            if lifecycle == "retired":
+                return _plain_response(
+                    410,
+                    "application_retired",
+                    "permanently removed",
+                )
             return _plain_response(404, "route_closed", "not found")
 
         attachment = _select_attachment(route, request.path)
@@ -448,6 +464,28 @@ def _select_route(routes: list[dict[str, Any]], path: str) -> dict[str, Any] | N
         if path == prefix or path.startswith(f"{prefix}/"):
             return route
     return None
+
+
+def _reserved_application_lifecycle(
+    states: list[dict[str, Any]],
+    path: str,
+) -> str | None:
+    candidates = [
+        state
+        for state in states
+        if state["lifecycle"] in {"suspended", "retired"}
+        and (
+            path == state["route_prefix"]
+            or path.startswith(f'{state["route_prefix"]}/')
+        )
+    ]
+    if not candidates:
+        return None
+    longest = max(len(state["route_prefix"]) for state in candidates)
+    selected = [
+        state for state in candidates if len(state["route_prefix"]) == longest
+    ]
+    return str(selected[0]["lifecycle"]) if len(selected) == 1 else None
 
 
 def _select_attachment(

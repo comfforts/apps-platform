@@ -13,8 +13,9 @@ evaluation gates. Every external mutation still requires the approval named by i
   extraction, workflow, repository-setting, reconciliation, cutover, and cleanup evidence.
 - [AP-M9 environment lifecycle](environment_lifecycle.md) is the current operator-product design.
   W6 adds the repository deployment engine, digest-bound deploy target, closed command boundary,
-  and same-process manual checkpoints; the real adapter remains unarmed and every external action
-  still waits for its named AP-M9 operator approval.
+  and same-process manual checkpoints. W7 adds least-data application handoffs and immutable
+  registration lifecycle commands behind injected boundaries. The real adapters remain unarmed
+  and every external action still waits for its named AP-M9 operator approval.
 - [Historical AP-M8 qualification deployment](qualification_deployment.md) preserves the
   superseded manifest-driven procedure. It is excluded from the active reading order and provides
   no current action authority.

@@ -1,8 +1,8 @@
 # App Platform system design
 
-Version 1.5 | Status: Fixture-qualified logical design, implemented AP-M6 runtime profile,
-implemented AP-M7 Terraform configuration profile, and accepted AP-M9 operator-driven environment
-lifecycle design; no provider operation or live infrastructure is deployed
+Version 1.6 | Status: Fixture-qualified logical design, implemented AP-M6 runtime and AP-M7
+Terraform profiles, and implemented AP-M9-W7 application lifecycle controls; no provider operation
+or live infrastructure is deployed
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -847,8 +847,11 @@ AP-M9-W1 defines this design, AP-M9-W2 removed the retired manifest implementati
 implemented the profile and lifecycle contracts, AP-M9-W4 implemented credential-free local
 preparation/status plus resumable fake execution, AP-M9-W5 implemented the repository-only
 Terraform lifecycle described below, and AP-M9-W6 implemented the unarmed staged deployment engine,
-closed command boundary, exact confirmations, manual checkpoints, readback, and resume. These
-packages create no identity, credential, state,
+closed command boundary, exact confirmations, manual checkpoints, readback, and resume. AP-M9-W7
+implemented least-data application outputs, exact attachment/target validation, immutable complete-
+generation activation, reversible detachment/reactivation, terminal retirement, and distinct
+reserved-route responses behind injected boundaries. These packages create no identity,
+credential, state,
 provider resource, OAuth client, DNS record, certificate, bundle instance, application change, or
 qualification evidence. Python-to-Go migration remains a later contract-preserving milestone after
 the Python product is delivered and qualified.

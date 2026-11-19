@@ -1,6 +1,6 @@
 # Comfforts App Platform
 
-Status: AP-M9-W6 interactive platform deployment implemented and deterministically verified; no
+Status: AP-M9-W7 application integration lifecycle implemented and deterministically verified; no
 platform environment is deployed or qualified
 
 Comfforts App Platform owns the shared hostname edge, catalogue, registration, routing, admission,
@@ -39,19 +39,31 @@ comparison and rollback behavior.
   `platform-prepare` and `platform-status`, and W5 implements the phased Terraform lifecycle,
   backend declarations, operation-authority profiles, and exact plan policy. W6 implements the
   staged deployment engine, closed command boundary, interactive checkpoints, and
-  `platform-deploy`. W7 is next.
+  `platform-deploy`. W7 implements least-data outputs, attachment validation, immutable
+  whole-generation registration, detach/reactivate, and terminal retirement. W8 is next.
 
 No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
 application registration, or Live evidence is created merely by the repository implementation.
 
 ## Operator interface
 
-AP-M9-W4 and W6 expose these thin targets over one deep interactive Python lifecycle module:
+AP-M9-W4, W6, and W7 expose these thin targets over one deep interactive Python lifecycle module:
 
 ```bash
 make platform-prepare ENVIRONMENT=staging
 make platform-status ENVIRONMENT=staging
 make platform-deploy ENVIRONMENT=staging SPECIFICATION_DIGEST=sha256:<64-lowercase-hex>
+make platform-outputs ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated \
+  ACCESS_MODE=authenticated ROUTE_INTENT=/fixture-authenticated \
+  PLATFORM_SOURCE_REVISION=<40-lowercase-hex> PLATFORM_GENERATION=1
+make platform-register ENVIRONMENT=staging \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.json
+make platform-detach ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated \
+  PLATFORM_SOURCE_REVISION=<40-lowercase-hex> GENERATION_DIGEST=sha256:<64-lowercase-hex>
+make platform-retire ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated \
+  PLATFORM_SOURCE_REVISION=<40-lowercase-hex> GENERATION_DIGEST=sha256:<64-lowercase-hex>
 ```
 
 Preparation requires clean current `main`, the committed Environment Profile, and the pinned local
@@ -62,16 +74,18 @@ closed stage. Its engine requires fresh private plans, exact typed confirmations
 readback, same-process OAuth/Squarespace checkpoints, and bounded DNS/TLS polling. Production
 remains blocked by `OWNERSHIP_TRANSFER_REQUIRED`.
 
-The default local construction remains deliberately unarmed until the later qualification and safe-
-destruction package completes; repository checks exercise deployment through deterministic command
-and transcript fakes, and the non-fake Terraform subprocess adapter is not invoked by `make check`.
-The remaining targets are planned and do not exist yet:
+W7 writes integration bundles create-only beneath the ignored private operator directory. It
+validates exact application attachments, compiles immutable complete Registration Generations, and
+requires exact typed confirmation before generation activation. Detach is reversible; retirement
+is terminal. Its terminal result contains only coarse outcome and digest facts, never restricted
+membership or target payloads.
+
+The default local construction remains deliberately unarmed until the W8 qualification and safe-
+destruction package completes. Repository checks exercise deployment and integration through
+deterministic fakes, and no non-fake external adapter is invoked by `make check`. The remaining
+targets are planned and do not exist yet:
 
 ```bash
-make platform-outputs ENVIRONMENT=staging APPLICATION=finance-assistant
-make platform-register ENVIRONMENT=staging ATTACHMENT_BUNDLE=/path/to/bundle.json
-make platform-detach ENVIRONMENT=staging APPLICATION=finance-assistant
-make platform-retire ENVIRONMENT=staging APPLICATION=finance-assistant
 make platform-qualify ENVIRONMENT=staging
 make platform-destroy ENVIRONMENT=staging
 ```
@@ -83,10 +97,11 @@ provider readback, DNS lookup/change, or deployment; AP-M9-W9 remains the first 
 
 ## Application boundary
 
-The implemented W3 contracts define a non-secret Platform Integration Bundle. They also define an
-Application Attachment Bundle. Generation, application consumption, and registration remain later
-AP-M9 work. Validation preserves application ownership without reading or taking ownership of
-Application State.
+The W3 contracts define the non-secret Platform Integration Bundle and Application Attachment Bundle.
+W7 generates least-data integration bundles from exact platform readback, validates an
+application-owned target against the attachment and current platform state, and activates only
+immutable complete Registration Generations. The provider and generation boundaries remain
+unarmed locally until W8. Validation never reads or takes ownership of Application State.
 
 Detachment is reversible and permits application destruction/redeployment while preserving the
 application identifier and route. Retirement is terminal. Platform destruction never destroys

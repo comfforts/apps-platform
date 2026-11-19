@@ -118,6 +118,30 @@ def select_application_route(
     return selected[0] if len(selected) == 1 else None
 
 
+def reserved_application_lifecycle(
+    configuration: dict[str, Any],
+    path: str,
+) -> str | None:
+    """Return one detached or retired route state without exposing its owner."""
+
+    candidates = [
+        state
+        for state in configuration["application_states"]
+        if state["lifecycle"] in {"suspended", "retired"}
+        and (
+            path == state["route_prefix"]
+            or path.startswith(f'{state["route_prefix"]}/')
+        )
+    ]
+    if not candidates:
+        return None
+    longest = max(len(state["route_prefix"]) for state in candidates)
+    selected = [
+        state for state in candidates if len(state["route_prefix"]) == longest
+    ]
+    return str(selected[0]["lifecycle"]) if len(selected) == 1 else None
+
+
 def routed_application_request(
     route: dict[str, Any],
     path: str,

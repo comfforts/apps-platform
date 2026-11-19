@@ -1,6 +1,6 @@
 # App Platform repository layout
 
-Version 2.0 | Status: canonical dedicated repository; AP-M9-W6 interactive deployment mechanics
+Version 2.1 | Status: canonical dedicated repository; AP-M9-W7 application lifecycle mechanics
 implemented; no backend, provider, DNS, deployment, or Live operation performed
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
@@ -24,7 +24,7 @@ permission to create a resource or perform an external action.
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
-| `infrastructure/operator/` | deep Python preparation, exact staged deployment, approval, journal, status, resume, local/command adapters, and thin CLI |
+| `infrastructure/operator/` | deep Python preparation, exact staged deployment, application integration, approval, journal, status, resume, injected adapters, and thin CLI |
 | `infrastructure/backend/` | AP-M9-W5 backend rendering, lineage, operation authority, plan policy, and fake command integration |
 | `infrastructure/terraform/bootstrap/` | state-bucket owner root with closed bootstrap phase output |
 | `infrastructure/terraform/platform/` | phased foundation and Shared Edge configuration on one Platform State lineage |
@@ -64,11 +64,20 @@ provider resource, OAuth client, secret version, DNS record, certificate, deploy
 evidence. The default local construction remains unarmed until the later qualification and safe-
 destruction package closes the external-action gate.
 
+AP-M9-W7 added least-data integration-bundle generation, exact application attachment and target-
+posture validation, immutable whole-generation compilation/publication/activation, reversible
+detach and replacement/reactivation, terminal retirement, distinct detached/retired route
+responses, interruption-safe activation resume, and shallow `platform-outputs`, `platform-register`,
+`platform-detach`, and `platform-retire` targets. All provider and generation boundaries remain
+injected and locally unarmed pending W8. The repository slice created no bundle for a real
+application, provider publication, active generation, application mutation, deployment, or Live
+evidence and never read or destroyed Application State.
+
 ## AP-M9 capability locations
 
-The implemented profile, lifecycle-contract, operator/deployment, backend, and Terraform locations are
-listed above. The locations below describe later module seams; their absence is expected until the
-named AP-M9 package implements them.
+The implemented profile, lifecycle-contract, operator/deployment/integration, backend, and
+Terraform locations are listed above. The locations below describe later module seams; their
+absence is expected until the named AP-M9 package implements them.
 
 | Path | Intended owner |
 | --- | --- |

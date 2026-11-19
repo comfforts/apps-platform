@@ -50,6 +50,7 @@ from ._routing import (
     is_reserved_path,
     render_catalogue,
     request_path,
+    reserved_application_lifecycle,
     route_admission_mode,
     route_admission_policy,
     routed_application_request,
@@ -662,6 +663,14 @@ def create_app(
             return _closed_response(404, "not found")
         route = select_application_route(active_generation.configuration, path)
         if route is None:
+            lifecycle = reserved_application_lifecycle(
+                active_generation.configuration,
+                path,
+            )
+            if lifecycle == "suspended":
+                return _closed_response(503, "temporarily unavailable")
+            if lifecycle == "retired":
+                return _closed_response(410, "permanently removed")
             return _closed_response(404, "not found")
         admission_mode = route_admission_mode(
             active_generation.configuration,

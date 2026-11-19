@@ -486,9 +486,9 @@ class OperatorLifecycleTest(unittest.TestCase):
             )
             self.assertEqual(after, before)
 
-    def test_cli_exposes_only_prepare_and_status_with_canonical_safe_output(self) -> None:
+    def test_cli_exposes_prepare_deploy_and_status_with_canonical_safe_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            operator, _ = self._operator(Path(directory))
+            operator, _ = self._operator(Path(directory), executor=FakeExecutor())
 
             prepare_stdout = io.StringIO()
             with mock.patch("sys.stdout", prepare_stdout):
@@ -497,6 +497,20 @@ class OperatorLifecycleTest(unittest.TestCase):
                     operator_factory=lambda _: operator,
                 )
             prepared = json.loads(prepare_stdout.getvalue().splitlines()[-1])
+
+            deploy_stdout = io.StringIO()
+            with mock.patch("sys.stdout", deploy_stdout):
+                deploy_code = operator_main(
+                    [
+                        "deploy",
+                        "--environment",
+                        "staging",
+                        "--specification-digest",
+                        prepared["specification_digest"],
+                    ],
+                    operator_factory=lambda _: operator,
+                )
+            deployed = json.loads(deploy_stdout.getvalue().splitlines()[-1])
 
             status_stdout = io.StringIO()
             with mock.patch("sys.stdout", status_stdout):
@@ -510,8 +524,11 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertEqual(prepared["outcome"], "prepared")
             self.assertTrue(prepared["approved"])
             self.assertRegex(prepared["specification_digest"], r"^sha256:[0-9a-f]{64}$")
+            self.assertEqual(deploy_code, 0)
+            self.assertEqual(deployed["outcome"], "succeeded")
+            self.assertRegex(deployed["journal_digest"], r"^sha256:[0-9a-f]{64}$")
             self.assertEqual(status_code, 0)
-            self.assertEqual(status["lifecycle_state"], "absent")
+            self.assertEqual(status["lifecycle_state"], "deployed")
 
             stderr = io.StringIO()
             with mock.patch("sys.stderr", stderr):
@@ -520,17 +537,19 @@ class OperatorLifecycleTest(unittest.TestCase):
                         ["deploy", "--environment", "staging"],
                         operator_factory=lambda _: operator,
                     )
-            self.assertIn("invalid choice", stderr.getvalue())
+            self.assertEqual(stderr.getvalue(), "")
 
     def test_make_targets_are_shallow_and_private_state_is_ignored(self) -> None:
         makefile = (PROJECT_ROOT / "Makefile").read_text(encoding="utf-8")
         gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
 
         self.assertIn("platform-prepare:", makefile)
+        self.assertIn("platform-deploy:", makefile)
         self.assertIn("platform-status:", makefile)
         self.assertIn("-m infrastructure.operator prepare", makefile)
+        self.assertIn("-m infrastructure.operator deploy", makefile)
         self.assertIn("-m infrastructure.operator status", makefile)
-        self.assertNotIn("platform-deploy:", makefile)
+        self.assertIn("SPECIFICATION_DIGEST is required", makefile)
         self.assertIn(".platform-operator/", gitignore)
 
     def test_local_filesystem_does_not_create_state_during_read_only_status(self) -> None:

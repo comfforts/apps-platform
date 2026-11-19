@@ -8,6 +8,7 @@ from infrastructure.operator._interfaces import (
     OperatorInterrupted,
     OperatorAdapters,
     PrepareResult,
+    StageContext,
     StageExecution,
     StatusResult,
 )
@@ -20,6 +21,7 @@ __all__ = (
     "OperatorInterrupted",
     "OperatorAdapters",
     "PrepareResult",
+    "StageContext",
     "StageExecution",
     "StatusResult",
 )

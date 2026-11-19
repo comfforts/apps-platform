@@ -18,6 +18,7 @@ from infrastructure.operator import (
     LifecycleOperator,
     OperatorInterrupted,
     OperatorAdapters,
+    StageContext,
     StageExecution,
 )
 from infrastructure.operator.local import LocalFilesystem
@@ -95,11 +96,8 @@ class FakeExecutor:
     scripted: list[StageExecution | BaseException] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
 
-    def execute(
-        self,
-        stage: dict[str, object],
-        inputs: tuple[tuple[str, str], ...],
-    ) -> StageExecution:
+    def execute(self, context: StageContext) -> StageExecution:
+        stage = context.stage
         stage_id = str(stage["stage_id"])
         self.calls.append(stage_id)
         if self.scripted:
@@ -123,6 +121,39 @@ class FakeExecutor:
 
 
 class OperatorLifecycleTest(unittest.TestCase):
+    def test_executor_receives_one_exact_immutable_stage_context(self) -> None:
+        @dataclass
+        class ContextExecutor:
+            contexts: list[StageContext] = field(default_factory=list)
+
+            def execute(self, context: StageContext) -> StageExecution:
+                self.contexts.append(context)
+                return StageExecution(
+                    outcome="waiting",
+                    blockers=("OPERATOR_ACTION_REQUIRED",),
+                )
+
+        with tempfile.TemporaryDirectory() as directory:
+            executor = ContextExecutor()
+            operator, _ = self._operator(Path(directory), executor=executor)  # type: ignore[arg-type]
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            result = operator.execute("staging", prepared.specification_digest)
+
+            self.assertEqual(result.outcome, "waiting")
+            self.assertEqual(result.blockers, ("OPERATOR_ACTION_REQUIRED",))
+            self.assertEqual(len(executor.contexts), 1)
+            context = executor.contexts[0]
+            self.assertEqual(context.environment, "staging")
+            self.assertEqual(context.source_revision, "a" * 40)
+            self.assertEqual(
+                context.specification_digest,
+                prepared.specification_digest,
+            )
+            self.assertEqual(context.stage["stage_id"], "preflight")
+            self.assertEqual(context.inputs, ())
+
     def _operator(
         self,
         state_root: Path,

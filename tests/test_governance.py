@@ -270,7 +270,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_layout = " ".join(layout.split())
         normalized_overview = " ".join(overview.split())
 
-        self.assertIn("AP-M9-W1 governance rebaseline in review", normalized_index)
+        self.assertIn("AP-M9-W2 retired-manifest cleanup implemented", normalized_index)
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
         self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
         self.assertIn("AP-M8 | historical", index)
@@ -289,6 +289,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("history-preserving extraction", normalized_layout)
         self.assertIn("7b6678a7f0b3036d427517dad6bc3bec876d1a44", history)
         self.assertIn("no real operator manifest had been accepted", history)
+        self.assertIn("AP-M9-W2 removed the schema", history)
 
         for current_entry_point in (
             PROJECT_ROOT / "AGENTS.md",
@@ -617,7 +618,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("independent synthetic Application State roots", layout)
 
-    def test_ap_m9_w2_handoff_loads_authority_without_granting_operations(
+    def test_ap_m9_w3_handoff_loads_authority_without_granting_operations(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -627,20 +628,22 @@ class ProjectAuthorityTest(unittest.TestCase):
         for authority in (
             "AGENTS.md",
             "docs/README.md",
-            "AP-M9-W2",
+            "AP-M9-W3",
             "AP-PR-010",
-            "AP-QR-007",
+            "AP-QR-003",
             "ADR-010",
             "AP-EVAL-M9-02",
+            "AP-TM-001",
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M9-W1 governance-rebaseline pull request has merged",
-            "Remove `infrastructure/config/schemas/operator-input-manifest.v1.schema.json`",
-            "Preserve every AP-M7 configuration contract and consumer",
-            "Leave AP-M9-W3 contracts and profiles unimplemented",
+            "after the AP-M9-W2 retired-manifest cleanup pull request has merged",
+            "Add small, closed, committed non-secret profiles",
+            "Add closed, versioned contracts for the Deployment Specification",
+            "Implement deterministic canonicalization, digest binding",
+            "Preserve AP-M7 configuration, Terraform, runtime, Fixture",
+            "Leave AP-M9-W4's interactive operator module",
             "Run `make check` from the repository root",
-            "Do not create an operator manifest",
             "Do not change repository settings",
             "Finance Assistant",
         ):
@@ -649,7 +652,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("## ADR-", prompt)
         self.assertNotIn("terraform apply", prompt)
         self.assertIn(
-            "[AP-M9-W2 retired-manifest cleanup handoff](starting_prompt.md)",
+            "[AP-M9-W3 lifecycle-contracts and profiles handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -663,10 +666,10 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(f"AP-M9-W{work_package}", index)
         self.assertIn("Each work package is one bounded branch and pull request", normalized_index)
         self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W10"))
-        self.assertIn("AP-M9-W2", normalized_prompt)
-        self.assertIn("retired manifest cleanup", normalized_prompt)
+        self.assertIn("AP-M9-W3", normalized_prompt)
+        self.assertIn("lifecycle-contracts", normalized_prompt)
         self.assertIn("Do not change repository settings", normalized_prompt)
-        self.assertIn("Leave AP-M9-W3 contracts and profiles unimplemented", normalized_prompt)
+        self.assertIn("Leave AP-M9-W4's interactive operator module", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
@@ -988,92 +991,29 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertFalse(any(PROJECT_ROOT.rglob("*.tfstate")))
         self.assertFalse(any(PROJECT_ROOT.rglob("*.tfplan")))
 
-    def test_ap_m8_w2_operator_manifest_is_closed_synthetic_and_non_operational(
-        self,
-    ) -> None:
+    def test_ap_m9_w2_removes_the_retired_manifest_implementation(self) -> None:
         config_root = PROJECT_ROOT / "infrastructure/config"
-        schema_path = config_root / "schemas/operator-input-manifest.v1.schema.json"
-        example_path = (
-            config_root / "examples/operator-input-manifest.synthetic.v1.json"
-        )
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        example = json.loads(example_path.read_text(encoding="utf-8"))
-        config_index = (config_root / "README.md").read_text(encoding="utf-8")
-
-        self.assertEqual(
-            schema["$id"],
-            "urn:comfforts:app-platform:infrastructure-config:"
-            "operator-input-manifest:v1",
-        )
-        self.assertFalse(schema["additionalProperties"])
-        environment = schema["$defs"]["qualificationEnvironment"]["properties"]
-        self.assertEqual(
-            {
-                key: value["const"]
-                for key, value in environment.items()
-            },
-            {
-                "environment_id": "qualification",
-                "project_id": "comfforts-platform-non-prod",
-                "project_number": "455651441682",
-                "region": "us-west1",
-                "hostname": "apps-staging.comfforts.com",
-            },
-        )
-        self.assertEqual(example["configuration_class"], "synthetic")
-        self.assertEqual(example["generated_facts"], [])
-        self.assertEqual(example["predecessor_manifest_digest"], None)
-        self.assertIn("Retired AP-M8 inventory", config_index)
-        self.assertIn("ADR-010 retired this manifest", config_index)
-        self.assertIn("pending removal in AP-M9-W2", config_index)
-
-        operator_manifests = [
-            path
-            for path in PROJECT_ROOT.rglob("*operator-input-manifest*.json")
-            if path != schema_path and path != example_path
-        ]
-        self.assertEqual(operator_manifests, [])
-
-    def test_ap_m8_w2_validator_has_no_discovery_or_later_slice_capability(
-        self,
-    ) -> None:
         validation = (
-            PROJECT_ROOT / "infrastructure/config/validation.py"
+            config_root / "validation.py"
         ).read_text(encoding="utf-8")
-        command = (
-            PROJECT_ROOT / "infrastructure/config/operator_manifest.py"
-        ).read_text(encoding="utf-8")
-        package = (PROJECT_ROOT / "infrastructure/config/__init__.py").read_text(
+        package = (config_root / "__init__.py").read_text(
             encoding="utf-8"
         )
-        normalized = " ".join(validation.split())
-        local_implementation = "\n".join((validation, command))
 
-        for interface in (
+        for removed_path in (
+            config_root / "schemas/operator-input-manifest.v1.schema.json",
+            config_root / "examples/operator-input-manifest.synthetic.v1.json",
+            config_root / "operator_manifest.py",
+        ):
+            self.assertFalse(removed_path.exists())
+        for retired_interface in (
+            "operator-input-manifest",
             "OperatorManifestChainResult",
             "load_operator_manifest_chain",
             "validate_operator_manifest_chain",
         ):
-            self.assertIn(interface, package)
-        for prohibited_dependency in (
-            "import os",
-            "import socket",
-            "import subprocess",
-            "import urllib",
-            "import requests",
-            "google.cloud",
-            "os.environ",
-        ):
-            self.assertNotIn(prohibited_dependency, local_implementation)
-        for boundary in (
-            "the initial manifest revision must not name a predecessor",
-            "successor predecessor digest does not match the prior revision",
-            "successor changed an immutable reviewed operator input",
-            "a successor revision must append at least one generated fact",
-            "operation identities require distinct service accounts",
-            "the fixed five root lineages and prefixes are required",
-        ):
-            self.assertIn(boundary, normalized)
+            self.assertNotIn(retired_interface, package)
+            self.assertNotIn(retired_interface, validation)
 
         for later_path in (
             "infrastructure/backend",
@@ -1085,7 +1025,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertFalse(
                 (PROJECT_ROOT / later_path).exists(),
-                f"AP-M8-W2 must not create later capability: {later_path}",
+                f"AP-M9-W2 must not create later capability: {later_path}",
             )
         self.assertEqual(
             sorted(
@@ -1270,8 +1210,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         config_root = PROJECT_ROOT / "infrastructure/config"
         self.assertTrue((config_root / "README.md").is_file())
         self.assertTrue((config_root / "validation.py").is_file())
-        self.assertEqual(len(tuple((config_root / "schemas").glob("*.json"))), 6)
-        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 16)
+        self.assertEqual(len(tuple((config_root / "schemas").glob("*.json"))), 5)
+        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 15)
         module_root = PROJECT_ROOT / "infrastructure/terraform/modules"
         self.assertEqual(
             sorted(path.name for path in module_root.iterdir() if path.is_dir()),

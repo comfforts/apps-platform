@@ -1,6 +1,6 @@
 # App Platform evaluation strategy
 
-Version 0.8 | Status: AP-M9-W1 evaluation authority accepted for repository implementation;
+Version 0.9 | Status: AP-M9-W1 evaluation authority merged and AP-M9-W2 cleanup implemented;
 historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded without execution; no AP-M9
 operational result exists
 
@@ -8,8 +8,8 @@ This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecu
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
 the operator-driven lifecycle implementation and staging qualification gate. AP-EVAL-M7 continues
 to qualify only committed configuration and inert templates through deterministic static tests with
-mocked providers. AP-M9-W1 supplies no operational result, and no platform evaluation qualifies a
-consuming application's adoption or product authorization.
+mocked providers. AP-M9-W1 and AP-M9-W2 supply no operational result, and no platform evaluation
+qualifies a consuming application's adoption or product authorization.
 
 Plan: [App Platform implementation plan](04_implementation_plan.md)
 
@@ -1656,6 +1656,7 @@ application, production availability, cross-cloud behavior, Python-to-Go migrati
 application's principals, data isolation, provider rights, Feature Entitlements, recovery, or
 destruction. Those remain production-cutover, later migration, or Application Adoption evidence.
 
-This definition is AP-M9-W1 authority only. It creates no profile, code, identity, credential,
-state, plan, resource, OAuth client, secret, DNS record, certificate, application asset, execution
-journal, evidence bundle, deployment, destruction, or passing result.
+This definition originated in AP-M9-W1. AP-M9-W2 removes only the retired manifest path and creates
+no profile, lifecycle capability, identity, credential, state, plan, resource, OAuth client,
+secret, DNS record, certificate, application asset, execution journal, evidence bundle,
+deployment, destruction, or passing operational result.

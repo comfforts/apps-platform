@@ -319,7 +319,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertNotIn("id-token: write", check_workflow)
         self.assertNotIn("terraform apply", check_workflow)
 
-    def test_status_preserves_ap_m7_and_routes_next_work_to_ap_m9_w2(self) -> None:
+    def test_status_preserves_ap_m7_and_routes_next_work_to_ap_m9_w3(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(
@@ -329,10 +329,10 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("AP-M7 implements statically verified Terraform", combined)
         self.assertIn("AP-M7 | complete | static Terraform", index)
         self.assertIn("AP-M8 | historical", index)
-        self.assertIn("AP-M9-W2 — retired manifest cleanup", index)
-        self.assertIn("AP-M9-W1 governance-rebaseline pull request has merged", prompt)
-        self.assertIn("Remove `infrastructure/config/schemas/operator-input-manifest", prompt)
-        self.assertIn("Leave AP-M9-W3 contracts and profiles unimplemented", prompt)
+        self.assertIn("AP-M9-W2 — retired manifest cleanup (implemented)", index)
+        self.assertIn("AP-M9-W2 retired-manifest cleanup pull request has merged", prompt)
+        self.assertIn("Add small, closed, committed non-secret profiles", prompt)
+        self.assertIn("Leave AP-M9-W4's interactive operator module", prompt)
         self.assertIn("no platform environment is deployed or qualified", combined)
         for false_claim in (
             "AP-M7 is deployed",

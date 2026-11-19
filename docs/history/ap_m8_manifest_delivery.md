@@ -19,6 +19,10 @@ it with small environment profiles and an interactive lifecycle that discovers r
 presents exact changes, obtains bounded approvals, performs staged operations, and records
 readbacks.
 
+AP-M9-W2 removed the schema, example, command, validator, loader, exports, and dedicated tests from
+the active tree. The source revision above remains the exact implementation record; removal does
+not change the factual AP-M8 delivery evidence or create operational authority.
+
 The old AP-EVAL-M8 and standalone AP-EVAL-M9 definitions have no result and provide no current
 claim. The complete historical text and implementation are recoverable from Git at the revision
 above; this record deliberately does not duplicate obsolete instructions.

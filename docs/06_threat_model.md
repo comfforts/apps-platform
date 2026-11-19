@@ -807,9 +807,10 @@ scans, and post-stage readback. A compromised workstation remains residual risk;
 an owner credential incapable of out-of-band provider action. Such action is drift and never becomes
 reviewed authority without reconciliation.
 
-AP-M9-W1 defines controls and evaluation authority only. Implementation work must use deterministic
-fake adapters and failure injection before any approved staging operation. No current result proves
-these controls operational.
+AP-M9-W1 defines controls and evaluation authority, and AP-M9-W2 removes only the retired manifest
+attack surface. Later implementation work must use deterministic fake adapters and failure
+injection before any approved staging operation. No current result proves these controls
+operational.
 
 ## Unresolved security decisions
 

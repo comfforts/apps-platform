@@ -1,8 +1,7 @@
-"""AP-M7 and AP-M8 versioned infrastructure-configuration contract checks."""
+"""AP-M7 versioned infrastructure-configuration contract checks."""
 
 from __future__ import annotations
 
-import copy
 import json
 from pathlib import Path
 import shutil
@@ -17,9 +16,7 @@ from infrastructure.config.validation import (
     SCHEMA_IDS,
     load_configuration_document,
     load_configuration_schemas,
-    load_operator_manifest_chain,
     validate_configuration,
-    validate_operator_manifest_chain,
 )
 
 
@@ -35,7 +32,6 @@ EXAMPLE_KINDS = {
     "fixture-authenticated.synthetic.v1.json": "fixture",
     "fixture-public.synthetic.v1.json": "fixture",
     "fixture-restricted.synthetic.v1.json": "fixture",
-    "operator-input-manifest.synthetic.v1.json": "operator-input-manifest",
     "platform.synthetic.v1.json": "platform",
     "workflow-apply.synthetic.v1.json": "workflow",
     "workflow-destroy.synthetic.v1.json": "workflow",
@@ -55,64 +51,6 @@ def _codes(violations: object) -> list[tuple[str, str]]:
     return [(item.code, item.path) for item in violations]  # type: ignore[attr-defined]
 
 
-def _manifest() -> dict[str, object]:
-    return _example("operator-input-manifest.synthetic.v1.json")
-
-
-def _operator_manifest() -> dict[str, object]:
-    value = json.loads(json.dumps(_manifest()).replace("synthetic", "qualification-test"))
-    assert isinstance(value, dict)
-    value["configuration_class"] = "operator"
-    source = value["source"]
-    assert isinstance(source, dict)
-    source["source_revision"] = "3" * 40
-    resources = value["platform_resources"]
-    assert isinstance(resources, dict)
-    resources["evidence_bundle_prefix"] = (
-        f"ap-eval-m8/{'3' * 40}/qualification-test-evaluation/"
-    )
-    federation = value["federation"]
-    assert isinstance(federation, dict)
-    operation_identities = federation["operation_identities"]
-    assert isinstance(operation_identities, list)
-    operation_identity = operation_identities[0]
-    assert isinstance(operation_identity, dict)
-    operation_identity["service_account_resource"] = (
-        "projects/comfforts-platform-non-prod/serviceAccounts/"
-        "qtest-plan-platform@comfforts-platform-non-prod.iam.gserviceaccount.com"
-    )
-    return value
-
-
-def _successor(
-    predecessor: dict[str, object],
-    predecessor_digest: str,
-) -> dict[str, object]:
-    successor = copy.deepcopy(predecessor)
-    successor["revision"] = 2
-    successor["predecessor_manifest_digest"] = predecessor_digest
-    successor["approval_reference"] = "owner-approval:synthetic-ap-m8-w2-revision-2"
-    source = successor["source"]
-    assert isinstance(source, dict)
-    source["source_revision"] = "1" * 40
-    resources = successor["platform_resources"]
-    assert isinstance(resources, dict)
-    resources["evidence_bundle_prefix"] = (
-        f"ap-eval-m8/{'1' * 40}/synthetic-evaluation/"
-    )
-    successor["generated_facts"] = [
-        {
-            "fact_kind": "image-digest",
-            "target_id": "shared-edge",
-            "value": (
-                "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
-                f"synthetic-platform/shared-edge@sha256:{'a' * 64}"
-            ),
-        }
-    ]
-    return successor
-
-
 class InfrastructureConfigurationTest(unittest.TestCase):
     def test_exact_local_schema_registry_loads_without_remote_resolution(self) -> None:
         registry = load_configuration_schemas()
@@ -125,7 +63,6 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                     "backend-configuration.v1.schema.json",
                     "cross-state-reference.v1.schema.json",
                     "fixture-configuration.v1.schema.json",
-                    "operator-input-manifest.v1.schema.json",
                     "platform-configuration.v1.schema.json",
                     "workflow-configuration.v1.schema.json",
                 )
@@ -312,301 +249,6 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                 violations = validate_configuration(value, kind)
                 self.assertIn("CONFIGURATION_POLICY_INVALID", {item.code for item in violations})
 
-    def test_operator_manifest_chain_accepts_one_initial_and_one_successor_revision(
-        self,
-    ) -> None:
-        initial = _manifest()
-        initial_result = validate_operator_manifest_chain(
-            [initial],
-            allow_synthetic=True,
-        )
-        self.assertEqual(initial_result.violations, ())
-        self.assertIsNotNone(initial_result.values)
-        self.assertEqual(len(initial_result.digests), 1)
-        self.assertRegex(initial_result.digests[0], r"^sha256:[0-9a-f]{64}$")
-
-        successor = _successor(initial, initial_result.digests[0])
-        chain = validate_operator_manifest_chain(
-            [initial, successor],
-            allow_synthetic=True,
-        )
-        self.assertEqual(chain.violations, ())
-        self.assertIsNotNone(chain.values)
-        self.assertEqual(len(chain.digests), 2)
-        self.assertNotEqual(chain.digests[0], chain.digests[1])
-
-    def test_operator_manifest_digest_normalizes_closed_set_like_inputs(self) -> None:
-        original = _manifest()
-        reordered = copy.deepcopy(original)
-        state = reordered["state"]
-        assert isinstance(state, dict)
-        buckets = state["buckets"]
-        lineages = state["lineages"]
-        assert isinstance(buckets, list)
-        assert isinstance(lineages, list)
-        buckets.reverse()
-        lineages.reverse()
-        registration = reordered["registration_inputs"]
-        assert isinstance(registration, dict)
-        applications = registration["application_ids"]
-        assert isinstance(applications, list)
-        applications.reverse()
-
-        first = validate_operator_manifest_chain([original], allow_synthetic=True)
-        second = validate_operator_manifest_chain([reordered], allow_synthetic=True)
-        self.assertEqual(first.violations, ())
-        self.assertEqual(second.violations, ())
-        self.assertEqual(first.digests, second.digests)
-
-    def test_operator_manifest_chain_rejects_predecessor_mutation_and_stale_approval(
-        self,
-    ) -> None:
-        initial = _manifest()
-        initial_result = validate_operator_manifest_chain(
-            [initial],
-            allow_synthetic=True,
-        )
-        successor = _successor(initial, initial_result.digests[0])
-        successor["predecessor_manifest_digest"] = f"sha256:{'b' * 64}"
-        successor["approval_reference"] = initial["approval_reference"]
-        resources = successor["platform_resources"]
-        assert isinstance(resources, dict)
-        resources["log_bucket"] = "synthetic-replaced-log-bucket"
-
-        violations = validate_operator_manifest_chain(
-            [initial, successor],
-            allow_synthetic=True,
-        ).violations
-        codes = _codes(violations)
-        self.assertIn(
-            ("MANIFEST_CHAIN_INVALID", "/revisions/1/predecessor_manifest_digest"),
-            codes,
-        )
-        self.assertIn(
-            ("MANIFEST_CHAIN_INVALID", "/revisions/1/approval_reference"),
-            codes,
-        )
-        self.assertIn(("MANIFEST_CHAIN_INVALID", "/revisions/1"), codes)
-
-    def test_operator_manifest_successor_must_append_and_preserve_generated_facts(
-        self,
-    ) -> None:
-        initial = _manifest()
-        initial_result = validate_operator_manifest_chain(
-            [initial],
-            allow_synthetic=True,
-        )
-        successor = _successor(initial, initial_result.digests[0])
-        accepted = validate_operator_manifest_chain(
-            [initial, successor],
-            allow_synthetic=True,
-        )
-        replacement = copy.deepcopy(successor)
-        replacement["revision"] = 3
-        replacement["predecessor_manifest_digest"] = accepted.digests[1]
-        replacement["approval_reference"] = "owner-approval:synthetic-ap-m8-w2-revision-3"
-        source = replacement["source"]
-        assert isinstance(source, dict)
-        source["source_revision"] = "2" * 40
-        resources = replacement["platform_resources"]
-        assert isinstance(resources, dict)
-        resources["evidence_bundle_prefix"] = (
-            f"ap-eval-m8/{'2' * 40}/synthetic-evaluation/"
-        )
-        facts = replacement["generated_facts"]
-        assert isinstance(facts, list)
-        facts[0] = {
-            "fact_kind": "plan-digest",
-            "target_id": "platform",
-            "value": f"sha256:{'c' * 64}",
-        }
-
-        violations = validate_operator_manifest_chain(
-            [initial, successor, replacement],
-            allow_synthetic=True,
-        ).violations
-        self.assertIn(
-            ("MANIFEST_CHAIN_INVALID", "/revisions/2/generated_facts"),
-            _codes(violations),
-        )
-
-        no_append = copy.deepcopy(successor)
-        no_append["revision"] = 3
-        no_append["predecessor_manifest_digest"] = accepted.digests[1]
-        no_append["approval_reference"] = "owner-approval:synthetic-ap-m8-w2-revision-3"
-        source = no_append["source"]
-        assert isinstance(source, dict)
-        source["source_revision"] = "2" * 40
-        resources = no_append["platform_resources"]
-        assert isinstance(resources, dict)
-        resources["evidence_bundle_prefix"] = (
-            f"ap-eval-m8/{'2' * 40}/synthetic-evaluation/"
-        )
-        violations = validate_operator_manifest_chain(
-            [initial, successor, no_append],
-            allow_synthetic=True,
-        ).violations
-        self.assertIn(
-            ("MANIFEST_CHAIN_INVALID", "/revisions/2/generated_facts"),
-            _codes(violations),
-        )
-
-    def test_operator_manifest_rejects_cross_scope_and_overbroad_authority(self) -> None:
-        manifest = _manifest()
-        controls = manifest["repository_controls"]
-        assert isinstance(controls, dict)
-        environments = controls["protected_environments"]
-        assert isinstance(environments, dict)
-        environments["apply"] = environments["plan"]
-        federation = manifest["federation"]
-        assert isinstance(federation, dict)
-        identities = federation["operation_identities"]
-        assert isinstance(identities, list)
-        identity = identities[0]
-        assert isinstance(identity, dict)
-        identity["permissions"] = ["resourcemanager.projects.setIamPolicy"]
-        state = manifest["state"]
-        assert isinstance(state, dict)
-        lineages = state["lineages"]
-        assert isinstance(lineages, list)
-        lineage = lineages[0]
-        assert isinstance(lineage, dict)
-        lineage["backend_prefix"] = "platform"
-
-        violations = validate_configuration(
-            manifest,
-            "operator-input-manifest",
-            allow_synthetic=True,
-        )
-        codes = _codes(violations)
-        self.assertIn(
-            ("OWNER_CONFLICT", "/repository_controls/protected_environments"),
-            codes,
-        )
-        self.assertIn(
-            (
-                "CONFIGURATION_POLICY_INVALID",
-                "/federation/operation_identities/0/permissions/0",
-            ),
-            codes,
-        )
-        self.assertIn(("OWNER_CONFLICT", "/state/lineages"), codes)
-
-    def test_operator_manifest_rejects_placeholder_secret_and_mutable_fact(self) -> None:
-        manifest = _manifest()
-        manifest["configuration_class"] = "operator"
-        manifest["secret_value"] = "must-not-enter-git"
-        violations = validate_configuration(manifest, "operator-input-manifest")
-        codes = _codes(violations)
-        self.assertIn(("FIELD_UNKNOWN", "/secret_value"), codes)
-        self.assertIn(("PROHIBITED_MATERIAL", "/secret_value"), codes)
-        self.assertIn("CONFIGURATION_POLICY_INVALID", {item.code for item in violations})
-
-        synthetic = _manifest()
-        synthetic["revision"] = 2
-        synthetic["predecessor_manifest_digest"] = f"sha256:{'a' * 64}"
-        synthetic["generated_facts"] = [
-            {
-                "fact_kind": "image-digest",
-                "target_id": "shared-edge",
-                "value": "us-west1-docker.pkg.dev/project/repository/shared-edge:latest",
-            }
-        ]
-        violations = validate_configuration(
-            synthetic,
-            "operator-input-manifest",
-            allow_synthetic=True,
-        )
-        self.assertIn(
-            ("CONFIGURATION_POLICY_INVALID", "/generated_facts/0/value"),
-            _codes(violations),
-        )
-
-    def test_operator_manifest_chain_load_is_bounded_and_non_mutating(self) -> None:
-        initial = _manifest()
-        initial_result = validate_operator_manifest_chain(
-            [initial],
-            allow_synthetic=True,
-        )
-        successor = _successor(initial, initial_result.digests[0])
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            directory = Path(temporary_directory)
-            paths = (directory / "1.json", directory / "2.json")
-            paths[0].write_text(json.dumps(initial), encoding="utf-8")
-            paths[1].write_text(json.dumps(successor), encoding="utf-8")
-            before = tuple(path.read_bytes() for path in paths)
-            result = load_operator_manifest_chain(paths, allow_synthetic=True)
-            after = tuple(path.read_bytes() for path in paths)
-
-        self.assertEqual(result.violations, ())
-        self.assertEqual(len(result.digests), 2)
-        self.assertEqual(before, after)
-
-    def test_operator_manifest_chain_fails_closed_before_digesting_invalid_values(self) -> None:
-        manifest = _manifest()
-        manifest["generated_facts"] = {"not", "json"}
-
-        result = validate_operator_manifest_chain(
-            [manifest],
-            allow_synthetic=True,
-        )
-
-        self.assertIsNone(result.values)
-        self.assertEqual(result.digests, ())
-        self.assertIn(
-            ("FIELD_TYPE", "/revisions/0/generated_facts"),
-            _codes(result.violations),
-        )
-
-    def test_operator_manifest_command_emits_only_digests_or_ordered_violations(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            directory = Path(temporary_directory)
-            operator_path = directory / "operator.json"
-            operator_path.write_text(
-                json.dumps(_operator_manifest()),
-                encoding="utf-8",
-            )
-            accepted = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "infrastructure.config.operator_manifest",
-                    str(operator_path),
-                ],
-                cwd=PROJECT_ROOT,
-                env={"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": str(PROJECT_ROOT)},
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            synthetic_path = EXAMPLE_DIRECTORY / "operator-input-manifest.synthetic.v1.json"
-            rejected = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "infrastructure.config.operator_manifest",
-                    str(synthetic_path),
-                ],
-                cwd=PROJECT_ROOT,
-                env={"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": str(PROJECT_ROOT)},
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-
-        accepted_payload = json.loads(accepted.stdout)
-        rejected_payload = json.loads(rejected.stdout)
-        self.assertEqual(accepted.returncode, 0, accepted.stderr)
-        self.assertEqual(accepted_payload["status"], "accepted")
-        self.assertEqual(accepted_payload["revision_count"], 1)
-        self.assertRegex(accepted_payload["digests"][0], r"^sha256:[0-9a-f]{64}$")
-        self.assertNotIn("qualification-test", accepted.stdout)
-        self.assertEqual(rejected.returncode, 1, rejected.stderr)
-        self.assertEqual(rejected_payload["status"], "rejected")
-        self.assertEqual(
-            rejected_payload["violations"][0]["code"],
-            "SYNTHETIC_CONFIGURATION_PROHIBITED",
-        )
 
     def test_w8_adds_only_the_approved_platform_and_fixture_resources(self) -> None:
         terraform_root = PROJECT_ROOT / "infrastructure" / "terraform"

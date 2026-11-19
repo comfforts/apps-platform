@@ -3,8 +3,9 @@
 These AP-M7-W9 `*.yml.tmpl` files are JSON-compatible YAML documents stored outside
 `.github/workflows/`. They are parsed as data by the deterministic repository gate and cannot run
 as GitHub Actions workflows. ADR-010 retired the AP-M8 manifest assumptions around these designs.
-AP-M9-W2 decides which obsolete assumptions to remove, and AP-M9-W5 decides whether any element is
-adapted for the interactive lifecycle. Until then they provide no executable authority.
+AP-M9-W2 removed the separate manifest interface and confirmed that these AP-M7 templates have no
+active manifest consumer. AP-M9-W5 decides whether any element is adapted for the interactive
+lifecycle. Until then they provide no executable authority.
 
 Every template keeps repository permissions read-only by default, grants `id-token: write` only to
 its future federated job, pins every action to a full commit SHA, fixes protected main and the

@@ -839,9 +839,9 @@ the exact manual action, waits for an Enter acknowledgement, verifies every read
 continues without requiring another invocation. Rerunning is recovery after interruption, not the
 normal checkpoint interface.
 
-The AP-M8 operator-manifest schema, chain, prompt, and manual-input workflow are retired in the
-next repository slice. Their merged history remains evidence that the approach was implemented and
-superseded; it is not active deployment authority.
+AP-M9-W2 removed the retired AP-M8 operator-manifest schema, chain, prompt, and manual-input
+workflow from the active tree. Their merged history remains evidence that the approach was
+implemented and superseded; it is not active deployment authority.
 
 ### Consequences
 

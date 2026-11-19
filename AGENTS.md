@@ -45,9 +45,10 @@ change in the repository.
   provider call, repository-setting change, cloud or DNS mutation, deployment, Live claim, or
   Application Adoption.
 - AP-M8-W1/W2 are historical merged work. AP-M8-W3 through AP-M8-W12 are superseded and must not
-  be resumed. The historical manifest implementation remains only until AP-M9-W2 removes it.
-- AP-M9-W1 authorizes governance and documentation rebaselining only. Each later AP-M9 package
-  requires its predecessor to be merged and its own approved authority. Until the relevant package
+  be resumed. AP-M9-W2 removed the historical manifest implementation from the active tree.
+- AP-M9-W1 established the operator-lifecycle authority, and AP-M9-W2 removed the retired manifest
+  path. Each later AP-M9 package requires its predecessor to be merged and its own approved
+  authority. Until the relevant package
   is implemented and invoked, AP-M9 authorizes no repository-setting change, federation or IAM
   binding, credential use, backend operation, authenticated plan or apply, provider call, OAuth
   client, image publication, DNS or traffic change, deployment, destructive action, Live claim, or

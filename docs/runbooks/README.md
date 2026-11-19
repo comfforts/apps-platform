@@ -12,7 +12,8 @@ evaluation gates. Every external mutation still requires the approval named by i
 - [Repository extraction handoff](../repository_extraction_handoff.md) records the secret-free
   extraction, workflow, repository-setting, reconciliation, cutover, and cleanup evidence.
 - [AP-M9 environment lifecycle](environment_lifecycle.md) is the current operator-product design.
-  Its commands remain unavailable until their named AP-M9 packages implement and qualify them.
+  W4 implements credential-free preparation and local status only; every mutating command remains
+  unavailable until its named AP-M9 package implements and qualifies it.
 - [Historical AP-M8 qualification deployment](qualification_deployment.md) preserves the
   superseded manifest-driven procedure. It is excluded from the active reading order and provides
   no current action authority.

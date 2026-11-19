@@ -1,0 +1,268 @@
+"""Local, path-bounded filesystem implementation for operator state."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+
+from infrastructure.operator._core import LifecycleOperator
+from infrastructure.operator._interfaces import (
+    DiscoverySnapshot,
+    GitSnapshot,
+    OperatorAdapters,
+)
+from infrastructure.tools.terraform_setup import (
+    GOOGLE_PROVIDER_VERSION,
+    MANIFEST,
+    MIRROR_ROOT,
+    TERRAFORM,
+    TERRAFORM_VERSION,
+)
+
+
+def _credential_free_environment() -> dict[str, str]:
+    environment = {
+        name: os.environ[name]
+        for name in ("LANG", "LC_ALL", "LC_CTYPE", "PATH", "TMPDIR")
+        if name in os.environ
+    }
+    environment["CHECKPOINT_DISABLE"] = "1"
+    return environment
+
+
+class LocalFilesystem:
+    """Keep private generated operator state separate from committed source."""
+
+    def __init__(self, project_root: Path, state_root: Path) -> None:
+        self._project_root = project_root.resolve()
+        self._state_root = state_root.resolve()
+
+    @staticmethod
+    def _bounded(root: Path, relative_path: str) -> Path:
+        candidate = (root / relative_path).resolve()
+        if candidate != root and root not in candidate.parents:
+            raise ValueError("path escapes its approved root")
+        return candidate
+
+    def project_path(self, relative_path: str) -> Path:
+        return self._bounded(self._project_root, relative_path)
+
+    def state_path(self, relative_path: str) -> Path:
+        return self._bounded(self._state_root, relative_path)
+
+    def read_state(self, relative_path: str) -> bytes | None:
+        path = self.state_path(relative_path)
+        try:
+            return path.read_bytes()
+        except FileNotFoundError:
+            return None
+
+    def write_state(
+        self,
+        relative_path: str,
+        contents: bytes,
+        *,
+        replace: bool,
+    ) -> None:
+        path = self.state_path(relative_path)
+        self._state_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self._state_root.chmod(0o700)
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path.parent.chmod(0o700)
+        if not replace and path.exists():
+            if path.read_bytes() != contents:
+                raise FileExistsError(f"refusing to replace immutable state {relative_path}")
+            return
+        descriptor, temporary_name = tempfile.mkstemp(prefix=".operator-", dir=path.parent)
+        temporary = Path(temporary_name)
+        try:
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(contents)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temporary.replace(path)
+            path.chmod(0o600)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
+
+
+def _run_git(project_root: Path, *arguments: str) -> str:
+    completed = subprocess.run(
+        ["git", "-C", str(project_root), *arguments],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
+
+
+def _repository_identity(remote: str) -> str:
+    normalized = remote.strip().removesuffix(".git")
+    if normalized.startswith("git@github.com:"):
+        return normalized.removeprefix("git@github.com:")
+    marker = "github.com/"
+    if marker in normalized:
+        return normalized.split(marker, maxsplit=1)[1]
+    return normalized
+
+
+@dataclass(frozen=True, slots=True)
+class LocalGit:
+    project_root: Path
+
+    def inspect(self) -> GitSnapshot:
+        remote = _run_git(self.project_root, "config", "--get", "remote.origin.url")
+        return GitSnapshot(
+            repository=_repository_identity(remote),
+            revision=_run_git(self.project_root, "rev-parse", "HEAD"),
+            branch=_run_git(self.project_root, "branch", "--show-current"),
+            clean=not bool(
+                _run_git(
+                    self.project_root,
+                    "status",
+                    "--porcelain=v1",
+                    "--untracked-files=all",
+                )
+            ),
+            main_revision=_run_git(self.project_root, "rev-parse", "main"),
+            origin_main_revision=_run_git(
+                self.project_root,
+                "rev-parse",
+                "origin/main",
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class LocalGitHub:
+    project_root: Path
+
+    def inspect(self, profile: dict[str, object]) -> DiscoverySnapshot:
+        del profile
+        remote = _run_git(self.project_root, "config", "--get", "remote.origin.url")
+        return DiscoverySnapshot(
+            "github",
+            (("repository", _repository_identity(remote)),),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileGcp:
+    def inspect(self, profile: dict[str, object]) -> DiscoverySnapshot:
+        names = ("project_id", "project_number", "region")
+        return DiscoverySnapshot(
+            "gcp",
+            tuple(
+                (name, str(profile[name]))
+                for name in names
+                if name in profile
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileDns:
+    def inspect(self, profile: dict[str, object]) -> DiscoverySnapshot:
+        return DiscoverySnapshot(
+            "dns",
+            (
+                ("provider_class", str(profile["dns_provider_class"])),
+                ("hostname", str(profile["hostname"])),
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PinnedTerraform:
+    """Verify only the ignored, checksum-bound local AP-M7 toolchain."""
+
+    def inspect(self) -> DiscoverySnapshot:
+        if not TERRAFORM.is_file() or not MANIFEST.is_file():
+            return DiscoverySnapshot(
+                "terraform",
+                (),
+                ("PINNED_TOOL_UNAVAILABLE",),
+            )
+        try:
+            manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+            observed = subprocess.run(
+                [str(TERRAFORM), "version", "-json"],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=_credential_free_environment(),
+            )
+            version = json.loads(observed.stdout).get("terraform_version")
+            terraform_record = manifest.get("terraform", {})
+            provider_record = manifest.get("google_provider", {})
+            binary_digest = hashlib.sha256(TERRAFORM.read_bytes()).hexdigest()
+            provider_packages = sorted(
+                MIRROR_ROOT.rglob(
+                    f"terraform-provider-google_{GOOGLE_PROVIDER_VERSION}_*.zip"
+                )
+            )
+            valid = (
+                version == TERRAFORM_VERSION
+                and terraform_record.get("version") == TERRAFORM_VERSION
+                and terraform_record.get("binary_sha256") == binary_digest
+                and provider_record.get("version") == GOOGLE_PROVIDER_VERSION
+                and len(provider_packages) == 1
+                and provider_record.get("sha256")
+                == hashlib.sha256(provider_packages[0].read_bytes()).hexdigest()
+            )
+        except (OSError, ValueError, json.JSONDecodeError, subprocess.SubprocessError):
+            valid = False
+        if not valid:
+            return DiscoverySnapshot(
+                "terraform",
+                (),
+                ("PINNED_TOOL_INVALID",),
+            )
+        return DiscoverySnapshot(
+            "terraform",
+            (
+                ("terraform_version", TERRAFORM_VERSION),
+                ("provider_version", GOOGLE_PROVIDER_VERSION),
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ConsoleTerminal:
+    def confirm(self, prompt: str) -> bool:
+        return input(prompt).strip().lower() in {"y", "yes"}
+
+    def write(self, message: str) -> None:
+        print(message)
+
+
+@dataclass(frozen=True, slots=True)
+class SystemClock:
+    def now(self) -> str:
+        return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def build_local_operator(project_root: Path, state_root: Path) -> LifecycleOperator:
+    """Construct the credential-free W4 operator; no executor is installed."""
+
+    resolved_project = project_root.resolve()
+    return LifecycleOperator(
+        OperatorAdapters(
+            git=LocalGit(resolved_project),
+            github=LocalGitHub(resolved_project),
+            gcp=ProfileGcp(),
+            terraform=PinnedTerraform(),
+            dns=ProfileDns(),
+            terminal=ConsoleTerminal(),
+            filesystem=LocalFilesystem(resolved_project, state_root),
+            clock=SystemClock(),
+        )
+    )

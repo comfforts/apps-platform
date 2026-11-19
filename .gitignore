@@ -39,6 +39,7 @@ test-results/
 playwright-report/
 
 # Local runtime output
+.platform-operator/
 tmp/
 *.log
 .DS_Store

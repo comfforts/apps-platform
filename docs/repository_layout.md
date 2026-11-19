@@ -1,7 +1,7 @@
 # App Platform repository layout
 
-Version 1.7 | Status: canonical dedicated repository; AP-M9-W3 lifecycle contracts implemented;
-no backend, provider, DNS, deployment, or Live operation performed
+Version 1.8 | Status: canonical dedicated repository; AP-M9-W4 interactive lifecycle core
+implemented; no backend, provider, DNS, deployment, or Live operation performed
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -24,6 +24,7 @@ permission to create a resource or perform an external action.
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
+| `infrastructure/operator/` | deep Python preparation, approval, journal, status, resume, local adapters, and thin credential-free CLI |
 | `infrastructure/terraform/bootstrap/` | AP-M7 static state-bucket owner root |
 | `infrastructure/terraform/platform/` | AP-M7 static Platform State root |
 | `infrastructure/terraform/fixtures/*/` | independent synthetic Application State roots |
@@ -41,15 +42,20 @@ history. It is not a current operator input.
 AP-M9-W3 added only deterministic, credential-free repository interfaces. It created no operator
 command, approval, journal, bundle instance, provider resource, state, deployment, or evidence.
 
+AP-M9-W4 added credential-free `platform-prepare` and `platform-status`, exact local approval
+binding, private generated operator state under the ignored `.platform-operator/` path, and
+resumable journal orchestration exercised through deterministic fakes. It added no executable
+deploy target, credential, provider request, backend operation, Terraform plan or apply, DNS
+action, platform resource, bundle instance, deployment, or Live evidence.
+
 ## AP-M9 capability locations
 
-The implemented profile and lifecycle-contract locations are listed above. The locations below
-describe later module seams; their absence is expected until the named AP-M9 package implements
-them.
+The implemented profile, lifecycle-contract, and operator-core locations are listed above. The
+locations below describe later module seams; their absence is expected until the named AP-M9
+package implements them.
 
 | Path | Intended owner |
 | --- | --- |
-| `infrastructure/operator/` | deep interactive Python lifecycle module and bounded adapters |
 | `infrastructure/backend/` | deterministic backend rendering and lineage-preserving helpers |
 | `infrastructure/images/` | reproducible Shared Edge and synthetic Fixture images |
 | `registrations/` | future reviewed provider-backed Registration Sets |

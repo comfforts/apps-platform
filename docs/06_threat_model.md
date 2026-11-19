@@ -1,8 +1,8 @@
 # App Platform threat model
 
-Version 1.5 | Status: Fixture-qualified threat model, implemented AP-M6 runtime controls,
-implemented AP-M7 infrastructure-configuration controls, and accepted AP-M9 interactive lifecycle
-controls; no provider operation or live infrastructure is deployed
+Version 1.6 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
+implemented AP-M9-W4 credential-free lifecycle controls; no provider operation or live
+infrastructure is deployed
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -807,10 +807,11 @@ scans, and post-stage readback. A compromised workstation remains residual risk;
 an owner credential incapable of out-of-band provider action. Such action is drift and never becomes
 reviewed authority without reconciliation.
 
-AP-M9-W1 defines controls and evaluation authority, and AP-M9-W2 removes only the retired manifest
-attack surface. Later implementation work must use deterministic fake adapters and failure
-injection before any approved staging operation. No current result proves these controls
-operational.
+AP-M9-W1 defines controls and evaluation authority, AP-M9-W2 removed the retired manifest attack
+surface, AP-M9-W3 implemented the closed lifecycle contracts, and AP-M9-W4 implements local
+source/tool discovery, exact digest approval, append-only journal revisions, truthful status,
+redaction, and interruption-safe fake execution through injected adapters. No current result proves
+the later identity, Terraform, provider, OAuth, DNS, deployment, or Live controls operational.
 
 ## Unresolved security decisions
 

@@ -1,13 +1,14 @@
 # AP-M9 environment lifecycle runbook
 
-Status: AP-M9-W3 lifecycle contracts and profiles implemented; operator commands and external
-actions are unavailable
+Status: AP-M9-W4 credential-free preparation and local status implemented; external actions are
+unavailable
 
 This runbook describes the intended human experience. It is subordinate to AP-PR-010 through
 AP-PR-012, AP-QR-007 through AP-QR-009, ADR-010 through ADR-013, AP-M9-W1 through AP-M9-W10, and
-AP-EVAL-M9. AP-M9-W1 through AP-M9-W3 create no command, credential, identity, backend, cloud
-resource, DNS record, certificate, deployment, or Live evidence. W3 implements only the closed
-profiles and lifecycle document interfaces consumed by later work.
+AP-EVAL-M9. AP-M9-W1 through AP-M9-W4 create no credential, identity, backend, cloud resource, DNS
+record, certificate, deployment, or Live evidence. W3 implements the closed profiles and lifecycle
+documents. W4 implements only credential-free local preparation/status and deterministic fake
+execution behind the same module interface.
 
 ## Planned environment flow
 
@@ -53,6 +54,13 @@ destroys those assets.
 
 ## Current operator rule
 
-Until the packages named above implement and qualify each command, use no `platform-*` command as
-an external operator procedure. `make check` remains the only repository gate and is credential-
-free, deterministic, and non-mutating.
+After W4 merges, `make platform-prepare ENVIRONMENT=staging` may be used from clean current `main`
+to create and explicitly approve one complete specification in the ignored private
+`.platform-operator/` directory. It performs only local Git, profile, repository-identity, and
+pinned-tool discovery. `make platform-status ENVIRONMENT=staging` reads the local status without
+changing it. Production preparation reports `OWNERSHIP_TRANSFER_REQUIRED`.
+
+Neither command authenticates, queries a provider, initializes a backend, creates a Terraform plan,
+or mutates a repository, cloud resource, OAuth client, secret, DNS record, certificate, or
+application. Every other `platform-*` command remains unavailable. `make check` remains the sole
+repository gate and is credential-free, deterministic, and non-mutating.

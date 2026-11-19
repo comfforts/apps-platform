@@ -62,7 +62,7 @@ class FakeProvider:
     staged: list[tuple[RegistrationGenerationProposal, bytes]] = field(
         default_factory=list
     )
-    activations: list[tuple[str, str, str]] = field(default_factory=list)
+    activations: list[tuple[str, str, str, str]] = field(default_factory=list)
     stage_matches: bool = True
     activation_matches: bool = True
 
@@ -84,9 +84,10 @@ class FakeProvider:
         environment: str,
         revision_name: str,
         generation_digest: str,
+        authority: str,
     ) -> ProviderGenerationActivation:
         self.activations.append(
-            (environment, revision_name, generation_digest)
+            (environment, revision_name, generation_digest, authority)
         )
         return ProviderGenerationActivation(
             activated=self.activation_matches,
@@ -150,6 +151,7 @@ class LocalGenerationControlTest(unittest.TestCase):
                     "staging",
                     "app-platform-edge-g1",
                     proposal().generation_digest,
+                    "apply",
                 )
             ],
         )
@@ -178,7 +180,7 @@ class LocalGenerationControlTest(unittest.TestCase):
 
     def test_rollback_view_returns_only_retained_reviewed_generations(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            control, _ = self._control(directory)
+            control, provider = self._control(directory)
             first = control.publish(proposal())
             control.activate(
                 "staging",
@@ -199,11 +201,18 @@ class LocalGenerationControlTest(unittest.TestCase):
                 "staging",
                 proposal().generation_digest,
             )
+            assert predecessor is not None
+            rollback = reviewed.activate(
+                "staging",
+                predecessor.publication_reference,
+                predecessor.proposal.generation_digest,
+            )
 
         assert current is not None
-        assert predecessor is not None
         self.assertEqual(current.proposal, second_proposal)
         self.assertEqual(predecessor.proposal, proposal())
+        self.assertTrue(rollback.activated)
+        self.assertEqual(provider.activations[-1][-1], "rollback")
 
     def test_terraform_delegates_only_revision_environment_and_traffic(self) -> None:
         source = (

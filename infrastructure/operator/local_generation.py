@@ -44,6 +44,7 @@ class GenerationProvider(Protocol):
         environment: str,
         revision_name: str,
         generation_digest: str,
+        authority: str,
     ) -> ProviderGenerationActivation: ...
 
 
@@ -272,11 +273,13 @@ class LocalRegistrationGenerationControl:
         revision = publication_reference.rsplit(marker, maxsplit=1)[1]
         return revision or None
 
-    def activate(
+    def _activate(
         self,
         environment: str,
         publication_reference: str,
         generation_digest: str,
+        *,
+        authority: str,
     ) -> GenerationActivationReadback:
         provider = self._provider_record(environment, generation_digest)
         revision = self._reference_revision(publication_reference)
@@ -290,6 +293,7 @@ class LocalRegistrationGenerationControl:
             environment,
             revision,
             generation_digest,
+            authority,
         )
         if (
             not readback.activated
@@ -312,6 +316,32 @@ class LocalRegistrationGenerationControl:
             replace=True,
         )
         return GenerationActivationReadback(True, generation_digest)
+
+    def activate(
+        self,
+        environment: str,
+        publication_reference: str,
+        generation_digest: str,
+    ) -> GenerationActivationReadback:
+        return self._activate(
+            environment,
+            publication_reference,
+            generation_digest,
+            authority="apply",
+        )
+
+    def activate_reviewed(
+        self,
+        environment: str,
+        publication_reference: str,
+        generation_digest: str,
+    ) -> GenerationActivationReadback:
+        return self._activate(
+            environment,
+            publication_reference,
+            generation_digest,
+            authority="rollback",
+        )
 
     def reviewed(
         self,
@@ -360,7 +390,7 @@ class LocalReviewedGenerationControl:
         publication_reference: str,
         generation_digest: str,
     ) -> GenerationActivationReadback:
-        return self._generations.activate(
+        return self._generations.activate_reviewed(
             environment,
             publication_reference,
             generation_digest,

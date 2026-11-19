@@ -1,8 +1,9 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 ENVIRONMENT ?= staging
 OPERATOR_STATE_DIRECTORY ?= .platform-operator
+SPECIFICATION_DIGEST ?=
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-prepare platform-status
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-prepare platform-deploy platform-status
 
 check: governance-check contract-check fixture-check runtime-check terraform-check operator-check ## Run every implemented deterministic platform check.
 
@@ -25,10 +26,14 @@ terraform-check: ## Verify the pinned Terraform foundation offline in a disposab
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_terraform_foundation tests.test_infrastructure_config tests.test_backend_lifecycle tests.test_plan_policy tests.test_terraform_lifecycle tests.test_terraform_bootstrap tests.test_terraform_fixtures tests.test_terraform_platform_foundation tests.test_terraform_shared_edge tests.test_terraform_platform_controls tests.test_workflow_templates tests.test_terraform_qualification
 
 operator-check: ## Verify the credential-free interactive lifecycle core with deterministic adapters.
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_operator_lifecycle
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands
 
 platform-prepare: ## Prepare and explicitly approve one complete lifecycle specification.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator prepare --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"
+
+platform-deploy: ## Execute one exact approved deployment specification through the interactive engine.
+	test -n "$(SPECIFICATION_DIGEST)" || { echo "SPECIFICATION_DIGEST is required" >&2; exit 2; }
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --specification-digest "$(SPECIFICATION_DIGEST)"
 
 platform-status: ## Report local desired and execution state without changing it.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator status --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"

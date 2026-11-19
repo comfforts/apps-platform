@@ -8,18 +8,22 @@ from infrastructure.operator._interfaces import (
     OperatorInterrupted,
     OperatorAdapters,
     PrepareResult,
+    StageContext,
     StageExecution,
     StatusResult,
 )
+from infrastructure.operator.deployment import DeploymentExecutor
 
 __all__ = (
     "DiscoverySnapshot",
+    "DeploymentExecutor",
     "ExecutionResult",
     "GitSnapshot",
     "LifecycleOperator",
     "OperatorInterrupted",
     "OperatorAdapters",
     "PrepareResult",
+    "StageContext",
     "StageExecution",
     "StatusResult",
 )

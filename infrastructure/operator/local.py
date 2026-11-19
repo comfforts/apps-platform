@@ -243,6 +243,12 @@ class ConsoleTerminal:
     def write(self, message: str) -> None:
         print(message)
 
+    def confirm_exact(self, prompt: str, expected: str) -> bool:
+        return input(prompt) == expected
+
+    def pause(self, prompt: str) -> None:
+        input(prompt)
+
 
 @dataclass(frozen=True, slots=True)
 class SystemClock:

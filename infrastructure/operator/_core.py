@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from types import MappingProxyType
 from typing import Any
 
 from contracts.lifecycle import (
@@ -20,6 +21,7 @@ from infrastructure.operator._interfaces import (
     OperatorInterrupted,
     OperatorAdapters,
     PrepareResult,
+    StageContext,
     StageExecution,
     StatusResult,
 )
@@ -826,7 +828,14 @@ class LifecycleOperator:
                 inputs,
             )
             try:
-                result = self._adapters.executor.execute(stage, inputs)
+                context = StageContext(
+                    environment=environment,
+                    source_revision=source_revision,
+                    specification_digest=specification_digest,
+                    stage=MappingProxyType(dict(stage)),
+                    inputs=inputs,
+                )
+                result = self._adapters.executor.execute(context)
             except OperatorInterrupted:
                 self._adapters.terminal.write(
                     f"Interrupted before stage {stage_id} closed; safe to resume."
@@ -917,6 +926,7 @@ class LifecycleOperator:
                     journal,
                     journal_digest,
                     self.status(environment),
+                    result.blockers,
                 )
             closed.add(stage_id)
             for name, value in result.outputs:

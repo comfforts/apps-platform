@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Mapping, Protocol
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +48,18 @@ class StageExecution:
     outputs: tuple[tuple[str, str], ...] = ()
     plan_digest: str | None = None
     manual_acknowledgement: str = "not-required"
+    blockers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class StageContext:
+    """Exact approved scope supplied to one injected stage execution."""
+
+    environment: str
+    source_revision: str
+    specification_digest: str
+    stage: Mapping[str, object]
+    inputs: tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,11 +124,7 @@ class ClockAdapter(Protocol):
 
 
 class StageExecutor(Protocol):
-    def execute(
-        self,
-        stage: dict[str, object],
-        inputs: tuple[tuple[str, str], ...],
-    ) -> StageExecution: ...
+    def execute(self, context: StageContext) -> StageExecution: ...
 
 
 @dataclass(frozen=True, slots=True)

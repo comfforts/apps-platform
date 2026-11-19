@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from infrastructure.backend._lifecycle import (
     BackendDeclaration,
@@ -46,6 +46,7 @@ class PhasePlanResult:
     accepted: bool
     backend_digest: str
     plan_digest: str | None
+    canonical_summary: dict[str, Any] | None
     violations: tuple[PlanViolation, ...]
 
 
@@ -122,5 +123,6 @@ def prepare_phase_plan(
         accepted=result.accepted,
         backend_digest=rendered.digest,
         plan_digest=result.plan_digest,
+        canonical_summary=result.canonical_summary,
         violations=result.violations,
     )

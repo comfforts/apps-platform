@@ -1,6 +1,6 @@
 # App Platform implementation plan
 
-Version 0.11 | Status: AP-M9-W1 through AP-M9-W5 implemented;
+Version 0.12 | Status: AP-M9-W1 through AP-M9-W6 implemented;
 AP-M8-W1/W2 preserved historically; AP-M8-W3 through W12 superseded without execution; every
 external operator action remains pending
 
@@ -8,9 +8,10 @@ This document preserves delivery items 3 through 7 and the completed historical 
 AP-M7 implements and statically validates reviewed Terraform configuration and inert workflow
 templates. AP-M8-W1/W2 implemented a manifest-driven qualification-deployment proposal but no real
 manifest was accepted and no AP-M8-W3 through W12 operation began. AP-M9 supersedes that unexecuted
-path with the operator-driven environment lifecycle below. AP-M9-W1 through W5 establish active
+path with the operator-driven environment lifecycle below. AP-M9-W1 through W6 establish active
 governance, remove the retired interface, implement lifecycle contracts and the credential-free
-operator core, and implement the repository-only Terraform lifecycle. No package authorizes
+operator core, implement the repository-only Terraform lifecycle, and implement the unarmed
+interactive deployment engine plus closed command boundary. No package authorizes
 backend initialization, authenticated plan or apply, cloud
 call, credential, identity, provider resource, DNS mutation, deployment, qualification,
 destruction, production change, or Application Adoption.
@@ -1612,8 +1613,9 @@ unexecuted AP-M8-W3 through AP-M8-W12 packages and the previously proposed stand
 Live-qualification milestone. The old proposal produced no implementation, provider resource,
 evidence bundle, or qualification result. AP-M8-W1/W2 remain historical merged work; AP-M9-W2
 removed their retired manifest implementation from the active tree, AP-M9-W3 implemented lifecycle
-contracts and profiles, AP-M9-W4 implemented the credential-free interactive core, and AP-M9-W5
-implemented the deployable Terraform lifecycle. AP-M9-W6 begins only after W5 merges.
+contracts and profiles, AP-M9-W4 implemented the credential-free interactive core, AP-M9-W5
+implemented the deployable Terraform lifecycle, and AP-M9-W6 implemented interactive deployment
+mechanics without running an external operation. AP-M9-W7 begins only after W6 merges.
 
 Each AP-M9 repository package begins from updated clean `main`, uses a dedicated branch and pull
 request, passes `make check`, and merges before the next package starts. Repository implementation
@@ -1715,12 +1717,17 @@ mutation, or DNS action occurred in the repository slice.
 
 #### AP-M9-W6 · Interactive platform deployment
 
-Implement the staged deployment engine: preflight; backend/identity bootstrap; foundation; image
+Implemented the staged deployment engine: preflight; backend/identity bootstrap; foundation; image
 publication; OAuth branding/client/Secret Manager checkpoint; Shared Edge/load balancer/address;
 Squarespace DNS checkpoint; DNS propagation and TLS readiness; readback; stop-on-discrepancy; and
-resume. The same process displays exact manual values and waits for Enter. Deterministic command
-fakes and transcript tests cover every success, failure, refusal, and resume edge. The pull request
-does not execute a real operation.
+resume. The same process displays exact manual values and waits for Enter. Every Terraform stage
+binds a fresh private saved plan to W5 policy, redacted digest/summary, exact typed confirmation,
+same-artifact apply, and readback. The closed non-fake subprocess boundary uses absolute executables,
+argv, private bounded paths, closed environments, and operation identities without shell
+interpolation. Deterministic command fakes and transcript tests cover success, no-change,
+cancellation, manual checkpoint, bounded polling, partial failure, discrepancy, interruption, and
+resume. The default local construction remains unarmed pending the W8 external-action safety gate;
+the pull request executed no real operation.
 
 #### AP-M9-W7 · Application integration lifecycle
 

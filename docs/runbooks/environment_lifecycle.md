@@ -1,16 +1,17 @@
 # AP-M9 environment lifecycle runbook
 
-Status: AP-M9-W5 deployable Terraform lifecycle implemented; external actions are
-unavailable
+Status: AP-M9-W6 interactive deployment mechanics implemented; external actions remain
+unavailable until their later operator gates
 
 This runbook describes the intended human experience. It is subordinate to AP-PR-010 through
 AP-PR-012, AP-QR-007 through AP-QR-009, ADR-010 through ADR-013, AP-M9-W1 through AP-M9-W10, and
-AP-EVAL-M9. AP-M9-W1 through AP-M9-W5 create no credential, identity, backend, cloud resource, DNS
+AP-EVAL-M9. AP-M9-W1 through AP-M9-W6 create no credential, identity, backend, cloud resource, DNS
 record, certificate, deployment, or Live evidence. W3 implements the closed profiles and lifecycle
-documents, W4 implements credential-free local preparation/status, and W5 implements the exact
-Terraform phase, backend, operation-authority, and plan-policy seams exercised only through fakes.
+documents, W4 implements credential-free local preparation/status, W5 implements the exact
+Terraform phase, backend, operation-authority, and plan-policy seams, and W6 implements staged
+execution, exact typed confirmation, manual checkpoints, readback, and resume.
 
-## Planned environment flow
+## Environment flow
 
 1. `platform-prepare` selects `staging` or `production`, loads a small non-secret profile, performs
    bounded read-only discovery, shows unresolved human inputs and ownership blockers, and writes a
@@ -54,14 +55,18 @@ destroys those assets.
 
 ## Current operator rule
 
-After W5 merges, `make platform-prepare ENVIRONMENT=staging` may be used from clean current `main`
+After W6 merges, `make platform-prepare ENVIRONMENT=staging` may be used from clean current `main`
 to create and explicitly approve one complete specification in the ignored private
 `.platform-operator/` directory. It performs only local Git, profile, repository-identity, and
 pinned-tool discovery. `make platform-status ENVIRONMENT=staging` reads the local status without
 changing it. Production preparation reports `OWNERSHIP_TRANSFER_REQUIRED`.
 
-Neither command authenticates, queries a provider, initializes a backend, creates a Terraform plan,
-or mutates a repository, cloud resource, OAuth client, secret, DNS record, certificate, or
-application. The W5 renderer and plan integration are library-only deterministic test seams, not
-operator commands. Every other `platform-*` command remains unavailable. `make check` remains the
-sole repository gate and is credential-free, deterministic, and non-mutating.
+Neither preparation nor status authenticates, queries a provider, initializes a backend, creates a
+Terraform plan, or mutates a repository, cloud resource, OAuth client, secret, DNS record,
+certificate, or application. W6 adds
+`make platform-deploy ENVIRONMENT=staging SPECIFICATION_DIGEST=sha256:<digest>` as the exact
+interactive entry point, but the default local construction remains deliberately unarmed until the
+qualification and safe-destruction package completes. The non-fake Terraform subprocess boundary
+is implemented and closed to shell interpolation, ambient credentials, path escape, target/replace,
+state push, import, force-unlock, and lock bypass; repository tests invoke only deterministic
+recording fakes. `make check` remains credential-free, deterministic, and non-mutating.

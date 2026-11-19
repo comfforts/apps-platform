@@ -18,6 +18,7 @@ from infrastructure.operator import (
     LifecycleOperator,
     OperatorInterrupted,
     OperatorAdapters,
+    StageContext,
     StageExecution,
 )
 from infrastructure.operator.local import LocalFilesystem
@@ -95,11 +96,8 @@ class FakeExecutor:
     scripted: list[StageExecution | BaseException] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
 
-    def execute(
-        self,
-        stage: dict[str, object],
-        inputs: tuple[tuple[str, str], ...],
-    ) -> StageExecution:
+    def execute(self, context: StageContext) -> StageExecution:
+        stage = context.stage
         stage_id = str(stage["stage_id"])
         self.calls.append(stage_id)
         if self.scripted:
@@ -123,6 +121,39 @@ class FakeExecutor:
 
 
 class OperatorLifecycleTest(unittest.TestCase):
+    def test_executor_receives_one_exact_immutable_stage_context(self) -> None:
+        @dataclass
+        class ContextExecutor:
+            contexts: list[StageContext] = field(default_factory=list)
+
+            def execute(self, context: StageContext) -> StageExecution:
+                self.contexts.append(context)
+                return StageExecution(
+                    outcome="waiting",
+                    blockers=("OPERATOR_ACTION_REQUIRED",),
+                )
+
+        with tempfile.TemporaryDirectory() as directory:
+            executor = ContextExecutor()
+            operator, _ = self._operator(Path(directory), executor=executor)  # type: ignore[arg-type]
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            result = operator.execute("staging", prepared.specification_digest)
+
+            self.assertEqual(result.outcome, "waiting")
+            self.assertEqual(result.blockers, ("OPERATOR_ACTION_REQUIRED",))
+            self.assertEqual(len(executor.contexts), 1)
+            context = executor.contexts[0]
+            self.assertEqual(context.environment, "staging")
+            self.assertEqual(context.source_revision, "a" * 40)
+            self.assertEqual(
+                context.specification_digest,
+                prepared.specification_digest,
+            )
+            self.assertEqual(context.stage["stage_id"], "preflight")
+            self.assertEqual(context.inputs, ())
+
     def _operator(
         self,
         state_root: Path,
@@ -455,9 +486,9 @@ class OperatorLifecycleTest(unittest.TestCase):
             )
             self.assertEqual(after, before)
 
-    def test_cli_exposes_only_prepare_and_status_with_canonical_safe_output(self) -> None:
+    def test_cli_exposes_prepare_deploy_and_status_with_canonical_safe_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            operator, _ = self._operator(Path(directory))
+            operator, _ = self._operator(Path(directory), executor=FakeExecutor())
 
             prepare_stdout = io.StringIO()
             with mock.patch("sys.stdout", prepare_stdout):
@@ -466,6 +497,20 @@ class OperatorLifecycleTest(unittest.TestCase):
                     operator_factory=lambda _: operator,
                 )
             prepared = json.loads(prepare_stdout.getvalue().splitlines()[-1])
+
+            deploy_stdout = io.StringIO()
+            with mock.patch("sys.stdout", deploy_stdout):
+                deploy_code = operator_main(
+                    [
+                        "deploy",
+                        "--environment",
+                        "staging",
+                        "--specification-digest",
+                        prepared["specification_digest"],
+                    ],
+                    operator_factory=lambda _: operator,
+                )
+            deployed = json.loads(deploy_stdout.getvalue().splitlines()[-1])
 
             status_stdout = io.StringIO()
             with mock.patch("sys.stdout", status_stdout):
@@ -479,8 +524,11 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertEqual(prepared["outcome"], "prepared")
             self.assertTrue(prepared["approved"])
             self.assertRegex(prepared["specification_digest"], r"^sha256:[0-9a-f]{64}$")
+            self.assertEqual(deploy_code, 0)
+            self.assertEqual(deployed["outcome"], "succeeded")
+            self.assertRegex(deployed["journal_digest"], r"^sha256:[0-9a-f]{64}$")
             self.assertEqual(status_code, 0)
-            self.assertEqual(status["lifecycle_state"], "absent")
+            self.assertEqual(status["lifecycle_state"], "deployed")
 
             stderr = io.StringIO()
             with mock.patch("sys.stderr", stderr):
@@ -489,17 +537,19 @@ class OperatorLifecycleTest(unittest.TestCase):
                         ["deploy", "--environment", "staging"],
                         operator_factory=lambda _: operator,
                     )
-            self.assertIn("invalid choice", stderr.getvalue())
+            self.assertEqual(stderr.getvalue(), "")
 
     def test_make_targets_are_shallow_and_private_state_is_ignored(self) -> None:
         makefile = (PROJECT_ROOT / "Makefile").read_text(encoding="utf-8")
         gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
 
         self.assertIn("platform-prepare:", makefile)
+        self.assertIn("platform-deploy:", makefile)
         self.assertIn("platform-status:", makefile)
         self.assertIn("-m infrastructure.operator prepare", makefile)
+        self.assertIn("-m infrastructure.operator deploy", makefile)
         self.assertIn("-m infrastructure.operator status", makefile)
-        self.assertNotIn("platform-deploy:", makefile)
+        self.assertIn("SPECIFICATION_DIGEST is required", makefile)
         self.assertIn(".platform-operator/", gitignore)
 
     def test_local_filesystem_does_not_create_state_during_read_only_status(self) -> None:
@@ -610,6 +660,13 @@ class OperatorLifecycleTest(unittest.TestCase):
                 "TF_CLI_ARGS",
             ):
                 self.assertNotIn(name, environment)
+
+    def test_console_terminal_requires_exact_typed_confirmation_and_enter_pause(self) -> None:
+        terminal = local_adapters.ConsoleTerminal()
+        with mock.patch("builtins.input", side_effect=["wrong", "APPLY exact", ""]):
+            self.assertFalse(terminal.confirm_exact("prompt", "APPLY exact"))
+            self.assertTrue(terminal.confirm_exact("prompt", "APPLY exact"))
+            self.assertIsNone(terminal.pause("Press Enter"))
 
 
 if __name__ == "__main__":

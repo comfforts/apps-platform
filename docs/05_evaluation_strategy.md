@@ -1,6 +1,6 @@
 # App Platform evaluation strategy
 
-Version 0.11 | Status: AP-M9-W5 Terraform lifecycle repository controls implemented; historical AP-EVAL-M8
+Version 0.12 | Status: AP-M9-W6 interactive deployment repository controls implemented; historical AP-EVAL-M8
 and standalone AP-EVAL-M9 proposals superseded without execution; no AP-M9 provider or Live result
 exists
 
@@ -11,7 +11,8 @@ to qualify only committed configuration and inert templates through deterministi
 mocked providers. AP-M9-W3 supplies lifecycle Contract evidence, W4 supplies deterministic
 repository evidence for preparation, approval, status, redaction, journaling, and fake resume, and
 W5 supplies deterministic backend, authority, plan-policy, phase-output, mocked-plan, and command-
-fake evidence. No
+fake evidence. W6 supplies exact-plan/action binding, typed confirmation, same-process manual
+checkpoint, bounded-poll, transcript-redaction, stop-on-discrepancy, and resume evidence. No
 result qualifies a provider operation, Live environment, consuming application's adoption, or
 product authorization.
 
@@ -1661,8 +1662,9 @@ application's principals, data isolation, provider rights, Feature Entitlements,
 destruction. Those remain production-cutover, later migration, or Application Adoption evidence.
 
 This definition originated in AP-M9-W1. AP-M9-W2 removed the retired manifest path, W3 implemented
-the lifecycle contracts, W4 implements credential-free preparation/status and deterministic fake
-journal execution, and W5 implements repository-only Terraform lifecycle policy and mocked plans.
-They create no identity, credential, Terraform state or saved plan, provider
+the lifecycle contracts, W4 implemented credential-free preparation/status and deterministic fake
+journal execution, W5 implemented repository-only Terraform lifecycle policy and mocked plans, and
+W6 implemented the unarmed interactive deployment engine plus closed command boundary. They create
+no identity, credential, Terraform state or saved plan, provider
 resource, OAuth client, secret, DNS record, certificate, application asset, Live evidence bundle,
 deployment, destruction, or passing operational result.

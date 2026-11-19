@@ -131,6 +131,15 @@ class FakeEvaluator:
 
 
 class QualificationLifecycleTest(unittest.TestCase):
+    def test_current_command_discovers_then_rereads_exact_bindings(self) -> None:
+        state = FakeStateReader()
+        lifecycle = QualificationLifecycle(state, FakeEvaluator())
+
+        result = lifecycle.qualify_current("staging")
+
+        self.assertEqual(result.outcome, "qualified")
+        self.assertEqual(state.environments, ["staging", "staging"])
+
     def test_exact_complete_observations_compile_qualified_redacted_evidence(self) -> None:
         state = FakeStateReader()
         evaluator = FakeEvaluator()

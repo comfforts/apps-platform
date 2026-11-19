@@ -668,6 +668,35 @@ class DestructionLifecycle:
             )
         return self._result("destroyed", digest, last_closed)
 
+    def destroy_current(self, environment: str) -> DestructionResult:
+        """Discover exact current bindings before entering confirmed destruction."""
+
+        try:
+            current = self._state_reader.read_current(environment)
+        except Exception:
+            return self._result(
+                "blocked",
+                None,
+                None,
+                "DESTRUCTION_READBACK_FAILED",
+            )
+        request = DestructionRequest(
+            environment=environment,
+            source_revision=current.source_revision,
+            profile_digest=current.profile_digest,
+            deployed_specification_digest=(
+                current.deployed_specification_digest
+            ),
+            deployment_journal_digest=current.deployment_journal_digest,
+            registration_generation_digest=(
+                current.registration_generation_digest
+            ),
+            qualification_evidence_digest=(
+                current.qualification_evidence_digest
+            ),
+        )
+        return self.destroy(request)
+
 
 __all__ = (
     "DESTRUCTIBLE_PLATFORM_RESOURCES",

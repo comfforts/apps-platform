@@ -217,6 +217,14 @@ class DestructionLifecycleTest(unittest.TestCase):
         )
         self.assertEqual(result.last_closed_stage, "destruction-readback")
 
+    def test_current_command_discovers_then_rechecks_exact_bindings(self) -> None:
+        lifecycle, reader, _, _, _ = self._lifecycle()
+
+        result = lifecycle.destroy_current("staging")
+
+        self.assertEqual(result.outcome, "destroyed")
+        self.assertEqual(reader.calls, 3)
+
     def test_active_attachment_appearing_after_confirmation_stops_before_stage(self) -> None:
         reader = FakeReader(
             [snapshot(), replace(snapshot(), active_application_ids=("fixture-public",))]

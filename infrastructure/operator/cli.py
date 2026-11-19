@@ -13,6 +13,7 @@ from contracts.lifecycle import (
     load_lifecycle_document,
 )
 from infrastructure.operator._core import LifecycleOperator
+from infrastructure.operator.destruction import DestructionLifecycle
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
     IntegrationBundleRequest,
@@ -20,6 +21,7 @@ from infrastructure.operator.integration import (
     RegistrationIntent,
 )
 from infrastructure.operator.local import LocalFilesystem, build_local_operator
+from infrastructure.operator.qualification import QualificationLifecycle
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -35,9 +37,11 @@ def _parser() -> argparse.ArgumentParser:
             "detach",
             "outputs",
             "prepare",
+            "qualify",
             "register",
             "retire",
             "status",
+            "destroy",
         ),
         help="platform lifecycle operation",
     )
@@ -80,6 +84,20 @@ def _default_integration_factory(
 ) -> ApplicationIntegrationLifecycle:
     del state_directory
     raise RuntimeError("APPLICATION_INTEGRATION_ADAPTER_UNAVAILABLE")
+
+
+def _default_qualification_factory(
+    state_directory: Path,
+) -> QualificationLifecycle:
+    del state_directory
+    raise RuntimeError("QUALIFICATION_ADAPTER_UNAVAILABLE")
+
+
+def _default_destruction_factory(
+    state_directory: Path,
+) -> DestructionLifecycle:
+    del state_directory
+    raise RuntimeError("DESTRUCTION_ADAPTER_UNAVAILABLE")
 
 
 def _required(arguments: argparse.Namespace, name: str) -> object:
@@ -147,13 +165,43 @@ def main(
     integration_factory: Callable[
         [Path], ApplicationIntegrationLifecycle
     ] = _default_integration_factory,
+    qualification_factory: Callable[
+        [Path], QualificationLifecycle
+    ] = _default_qualification_factory,
+    destruction_factory: Callable[
+        [Path], DestructionLifecycle
+    ] = _default_destruction_factory,
 ) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.operation in {"prepare", "deploy", "status"}:
         operator = operator_factory(arguments.state_directory)
-    else:
+    elif arguments.operation in {"detach", "outputs", "register", "retire"}:
         try:
             integration = integration_factory(arguments.state_directory)
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+    elif arguments.operation == "qualify":
+        try:
+            qualification = qualification_factory(arguments.state_directory)
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+    else:
+        try:
+            destruction = destruction_factory(arguments.state_directory)
         except RuntimeError as error:
             _print(
                 {
@@ -195,6 +243,78 @@ def main(
             }
         )
         return 0 if result.outcome in {"succeeded", "unchanged"} else 2
+
+    if arguments.operation == "qualify":
+        result = qualification.qualify_current(arguments.environment)
+        evidence_path: str | None = None
+        if result.evidence is not None and result.evidence_digest is not None:
+            evidence_path = (
+                f"environments/{arguments.environment}/qualification/evidence/"
+                f"{result.evidence_digest[7:]}.v1.json"
+            )
+            filesystem = LocalFilesystem(
+                PROJECT_ROOT,
+                arguments.state_directory,
+            )
+            try:
+                filesystem.write_state(
+                    evidence_path,
+                    canonical_lifecycle_bytes(
+                        result.evidence,
+                        "qualification-evidence",
+                    )
+                    + b"\n",
+                    replace=False,
+                )
+                pointer = {
+                    "evidence_digest": result.evidence_digest,
+                    "outcome": result.outcome,
+                }
+                filesystem.write_state(
+                    (
+                        f"environments/{arguments.environment}/qualification/"
+                        "current-evidence.v1.json"
+                    ),
+                    json.dumps(
+                        pointer,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                    + b"\n",
+                    replace=True,
+                )
+            except (FileExistsError, ValueError):
+                _print(
+                    {
+                        "blockers": ["QUALIFICATION_EVIDENCE_PUBLICATION_FAILED"],
+                        "environment": arguments.environment,
+                        "outcome": "blocked",
+                    }
+                )
+                return 2
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "evidence_digest": result.evidence_digest,
+                "evidence_path": evidence_path,
+                "outcome": result.outcome,
+            }
+        )
+        return 0 if result.outcome == "qualified" else 2
+
+    if arguments.operation == "destroy":
+        result = destruction.destroy_current(arguments.environment)
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "last_closed_stage": result.last_closed_stage,
+                "outcome": result.outcome,
+                "specification_digest": result.specification_digest,
+            }
+        )
+        return 0 if result.outcome == "destroyed" else 2
 
     if arguments.operation == "outputs":
         result = integration.outputs(

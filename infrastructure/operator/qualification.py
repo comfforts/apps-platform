@@ -463,6 +463,27 @@ class QualificationLifecycle:
             blockers=tuple(sorted(result_blockers)),
         )
 
+    def qualify_current(self, environment: str) -> QualificationResult:
+        """Discover current revision bindings, then re-read them during evaluation."""
+
+        try:
+            current = self._state_reader.read_current(environment)
+        except Exception:
+            return self._blocked("QUALIFICATION_READBACK_FAILED")
+        request = QualificationRequest(
+            environment=environment,
+            source_revision=current.source_revision,
+            profile_digest=current.profile_digest,
+            specification_digest=current.specification_digest,
+            deployment_journal_digest=current.deployment_journal_digest,
+            registration_generation_digest=(
+                current.registration_generation_digest
+            ),
+            component_revisions=current.component_revisions,
+            fixture_revisions=current.fixture_revisions,
+        )
+        return self.qualify(request)
+
 
 __all__ = (
     "QUALIFICATION_CHECK_CAPABILITIES",

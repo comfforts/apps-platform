@@ -12,6 +12,7 @@ from contracts.lifecycle import (
 )
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
+    AttachmentTargetReadback,
     IntegrationBundleRequest,
     PlatformIntegrationState,
 )
@@ -38,6 +39,20 @@ class FakePlatformReader:
         return self.state
 
 
+class FakeAttachmentReader:
+    def __init__(self, readback: AttachmentTargetReadback) -> None:
+        self.readback = readback
+        self.requests: list[tuple[str, str]] = []
+
+    def read_target(
+        self,
+        environment: str,
+        resource_reference: str,
+    ) -> AttachmentTargetReadback:
+        self.requests.append((environment, resource_reference))
+        return self.readback
+
+
 def _state() -> PlatformIntegrationState:
     return PlatformIntegrationState(
         environment="staging",
@@ -62,6 +77,47 @@ def _request(access_mode: str) -> IntegrationBundleRequest:
         route_intent=f"/fixture-{access_mode}",
         expected_platform_source_revision=SOURCE_REVISION,
         expected_generation=7,
+    )
+
+
+def _attachment(bundle: dict[str, object]) -> dict[str, object]:
+    return {
+        "contract_version": 1,
+        "document_kind": "application-attachment-bundle",
+        "environment": bundle["environment"],
+        "application_id": bundle["application_id"],
+        "attachment_revision": 1,
+        "platform_integration_bundle_digest": lifecycle_digest(
+            bundle,
+            "platform-integration-bundle",
+        ),
+        "application_source_revision": "b" * 40,
+        "target": {
+            "owner_application_id": bundle["application_id"],
+            "adapter_kind": "gcp-cloud-run-v1",
+            "resource_reference": (
+                "urn:comfforts:app-platform:gcp:cloud-run:455651441682:"
+                f"us-west1:{bundle['application_id']}"
+            ),
+            "ingress_mode": "shared_edge_only",
+            "caller_grant": EDGE_CALLER,
+            "audience": bundle["identity"]["audience"],
+        },
+    }
+
+
+def _target_readback(attachment: dict[str, object]) -> AttachmentTargetReadback:
+    target = attachment["target"]
+    assert isinstance(target, dict)
+    return AttachmentTargetReadback(
+        exists=True,
+        ready=True,
+        owner_application_id=str(target["owner_application_id"]),
+        adapter_kind=str(target["adapter_kind"]),
+        resource_reference=str(target["resource_reference"]),
+        ingress_mode=str(target["ingress_mode"]),
+        caller_grant=str(target["caller_grant"]),
+        audience=(str(target["audience"]) if target["audience"] is not None else None),
     )
 
 
@@ -205,6 +261,105 @@ class PlatformOutputsTest(unittest.TestCase):
         self.assertIsNone(malformed.bundle)
         self.assertEqual(owner_only.outcome, "blocked")
         self.assertEqual(owner_only.blockers, ("ACCESS_MODE_UNSUPPORTED",))
+
+
+class AttachmentValidationTest(unittest.TestCase):
+    def _lifecycle(
+        self,
+        attachment: dict[str, object],
+        *,
+        readback: AttachmentTargetReadback | None = None,
+        platform_state: PlatformIntegrationState | None = None,
+    ) -> tuple[ApplicationIntegrationLifecycle, FakeAttachmentReader]:
+        reader = FakeAttachmentReader(readback or _target_readback(attachment))
+        lifecycle = ApplicationIntegrationLifecycle(
+            FakePlatformReader(platform_state or _state()),
+            attachment_reader=reader,
+        )
+        return lifecycle, reader
+
+    def test_attachment_validation_binds_contract_owner_and_provider_posture(self) -> None:
+        generated = ApplicationIntegrationLifecycle(
+            FakePlatformReader(_state())
+        ).outputs(_request("authenticated"))
+        assert generated.bundle is not None
+        attachment = _attachment(generated.bundle)
+        lifecycle, reader = self._lifecycle(attachment)
+
+        result = lifecycle.validate_attachment(generated.bundle, attachment)
+
+        self.assertEqual(result.outcome, "validated")
+        self.assertEqual(result.blockers, ())
+        self.assertEqual(result.attachment_bundle, attachment)
+        target = attachment["target"]
+        assert isinstance(target, dict)
+        self.assertEqual(
+            reader.requests,
+            [("staging", target["resource_reference"])],
+        )
+
+    def test_stale_bundle_and_invalid_owner_fail_before_provider_readback(self) -> None:
+        generated = ApplicationIntegrationLifecycle(
+            FakePlatformReader(_state())
+        ).outputs(_request("authenticated"))
+        assert generated.bundle is not None
+        attachment = _attachment(generated.bundle)
+        lifecycle, reader = self._lifecycle(attachment)
+
+        stale = copy.deepcopy(attachment)
+        stale["platform_integration_bundle_digest"] = "sha256:" + ("f" * 64)
+        stale_result = lifecycle.validate_attachment(generated.bundle, stale)
+        wrong_owner = copy.deepcopy(attachment)
+        wrong_owner["target"]["owner_application_id"] = "other-application"
+        owner_result = lifecycle.validate_attachment(generated.bundle, wrong_owner)
+
+        self.assertEqual(stale_result.outcome, "blocked")
+        self.assertEqual(stale_result.blockers, ("ATTACHMENT_BUNDLE_MISMATCH",))
+        self.assertEqual(owner_result.outcome, "blocked")
+        self.assertEqual(owner_result.blockers, ("ATTACHMENT_BUNDLE_INVALID",))
+        self.assertEqual(reader.requests, [])
+
+    def test_current_platform_and_target_readback_must_match_exactly(self) -> None:
+        generated = ApplicationIntegrationLifecycle(
+            FakePlatformReader(_state())
+        ).outputs(_request("restricted"))
+        assert generated.bundle is not None
+        attachment = _attachment(generated.bundle)
+        mismatched_target = replace(
+            _target_readback(attachment),
+            ingress_mode="public",
+        )
+        lifecycle, _ = self._lifecycle(attachment, readback=mismatched_target)
+        target_result = lifecycle.validate_attachment(generated.bundle, attachment)
+        stale_platform = replace(_state(), generation=8)
+        lifecycle, reader = self._lifecycle(
+            attachment,
+            platform_state=stale_platform,
+        )
+        platform_result = lifecycle.validate_attachment(generated.bundle, attachment)
+
+        self.assertEqual(target_result.outcome, "blocked")
+        self.assertEqual(target_result.blockers, ("TARGET_POSTURE_MISMATCH",))
+        self.assertEqual(platform_result.outcome, "blocked")
+        self.assertEqual(platform_result.blockers, ("PLATFORM_STATE_MISMATCH",))
+        self.assertEqual(reader.requests, [])
+
+    def test_unavailable_or_unready_target_fails_closed(self) -> None:
+        generated = ApplicationIntegrationLifecycle(
+            FakePlatformReader(_state())
+        ).outputs(_request("public"))
+        assert generated.bundle is not None
+        attachment = _attachment(generated.bundle)
+
+        for readback, blocker in (
+            (replace(_target_readback(attachment), exists=False), "TARGET_NOT_FOUND"),
+            (replace(_target_readback(attachment), ready=False), "TARGET_NOT_READY"),
+        ):
+            with self.subTest(blocker=blocker):
+                lifecycle, _ = self._lifecycle(attachment, readback=readback)
+                result = lifecycle.validate_attachment(generated.bundle, attachment)
+                self.assertEqual(result.outcome, "blocked")
+                self.assertEqual(result.blockers, (blocker,))
 
 
 if __name__ == "__main__":

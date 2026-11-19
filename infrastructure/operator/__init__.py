@@ -15,6 +15,9 @@ from infrastructure.operator._interfaces import (
 from infrastructure.operator.deployment import DeploymentExecutor
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
+    AttachmentTargetReadback,
+    AttachmentTargetReader,
+    AttachmentValidationResult,
     IntegrationBundleRequest,
     IntegrationBundleResult,
     PlatformIntegrationReader,
@@ -27,6 +30,9 @@ __all__ = (
     "ExecutionResult",
     "GitSnapshot",
     "ApplicationIntegrationLifecycle",
+    "AttachmentTargetReadback",
+    "AttachmentTargetReader",
+    "AttachmentValidationResult",
     "IntegrationBundleRequest",
     "IntegrationBundleResult",
     "LifecycleOperator",

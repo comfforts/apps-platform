@@ -43,6 +43,7 @@ class CommandRequest:
     cwd: Path
     environment: tuple[tuple[str, str], ...]
     timeout_seconds: int = 900
+    authority: str = "ordinary"
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,8 +80,26 @@ class ClosedSubprocessRunner:
         names = [name for name, _ in request.environment]
         if len(names) != len(set(names)) or not set(names) <= _ALLOWED_ENVIRONMENT:
             raise ValueError("command environment contains an unapproved name")
+        if request.authority not in {"ordinary", "bootstrap-state-migration"}:
+            raise ValueError("command authority is outside the approved set")
+        if request.authority == "bootstrap-state-migration":
+            expected = (
+                str(Path(request.argv[0]).resolve()),
+                "init",
+                "-input=false",
+                "-lockfile=readonly",
+                "-migrate-state",
+                "-force-copy",
+                "-backend-config=bucket=comfforts-ap-stg-455651441682-platform-state",
+                "-backend-config=prefix=bootstrap",
+            )
+            if request.argv != expected:
+                raise ValueError("bootstrap migration command is not exact")
         if Path(request.argv[0]).name == "terraform":
-            if any(argument in _PROHIBITED_TERRAFORM_ARGUMENTS for argument in request.argv[1:]):
+            prohibited = _PROHIBITED_TERRAFORM_ARGUMENTS
+            if request.authority == "bootstrap-state-migration":
+                prohibited = prohibited - {"-force-copy", "-migrate-state"}
+            if any(argument in prohibited for argument in request.argv[1:]):
                 raise ValueError("prohibited Terraform operation or argument")
             if any(
                 argument.startswith(prefix)
@@ -164,11 +183,13 @@ class TerraformCliAdapter:
         root: Path,
         environment: tuple[tuple[str, str], ...],
         *arguments: str,
+        authority: str = "ordinary",
     ) -> CommandRequest:
         return CommandRequest(
             argv=(str(self._executable), *arguments),
             cwd=root,
             environment=environment,
+            authority=authority,
         )
 
     @staticmethod
@@ -316,6 +337,76 @@ class TerraformCliAdapter:
         )
         if applied.returncode != 0:
             raise DeploymentCommandError("TERRAFORM_APPLY_FAILED")
+
+    def migrate_bootstrap_state(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> None:
+        """Move the just-created local bootstrap state into its exact remote lineage."""
+
+        if (
+            request.phase != "bootstrap"
+            or request.backend_bucket
+            != "comfforts-ap-stg-455651441682-platform-state"
+            or request.backend_prefix != "bootstrap"
+        ):
+            raise ValueError("bootstrap state migration scope is not exact")
+        root = self._bounded(terraform_root, file_required=False)
+        if not root.is_dir():
+            raise ValueError("Terraform root is not a directory")
+        migrated = self._runner.run(
+            self._request(
+                root,
+                self._environment(),
+                "init",
+                "-input=false",
+                "-lockfile=readonly",
+                "-migrate-state",
+                "-force-copy",
+                f"-backend-config=bucket={request.backend_bucket}",
+                f"-backend-config=prefix={request.backend_prefix}",
+                authority="bootstrap-state-migration",
+            )
+        )
+        if migrated.returncode != 0:
+            raise DeploymentCommandError("BOOTSTRAP_STATE_MIGRATION_FAILED")
+
+    def read_output(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+        output_name: str,
+    ) -> object:
+        """Read one closed non-secret output from the initialized exact lineage."""
+
+        allowed = {
+            "bootstrap": {"bootstrap_phase_output"},
+            "platform-foundation": {"foundation_phase_output"},
+            "shared-edge": {"shared_edge_phase_output"},
+        }
+        if output_name not in allowed.get(request.phase, set()):
+            raise ValueError("Terraform output is outside the approved phase")
+        root = self._bounded(terraform_root, file_required=False)
+        if not root.is_dir():
+            raise ValueError("Terraform root is not a directory")
+        observed = self._runner.run(
+            self._request(
+                root,
+                self._environment(),
+                "output",
+                "-json",
+                output_name,
+            )
+        )
+        if observed.returncode != 0:
+            raise DeploymentCommandError("TERRAFORM_OUTPUT_READ_FAILED")
+        if len(observed.stdout) > 1024 * 1024:
+            raise DeploymentCommandError("TERRAFORM_OUTPUT_TOO_LARGE")
+        try:
+            return json.loads(observed.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise DeploymentCommandError("TERRAFORM_OUTPUT_INVALID") from error
 
 
 __all__ = (

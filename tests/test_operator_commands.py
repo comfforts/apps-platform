@@ -214,6 +214,62 @@ class OperatorCommandTest(unittest.TestCase):
             dict(runner.requests[1].environment),
         )
 
+    def test_bootstrap_migrates_only_to_exact_remote_lineage_and_reads_it_back(
+        self,
+    ) -> None:
+        output = {
+            "contract_version": 1,
+            "output_kind": "bootstrap",
+            "environment": "staging",
+        }
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(0, json.dumps(output).encode(), b""),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "bootstrap"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root, "bootstrap")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            adapter.migrate_bootstrap_state(request, root)
+            observed = adapter.read_output(
+                request,
+                root,
+                "bootstrap_phase_output",
+            )
+
+        migration, readback = runner.requests
+        self.assertEqual(migration.authority, "bootstrap-state-migration")
+        self.assertEqual(
+            migration.argv[1:],
+            (
+                "init",
+                "-input=false",
+                "-lockfile=readonly",
+                "-migrate-state",
+                "-force-copy",
+                "-backend-config=bucket=comfforts-ap-stg-455651441682-platform-state",
+                "-backend-config=prefix=bootstrap",
+            ),
+        )
+        self.assertEqual(
+            readback.argv[1:],
+            ("output", "-json", "bootstrap_phase_output"),
+        )
+        self.assertEqual(observed, output)
+
     def test_closed_runner_rejects_shells_unapproved_executables_and_ambient_environment(
         self,
     ) -> None:
@@ -234,6 +290,12 @@ class OperatorCommandTest(unittest.TestCase):
                     (str(executable), "version"),
                     root,
                     (("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/key.json"),),
+                ),
+                CommandRequest(
+                    (str(executable), "init", "-migrate-state", "-force-copy"),
+                    root,
+                    (),
+                    authority="bootstrap-state-migration",
                 ),
             )
 

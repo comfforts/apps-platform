@@ -73,13 +73,20 @@ application, provider publication, active generation, application mutation, depl
 evidence and never read or destroyed Application State.
 
 AP-M9-W8 added the qualification-evidence contract and canonical vector, exact current-revision
-readback, the closed ten-check suite, networked Fixture Application runtime, failure injection,
+readback, the closed ten-check suite, process-local networked Fixture Application runtime, failure injection,
 reviewed whole-generation rollback, safe-destruction compilation/orchestration, private create-only
 destruction progress, least-data fixture handoff records, guarded Cloud SDK generation and target
 adapters, the production Shared Edge composition, its non-root image entry point, and
 `platform-qualify`/`platform-destroy`. Qualification and destruction live entry points remain gated
 on explicit W9 authority; this repository slice performed no provider request, image build,
 generation activation, rollback, qualification, or destruction.
+
+AP-M9-W9 adds the executable Fixture Application owner lifecycle over the existing image and three
+independent Terraform roots. It introduces shallow `fixture-deploy`, `fixture-status`, and
+`fixture-destroy` targets over the deep operator module, automatic platform/attachment bundle
+handoff, provider posture readback, complete-generation registration, and deterministic fake
+coverage. Repository implementation performs no external operation; AP-M9-W10 is the first staging
+invocation from merged code.
 
 ## AP-M9 capability locations
 

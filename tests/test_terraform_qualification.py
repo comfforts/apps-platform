@@ -326,6 +326,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
             encoding="utf-8"
         )
         combined = " ".join((overview, index, prompt))
+        normalized_prompt = " ".join(prompt.split())
         self.assertIn("AP-M7 implements statically verified Terraform", combined)
         self.assertIn("AP-M7 | complete | static Terraform", index)
         self.assertIn("AP-M8 | historical", index)
@@ -334,13 +335,13 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("AP-M9-W4 — interactive lifecycle core (implemented)", index)
         self.assertIn("AP-M9-W5 — deployable Terraform (implemented)", index)
         self.assertIn("AP-M9-W6 — interactive platform deployment (implemented)", index)
-        self.assertIn("AP-M9-W7 — application lifecycle (implemented)", index)
-        self.assertIn("AP-M9-W7 application-lifecycle pull request has merged", prompt)
+        self.assertIn("AP-M9-W7 — platform-side application lifecycle (implemented)", index)
+        self.assertIn("AP-M9-W8 qualification-and-safe-destruction pull request has merged", prompt)
         self.assertIn(
-            "Implement only the qualification and safe-destruction repository slice",
+            "Implement only the repository-side Fixture Application deployment lifecycle",
             prompt,
         )
-        self.assertIn("AP-M9-W9 staging-operation handoff", prompt)
+        self.assertIn("AP-M9-W10 is the first real staging operation", normalized_prompt)
         self.assertIn("Do not authenticate", prompt)
         self.assertIn("no platform environment is deployed or qualified", combined)
         for false_claim in (

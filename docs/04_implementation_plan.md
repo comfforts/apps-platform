@@ -1619,12 +1619,14 @@ contracts and profiles, AP-M9-W4 implemented the credential-free interactive cor
 implemented the deployable Terraform lifecycle, AP-M9-W6 implemented interactive deployment
 mechanics, AP-M9-W7 implemented the application integration lifecycle, and AP-M9-W8 implemented
 qualification and safe-destruction mechanics without running an external operation. AP-M9-W9
-begins only after W8 merges.
+implements the missing Fixture Application deployment lifecycle only after W8 merges.
 
 Each AP-M9 repository package begins from updated clean `main`, uses a dedicated branch and pull
 request, passes `make check`, and merges before the next package starts. Repository implementation
-does not authorize an external operation. AP-M9-W9 operator actions each require their exact owner
-approval from protected main after AP-M9-W1 through W8 are merged.
+does not initiate an external operation. For ordinary reversible staging creation or update, the
+owner's deliberate invocation of the named command plus its same-process specification and plan
+confirmations authorizes the execution; no duplicate out-of-band approval is required. Destruction,
+purge, ownership transfer, production cutover, and scope expansion retain separately named approval.
 
 ### Outcome
 
@@ -1639,6 +1641,7 @@ The normal operator interface is:
 ```text
 platform-prepare  platform-deploy  platform-status  platform-outputs
 platform-register platform-detach  platform-retire platform-qualify platform-destroy
+fixture-deploy    fixture-status   fixture-destroy
 ```
 
 The local wizard remains active through OAuth and Squarespace work and continues after Enter.
@@ -1737,7 +1740,7 @@ resume. W8's external-action safety completion wires the default local deploymen
 when the pinned toolchain, verified human Cloud SDK session, user Application Default Credentials,
 and exact staging project all agree. The pull requests executed no real operation.
 
-#### AP-M9-W7 · Application integration lifecycle
+#### AP-M9-W7 · Platform-side application integration lifecycle
 
 Implemented least-data outputs for public, authenticated, and restricted applications, exact
 bundle/current-platform/target-posture validation, complete-generation compilation and create-only
@@ -1750,7 +1753,7 @@ Application State, and no external action occurred.
 
 #### AP-M9-W8 · Qualification and safe destruction
 
-Implemented networked synthetic Fixture Applications, `platform-qualify`, a strict revision-bound
+Implemented process-local networked synthetic Fixture Applications, `platform-qualify`, a strict revision-bound
 evidence contract and prohibited-data scan, the closed ten-check profile, failure injection,
 reviewed whole-generation rollback, and `platform-destroy`. Added exact local/provider/fixture
 readback, least-data accepted handoff records, separate destructive specification compilation,
@@ -1764,16 +1767,30 @@ digest-pinned and source-allow-listed image build, create-only initial generatio
 authoritative/recursive DNS, TLS, and final readback. The live qualification and destruction
 defaults require new W9 authority.
 
-#### AP-M9-W9 · Staging deployment and qualification
+#### AP-M9-W9 · Fixture Application deployment lifecycle
 
-From clean protected main, separately approve and run staging preparation, deployment, OAuth and
-Squarespace checkpoints, fixture bundle generation, fixture deployment/registration, complete
-AP-EVAL-M9, detach and destroy fixture assets, and an owner-approved platform destroy/redeploy
-rehearsal. Leave staging deployed and qualified at the accepted revision. Commit only an approved
-secret-free evidence index; no credential, secret, state, plan, raw provider response, browser
-state, or application payload enters Git.
+Implement one interactive fixture operator over the existing image, bundle, Terraform, provider,
+and registration seams. `fixture-deploy` builds and publishes one immutable source-bound fixture
+image, generates the public, authenticated, and restricted integration bundles, plans and applies
+the three roots sequentially in independent Application State lineages, reads back target and IAM
+posture, emits exact attachment bundles, and activates one complete Registration Generation.
+`fixture-status` is read-only. `fixture-destroy` detaches first, requires fixture-specific typed
+confirmation, destroys only selected fixture Application State, and supports deterministic
+redeployment/reactivation. Every mutation uses the verified human session, fresh exact plans,
+policy, confirmation, readback, private journals, and safe resume. Deterministic fakes cover the
+complete journey. This repository package performs no authenticated command or external operation.
 
-#### AP-M9-W10 · Production readiness and Finance handoff
+#### AP-M9-W10 · Staging deployment and qualification
+
+From clean protected main, deliberately invoke staging preparation/deployment, complete the OAuth
+and Squarespace checkpoints, deploy/register the fixture suite, complete AP-EVAL-M9, detach and
+destroy fixture assets, and perform an owner-approved platform destroy/redeploy rehearsal. Ordinary
+staging creation and update use the command's same-process review and confirmations; destructive
+steps retain their separate authority. Leave staging deployed and qualified at the accepted
+revision. Commit only an approved secret-free evidence index; no credential, secret, state, plan,
+raw provider response, browser state, or application payload enters Git.
+
+#### AP-M9-W11 · Production readiness and Finance handoff
 
 Enable only read-only production preparation. Discover existing production ownership, return
 `OWNERSHIP_TRANSFER_REQUIRED`, inventory future Platform versus Finance Application State, and
@@ -1783,12 +1800,12 @@ deployment is a later joint platform checkpoint plus Finance-owned Application A
 
 ### Ordered delivery and external-action gate
 
-AP-M9-W1 through W8 are repository branches in order. No staging resource is created merely because
-W6 contains deployment mechanics. W9 begins only after W8 is merged so registration, qualification,
-detach, rollback, and safe destruction exist before the first provider mutation. W10 follows the
-accepted staging result.
+AP-M9-W1 through W9 are repository branches in order. No staging resource is created merely because
+W6 contains shared-platform deployment mechanics or W9 contains Fixture Application deployment
+mechanics. W10 begins only after W9 is merged so every shared-platform and fixture operator target
+exists before the first provider mutation. W11 follows the accepted staging result.
 
-Within W9 the operator order is preparation and digest approval; shared-platform deployment; fixture
+Within W10 the operator order is preparation and digest approval; shared-platform deployment; fixture
 integration-bundle generation; fixture application deployment; attachment registration;
 qualification; fixture detachment and application-owned cleanup; optional approved platform
 destroy/redeploy rehearsal; final qualification; and evidence reconciliation. The first failed or
@@ -1798,7 +1815,7 @@ discrepant stage stops every dependent action.
 
 AP-M9 is accepted only when:
 
-1. AP-M9-W1 through W8 are merged in order and the complete deterministic gate passes.
+1. AP-M9-W1 through W9 are merged in order and the complete deterministic gate passes.
 2. A fresh operator can deploy staging from reviewed source through one interactive session.
 3. OAuth and Squarespace actions use exact same-process Enter checkpoints and truthful readback or
    operator-attested status.
@@ -1823,8 +1840,8 @@ AP-M9 is accepted only when:
 | AP-M9-W3, AP-M9-W4 | AP-PR-010 through AP-PR-012; AP-QR-003, AP-QR-004, AP-QR-006 through AP-QR-009 | ADR-010 through ADR-013 | AP-TM-001 through AP-TM-003, AP-TM-007 through AP-TM-014 |
 | AP-M9-W5, AP-M9-W6 | AP-PR-001 through AP-PR-005, AP-PR-010; AP-QR-001 through AP-QR-009 | ADR-001, ADR-004 through ADR-011, ADR-013 | AP-TM-001 through AP-TM-014 |
 | AP-M9-W7 | AP-PR-001 through AP-PR-007, AP-PR-009, AP-PR-011, AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-006, ADR-008, ADR-012, ADR-013 | AP-TM-001 through AP-TM-014 |
-| AP-M9-W8, AP-M9-W9 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-013 | AP-TM-001 through AP-TM-014 |
-| AP-M9-W10 | AP-PR-007, AP-PR-009 through AP-PR-012; AP-QR-001, AP-QR-003 through AP-QR-009 | ADR-001, ADR-002, ADR-004, ADR-007, ADR-010 through ADR-013 | AP-TM-007 through AP-TM-014 |
+| AP-M9-W8, AP-M9-W9, AP-M9-W10 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-013 | AP-TM-001 through AP-TM-014 |
+| AP-M9-W11 | AP-PR-007, AP-PR-009 through AP-PR-012; AP-QR-001, AP-QR-003 through AP-QR-009 | ADR-001, ADR-002, ADR-004, ADR-007, ADR-010 through ADR-013 | AP-TM-007 through AP-TM-014 |
 
 ## Historical later delivery sequence
 

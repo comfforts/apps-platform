@@ -808,6 +808,12 @@ readback. A compromised workstation remains residual risk; no script can make an
 incapable of out-of-band provider action. Such action is drift and never becomes reviewed authority
 without reconciliation. The lifecycle creates no operation-identity or impersonation fleet.
 
+For an ordinary reversible staging creation or update, deliberate invocation of the named command
+and its same-process specification and plan confirmations are the authorization. An additional
+out-of-band approval does not reduce the workstation's capability or narrow the displayed scope and
+is not a control. Separate fresh approval remains a control for destruction, purge, ownership
+transfer, production cutover, and scope expansion.
+
 AP-M9-W1 defines controls and evaluation authority, AP-M9-W2 removed the retired manifest attack
 surface, AP-M9-W3 implemented the closed lifecycle contracts, AP-M9-W4 implements local
 source/tool discovery, exact digest approval, append-only journal revisions, truthful status,
@@ -824,7 +830,8 @@ destruction refusal, exact scope confirmation, post-confirmation reread, ordered
 destruction, retained recovery/evidence boundaries, and create-only resume state. The non-fake
 deployment adapters are wired behind pinned-tool, exact-project, active-account, user-ADC,
 digest-bound plan, confirmation, source-upload allow-list, and readback gates, but remain uninvoked;
-W9 live qualification and destruction authority remains closed.
+W9 adds the missing repository-only Fixture Application deployment lifecycle and completes every
+operator target needed before W10 may perform the first staging operation.
 No current result proves an identity, backend, provider, OAuth, DNS,
 deployment, or Live control operational.
 
@@ -841,7 +848,8 @@ pass:
 | Exact managed zone, absent record, allocated address, TTL, and external-DNS acknowledgement | AP-M9 staging deployment before DNS mutation |
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
-| Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before staging deployment |
+| Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
+| Executable fixture image, independent Application State plans, attachment handoff, registration, status, and destruction | AP-M9-W9 acceptance before the first staging operation |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |

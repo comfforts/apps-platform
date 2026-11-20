@@ -1524,7 +1524,7 @@ preparation detects existing Finance ownership without mutation.
 
 AP-EVAL-M9 produces Contract, Fixture, and staging Live evidence within their existing meanings. It
 does not produce Application Adoption evidence, qualify Finance Assistant, transfer a production
-resource, or prove a production availability commitment. A repository-only pass through AP-M9-W8
+resource, or prove a production availability commitment. A repository-only pass through AP-M9-W9
 means implemented and deterministically verified, not deployed or Live-qualified.
 
 ### Evaluation environments
@@ -1540,12 +1540,14 @@ It performs no credential lookup, provider request, DNS lookup, Terraform backen
 mutation, or browser action. It uses synthetic profiles, command fakes, temporary mode-`0700`
 directories, mocked Terraform providers, process-local loopback, and deterministic clocks.
 
-Staging Live gates begin only after AP-M9-W1 through W8 are merged, the exact protected-main
-revision passes the complete gate, one staging Deployment Specification is complete and explicitly
-approved by digest, and the owner separately approves each bootstrap, OAuth, DNS, qualification,
-rollback, destroy, or recovery action that crosses its named authority. The local wizard uses only
-the verified short-lived human operator session and creates no operation-identity fleet or stored
-key. Production commands remain read-only throughout AP-M9.
+Staging Live gates begin only after AP-M9-W1 through W9 are merged and the exact protected-main
+revision passes the complete gate. The owner starts an ordinary reversible staging creation or
+update by deliberately invoking its named command; that process completes specification approval,
+exact plan or bounded-action confirmation, and readback without a duplicate out-of-band approval.
+Destruction, purge, ownership transfer, production cutover, scope expansion, rollback, or recovery
+retains its separately named approval where required by its boundary. The local wizard uses only the
+verified short-lived human operator session and creates no operation-identity fleet or stored key.
+Production commands remain read-only throughout AP-M9.
 
 ### Evidence model
 
@@ -1568,7 +1570,7 @@ gate.
 #### AP-EVAL-M9-01 · Authority, supersession, source, and regression integrity
 
 Verify AP-PR-001 through AP-PR-012, AP-QR-001 through AP-QR-009, ADR-001 through ADR-013,
-AP-TM-001 through AP-TM-014, AP-M9-W1 through W10, and this evaluation definition are complete and
+AP-TM-001 through AP-TM-014, AP-M9-W1 through W11, and this evaluation definition are complete and
 uniquely traced. Confirm AP-M8-W1/W2 remain historical, AP-M8-W3 through W12 and the old standalone
 AP-M9 proposal are superseded without execution, the source is clean protected main, and every
 prior deterministic gate passes without credential or mutation.

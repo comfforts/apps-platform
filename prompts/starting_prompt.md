@@ -1,67 +1,64 @@
-# App Platform AP-M9-W8 qualification and safe destruction handoff
+# App Platform AP-M9-W9 Fixture Application deployment lifecycle handoff
 
 Continue the separately governed Comfforts App Platform from its canonical repository root.
 
-Use this handoff only after the AP-M9-W7 application-lifecycle pull request has merged, local
-`main` is current and clean, and the owner approves AP-M9-W8. Create branch
-`feat/ap-m9-qualification-safe-destruction`. Inspect the branch, working tree, remotes, and
+Use this handoff only after the AP-M9-W8 qualification-and-safe-destruction pull request has merged,
+local `main` is current and clean, and the owner approves AP-M9-W9. Create branch
+`feat/ap-m9-fixture-application-deployment`. Inspect the branch, working tree, remotes, and
 relationship to `origin/main`; preserve unrelated changes. Do not pull, reset, commit, push, or
 perform an external mutation without its applicable approval.
 
 Read `AGENTS.md` and follow the complete order in `docs/README.md`. State the slice and authority:
-AP-M9-W8; AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009; ADR-001 through ADR-013;
-AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-001 through AP-TM-014. Confirm AP-M9-W7 is merged
+AP-M9-W9; AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009; ADR-001 through ADR-013;
+AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-001 through AP-TM-014. Confirm AP-M9-W8 is merged
 before modifying anything.
 
 `integrations/ai_finance_assistant/README.md` remains an inactive, non-authoritative input. Read it
 only if the owner separately scopes a compatibility review; it cannot define generic platform
-behavior, qualification, destruction, evidence, application cleanup, deployment, or production
-cutover.
+behavior or fixture, application, deployment, state, qualification, destruction, or production
+behavior.
 
-Implement only the qualification and safe-destruction repository slice:
+Implement only the repository-side Fixture Application deployment lifecycle:
 
-1. Implement `platform-qualify` for the exact deployed environment, source revision, specification,
-   execution journal, active Registration Generation, component revisions, and synthetic Fixture
-   Application revisions. A stale, partial, unqualified, mismatched, or drifted input must fail
-   closed rather than reuse an earlier result.
-2. Exercise the public, authenticated, and restricted synthetic applications through the same
-   integration and attachment lifecycle as every application. Keep each fixture in independent
-   Application State and prove that platform actions neither read nor destroy that state.
-3. Add a strict versioned, revision-bound, redacted qualification-evidence contract and prohibited-
-   data scan. Record only allow-listed digests, coarse results, verified/operator-attested labels,
-   limitations, failures, and final status; never retain credentials, secrets, assertions,
-   sessions, restricted members, request/response bodies, provider payloads, state, or saved plans.
-4. Cover DNS/TLS, catalogue, route and mount behavior, public/authenticated/restricted admission,
-   OAuth/session/logout, signed assertion/JWKS verification, caller/IAM posture, direct-origin
-   denial, cross-application and failure isolation, streaming and limits, detachment/reactivation,
-   retirement, redaction, and truthful unavailable behavior. Deterministic repository tests use
-   fakes and process-local loopback only.
-5. Implement reviewed complete-generation rollback and failure injection. Rollback must activate an
-   already reviewed immutable generation, preserve Application State, require exact confirmation,
-   read back the active digest, and never silently reconstruct or patch provider configuration.
-6. Implement `platform-destroy` from a separate digest-bound destructive specification. Refuse any
-   active attachment or ownership mismatch; show exact platform-owned scope; require environment-
-   specific typed confirmation; handle traffic, external DNS, certificate, OAuth, and cache/rollback
-   checkpoints in safe order; stop truthfully on partial failure; and never target Application
-   State. Retain state backends, recovery material, and evidence unless separately approved purge
-   authority exists.
-7. Complete the locally unarmed adapter construction only after every preflight, policy, readback,
-   redaction, resume, qualification, rollback, and destruction guard is present. No command may use
-   ambient credentials, broad owner authority, shell interpolation, mutable plans/images, automatic
-   cleanup, or automatic destructive recovery.
-8. Add deterministic contract, command, transcript, evidence, qualification, rollback, destruction,
-   interruption, resume, conflict, stale-input, partial-failure, and prohibited-material tests.
-   Update documentation and the AP-M9-W9 staging-operation handoff without claiming Live evidence.
+1. First reconcile governance so ordinary reversible staging creation or update is authorized by
+   deliberate invocation of the named command plus same-process specification and plan
+   confirmations. Retain separate approval for destruction, purge, ownership transfer, production
+   cutover, and scope expansion. Move the first staging operation to AP-M9-W10 and production
+   readiness to AP-M9-W11.
+2. Add shallow `fixture-deploy`, `fixture-status`, and `fixture-destroy` targets over the existing
+   deep Python lifecycle module. A fresh operator must not hand-author Terraform variables,
+   integration bundles, attachment bundles, registration intent, or provider inventory.
+3. Build one immutable, source-bound, non-root Fixture Application image through the existing pinned
+   and allow-listed build boundary. Use the same digest for all three synthetic applications and
+   reject a mutable image reference or source mismatch.
+4. Generate public, authenticated, and restricted Platform Integration Bundles, derive exact
+   application inputs, and plan/apply the three existing fixture roots sequentially in independent
+   Application State lineages. Every plan is fresh, policy-checked, displayed, confirmed with
+   `y/N`, applied as the same artifact, and read back before the next root begins.
+5. Generate each Application Attachment Bundle from exact Terraform/provider readback, validate
+   owner, ingress, caller grant, audience, and bundle digest, then publish and activate one complete
+   Registration Generation. Preserve platform/application state separation throughout.
+6. Make `fixture-status` strictly read-only. Make `fixture-destroy` detach before destruction,
+   require fixture-specific typed confirmation, reread ownership and active-generation state after
+   confirmation, destroy only selected Fixture Application State, and support deterministic
+   redeployment/reactivation without releasing its identifier or route.
+7. Complete the exact live qualification and safe-destruction adapter wiring required before the
+   AP-M9-W10 staging operation, while invoking none of it in this repository slice. No target may
+   use ambient credentials, shell interpolation, mutable plans/images, automatic cleanup, or state
+   access across an ownership boundary.
+8. Add deterministic command, transcript, plan, readback, bundle, registration, status,
+   interruption, resume, cancellation, conflict, stale-input, partial-failure, and destruction tests.
+   A test must exercise the complete fixture journey through injected fakes; static Terraform or a
+   process-local server alone is not deployment-lifecycle evidence.
 
 Run `make check` from the repository root and report the exact result. The check must remain
 credential-free, deterministic, network-free after local setup, and non-mutating.
 
 Do not authenticate or run a real Terraform/backend/provider/image/OAuth/Secret Manager/DNS/TLS
-operation. Do not deploy or destroy a platform or application, publish or roll back a real
-generation, collect Live evidence, mutate a credential, state, cloud resource, repository setting,
-Finance Assistant, `apps.comfforts.com`, or the inactive Finance integration package. AP-M9-W9 is
-the first real staging operation and requires separate owner approvals. Do not claim Application
-Adoption or production readiness. Do not change repository settings.
+operation. Do not deploy or destroy a platform or application, publish a real image or generation,
+collect Live evidence, mutate a credential, state, cloud resource, repository setting, Finance
+Assistant, `apps.comfforts.com`, or the inactive Finance integration package. AP-M9-W10 is the first
+real staging operation. Do not claim Application Adoption or production readiness.
 
 Use small coherent commits. Do not commit credentials, state, saved plans, provider payloads,
 browser state, restricted membership, application data, raw traffic, recovery material, private

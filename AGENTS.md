@@ -19,7 +19,10 @@ change in the repository.
 5. Inspect `git status` and preserve unrelated changes.
 6. State the platform slice and every `AP-PR-*`, `AP-QR-*`, `ADR-*`, plan, and evaluation identifier
    that owns the change. Treat an absent downstream authority as unresolved rather than inferred.
-7. Stop for direction when an authority is absent or the requested work would change an active
+7. Trace every claimed operator journey to an executable target and deterministic test. Static
+   configuration, contracts, local fixtures, or reserved interfaces do not make an external
+   operation ready.
+8. Stop for direction when an authority is absent or the requested work would change an active
    application, cloud resource, DNS record, credential, or Terraform state outside the approved
    slice.
 
@@ -47,12 +50,17 @@ change in the repository.
 - AP-M8-W1/W2 are historical merged work. AP-M8-W3 through AP-M8-W12 are superseded and must not
   be resumed. AP-M9-W2 removed the historical manifest implementation from the active tree.
 - AP-M9-W1 established the operator-lifecycle authority, and AP-M9-W2 removed the retired manifest
-  path. Each later AP-M9 package requires its predecessor to be merged and its own approved
-  authority. Until the relevant package
+  path. Each later AP-M9 package requires its predecessor to be merged and owner approval to
+  implement that package. Until the relevant package
   is implemented and invoked, AP-M9 authorizes no repository-setting change, federation or IAM
   binding, credential use, backend operation, authenticated plan or apply, provider call, OAuth
   client, image publication, DNS or traffic change, deployment, destructive action, Live claim, or
   Application Adoption.
+- For an ordinary owner-invoked staging creation or update, the named command invocation plus its
+  same-process specification and plan confirmations is the operation authorization. Do not request
+  a duplicate out-of-band approval. Require fresh separate approval for destruction, purge,
+  ownership transfer, production cutover, scope expansion, or another explicitly named irreversible
+  boundary.
 - Keep platform implementation, contracts, tests, prompts, and evidence inside this dedicated
   canonical repository. Extraction does not make Finance Assistant authority applicable here. The
   completed source-repository cleanup does not transfer Finance Assistant requirements, behavior,
@@ -76,6 +84,9 @@ change in the repository.
   from branch names or discussion history.
 - Treat the AP-M9 `platform-*` interface as planned until its named work package implements it.
   Never substitute the historical AP-M8 manifest procedure for a missing AP-M9 capability.
+- Do not place a first external operation in the same work package that must still implement a
+  required operator target. Merge and verify the repository capability before invoking it from
+  clean `main`.
 
 ## Verification
 

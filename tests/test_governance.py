@@ -244,6 +244,7 @@ class ProjectAuthorityTest(unittest.TestCase):
 
     def test_agent_instructions_route_to_platform_authority(self) -> None:
         instructions = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        normalized_instructions = " ".join(instructions.split())
 
         self.assertIn("docs/README.md", instructions)
         self.assertIn("GLOSSARY.md", instructions)
@@ -277,6 +278,41 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-M7 authorizes only reviewed Terraform configuration",
             instructions,
         )
+        self.assertIn(
+            "Trace every claimed operator journey to an executable target and deterministic test",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "Do not request a duplicate out-of-band approval",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "Do not place a first external operation in the same work package",
+            normalized_instructions,
+        )
+
+    def test_operator_authorization_and_fixture_readiness_are_unambiguous(self) -> None:
+        requirements = (PROJECT_ROOT / "docs/01_product_requirements.md").read_text(
+            encoding="utf-8"
+        )
+        decisions = (PROJECT_ROOT / "docs/02_architecture_decision_records.md").read_text(
+            encoding="utf-8"
+        )
+        design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
+            encoding="utf-8"
+        )
+        glossary = (PROJECT_ROOT / "GLOSSARY.md").read_text(encoding="utf-8")
+
+        for document in (requirements, decisions, design):
+            normalized = " ".join(document.split())
+            self.assertIn("no separate out-of-band approval", normalized)
+            self.assertIn("Destruction, purge, ownership transfer", normalized)
+        self.assertIn("## Operator Invocation", glossary)
+        self.assertIn("separate Application State", requirements)
+        self.assertIn("Static Terraform, process-local loopback", requirements)
+        self.assertIn("`fixture-deploy`", design)
+        self.assertIn("`fixture-status`", design)
+        self.assertIn("`fixture-destroy`", design)
 
     def test_documentation_truthfully_records_planning_and_evidence_status(self) -> None:
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
@@ -290,14 +326,14 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_overview = " ".join(overview.split())
 
         self.assertIn(
-            "AP-M9-W8 qualification and safe-destruction lifecycle implemented",
+            "AP-M9-W8 qualification and safe-destruction mechanics implemented",
             normalized_index,
         )
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
         self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
         self.assertIn("AP-M8 | historical", index)
         self.assertIn("AP-M9-W1 — governance rebaseline", index)
-        self.assertIn("AP-M9-W10 — production readiness", index)
+        self.assertIn("AP-M9-W11 — production readiness", index)
         self.assertIn("AP-M8-W3 through AP-M8-W12 never began", normalized_overview)
         self.assertIn("no platform environment is deployed or qualified", normalized_overview)
         self.assertIn("Platform Integration Bundle", overview)
@@ -640,7 +676,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("independent synthetic Application State roots", layout)
 
-    def test_ap_m9_w8_handoff_loads_authority_without_granting_operations(
+    def test_ap_m9_w9_handoff_loads_authority_without_granting_operations(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -650,7 +686,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         for authority in (
             "AGENTS.md",
             "docs/README.md",
-            "AP-M9-W8",
+            "AP-M9-W9",
             "AP-PR-001 through AP-PR-012",
             "AP-QR-001 through AP-QR-009",
             "ADR-001 through ADR-013",
@@ -659,23 +695,23 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M9-W7 application-lifecycle pull request has merged",
-            "Implement only the qualification and safe-destruction repository slice",
-            "platform-qualify",
-            "platform-destroy",
-            "qualification-evidence contract",
-            "complete-generation rollback",
-            "deterministic contract, command, transcript, evidence, qualification, rollback, destruction",
+            "after the AP-M9-W8 qualification-and-safe-destruction pull request has merged",
+            "Implement only the repository-side Fixture Application deployment lifecycle",
+            "fixture-deploy",
+            "fixture-status",
+            "fixture-destroy",
+            "independent Application State lineages",
+            "deterministic command, transcript, plan, readback, bundle, registration, status",
             "Do not authenticate or run a real",
             "Run `make check` from the repository root",
-            "Do not change repository settings",
+            "AP-M9-W10 is the first real staging operation",
             "Finance Assistant",
         ):
             self.assertIn(boundary, normalized_prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W8 qualification and safe destruction handoff](starting_prompt.md)",
+            "[AP-M9-W9 Fixture Application deployment lifecycle handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -685,14 +721,14 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_index = " ".join(index.split())
         normalized_prompt = " ".join(prompt.split())
 
-        for work_package in range(1, 11):
+        for work_package in range(1, 12):
             self.assertIn(f"AP-M9-W{work_package}", index)
         self.assertIn("Each work package is one bounded branch and pull request", normalized_index)
-        self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W10"))
-        self.assertIn("AP-M9-W8", normalized_prompt)
-        self.assertIn("qualification and safe destruction", normalized_prompt)
+        self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W11"))
+        self.assertIn("AP-M9-W9", normalized_prompt)
+        self.assertIn("Fixture Application deployment lifecycle", normalized_prompt)
         self.assertIn("Do not authenticate", normalized_prompt)
-        self.assertIn("AP-M9-W9 staging-operation handoff", normalized_prompt)
+        self.assertIn("AP-M9-W10 is the first real staging operation", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
@@ -824,7 +860,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertEqual(
             lifecycle_packages,
-            [f"AP-M9-W{index}" for index in range(1, 11)],
+            [f"AP-M9-W{index}" for index in range(1, 12)],
         )
         self.assertEqual(len(work_packages), len(set(work_packages)))
         self.assertEqual(
@@ -1450,7 +1486,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("operator-attested", threat_model)
         self.assertIn("No current result proves", threat_model)
 
-    def test_ap_m9_w8_status_and_w9_handoff_are_bounded(self) -> None:
+    def test_ap_m9_w8_status_and_w9_fixture_handoff_are_bounded(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         docs_index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         runbook = (
@@ -1475,17 +1511,18 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("`infrastructure/operator/`", layout)
 
         for required in (
-            "AP-M9-W8",
+            "AP-M9-W9",
             "AP-EVAL-M9-09",
-            "feat/ap-m9-qualification-safe-destruction",
-            "qualification and safe destruction",
-            "platform-qualify",
-            "platform-destroy",
+            "feat/ap-m9-fixture-application-deployment",
+            "Fixture Application deployment lifecycle",
+            "fixture-deploy",
+            "fixture-status",
+            "fixture-destroy",
             "Do not authenticate",
-            "Do not commit",
+            "AP-M9-W10 is the first real staging operation",
         ):
             self.assertIn(required, normalized_prompt)
-        self.assertNotIn("AP-M9-W7 application integration lifecycle handoff", prompt)
+        self.assertNotIn("AP-M9-W8 qualification and safe destruction handoff", prompt)
 
 
 if __name__ == "__main__":

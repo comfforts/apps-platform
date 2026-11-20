@@ -878,6 +878,14 @@ creates no operation-identity fleet, impersonation binding, service-account key,
 credential. Runtime service accounts remain Terraform-managed resources with their existing
 Platform State or Application State owners.
 
+For ordinary reversible staging creation and update, the owner's deliberate invocation of the
+named command selects the operation. The same process prepares and displays the specification,
+requests its approval, displays each exact plan or bounded action, and requests confirmation before
+mutation; no separate out-of-band approval is required. A second chat, ticket,
+workflow-environment, or other approval would duplicate that decision without narrowing scope.
+Destruction, purge, ownership transfer, production cutover,
+and any proposed scope expansion retain separately named approval and stronger confirmation.
+
 Every Terraform mutation creates a fresh exact plan, canonical digest, policy result, and `y/N`
 owner confirmation in the same execution that applies that plan. Typed confirmation remains
 mandatory for destruction, purge, ownership transfer, and other irreversible boundaries. Provider
@@ -892,6 +900,8 @@ interactive interface.
 - The operator can complete one deployment without switching between local lifecycle invocations.
 - `platform-deploy` performs preparation, review, approval, and deployment in one process;
   `platform-prepare` remains an optional read-only preview.
+- Deliberate invocation plus the in-process review gates authorizes an ordinary staging execution;
+  repository merge alone never starts one.
 - Source binding is enforced by the lifecycle and retained evidence rather than by a remote runner
   alone.
 - The operator account remains powerful; exact plans, small command allow-lists, confirmations,

@@ -1,7 +1,7 @@
 # Comfforts App Platform
 
-Status: AP-M9-W8 qualification and safe-destruction lifecycle implemented and deterministically verified; no
-platform environment is deployed or qualified
+Status: AP-M9-W8 qualification and safe-destruction mechanics implemented and deterministically
+verified; AP-M9-W9 fixture deployment lifecycle is next; no platform environment is deployed or qualified
 
 Comfforts App Platform owns the shared hostname edge, catalogue, registration, routing, admission,
 platform identity, and environment lifecycle used by independently owned applications. Applications
@@ -17,6 +17,10 @@ prepare -> approve -> deploy -> status -> outputs -> qualify -> destroy
                                       v
                  application deploy -> register -> detach/retire
 ```
+
+For the repository-owned synthetic applications, AP-M9-W9 supplies the missing interactive
+`fixture-deploy`, `fixture-status`, and `fixture-destroy` application-owner path between platform
+outputs and registration.
 
 The implementation remains Python for AP-M9. A Python-to-Go migration is deliberately deferred
 until the Python product is delivered and qualified so the existing implementation can provide
@@ -43,7 +47,8 @@ comparison and rollback behavior.
   whole-generation registration, detach/reactivate, and terminal retirement. W8 implements
   revision-bound qualification, closed evidence, reviewed rollback, safe Platform Environment
   destruction, the production Shared Edge composition and non-root image entry point, and the
-  guarded real staging deployment adapters. W9 is the first real staging operation and is next.
+  guarded real shared-platform deployment adapters. W9 implements the missing Fixture Application
+  deployment lifecycle without invoking it. W10 is the first real staging operation.
 
 No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
 application registration, or Live evidence is created merely by the repository implementation.
@@ -81,26 +86,27 @@ typed phrases are reserved for irreversible actions. Provider readback and same-
 OAuth/Squarespace checkpoints remain mandatory. Production remains blocked by
 `OWNERSHIP_TRANSFER_REQUIRED`.
 
-W7 writes integration bundles create-only beneath the ignored private operator directory. It
+W7 implements the platform side of application integration and writes bundles create-only beneath
+the ignored private operator directory. It
 validates exact application attachments, compiles immutable complete Registration Generations, and
 requires confirmation before generation activation. Detach is reversible; retirement
 is terminal. Its terminal result contains only coarse outcome and digest facts, never restricted
 membership or target payloads.
 
 W8 adds strict revision-bound qualification evidence, the closed ten-check qualification profile,
-failure injection, whole-generation rollback, and a separate destructive specification with
+process-local network fixtures, failure injection, whole-generation rollback, and a separate destructive specification with
 create-only resumable progress. It also adds shell-free Cloud SDK construction for immutable
 generation publication, exact traffic activation, provider attachment posture, and qualification
 readback. Read-only integration uses closed local state. Staging deployment is conditionally armed
 only by the pinned toolchain, `gcloud`, `dig`, a real Cloud SDK configuration, and a verified human
 session; Cloud Build receives only an explicit source allow-list. `platform-qualify` and
-`platform-destroy` retain explicit `W9_*_AUTHORITY_REQUIRED` live gates until W9 supplies and
-approves the exact live probe or destructive executor. `make check` invokes none of them.
+`platform-destroy` remain externally uninvoked while W9 completes the fixture operator and every
+remaining staging-operation adapter. `make check` invokes none of them.
 
 The deployment wizard stays active across Google OAuth and Squarespace DNS work and continues
 when the operator presses Enter. It never requests an OAuth secret in the terminal. The pull
 request itself performs no authentication, backend initialization, plan, apply, image publication,
-provider readback, DNS lookup/change, or deployment; AP-M9-W9 remains the first real operation.
+provider readback, DNS lookup/change, or deployment; AP-M9-W10 remains the first real operation.
 
 ## Application boundary
 

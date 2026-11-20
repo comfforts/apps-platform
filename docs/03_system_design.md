@@ -760,6 +760,7 @@ limited to these operator operations:
 
 ```text
 prepare  deploy  status  outputs  register  detach  retire  qualify  destroy
+                           fixture-deploy  fixture-status  fixture-destroy
 ```
 
 The module owns preflight, discovery, canonical specification generation, stage ordering, exact
@@ -783,6 +784,12 @@ allow-lists, declared stage-output bindings, manual checkpoints, readback, failu
 destructive boundary. An address or client identifier produced by a named later stage is a bound
 output, not a missing input. Approval is a separate owner decision over the complete specification
 digest.
+
+For an ordinary reversible staging creation or update, invoking the named command deliberately is
+the owner's selection of the operation. Specification approval and every exact plan or bounded
+action confirmation occur inside that same process; no separate out-of-band approval is required.
+Repository merge never invokes an operation. Destruction, purge, ownership transfer, production
+cutover, and scope expansion remain separately governed decisions.
 
 Deployment consumes exactly that approved digest and advances one Execution Journal through these
 logical stages:
@@ -824,6 +831,16 @@ Application State and returns an Application Attachment Bundle bound to the plat
 Registration validates the bundle, provider target, owner, ingress, caller grant, audience, and
 current platform state before activating a complete Registration Generation.
 
+The repository-owned Fixture Application operator acts only as the Application Owner for the three
+synthetic fixtures. One interactive `fixture-deploy` invocation builds one immutable fixture image,
+generates the three application-scoped platform bundles, plans and applies the public,
+authenticated, and restricted roots sequentially in separate Application State lineages, emits
+their attachment bundles, and registers one complete generation after provider readback.
+`fixture-status` is read-only. `fixture-destroy` requires the fixture-specific destructive
+confirmation, operates only on the selected fixture Application State, and never destroys Platform
+State. These commands are the executable staging-fixture boundary; Terraform roots and loopback
+servers alone are not deployment capability.
+
 Detachment is the reversible suspended state. The edge removes the application from the catalogue
 and target routing, reserves its identifier and route, invokes no target, and returns a generic
 temporary-unavailability response for the reserved path. The owner may destroy and later redeploy
@@ -856,13 +873,16 @@ generation activation, reversible detachment/reactivation, terminal retirement, 
 reserved-route responses behind injected boundaries. AP-M9-W8 implemented exact-revision
 qualification, redacted evidence, network fixtures, failure injection, reviewed rollback, and
 safe-destruction mechanics plus guarded local provider construction and the production Shared Edge
-composition. The live process accepts exact generated revision, generation, provider,
+composition. AP-M9-W9 implements the repository-only Fixture Application operator and completes
+the executable application side of the staging journey before any external operation. The live
+process accepts exact generated revision, generation, provider,
 OAuth-secret-version, KMS-key-version, edge-caller, and operator-subject bindings. It reads the
 OAuth payload directly from the selected Secret Manager version and never puts that payload in an
 environment variable, terminal, image, output, or evidence record. These packages create no identity,
 credential, state,
 provider resource, OAuth client, DNS record, certificate, bundle instance, application change, or
-Live qualification evidence. Python-to-Go migration remains a later contract-preserving milestone after
+Live qualification evidence. AP-M9-W10 performs the first staging operation only from the merged
+W9 implementation. Python-to-Go migration remains a later contract-preserving milestone after
 the Python product is delivered and qualified.
 
 ### AP-M9-W5 deployable Terraform lifecycle

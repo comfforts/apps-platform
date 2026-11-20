@@ -51,6 +51,14 @@ and does not make an out-of-band provider action reviewed.
 
 _Avoid_: Operation authority, operation identity, impersonation profile
 
+## Operator Invocation
+
+The Platform Owner's deliberate execution of one named lifecycle operation against one selected
+environment. For an ordinary reversible staging creation or update, the invocation and the exact
+in-process specification and plan confirmations together authorize that execution; a separate
+out-of-band approval is not another safety boundary. Destruction, purge, ownership transfer,
+production cutover, and scope expansion remain separately governed decisions.
+
 ## Canonical Plan Summary
 
 The deterministic non-secret projection of a Terraform plan used for policy and digest binding. It

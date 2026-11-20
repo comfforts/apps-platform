@@ -95,6 +95,12 @@ isolation, public and authenticated admission, restricted admission, verified id
 application-owned feature denial, unmatched paths, and lifecycle changes without paid providers or
 production application data.
 
+The first staging qualification must deploy the public, authenticated, and restricted fixtures
+through separate Application State, exchange the same versioned bundles required of a real
+application, and exercise deployment, registration, detachment, destruction, redeployment, and
+reactivation. Static Terraform, process-local loopback, or an undeployed fixture image is not
+staging qualification.
+
 ### AP-PR-009 · Explicit application adoption
 
 An Integration Draft must remain inactive until its consuming application adopts it through that
@@ -114,6 +120,12 @@ resume safely after interruption without requiring a hand-authored inventory of 
 The lifecycle must keep non-production and production configuration, state, identity, DNS, OAuth,
 evidence, and approvals independent. Production preparation must stop when an existing resource has
 another owner; it must never import, replace, or claim that resource implicitly.
+
+For an ordinary reversible staging creation or update, the owner's deliberate invocation of the
+named lifecycle command selects the operation, and the same process reviews and confirms the exact
+specification and plans; no separate out-of-band approval is required. Destruction, purge,
+ownership transfer, production cutover, or a scope expansion retains its separately named approval
+and stronger confirmation boundary.
 
 ### AP-PR-011 · Versioned platform and application handoff
 

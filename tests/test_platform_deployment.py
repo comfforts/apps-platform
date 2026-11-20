@@ -373,7 +373,7 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(applied_plan.policy_digest, result.plan_digest)
         self.assertEqual(
             terminal.confirmations[0][1],
-            f"APPLY foundation {result.plan_digest}",
+            "yes",
         )
         displayed = "\n".join(terminal.messages)
         self.assertIn(result.plan_digest or "", displayed)
@@ -421,7 +421,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             root = Path(directory) / "work"
             root.mkdir(mode=0o700)
             commands = FakeCommands(root)
-            terminal = FakeTerminal([False])
+            terminal = FakeTerminal(approvals=[False])
             executor = DeploymentExecutor(root, terminal, commands)
 
             result = executor.execute(
@@ -545,7 +545,7 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(len(commands.action_readbacks), 1)
         self.assertEqual(
             terminal.confirmations[0][1],
-            f"EXECUTE image-publish {result.plan_digest}",
+            "yes",
         )
         self.assertIn("publish-immutable-image", "\n".join(terminal.messages))
 
@@ -689,8 +689,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             working_root.mkdir(mode=0o700)
             state_root = base / "state"
             terminal = FakeTerminal(
-                typed_approvals=[True] * 5,
-                approvals=[True],
+                approvals=[True] * 6,
             )
             commands = FakeCommands(working_root)
             executor = DeploymentExecutor(
@@ -768,8 +767,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             working_root = base / "work"
             working_root.mkdir(mode=0o700)
             terminal = InterruptOnceTerminal(
-                typed_approvals=[True] * 5,
-                approvals=[True],
+                approvals=[True] * 6,
             )
             commands = FakeCommands(working_root)
             executor = DeploymentExecutor(

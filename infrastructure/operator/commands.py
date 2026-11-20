@@ -9,7 +9,7 @@ import stat
 import subprocess
 from typing import Protocol
 
-from infrastructure.backend import PhasePlanRequest, operation_authorities
+from infrastructure.backend import PhasePlanRequest
 from infrastructure.operator.deployment import (
     DeploymentCommandError,
     TerraformPlanArtifact,
@@ -18,7 +18,8 @@ from infrastructure.operator.deployment import (
 
 _ALLOWED_ENVIRONMENT = {
     "CHECKPOINT_DISABLE",
-    "GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
+    "CLOUDSDK_CONFIG",
+    "HOME",
     "TF_CLI_CONFIG_FILE",
 }
 _PROHIBITED_TERRAFORM_ARGUMENTS = {
@@ -113,11 +114,13 @@ class TerraformCliAdapter:
         cli_configuration: Path,
         working_root: Path,
         runner: CommandRunner,
+        operator_environment: tuple[tuple[str, str], ...] = (),
     ) -> None:
         self._executable = executable.resolve()
         self._cli_configuration = cli_configuration.resolve()
         self._working_root = working_root.resolve()
         self._runner = runner
+        self._operator_environment = tuple(sorted(operator_environment))
         self._plan_sequence = 0
         if not self._working_root.is_dir():
             raise ValueError("Terraform working root does not exist")
@@ -125,6 +128,13 @@ class TerraformCliAdapter:
             raise ValueError("Terraform working root must be private")
         if not self._executable.is_file() or not self._cli_configuration.is_file():
             raise ValueError("pinned Terraform executable and CLI configuration are required")
+        names = [name for name, _ in self._operator_environment]
+        if (
+            len(names) != len(set(names))
+            or not set(names) <= {"CLOUDSDK_CONFIG", "HOME"}
+            or any(not value for _, value in self._operator_environment)
+        ):
+            raise ValueError("operator environment is not a bounded human session")
 
     def _bounded(self, path: Path, *, file_required: bool) -> Path:
         if path.is_symlink():
@@ -138,16 +148,13 @@ class TerraformCliAdapter:
             raise ValueError("Terraform workspace material must be private")
         return resolved
 
-    def _environment(
-        self,
-        impersonation: tuple[tuple[str, str], ...] = (),
-    ) -> tuple[tuple[str, str], ...]:
+    def _environment(self) -> tuple[tuple[str, str], ...]:
         return tuple(
             sorted(
                 (
                     ("CHECKPOINT_DISABLE", "1"),
                     ("TF_CLI_CONFIG_FILE", str(self._cli_configuration)),
-                    *impersonation,
+                    *self._operator_environment,
                 )
             )
         )
@@ -238,11 +245,7 @@ class TerraformCliAdapter:
         if plan_path.exists():
             raise FileExistsError("refusing to replace an existing saved plan")
 
-        plan_environment = (
-            self._environment()
-            if request.phase == "bootstrap"
-            else self._environment(request.impersonation_environment)
-        )
+        plan_environment = self._environment()
         init_arguments = ["init", "-input=false", "-lockfile=readonly"]
         if request.phase == "bootstrap":
             init_arguments.append("-backend=false")
@@ -290,24 +293,6 @@ class TerraformCliAdapter:
             self._projection(request, shown.stdout),
         )
 
-    @staticmethod
-    def _apply_impersonation(request: PhasePlanRequest) -> tuple[tuple[str, str], ...]:
-        if request.phase == "bootstrap":
-            return ()
-        matches = tuple(
-            authority
-            for authority in operation_authorities(request.environment)
-            if authority.action == "apply"
-            and authority.terraform_root == request.terraform_root
-            and authority.state_owner == request.state_owner
-            and authority.owner_id == request.owner_id
-            and authority.backend_bucket == request.backend_bucket
-            and authority.backend_prefix == request.backend_prefix
-        )
-        if len(matches) != 1:
-            raise DeploymentCommandError("APPLY_IDENTITY_UNAVAILABLE")
-        return matches[0].impersonation_environment
-
     def apply_plan(
         self,
         request: PhasePlanRequest,
@@ -321,7 +306,7 @@ class TerraformCliAdapter:
         applied = self._runner.run(
             self._request(
                 root,
-                self._environment(self._apply_impersonation(request)),
+                self._environment(),
                 "apply",
                 "-input=false",
                 "-auto-approve",

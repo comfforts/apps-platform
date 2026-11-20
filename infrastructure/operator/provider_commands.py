@@ -6,7 +6,6 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
-import stat
 import subprocess
 from typing import Any, Protocol
 
@@ -109,13 +108,11 @@ class ClosedGcloudRunner:
         environment = dict(request.environment)
         if environment["CLOUDSDK_CONFIG"] != str(self._cloud_sdk_configuration):
             raise ValueError("provider command uses an unapproved Cloud SDK configuration")
-        impersonation = [
-            argument
+        if any(
+            argument.startswith("--impersonate-service-account=")
             for argument in request.argv
-            if argument.startswith("--impersonate-service-account=")
-        ]
-        if len(impersonation) != 1 or not impersonation[0].split("=", 1)[1]:
-            raise ValueError("provider command must use one explicit impersonated identity")
+        ):
+            raise ValueError("provider command cannot switch the verified human session")
         if any(
             argument == "--async"
             or argument.startswith(_PROHIBITED_ARGUMENT_PREFIXES)
@@ -160,7 +157,6 @@ class GcloudGenerationProvider(GenerationProvider):
         region: str,
         service_name: str,
         configuration_bucket: str,
-        authority_emails: dict[str, str],
         runner: ProviderCommandRunner,
     ) -> None:
         self._executable = executable.resolve()
@@ -171,20 +167,16 @@ class GcloudGenerationProvider(GenerationProvider):
         self._region = region
         self._service_name = service_name
         self._configuration_bucket = configuration_bucket
-        self._authority_emails = dict(authority_emails)
         self._runner = runner
         if not self._executable.is_file():
             raise ValueError("an absolute Cloud SDK executable is required")
         if (
             not self._cloud_sdk_configuration.is_dir()
             or self._cloud_sdk_configuration.is_symlink()
-            or stat.S_IMODE(self._cloud_sdk_configuration.stat().st_mode) & 0o077
         ):
-            raise ValueError("Cloud SDK configuration must be a real private directory")
+            raise ValueError("Cloud SDK configuration must be a real directory")
         if not self._working_root.is_dir() or self._working_root.is_symlink():
             raise ValueError("provider working root must be a real directory")
-        if set(self._authority_emails) != {"apply", "readback", "rollback"}:
-            raise ValueError("apply, readback, and rollback authorities are required")
         if not self._project_number.isdigit():
             raise ValueError("canonical provider project number is required")
 
@@ -243,16 +235,9 @@ class GcloudGenerationProvider(GenerationProvider):
             raise GenerationProviderError(code)
         return value
 
-    def _authority(self, authority: str) -> str:
-        try:
-            return self._authority_emails[authority]
-        except KeyError as error:
-            raise GenerationProviderError("GENERATION_AUTHORITY_UNAVAILABLE") from error
-
-    def _common(self, authority: str) -> tuple[str, ...]:
+    def _common(self) -> tuple[str, ...]:
         return (
             f"--project={self._project_id}",
-            f"--impersonate-service-account={self._authority(authority)}",
             "--quiet",
         )
 
@@ -260,25 +245,23 @@ class GcloudGenerationProvider(GenerationProvider):
         self,
         code: str,
         *arguments: str,
-        authority: str,
         stdin: bytes | None = None,
     ) -> ProviderCommandResult:
         return self._run(
             code,
             *arguments,
-            *self._common(authority),
+            *self._common(),
             stdin=stdin,
         )
 
     def _try_common(
         self,
         *arguments: str,
-        authority: str,
         stdin: bytes | None = None,
     ) -> ProviderCommandResult:
         return self._try_run(
             *arguments,
-            *self._common(authority),
+            *self._common(),
             stdin=stdin,
         )
 
@@ -318,13 +301,12 @@ class GcloudGenerationProvider(GenerationProvider):
         except (KeyError, IndexError, TypeError) as error:
             raise GenerationProviderError("GENERATION_REVISION_READBACK_INVALID") from error
 
-    def _describe_service(self, authority: str) -> dict[str, Any]:
-        return self._describe_named_service(self._service_name, authority)
+    def _describe_service(self) -> dict[str, Any]:
+        return self._describe_named_service(self._service_name)
 
     def _describe_named_service(
         self,
         service_name: str,
-        authority: str,
     ) -> dict[str, Any]:
         result = self._run_common(
             "EDGE_SERVICE_READBACK_FAILED",
@@ -334,14 +316,12 @@ class GcloudGenerationProvider(GenerationProvider):
             service_name,
             f"--region={self._region}",
             "--format=json",
-            authority=authority,
         )
         return self._json("EDGE_SERVICE_READBACK_INVALID", result.stdout)
 
     def _try_describe_named_service(
         self,
         service_name: str,
-        authority: str,
     ) -> dict[str, Any] | None:
         result = self._try_common(
             "run",
@@ -350,7 +330,6 @@ class GcloudGenerationProvider(GenerationProvider):
             service_name,
             f"--region={self._region}",
             "--format=json",
-            authority=authority,
         )
         if result.returncode != 0:
             return None
@@ -359,7 +338,6 @@ class GcloudGenerationProvider(GenerationProvider):
     def _describe_revision(
         self,
         revision_name: str,
-        authority: str,
     ) -> dict[str, Any] | None:
         result = self._try_common(
             "run",
@@ -368,7 +346,6 @@ class GcloudGenerationProvider(GenerationProvider):
             revision_name,
             f"--region={self._region}",
             "--format=json",
-            authority=authority,
         )
         if result.returncode != 0:
             return None
@@ -394,7 +371,6 @@ class GcloudGenerationProvider(GenerationProvider):
         self,
         object_uri: str,
         compiled_configuration: bytes,
-        authority: str,
     ) -> int:
         metadata = self._json(
             "GENERATION_OBJECT_READBACK_INVALID",
@@ -405,7 +381,6 @@ class GcloudGenerationProvider(GenerationProvider):
                 "describe",
                 object_uri,
                 "--format=json",
-                authority=authority,
             ).stdout,
         )
         try:
@@ -419,7 +394,6 @@ class GcloudGenerationProvider(GenerationProvider):
             "storage",
             "cat",
             f"{object_uri}#{generation}",
-            authority=authority,
         ).stdout
         if contents != compiled_configuration:
             raise GenerationProviderError("GENERATION_OBJECT_CONTENT_MISMATCH")
@@ -461,15 +435,13 @@ class GcloudGenerationProvider(GenerationProvider):
             "-",
             object_uri,
             "--if-generation-match=0",
-            authority="apply",
             stdin=compiled_configuration,
         )
         object_generation = self._object_readback(
             object_uri,
             compiled_configuration,
-            "apply",
         )
-        service = self._describe_service("apply")
+        service = self._describe_service()
         invariants = self._revision_invariants(service)
         revision_name = f"{self._service_name}-g{generation}-{digest_value[:12]}"
         expected_environment = {
@@ -481,7 +453,7 @@ class GcloudGenerationProvider(GenerationProvider):
             "APP_PLATFORM_CONFIGURATION_OBJECT_GENERATION": str(object_generation),
             "APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST": proposal.content_digest,
         }
-        existing = self._describe_revision(revision_name, "apply")
+        existing = self._describe_revision(revision_name)
         created = False
         if existing is None:
             suffix = revision_name.removeprefix(f"{self._service_name}-")
@@ -500,10 +472,9 @@ class GcloudGenerationProvider(GenerationProvider):
                 f"--revision-suffix={suffix}",
                 f"--update-env-vars={bindings}",
                 "--format=json",
-                authority="apply",
             )
             created = True
-            existing = self._describe_revision(revision_name, "apply")
+            existing = self._describe_revision(revision_name)
         if existing is None:
             raise GenerationProviderError("GENERATION_REVISION_READBACK_MISSING")
         self._verify_revision(
@@ -528,9 +499,9 @@ class GcloudGenerationProvider(GenerationProvider):
     ) -> ProviderGenerationActivation:
         if environment != "staging":
             raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
-        selected_authority = self._authority(authority)
-        del selected_authority
-        revision = self._describe_revision(revision_name, authority)
+        if authority not in {"apply", "rollback"}:
+            raise GenerationProviderError("GENERATION_ACTION_UNAVAILABLE")
+        revision = self._describe_revision(revision_name)
         if revision is None:
             raise GenerationProviderError("GENERATION_REVISION_READBACK_MISSING")
         observed_environment = self._revision_environment(revision)
@@ -545,9 +516,8 @@ class GcloudGenerationProvider(GenerationProvider):
             f"--region={self._region}",
             f"--to-revisions={revision_name}=100",
             "--format=json",
-            authority=authority,
         )
-        service = self._describe_service(authority)
+        service = self._describe_service()
         traffic = service.get("status", {}).get("traffic")
         if not isinstance(traffic, list):
             raise GenerationProviderError("GENERATION_TRAFFIC_READBACK_INVALID")
@@ -582,7 +552,7 @@ class GcloudGenerationProvider(GenerationProvider):
 
         if environment != "staging":
             raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
-        service = self._describe_service("readback")
+        service = self._describe_service()
         traffic = service.get("status", {}).get("traffic")
         if not isinstance(traffic, list):
             raise GenerationProviderError("GENERATION_TRAFFIC_READBACK_INVALID")
@@ -597,7 +567,7 @@ class GcloudGenerationProvider(GenerationProvider):
         if len(active) != 1 or active[0][1] != 100:
             raise GenerationProviderError("GENERATION_TRAFFIC_READBACK_MISMATCH")
         revision_name = str(active[0][0])
-        revision = self._describe_revision(revision_name, "readback")
+        revision = self._describe_revision(revision_name)
         if revision is None:
             raise GenerationProviderError("GENERATION_REVISION_READBACK_MISSING")
         values = self._revision_environment(revision)
@@ -691,7 +661,7 @@ class GcloudGenerationProvider(GenerationProvider):
             )
         ):
             raise GenerationProviderError("ATTACHMENT_REFERENCE_INVALID")
-        service = self._try_describe_named_service(application_id, "readback")
+        service = self._try_describe_named_service(application_id)
         if service is None:
             return AttachmentTargetReadback(
                 exists=False,
@@ -744,7 +714,6 @@ class GcloudGenerationProvider(GenerationProvider):
                 application_id,
                 f"--region={self._region}",
                 "--format=json",
-                authority="readback",
             ).stdout,
         )
         bindings = policy.get("bindings")

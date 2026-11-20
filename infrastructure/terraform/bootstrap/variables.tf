@@ -79,19 +79,3 @@ variable "backend_configuration" {
     error_message = "operator configuration cannot select reserved synthetic values."
   }
 }
-
-variable "identity_bootstrap_configuration" {
-  description = "Private operator and billing references used only by the exact bootstrap plan."
-  type = object({
-    operator_principal        = string
-    billing_account_reference = string
-  })
-
-  validation {
-    condition = (
-      can(regex("^user:[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$", var.identity_bootstrap_configuration.operator_principal)) &&
-      can(regex("^billingAccounts/[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$", var.identity_bootstrap_configuration.billing_account_reference))
-    )
-    error_message = "identity bootstrap requires one explicit human user and canonical billing account reference."
-  }
-}

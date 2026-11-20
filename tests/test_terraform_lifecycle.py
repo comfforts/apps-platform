@@ -56,7 +56,7 @@ class FakeTerraformCommands:
 
 
 class TerraformLifecycleIntegrationTest(unittest.TestCase):
-    def test_fake_plans_bind_backend_identity_policy_and_one_platform_lineage(self) -> None:
+    def test_fake_plans_bind_backend_policy_and_one_platform_lineage(self) -> None:
         fake = FakeTerraformCommands()
         with tempfile.TemporaryDirectory() as temporary_directory:
             working_root = Path(temporary_directory)
@@ -74,27 +74,10 @@ class TerraformLifecycleIntegrationTest(unittest.TestCase):
         self.assertTrue(all(result.accepted for result in results))
         self.assertTrue(all(result.plan_digest for result in results))
         self.assertEqual(len(fake.requests), 3)
-        self.assertEqual(
-            fake.requests[0].service_account_email,
-            "ap-stg-bootstrap-plan@comfforts-platform-non-prod.iam.gserviceaccount.com",
-        )
-        self.assertEqual(
-            fake.requests[1].service_account_email,
-            "ap-stg-platform-plan@comfforts-platform-non-prod.iam.gserviceaccount.com",
-        )
-        self.assertEqual(
-            fake.requests[2].service_account_email,
-            fake.requests[1].service_account_email,
-        )
         self.assertEqual(fake.requests[1].backend_digest, fake.requests[2].backend_digest)
         self.assertEqual(fake.requests[1].backend_prefix, "platform")
         self.assertEqual(fake.requests[2].backend_prefix, "platform")
         self.assertNotEqual(fake.requests[0].backend_digest, fake.requests[1].backend_digest)
-        for request in fake.requests:
-            self.assertEqual(
-                request.impersonation_environment,
-                (("GOOGLE_IMPERSONATE_SERVICE_ACCOUNT", request.service_account_email),),
-            )
 
     def test_policy_refusal_returns_no_consumable_plan_digest(self) -> None:
         fake = FakeTerraformCommands(wrong_project=True)

@@ -32,7 +32,7 @@ terraform-setup: ## Install pinned Terraform dependencies into the ignored proje
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) infrastructure/tools/terraform_setup.py
 
 terraform-check: ## Verify the pinned Terraform foundation offline in a disposable copy.
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_terraform_foundation tests.test_infrastructure_config tests.test_backend_lifecycle tests.test_operation_permissions tests.test_plan_policy tests.test_terraform_lifecycle tests.test_terraform_bootstrap tests.test_terraform_fixtures tests.test_terraform_platform_foundation tests.test_terraform_shared_edge tests.test_terraform_platform_controls tests.test_workflow_templates tests.test_terraform_qualification
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_terraform_foundation tests.test_infrastructure_config tests.test_backend_lifecycle tests.test_plan_policy tests.test_terraform_lifecycle tests.test_terraform_bootstrap tests.test_terraform_fixtures tests.test_terraform_platform_foundation tests.test_terraform_shared_edge tests.test_terraform_platform_controls tests.test_workflow_templates tests.test_terraform_qualification
 
 operator-check: ## Verify the credential-free interactive lifecycle core with deterministic adapters.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_application_integration tests.test_registration_lifecycle tests.test_integration_cli tests.test_local_integration tests.test_local_handoffs tests.test_local_generation_control tests.test_generation_provider_commands tests.test_qualification_lifecycle tests.test_qualification_suite tests.test_local_qualification tests.test_qualification_destruction_cli tests.test_generation_rollback tests.test_destruction_specification tests.test_destruction_lifecycle tests.test_local_destruction_control
@@ -40,9 +40,8 @@ operator-check: ## Verify the credential-free interactive lifecycle core with de
 platform-prepare: ## Prepare and explicitly approve one complete lifecycle specification.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator prepare --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"
 
-platform-deploy: ## Execute one exact approved deployment specification through the interactive engine.
-	test -n "$(SPECIFICATION_DIGEST)" || { echo "SPECIFICATION_DIGEST is required" >&2; exit 2; }
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --specification-digest "$(SPECIFICATION_DIGEST)"
+platform-deploy: ## Prepare, approve, and execute one exact deployment in the same interactive process.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" $(if $(SPECIFICATION_DIGEST),--specification-digest "$(SPECIFICATION_DIGEST)",)
 
 platform-status: ## Report local desired and execution state without changing it.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator status --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"

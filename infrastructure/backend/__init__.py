@@ -6,18 +6,11 @@ from infrastructure.backend._integration import (
     TerraformPlanCommands,
     prepare_phase_plan,
 )
-from infrastructure.backend._identity_bootstrap import (
-    IdentityBootstrapPlan,
-    ImpersonationGrant,
-    compile_identity_bootstrap_plan,
-)
 from infrastructure.backend._lifecycle import (
     BackendDeclaration,
     EnvironmentUnavailableError,
-    OperationAuthority,
     RenderedBackend,
     backend_declarations,
-    operation_authorities,
     render_backend_declaration,
 )
 from infrastructure.backend._plans import (
@@ -27,18 +20,10 @@ from infrastructure.backend._plans import (
     evaluate_plan,
     plan_policy,
 )
-from infrastructure.backend._permissions import (
-    OperationRoleBinding,
-    operation_role_bindings,
-)
 
 __all__ = (
     "BackendDeclaration",
     "EnvironmentUnavailableError",
-    "IdentityBootstrapPlan",
-    "ImpersonationGrant",
-    "OperationAuthority",
-    "OperationRoleBinding",
     "PhasePlanRequest",
     "PhasePlanResult",
     "PlanPolicy",
@@ -47,10 +32,7 @@ __all__ = (
     "RenderedBackend",
     "TerraformPlanCommands",
     "backend_declarations",
-    "compile_identity_bootstrap_plan",
     "evaluate_plan",
-    "operation_authorities",
-    "operation_role_bindings",
     "plan_policy",
     "prepare_phase_plan",
     "render_backend_declaration",

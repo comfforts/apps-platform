@@ -967,6 +967,14 @@ class LifecycleOperator:
                 "blocked", False, False, None, None, ordered_blockers
             )
 
+        gcp_facts = dict(discoveries[1].facts)
+        active_account = gcp_facts.get("active_account")
+        active_project = gcp_facts.get("project_id")
+        if active_account and active_project:
+            self._adapters.terminal.write(
+                f"Verified operator session {active_account} for {active_project}."
+            )
+
         specification = self._specification(
             environment,
             profile_digest,

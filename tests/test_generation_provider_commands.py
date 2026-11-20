@@ -22,13 +22,6 @@ PROJECT_ID = "comfforts-platform-non-prod"
 REGION = "us-west1"
 SERVICE = "app-platform-edge"
 BUCKET = "comfforts-ap-stg-455651441682-configuration"
-APPLY_IDENTITY = f"ap-stg-platform-apply@{PROJECT_ID}.iam.gserviceaccount.com"
-ROLLBACK_IDENTITY = (
-    f"ap-stg-platform-rollback@{PROJECT_ID}.iam.gserviceaccount.com"
-)
-READBACK_IDENTITY = (
-    f"ap-stg-platform-readback@{PROJECT_ID}.iam.gserviceaccount.com"
-)
 GENERATION_DIGEST = "sha256:" + ("a" * 64)
 CONTENT_DIGEST = "sha256:" + ("b" * 64)
 SOURCE_REVISION = "c" * 40
@@ -218,11 +211,6 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             region=REGION,
             service_name=SERVICE,
             configuration_bucket=BUCKET,
-            authority_emails={
-                "apply": APPLY_IDENTITY,
-                "readback": READBACK_IDENTITY,
-                "rollback": ROLLBACK_IDENTITY,
-            },
             runner=fake,
         )
 
@@ -243,9 +231,11 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             if request.argv[1:4] == ("run", "services", "update")
         )
         self.assertIn("--no-traffic", mutation.argv)
-        self.assertIn(
-            f"--impersonate-service-account={APPLY_IDENTITY}",
-            mutation.argv,
+        self.assertFalse(
+            any(
+                argument.startswith("--impersonate-service-account=")
+                for argument in mutation.argv
+            )
         )
         upload = next(
             request
@@ -277,7 +267,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             )
         )
 
-    def test_activation_moves_exact_traffic_with_distinct_authorities(self) -> None:
+    def test_activation_moves_exact_traffic_in_verified_operator_session(self) -> None:
         compiled = _canonical(proposal().compiled_configuration)
         with tempfile.TemporaryDirectory() as directory:
             fake = FakeGcloud(
@@ -307,13 +297,14 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             for request in fake.requests
             if request.argv[1:4] == ("run", "services", "update-traffic")
         ]
-        self.assertIn(
-            f"--impersonate-service-account={APPLY_IDENTITY}",
-            traffic_requests[0].argv,
-        )
-        self.assertIn(
-            f"--impersonate-service-account={ROLLBACK_IDENTITY}",
-            traffic_requests[1].argv,
+        self.assertTrue(
+            all(
+                not any(
+                    argument.startswith("--impersonate-service-account=")
+                    for argument in request.argv
+                )
+                for request in traffic_requests
+            )
         )
         self.assertIn(
             f"--to-revisions={fake.revision_name}=100",
@@ -340,7 +331,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             "GENERATION_REVISION_BINDING_MISMATCH",
         )
 
-    def test_qualification_readback_uses_readback_identity_and_exact_traffic(self) -> None:
+    def test_qualification_readback_uses_exact_project_and_traffic(self) -> None:
         compiled = _canonical(proposal().compiled_configuration)
         with tempfile.TemporaryDirectory() as directory:
             fake = FakeGcloud(
@@ -365,9 +356,14 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             },
         )
         self.assertTrue(
+            all(f"--project={PROJECT_ID}" in request.argv for request in fake.requests)
+        )
+        self.assertTrue(
             all(
-                f"--impersonate-service-account={READBACK_IDENTITY}"
-                in request.argv
+                not any(
+                    argument.startswith("--impersonate-service-account=")
+                    for argument in request.argv
+                )
                 for request in fake.requests
             )
         )

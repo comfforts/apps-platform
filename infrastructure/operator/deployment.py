@@ -108,6 +108,8 @@ class DeploymentCommandError(RuntimeError):
 
 
 class DeploymentTerminal(Protocol):
+    def confirm(self, prompt: str) -> bool: ...
+
     def confirm_exact(self, prompt: str, expected: str) -> bool: ...
 
     def write(self, message: str) -> None: ...
@@ -345,10 +347,8 @@ class DeploymentExecutor:
         exact = ExactAction(proposal.action, digest, proposal.summary)
         self._terminal.write(f"ACTION {canonical}")
         self._terminal.write(f"ACTION_DIGEST {digest}")
-        expected = f"EXECUTE {stage_id} {digest}"
-        if not self._terminal.confirm_exact(
-            f"Type {expected!r} to execute the exact action: ",
-            expected,
+        if not self._terminal.confirm(
+            f"Execute the reviewed {stage_id} action {digest}? [y/N] "
         ):
             return StageExecution(
                 outcome="cancelled",
@@ -502,10 +502,9 @@ class DeploymentExecutor:
         self._terminal.write(f"PLAN_DIGEST {exact_plan.policy_digest}")
 
         if self._requires_apply(exact_plan.canonical_summary):
-            expected = f"APPLY {stage_id} {exact_plan.policy_digest}"
-            if not self._terminal.confirm_exact(
-                f"Type {expected!r} to apply the exact private plan: ",
-                expected,
+            if not self._terminal.confirm(
+                f"Apply the reviewed {stage_id} plan "
+                f"{exact_plan.policy_digest}? [y/N] "
             ):
                 return StageExecution(
                     outcome="cancelled",

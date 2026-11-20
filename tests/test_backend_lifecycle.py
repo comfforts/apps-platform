@@ -9,7 +9,6 @@ import unittest
 from infrastructure.backend import (
     EnvironmentUnavailableError,
     backend_declarations,
-    operation_authorities,
     render_backend_declaration,
 )
 
@@ -125,103 +124,6 @@ class BackendLifecycleTest(unittest.TestCase):
                     root,
                     "backend.generated.tf",
                 )
-
-    def test_operation_authorities_are_exact_short_lived_and_keyless(self) -> None:
-        authorities = operation_authorities("staging")
-        identities = [authority.service_account_email for authority in authorities]
-
-        self.assertEqual(len(authorities), 31)
-        self.assertEqual(len(set(identities)), 31)
-        self.assertEqual(
-            authorities[0].service_account_email,
-            "ap-stg-bootstrap-bootstrap@comfforts-platform-non-prod.iam.gserviceaccount.com",
-        )
-        self.assertEqual(
-            {authority.action for authority in authorities},
-            {
-                "apply",
-                "bootstrap",
-                "destroy",
-                "plan",
-                "readback",
-                "recovery",
-                "rollback",
-            },
-        )
-        for authority in authorities:
-            with self.subTest(identity=authority.service_account_email):
-                self.assertEqual(authority.environment, "staging")
-                self.assertEqual(authority.project_id, "comfforts-platform-non-prod")
-                self.assertEqual(authority.token_lifetime_seconds, 3600)
-                self.assertEqual(authority.credential_source, "short-lived-human-adc")
-                self.assertFalse(authority.service_account_key_allowed)
-                self.assertFalse(authority.self_administration_allowed)
-                self.assertEqual(
-                    authority.impersonation_environment,
-                    (
-                        (
-                            "GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
-                            authority.service_account_email,
-                        ),
-                    ),
-                )
-
-    def test_authorities_preserve_exact_root_and_backend_scope(self) -> None:
-        declarations = backend_declarations("staging")
-        lineages = {
-            (item.terraform_root, item.bucket, item.prefix, item.state_owner, item.owner_id)
-            for item in declarations
-        }
-        authorities = operation_authorities("staging")
-
-        self.assertEqual(
-            {
-                (
-                    item.terraform_root,
-                    item.backend_bucket,
-                    item.backend_prefix,
-                    item.state_owner,
-                    item.owner_id,
-                )
-                for item in authorities
-            },
-            lineages,
-        )
-        expected_access = {
-            "apply": ("read-state", "write-state", "lock"),
-            "bootstrap": (),
-            "destroy": ("read-state", "write-state", "lock"),
-            "plan": ("read-state", "lock"),
-            "readback": ("read-metadata",),
-            "recovery": ("read-state", "write-state", "lock", "recovery-copy"),
-            "rollback": ("read-state", "write-state", "lock"),
-        }
-        expected_provider = {
-            "apply": "mutate-owned-resources",
-            "bootstrap": "create-backend-and-operation-identities",
-            "destroy": "destroy-owned-resources",
-            "plan": "read-owned-resources",
-            "readback": "read-owned-resources",
-            "recovery": "none",
-            "rollback": "mutate-owned-resources",
-        }
-        for authority in authorities:
-            self.assertEqual(
-                authority.backend_access,
-                expected_access[authority.action],
-            )
-            self.assertEqual(
-                authority.provider_access,
-                expected_provider[authority.action],
-            )
-
-    def test_production_operation_authorities_remain_unavailable(self) -> None:
-        with self.assertRaisesRegex(
-            EnvironmentUnavailableError,
-            "OWNERSHIP_TRANSFER_REQUIRED",
-        ):
-            operation_authorities("production")
-
 
 if __name__ == "__main__":
     unittest.main()

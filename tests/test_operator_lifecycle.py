@@ -21,7 +21,7 @@ from infrastructure.operator import (
     StageContext,
     StageExecution,
 )
-from infrastructure.operator.local import LocalFilesystem
+from infrastructure.operator.local import LocalFilesystem, ProfileGcp
 from infrastructure.operator.cli import main as operator_main
 from infrastructure.operator import local as local_adapters
 
@@ -121,6 +121,54 @@ class FakeExecutor:
 
 
 class OperatorLifecycleTest(unittest.TestCase):
+    def test_local_gcp_discovery_verifies_active_human_session_and_project(self) -> None:
+        profile = {
+            "project_id": "comfforts-platform-non-prod",
+            "project_number": "455651441682",
+            "region": "us-west1",
+        }
+        observed = (
+            subprocess.CompletedProcess([], 0, "operator@example.com\n", ""),
+            subprocess.CompletedProcess(
+                [], 0, "comfforts-platform-non-prod\n", ""
+            ),
+        )
+        with mock.patch.object(
+            local_adapters.subprocess,
+            "run",
+            side_effect=observed,
+        ):
+            result = ProfileGcp(Path("/usr/bin/gcloud"), Path("/tmp/gcloud")).inspect(
+                profile
+            )
+
+        self.assertEqual(result.blockers, ())
+        self.assertEqual(dict(result.facts)["active_account"], "operator@example.com")
+        self.assertEqual(
+            dict(result.facts)["project_id"],
+            "comfforts-platform-non-prod",
+        )
+
+    def test_local_gcp_discovery_blocks_wrong_project(self) -> None:
+        observed = (
+            subprocess.CompletedProcess([], 0, "operator@example.com\n", ""),
+            subprocess.CompletedProcess([], 0, "wrong-project\n", ""),
+        )
+        with mock.patch.object(
+            local_adapters.subprocess,
+            "run",
+            side_effect=observed,
+        ):
+            result = ProfileGcp(Path("/usr/bin/gcloud"), Path("/tmp/gcloud")).inspect(
+                {
+                    "project_id": "comfforts-platform-non-prod",
+                    "project_number": "455651441682",
+                    "region": "us-west1",
+                }
+            )
+
+        self.assertEqual(result.blockers, ("OPERATOR_PROJECT_MISMATCH",))
+
     def test_executor_receives_one_exact_immutable_stage_context(self) -> None:
         @dataclass
         class ContextExecutor:
@@ -530,14 +578,19 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertEqual(status_code, 0)
             self.assertEqual(status["lifecycle_state"], "deployed")
 
-            stderr = io.StringIO()
-            with mock.patch("sys.stderr", stderr):
-                with self.assertRaises(SystemExit):
-                    operator_main(
-                        ["deploy", "--environment", "staging"],
-                        operator_factory=lambda _: operator,
-                    )
-            self.assertEqual(stderr.getvalue(), "")
+            combined_operator, _ = self._operator(
+                Path(directory) / "combined",
+                executor=FakeExecutor(),
+            )
+            combined_stdout = io.StringIO()
+            with mock.patch("sys.stdout", combined_stdout):
+                combined_code = operator_main(
+                    ["deploy", "--environment", "staging"],
+                    operator_factory=lambda _: combined_operator,
+                )
+            combined = json.loads(combined_stdout.getvalue().splitlines()[-1])
+            self.assertEqual(combined_code, 0)
+            self.assertEqual(combined["outcome"], "succeeded")
 
     def test_make_targets_are_shallow_and_private_state_is_ignored(self) -> None:
         makefile = (PROJECT_ROOT / "Makefile").read_text(encoding="utf-8")
@@ -549,7 +602,7 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertIn("-m infrastructure.operator prepare", makefile)
         self.assertIn("-m infrastructure.operator deploy", makefile)
         self.assertIn("-m infrastructure.operator status", makefile)
-        self.assertIn("SPECIFICATION_DIGEST is required", makefile)
+        self.assertIn("$(if $(SPECIFICATION_DIGEST)", makefile)
         self.assertIn(".platform-operator/", gitignore)
 
     def test_local_filesystem_does_not_create_state_during_read_only_status(self) -> None:

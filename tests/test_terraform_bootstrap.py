@@ -33,7 +33,7 @@ class TerraformBootstrapTest(unittest.TestCase):
 
         self.assertEqual(
             re.findall(r'^variable "([^"]+)"', variables, re.MULTILINE),
-            ["backend_configuration", "identity_bootstrap_configuration"],
+            ["backend_configuration"],
         )
         self.assertEqual(
             re.findall(r'^output "([^"]+)"', outputs, re.MULTILINE),
@@ -152,7 +152,7 @@ class TerraformBootstrapTest(unittest.TestCase):
         self.assertIn('"test"', check)
         self.assertIn('"-test-directory=tests"', check)
 
-    def test_bootstrap_owns_keyless_identities_and_exact_iam_without_commands(self) -> None:
+    def test_bootstrap_has_no_identity_fleet_or_mutation_command(self) -> None:
         bootstrap = _terraform_sources(BOOTSTRAP_ROOT)
         bootstrap_implementation = "\n".join((bootstrap, _terraform_sources(MODULE_ROOT)))
         self.assertNotIn('backend "', bootstrap)
@@ -161,19 +161,12 @@ class TerraformBootstrapTest(unittest.TestCase):
             "terraform apply",
             "terraform destroy",
             "force-unlock",
+            "google_service_account",
             "google_service_account_key",
+            "google_project_iam",
+            "google_billing_account_iam",
         ):
             self.assertNotIn(prohibited, bootstrap_implementation)
-        for required in (
-            'resource "google_service_account" "operation"',
-            'resource "google_service_account_iam_member" "operator_token_creator"',
-            'resource "google_project_iam_member" "operation"',
-            'resource "google_billing_account_iam_member" "platform_costs"',
-            'resource "google_storage_bucket_iam_member" "backend"',
-            'role               = "roles/iam.serviceAccountTokenCreator"',
-            "length(google_service_account.operation) == 31",
-        ):
-            self.assertIn(required, bootstrap)
 
 
 if __name__ == "__main__":

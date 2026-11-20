@@ -231,11 +231,27 @@ def main(
         return 0 if result.outcome in {"prepared", "unchanged"} else 2
 
     if arguments.operation == "deploy":
-        if arguments.specification_digest is None:
-            raise SystemExit("deploy requires --specification-digest")
+        specification_digest = arguments.specification_digest
+        if specification_digest is None:
+            prepared = operator.prepare(arguments.environment)
+            specification_digest = prepared.specification_digest
+            if (
+                prepared.outcome not in {"prepared", "unchanged"}
+                or not prepared.approved
+                or specification_digest is None
+            ):
+                _print(
+                    {
+                        "blockers": list(prepared.blockers),
+                        "environment": arguments.environment,
+                        "outcome": prepared.outcome,
+                        "specification_digest": specification_digest,
+                    }
+                )
+                return 2
         result = operator.execute(
             arguments.environment,
-            arguments.specification_digest,
+            specification_digest,
         )
         _print(
             {
@@ -243,7 +259,7 @@ def main(
                 "environment": arguments.environment,
                 "journal_digest": result.journal_digest,
                 "outcome": result.outcome,
-                "specification_digest": arguments.specification_digest,
+                "specification_digest": specification_digest,
             }
         )
         return 0 if result.outcome in {"succeeded", "unchanged"} else 2

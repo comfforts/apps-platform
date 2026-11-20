@@ -38,17 +38,6 @@ def _phase_request(root: Path, phase: str = "platform-foundation") -> PhasePlanR
         backend_digest="sha256:" + "7" * 64,
         backend_bucket="comfforts-ap-stg-455651441682-platform-state",
         backend_prefix="bootstrap" if phase == "bootstrap" else "platform",
-        service_account_email=(
-            f"ap-stg-{'bootstrap' if phase == 'bootstrap' else 'platform'}-plan@"
-            "comfforts-platform-non-prod.iam.gserviceaccount.com"
-        ),
-        impersonation_environment=(
-            (
-                "GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
-                f"ap-stg-{'bootstrap' if phase == 'bootstrap' else 'platform'}-plan@"
-                "comfforts-platform-non-prod.iam.gserviceaccount.com",
-            ),
-        ),
     )
 
 
@@ -135,10 +124,6 @@ class OperatorCommandTest(unittest.TestCase):
         self.assertIn("-lock=true", plan.argv)
         self.assertNotIn("-lock=false", plan.argv)
         self.assertIn("show", show.argv)
-        self.assertEqual(
-            dict(plan.environment)["GOOGLE_IMPERSONATE_SERVICE_ACCOUNT"],
-            request.service_account_email,
-        )
         self.assertNotIn("GOOGLE_IMPERSONATE_SERVICE_ACCOUNT", dict(show.environment))
         self.assertEqual(
             artifact.observation["changes"],
@@ -154,7 +139,7 @@ class OperatorCommandTest(unittest.TestCase):
         self.assertNotIn("before", json.dumps(artifact.observation))
         self.assertNotIn("after", json.dumps(artifact.observation))
 
-    def test_apply_accepts_only_the_same_private_saved_plan_and_apply_identity(self) -> None:
+    def test_apply_accepts_only_the_same_private_saved_plan_and_operator_session(self) -> None:
         runner = FakeRunner([CommandResult(0, b"", b"")])
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory) / "private"
@@ -170,6 +155,10 @@ class OperatorCommandTest(unittest.TestCase):
                 cli_config,
                 workspace,
                 runner,
+                operator_environment=(
+                    ("CLOUDSDK_CONFIG", str(workspace / "gcloud")),
+                    ("HOME", str(workspace / "home")),
+                ),
             )
 
             adapter.apply_plan(request, root, saved_plan)
@@ -181,9 +170,11 @@ class OperatorCommandTest(unittest.TestCase):
         )
         self.assertIn("apply", invocation.argv)
         self.assertIn("-auto-approve", invocation.argv)
+        self.assertNotIn("GOOGLE_IMPERSONATE_SERVICE_ACCOUNT", dict(invocation.environment))
+        self.assertEqual(dict(invocation.environment)["HOME"], str(workspace / "home"))
         self.assertEqual(
-            dict(invocation.environment)["GOOGLE_IMPERSONATE_SERVICE_ACCOUNT"],
-            "ap-stg-platform-apply@comfforts-platform-non-prod.iam.gserviceaccount.com",
+            dict(invocation.environment)["CLOUDSDK_CONFIG"],
+            str(workspace / "gcloud"),
         )
 
     def test_bootstrap_uses_explicit_local_backend_and_short_lived_human_session(self) -> None:

@@ -157,15 +157,61 @@ class LocalGitHub:
 
 @dataclass(frozen=True, slots=True)
 class ProfileGcp:
+    executable: Path | None = None
+    cloud_sdk_configuration: Path | None = None
+
+    def _environment(self) -> dict[str, str]:
+        environment = {
+            name: os.environ[name]
+            for name in ("HOME", "LANG", "LC_ALL", "LC_CTYPE", "PATH", "TMPDIR")
+            if name in os.environ
+        }
+        environment["CLOUDSDK_CORE_DISABLE_PROMPTS"] = "1"
+        environment["CLOUDSDK_PYTHON_SITEPACKAGES"] = "0"
+        if self.cloud_sdk_configuration is not None:
+            environment["CLOUDSDK_CONFIG"] = str(self.cloud_sdk_configuration)
+        return environment
+
+    def _read(self, *arguments: str) -> str | None:
+        if self.executable is None:
+            return None
+        try:
+            completed = subprocess.run(
+                [str(self.executable), *arguments],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=self._environment(),
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if completed.returncode != 0:
+            return None
+        return completed.stdout.strip()
+
     def inspect(self, profile: dict[str, object]) -> DiscoverySnapshot:
-        names = ("project_id", "project_number", "region")
+        active_account = self._read(
+            "auth",
+            "list",
+            "--filter=status:ACTIVE",
+            "--format=value(account)",
+        )
+        active_project = self._read("config", "get-value", "project")
+        blockers: list[str] = []
+        if not active_account or not active_project:
+            blockers.append("OPERATOR_SESSION_UNAVAILABLE")
+        elif active_project != profile.get("project_id"):
+            blockers.append("OPERATOR_PROJECT_MISMATCH")
         return DiscoverySnapshot(
             "gcp",
-            tuple(
-                (name, str(profile[name]))
-                for name in names
-                if name in profile
+            (
+                ("active_account", active_account or "unavailable"),
+                ("project_id", active_project or "unavailable"),
+                ("project_number", str(profile.get("project_number", ""))),
+                ("region", str(profile.get("region", ""))),
             ),
+            tuple(blockers),
         )
 
 
@@ -258,14 +304,24 @@ class SystemClock:
 
 
 def build_local_operator(project_root: Path, state_root: Path) -> LifecycleOperator:
-    """Construct the credential-free W4 operator; no executor is installed."""
+    """Construct the local operator around the active human Cloud SDK session."""
 
     resolved_project = project_root.resolve()
+    executable_name = shutil.which("gcloud")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    cloud_sdk_configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
     return LifecycleOperator(
         OperatorAdapters(
             git=LocalGit(resolved_project),
             github=LocalGitHub(resolved_project),
-            gcp=ProfileGcp(),
+            gcp=ProfileGcp(
+                Path(executable_name).resolve() if executable_name else None,
+                cloud_sdk_configuration,
+            ),
             terraform=PinnedTerraform(),
             dns=ProfileDns(),
             terminal=ConsoleTerminal(),
@@ -281,29 +337,22 @@ def _local_generation_provider(
 ):
     """Build the closed provider boundary only from explicit private local state."""
 
-    from infrastructure.backend import operation_authorities
     from infrastructure.operator.provider_commands import (
         ClosedGcloudRunner,
         GcloudGenerationProvider,
     )
 
     executable_name = shutil.which("gcloud")
-    cloud_sdk_configuration = state_root.resolve() / "cloud-sdk"
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    cloud_sdk_configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
     if executable_name is None or not cloud_sdk_configuration.is_dir():
         return None
-    if (
-        cloud_sdk_configuration.is_symlink()
-        or cloud_sdk_configuration.stat().st_mode & 0o077
-    ):
+    if cloud_sdk_configuration.is_symlink():
         return None
-    authorities = {
-        authority.action: authority.service_account_email
-        for authority in operation_authorities("staging")
-        if authority.terraform_root == "infrastructure/terraform/platform"
-        and authority.state_owner == "platform"
-        and authority.owner_id == "app-platform"
-        and authority.action in {"apply", "readback", "rollback"}
-    }
     executable = Path(executable_name).resolve()
     runner = ClosedGcloudRunner(
         executable,
@@ -319,7 +368,6 @@ def _local_generation_provider(
         region="us-west1",
         service_name="app-platform-edge",
         configuration_bucket="comfforts-ap-stg-455651441682-configuration",
-        authority_emails=authorities,
         runner=runner,
     )
 

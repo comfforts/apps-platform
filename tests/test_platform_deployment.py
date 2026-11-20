@@ -211,6 +211,14 @@ class FakeCommands:
 
     def prepare_action(self, context: StageContext) -> ActionProposal:
         self.prepared_actions.append(context)
+        if context.stage["stage_id"] == "generation-publish":
+            return ActionProposal(
+                action="publish-initial-registration-generation",
+                summary={
+                    "generation": 1,
+                    "generation_digest": "sha256:" + "b" * 64,
+                },
+            )
         return ActionProposal(
             action="publish-immutable-image",
             summary={
@@ -224,6 +232,11 @@ class FakeCommands:
 
     def readback_action(self, context: StageContext) -> StageReadback:
         self.action_readbacks.append(context)
+        if context.stage["stage_id"] == "generation-publish":
+            return StageReadback(
+                matched=True,
+                outputs=(("registration-generation-reference", "verified-generation"),),
+            )
         return StageReadback(
             matched=True,
             outputs=(("shared-edge-image-digest", "sha256:" + "a" * 64),),
@@ -688,7 +701,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             working_root.mkdir(mode=0o700)
             state_root = base / "state"
             terminal = FakeTerminal(
-                approvals=[True] * 6,
+                approvals=[True] * 7,
             )
             commands = FakeCommands(working_root)
             executor = DeploymentExecutor(
@@ -722,6 +735,7 @@ class PlatformDeploymentTest(unittest.TestCase):
                 "bootstrap",
                 "foundation",
                 "image-publish",
+                "generation-publish",
                 "oauth-configuration",
                 "shared-edge",
                 "external-dns",
@@ -729,7 +743,7 @@ class PlatformDeploymentTest(unittest.TestCase):
                 "readback",
             ],
         )
-        self.assertEqual(call_counts, (4, 1, 2))
+        self.assertEqual(call_counts, (4, 2, 2))
         self.assertEqual(unchanged.outcome, "unchanged")
         self.assertEqual(
             (
@@ -766,7 +780,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             working_root = base / "work"
             working_root.mkdir(mode=0o700)
             terminal = InterruptOnceTerminal(
-                approvals=[True] * 6,
+                approvals=[True] * 7,
             )
             commands = FakeCommands(working_root)
             executor = DeploymentExecutor(
@@ -793,10 +807,10 @@ class PlatformDeploymentTest(unittest.TestCase):
 
         self.assertEqual(interrupted.outcome, "interrupted")
         self.assertEqual(closed_plan_count, 2)
-        self.assertEqual(closed_action_count, 1)
+        self.assertEqual(closed_action_count, 2)
         self.assertEqual(resumed.outcome, "succeeded")
         self.assertEqual(len(commands.planned), 4)
-        self.assertEqual(len(commands.executed_actions), 1)
+        self.assertEqual(len(commands.executed_actions), 2)
         self.assertEqual(last_closed_stage, "readback")
 
 

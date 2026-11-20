@@ -109,6 +109,17 @@ def _deployment_stages() -> list[dict[str, object]]:
             "readback": "provider-verified",
         },
         {
+            "stage_id": "generation-publish",
+            "actions": ["create", "read"],
+            "resource_types": ["compiled-registration-generation"],
+            "consumes": [
+                {"stage_id": "foundation", "output_name": "foundation-reference"}
+            ],
+            "produces": ["registration-generation-reference"],
+            "manual_checkpoint": "none",
+            "readback": "provider-verified",
+        },
+        {
             "stage_id": "oauth-configuration",
             "actions": ["create", "read", "update"],
             "resource_types": ["oauth-client", "oauth-secret-version"],
@@ -136,6 +147,10 @@ def _deployment_stages() -> list[dict[str, object]]:
                 {
                     "stage_id": "oauth-configuration",
                     "output_name": "oauth-secret-version",
+                },
+                {
+                    "stage_id": "generation-publish",
+                    "output_name": "registration-generation-reference",
                 },
             ],
             "produces": ["edge-reference", "reserved-address"],

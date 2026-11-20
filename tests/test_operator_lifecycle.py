@@ -261,7 +261,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertEqual(result.blockers, ())
             self.assertEqual(
                 result.specification_digest,
-                "sha256:240691c6407b5384e9f4bf0cff89b67acfb3d0aaeb2520cfc4b23b47dd4c6515",
+                "sha256:43d23e83311d1e653628df0b73bfb3afd9b4d3840cc0919eaaeaee3a5043c58c",
             )
             assert result.specification is not None
             self.assertEqual(result.specification["environment"], "staging")
@@ -273,6 +273,7 @@ class OperatorLifecycleTest(unittest.TestCase):
                     "bootstrap",
                     "foundation",
                     "image-publish",
+                    "generation-publish",
                     "oauth-configuration",
                     "shared-edge",
                     "external-dns",

@@ -14,9 +14,7 @@ After `make terraform-setup` has populated the checksum-bound local toolchain:
 ```bash
 make platform-prepare ENVIRONMENT=staging
 make platform-status ENVIRONMENT=staging
-make platform-deploy \
-  ENVIRONMENT=staging \
-  SPECIFICATION_DIGEST=sha256:<64-lowercase-hex>
+make platform-deploy ENVIRONMENT=staging
 make platform-outputs \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-authenticated \
@@ -43,15 +41,17 @@ make platform-qualify ENVIRONMENT=staging
 make platform-destroy ENVIRONMENT=staging
 ```
 
-Standalone preparation is credential-free and remains an optional dry run. The normal deploy
-command verifies local source/repository/tool facts plus the active human account and provider
-project, builds the complete Deployment Specification, writes canonical bytes, asks for approval,
-and continues in the same process. Status is read-only. Production remains blocked by
+Standalone preparation is read-only and remains an optional dry run; when Cloud SDK is available it
+also verifies the active human account and provider project. The normal deploy command verifies
+local source/repository/tool facts plus that operator session, builds the complete Deployment
+Specification, writes canonical bytes, asks for approval, and continues in the same process. Status
+is read-only. Production remains blocked by
 `OWNERSHIP_TRANSFER_REQUIRED`.
 
 Deploy accepts only the exact current, approved specification. It journals preflight, backend
-bootstrap, foundation, immutable image publication, OAuth, Shared Edge, external DNS, TLS,
-and final readback stages. Terraform mutation requires a fresh mode-`0600` saved plan under a
+bootstrap, foundation, immutable image and closed initial Registration Generation publication,
+OAuth, Shared Edge, external DNS, TLS, and final readback stages. Terraform mutation requires a
+fresh mode-`0600` saved plan under a
 mode-`0700` private root, W5 policy acceptance, a redacted summary and digest, a `y/N`
 confirmation, application of the same bound artifact, and provider/state readback. Image actions
 use the same reviewed confirmation model. OAuth and DNS display exact non-secret instructions,

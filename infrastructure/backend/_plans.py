@@ -16,7 +16,14 @@ _SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
 _PHASE_INVENTORIES = {
     "bootstrap": {
         "terraform_root": "infrastructure/terraform/bootstrap",
-        "resource_types": ("google_storage_bucket",),
+        "resource_types": (
+            "google_billing_account_iam_member",
+            "google_project_iam_member",
+            "google_service_account",
+            "google_service_account_iam_member",
+            "google_storage_bucket",
+            "google_storage_bucket_iam_member",
+        ),
     },
     "platform-foundation": {
         "terraform_root": "infrastructure/terraform/platform",

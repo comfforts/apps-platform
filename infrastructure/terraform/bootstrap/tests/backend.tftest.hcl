@@ -4,6 +4,10 @@ mock_provider "google" {
 
 variables {
   backend_configuration = jsondecode(file("../../config/examples/backend.synthetic.v1.json"))
+  identity_bootstrap_configuration = {
+    operator_principal        = "user:operator@example.com"
+    billing_account_reference = "billingAccounts/ABCDEF-123456-7890AB"
+  }
 }
 
 run "plans_four_exclusive_recoverable_backends" {
@@ -14,7 +18,9 @@ run "plans_four_exclusive_recoverable_backends" {
       output.bootstrap_phase_output.contract_version == 1 &&
       output.bootstrap_phase_output.output_kind == "bootstrap" &&
       output.bootstrap_phase_output.environment == "staging" &&
-      length(output.bootstrap_phase_output.lineages) == 5
+      length(output.bootstrap_phase_output.lineages) == 5 &&
+      output.bootstrap_phase_output.identity_reference.account_count == 31 &&
+      !output.bootstrap_phase_output.identity_reference.key_creation_allowed
     )
     error_message = "bootstrap must expose one closed typed output with five lineages"
   }

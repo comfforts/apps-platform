@@ -40,10 +40,30 @@ output "bootstrap_phase_output" {
         prefix      = "fixtures/fixture-restricted"
       }
     }
+    identity_reference = {
+      account_count        = length(google_service_account.operation)
+      key_creation_allowed = false
+      intent_digest = sha256(jsonencode({
+        identities = sort([
+          for identity in values(google_service_account.operation) : identity.email
+        ])
+        project_roles = sort([
+          for binding in values(google_project_iam_member.operation) : "${binding.member}:${binding.role}"
+        ])
+        backend_roles = sort([
+          for binding in values(google_storage_bucket_iam_member.backend) : "${binding.member}:${binding.role}:${binding.bucket}"
+        ])
+      }))
+    }
   }
 
   precondition {
     condition     = length(module.state_bucket) == 4
     error_message = "bootstrap_phase_output requires exactly four exclusive backend buckets."
+  }
+
+  precondition {
+    condition     = length(google_service_account.operation) == 31
+    error_message = "bootstrap_phase_output requires exactly 31 keyless operation identities."
   }
 }

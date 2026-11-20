@@ -294,8 +294,10 @@ class InfrastructureConfigurationTest(unittest.TestCase):
             terraform_files,
             sorted(
                 (
+                    "bootstrap/identities.tf",
                     "bootstrap/main.tf",
                     "bootstrap/outputs.tf",
+                    "bootstrap/provider.tf",
                     "bootstrap/variables.tf",
                     "bootstrap/versions.tf",
                     "fixtures/fixture-authenticated/backend.tf",

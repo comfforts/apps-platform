@@ -161,6 +161,20 @@ class QualificationLifecycleTest(unittest.TestCase):
         self.assertNotIn("subject", rendered)
         self.assertEqual(len(evaluator.requests), 1)
 
+    def test_candidate_checks_pass_without_becoming_accepted_qualification(self) -> None:
+        candidate_request = replace(request(), source_authority="candidate")
+        candidate_readback = replace(readback(), source_authority="candidate")
+
+        result = QualificationLifecycle(
+            FakeStateReader(candidate_readback),
+            FakeEvaluator(),
+        ).qualify(candidate_request)
+
+        self.assertEqual(result.outcome, "candidate-qualified")
+        assert result.evidence is not None
+        self.assertEqual(result.evidence["source_authority"], "candidate")
+        self.assertEqual(result.evidence["verdict"], "qualified")
+
     def test_stale_or_incomplete_current_state_blocks_before_evaluation(self) -> None:
         cases = {
             "not deployed": (

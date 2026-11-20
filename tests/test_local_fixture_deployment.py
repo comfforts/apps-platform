@@ -53,6 +53,7 @@ def _bundle(application_id: str, access_mode: str) -> dict[str, object]:
         "route_intent": f"/{application_id}",
         "generation": 7,
         "profile_digest": "sha256:" + ("1" * 64),
+        "platform_source_authority": "accepted",
         "platform_source_revision": "b" * 40,
         "specification_digest": "sha256:" + ("2" * 64),
         "journal_digest": "sha256:" + ("3" * 64),

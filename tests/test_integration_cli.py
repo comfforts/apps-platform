@@ -152,7 +152,7 @@ def _run(
     with redirect_stdout(output):
         exit_code = main(
             arguments,
-            integration_factory=lambda _: lifecycle,
+            integration_factory=lambda _path, _authority: lifecycle,
         )
     return exit_code, json.loads(output.getvalue())
 
@@ -165,7 +165,7 @@ class IntegrationCliTest(unittest.TestCase):
         with redirect_stdout(output):
             code = main(
                 ["fixture-deploy", "--environment", "staging"],
-                fixture_factory=lambda _: fixture,
+                fixture_factory=lambda _path, _authority: fixture,
             )
 
         result = json.loads(output.getvalue())
@@ -188,7 +188,7 @@ class IntegrationCliTest(unittest.TestCase):
         with redirect_stdout(output):
             code = main(
                 ["fixture-status", "--environment", "staging"],
-                fixture_status_factory=lambda _: fixture,
+                fixture_status_factory=lambda _path, _authority: fixture,
             )
 
         result = json.loads(output.getvalue())
@@ -212,7 +212,7 @@ class IntegrationCliTest(unittest.TestCase):
                     "--application-id",
                     "fixture-public",
                 ],
-                fixture_factory=lambda _: fixture,
+                fixture_factory=lambda _path, _authority: fixture,
             )
 
         result = json.loads(output.getvalue())

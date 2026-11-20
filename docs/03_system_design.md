@@ -1,6 +1,6 @@
 # App Platform system design
 
-Version 1.7 | Status: Fixture-qualified logical design, implemented AP-M6 runtime and AP-M7
+Version 1.8 | Status: Fixture-qualified logical design, implemented AP-M6 runtime and AP-M7
 Terraform profiles, and implemented AP-M9-W8 qualification/destruction controls; no provider operation
 or live infrastructure is deployed
 
@@ -785,6 +785,14 @@ destructive boundary. An address or client identifier produced by a named later 
 output, not a missing input. Approval is a separate owner decision over the complete specification
 digest.
 
+Source authority is an explicit specification input derived from Git readback, never a free-form
+operator value. `accepted` requires the exact clean current protected-main revision. `candidate`
+requires staging, a clean non-main branch, an exact pushed matching origin revision, and current
+`origin/main` as an ancestor. The authority label changes the specification digest. Environment
+status and Platform Integration Bundles carry the label; candidate qualification is published
+under a separate candidate pointer and cannot become accepted qualification or production
+authority. After merge, accepted preparation, deployment, and qualification run again from main.
+
 For an ordinary reversible staging creation or update, invoking the named command deliberately is
 the owner's selection of the operation. Specification approval and every exact plan or bounded
 action confirmation occur inside that same process; no separate out-of-band approval is required.
@@ -873,16 +881,19 @@ generation activation, reversible detachment/reactivation, terminal retirement, 
 reserved-route responses behind injected boundaries. AP-M9-W8 implemented exact-revision
 qualification, redacted evidence, network fixtures, failure injection, reviewed rollback, and
 safe-destruction mechanics plus guarded local provider construction and the production Shared Edge
-composition. AP-M9-W9 implements the repository-only Fixture Application operator and completes
-the executable application side of the staging journey before any external operation. The live
+composition. AP-M9-W9 implements the Fixture Application operator, browser-mediated qualification,
+exact retained-resource destruction transitions, and staging-only Candidate Source admission so a
+pushed pull-request revision can exercise provider behavior before merge without claiming accepted
+qualification. The repository work itself performs no external operation. The live
 process accepts exact generated revision, generation, provider,
 OAuth-secret-version, KMS-key-version, edge-caller, and operator-subject bindings. It reads the
 OAuth payload directly from the selected Secret Manager version and never puts that payload in an
 environment variable, terminal, image, output, or evidence record. These packages create no identity,
 credential, state,
 provider resource, OAuth client, DNS record, certificate, bundle instance, application change, or
-Live qualification evidence. AP-M9-W10 performs the first staging operation only from the merged
-W9 implementation. Python-to-Go migration remains a later contract-preserving milestone after
+Live qualification evidence. AP-M9-W10 performs the first accepted staging operation from the
+merged W9 implementation; any candidate exercise must be repeated from Accepted Source.
+Python-to-Go migration remains a later contract-preserving milestone after
 the Python product is delivered and qualified.
 
 ### AP-M9-W5 deployable Terraform lifecycle
@@ -919,7 +930,8 @@ working root, uses mode `0600`, returns a content digest, is idempotent for iden
 refuses traversal or replacement. It does not invoke Terraform or access a backend.
 
 The operator-session profile contains the selected environment, exact provider project, active
-human account readback, clean current source revision, and local authentication freshness result.
+human account readback, explicit clean accepted or candidate source revision, and local
+authentication freshness result.
 It is private execution state, not an operator-authored manifest or committed identity value. The
 lifecycle creates no operation-specific service accounts or impersonation bindings. Terraform-
 managed runtime identities remain distinct per environment and owner, and service-account keys

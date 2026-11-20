@@ -319,7 +319,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertNotIn("id-token: write", check_workflow)
         self.assertNotIn("terraform apply", check_workflow)
 
-    def test_status_preserves_ap_m7_and_routes_next_work_to_ap_m9_w8(self) -> None:
+    def test_status_preserves_ap_m7_and_routes_next_work_to_ap_m9_w10(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(
@@ -336,13 +336,13 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("AP-M9-W5 — deployable Terraform (implemented)", index)
         self.assertIn("AP-M9-W6 — interactive platform deployment (implemented)", index)
         self.assertIn("AP-M9-W7 — platform-side application lifecycle (implemented)", index)
-        self.assertIn("AP-M9-W8 qualification-and-safe-destruction pull request has merged", prompt)
+        self.assertIn("AP-M9-W9 fixture-application lifecycle pull request has merged", prompt)
         self.assertIn(
-            "Implement only the repository-side Fixture Application deployment lifecycle",
+            "AP-M9-W10 is the first accepted external staging operation",
             prompt,
         )
-        self.assertIn("AP-M9-W10 is the first real staging operation", normalized_prompt)
-        self.assertIn("Do not authenticate", prompt)
+        self.assertIn("Do not request a duplicate", normalized_prompt)
+        self.assertIn("Run the complete credential-free `make check` gate", prompt)
         self.assertIn("no platform environment is deployed or qualified", combined)
         for false_claim in (
             "AP-M7 is deployed",

@@ -1,6 +1,6 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W8 qualification and safe-destruction lifecycle implemented; no external operation performed
+Status: AP-M9-W9 lifecycle and staging-candidate source admission implemented; no external operation performed
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -42,6 +42,14 @@ make platform-retire \
 make platform-qualify ENVIRONMENT=staging
 make platform-destroy ENVIRONMENT=staging
 ```
+
+Accepted Source is the default and requires exact clean current `main`. To verify a pull request
+against real staging provider behavior before merge, first push the clean branch and add
+`SOURCE_AUTHORITY=candidate` to every command. Candidate mode requires `origin/<branch>` to equal
+`HEAD` and current `origin/main` to be an ancestor. It is refused for production. Its authority is
+digest-bound in the specification, status, bundles, and evidence; qualification writes beneath the
+separate `qualification/candidates/` path and never replaces accepted evidence. After merge, rerun
+the journey from main with the default Accepted Source.
 
 Standalone preparation is read-only and remains an optional dry run; when Cloud SDK is available it
 also verifies the active human account, user Application Default Credentials, provider project,

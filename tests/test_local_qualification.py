@@ -42,6 +42,7 @@ class FakeStatus:
                 "journal_digest": "sha256:" + ("3" * 64),
                 "lifecycle_state": "deployed",
                 "profile_digest": "sha256:" + ("1" * 64),
+                "source_authority": "accepted",
                 "source_revision": "a" * 40,
                 "specification_digest": "sha256:" + ("2" * 64),
             },

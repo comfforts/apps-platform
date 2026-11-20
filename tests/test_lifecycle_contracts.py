@@ -69,6 +69,7 @@ def _specification() -> dict[str, object]:
         "operation": "deploy",
         "profile_digest": _digest("1"),
         "source": {
+            "authority": "accepted",
             "repository": "comfforts/apps-platform",
             "revision": "a" * 40,
         },
@@ -192,6 +193,7 @@ def _status(
         "document_kind": "environment-status",
         "environment": "staging",
         "profile_digest": lifecycle_digest(profile, "environment-profile"),
+        "source_authority": "accepted",
         "source_revision": "a" * 40,
         "specification_digest": lifecycle_digest(
             specification,
@@ -219,6 +221,7 @@ def _integration_bundle(
         "route_intent": "/fixture-authenticated",
         "generation": 1,
         "profile_digest": lifecycle_digest(profile, "environment-profile"),
+        "platform_source_authority": "accepted",
         "platform_source_revision": "a" * 40,
         "specification_digest": lifecycle_digest(
             specification,
@@ -407,7 +410,23 @@ class SpecificationAndJournalContractTest(unittest.TestCase):
         )
         self.assertEqual(
             lifecycle_digest(specification, "deployment-specification"),
-            "sha256:9a0b560a920e9366d50ab1aa47a29d56e5ff541e5375e8549081627876282806",
+            "sha256:8f473dbe79939deb1b290fd3f1cd70396b15291c37bea18c16fa68fc7397a05b",
+        )
+
+    def test_source_authority_is_part_of_the_specification_digest(self) -> None:
+        accepted = _specification()
+        candidate = copy.deepcopy(accepted)
+        source = candidate["source"]
+        assert isinstance(source, dict)
+        source["authority"] = "candidate"
+
+        self.assertEqual(
+            validate_lifecycle_document(candidate, "deployment-specification"),
+            (),
+        )
+        self.assertNotEqual(
+            lifecycle_digest(accepted, "deployment-specification"),
+            lifecycle_digest(candidate, "deployment-specification"),
         )
 
     def test_specification_requires_complete_prior_stage_output_bindings(self) -> None:
@@ -634,6 +653,7 @@ class StatusAndHandoffContractTest(unittest.TestCase):
             "document_kind": "environment-status",
             "environment": "production",
             "profile_digest": lifecycle_digest(profile, "environment-profile"),
+            "source_authority": None,
             "source_revision": None,
             "specification_digest": None,
             "journal_digest": None,

@@ -364,6 +364,7 @@ def _status_violations(value: dict[str, Any]) -> list[Violation]:
     state = value.get("lifecycle_state")
     blockers = value.get("blockers")
     execution_fields = (
+        "source_authority",
         "source_revision",
         "specification_digest",
         "journal_digest",
@@ -918,7 +919,16 @@ def validate_lifecycle_relationships(
                 )
         if specification is not None:
             source = specification.get("source")
+            authority = source.get("authority") if isinstance(source, dict) else None
             revision = source.get("revision") if isinstance(source, dict) else None
+            if status.get("source_authority") != authority:
+                violations.append(
+                    _relationship_violation(
+                        "DOCUMENT_RELATION_INVALID",
+                        "/status/source_authority",
+                        "status source authority does not match the specification",
+                    )
+                )
             if status.get("source_revision") != revision:
                 violations.append(
                     _relationship_violation(
@@ -1033,7 +1043,16 @@ def validate_lifecycle_relationships(
             )
         if specification is not None:
             source = specification.get("source")
+            authority = source.get("authority") if isinstance(source, dict) else None
             revision = source.get("revision") if isinstance(source, dict) else None
+            if integration_bundle.get("platform_source_authority") != authority:
+                violations.append(
+                    _relationship_violation(
+                        "DOCUMENT_RELATION_INVALID",
+                        "/integration_bundle/platform_source_authority",
+                        "integration bundle source authority does not match the specification",
+                    )
+                )
             if integration_bundle.get("platform_source_revision") != revision:
                 violations.append(
                     _relationship_violation(
@@ -1064,16 +1083,27 @@ def validate_lifecycle_relationships(
                     "integration bundle is not bound to the exact journal",
                 )
             )
-        if status is not None and integration_bundle.get(
-            "qualification_status"
-        ) != status.get("qualification_status"):
-            violations.append(
-                _relationship_violation(
-                    "DOCUMENT_RELATION_INVALID",
-                    "/integration_bundle/qualification_status",
-                    "integration bundle qualification must equal the environment status",
+        if status is not None:
+            if integration_bundle.get("platform_source_authority") != status.get(
+                "source_authority"
+            ):
+                violations.append(
+                    _relationship_violation(
+                        "DOCUMENT_RELATION_INVALID",
+                        "/integration_bundle/platform_source_authority",
+                        "integration bundle source authority does not match status",
+                    )
                 )
-            )
+            if integration_bundle.get("qualification_status") != status.get(
+                "qualification_status"
+            ):
+                violations.append(
+                    _relationship_violation(
+                        "DOCUMENT_RELATION_INVALID",
+                        "/integration_bundle/qualification_status",
+                        "integration bundle qualification must equal the environment status",
+                    )
+                )
 
     if integration_bundle is not None and attachment_bundle is not None:
         if attachment_bundle.get("platform_integration_bundle_digest") != lifecycle_digest(

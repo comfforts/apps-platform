@@ -260,8 +260,19 @@ class LocalDestructionStateReader:
         status: dict[str, Any],
         generation_digest: str,
     ) -> str:
+        source_authority = status.get("source_authority")
+        if source_authority not in {"accepted", "candidate"}:
+            raise DestructionCommandError("QUALIFICATION_EVIDENCE_INVALID")
+        qualification_root = (
+            "qualification"
+            if source_authority == "accepted"
+            else "qualification/candidates"
+        )
+        expected_outcome = (
+            "qualified" if source_authority == "accepted" else "candidate-qualified"
+        )
         payload = self._filesystem.read_state(
-            f"environments/{environment}/qualification/current-evidence.v1.json"
+            f"environments/{environment}/{qualification_root}/current-evidence.v1.json"
         )
         if payload is None:
             raise DestructionCommandError("QUALIFICATION_EVIDENCE_UNAVAILABLE")
@@ -270,11 +281,11 @@ class LocalDestructionStateReader:
             digest = pointer["evidence_digest"]
         except (KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
             raise DestructionCommandError("QUALIFICATION_EVIDENCE_INVALID") from error
-        if not isinstance(digest, str) or pointer.get("outcome") != "qualified":
+        if not isinstance(digest, str) or pointer.get("outcome") != expected_outcome:
             raise DestructionCommandError("QUALIFICATION_EVIDENCE_INVALID")
         loaded = load_lifecycle_document(
             self._filesystem.state_path(
-                f"environments/{environment}/qualification/evidence/"
+                f"environments/{environment}/{qualification_root}/evidence/"
                 f"{digest[7:]}.v1.json"
             ),
             "qualification-evidence",
@@ -284,6 +295,7 @@ class LocalDestructionStateReader:
         evidence = loaded.value
         bindings = {
             "environment": environment,
+            "source_authority": source_authority,
             "source_revision": status.get("source_revision"),
             "profile_digest": status.get("profile_digest"),
             "specification_digest": status.get("specification_digest"),
@@ -316,6 +328,7 @@ class LocalDestructionStateReader:
         if result.conflicts or status.get("lifecycle_state") != "deployed":
             raise DestructionCommandError("ENVIRONMENT_NOT_DEPLOYED")
         required = (
+            "source_authority",
             "source_revision",
             "profile_digest",
             "specification_digest",
@@ -381,6 +394,7 @@ class LocalDestructionStateReader:
             ),
             retained_resource_types=(RETAINED_PLATFORM_RESOURCES if owned else ()),
             ownership_matches=owned,
+            source_authority=str(status["source_authority"]),
         )
 
 

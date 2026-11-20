@@ -69,6 +69,12 @@ def _parser() -> argparse.ArgumentParser:
         help="private ignored directory for generated lifecycle state",
     )
     parser.add_argument(
+        "--source-authority",
+        choices=("accepted", "candidate"),
+        default="accepted",
+        help="accepted main or a clean pushed staging candidate",
+    )
+    parser.add_argument(
         "--specification-digest",
         help="exact approved deployment specification digest",
     )
@@ -87,34 +93,54 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _default_factory(state_directory: Path) -> LifecycleOperator:
-    return build_local_operator(PROJECT_ROOT, state_directory)
+def _default_factory(
+    state_directory: Path,
+    source_authority: str,
+) -> LifecycleOperator:
+    return build_local_operator(PROJECT_ROOT, state_directory, source_authority)
 
 
 def _default_integration_factory(
     state_directory: Path,
+    source_authority: str,
 ) -> ApplicationIntegrationLifecycle:
-    return build_local_integration(PROJECT_ROOT, state_directory)
+    return build_local_integration(PROJECT_ROOT, state_directory, source_authority)
 
 
 def _default_qualification_factory(
     state_directory: Path,
+    source_authority: str,
 ) -> QualificationLifecycle:
-    return build_local_qualification(PROJECT_ROOT, state_directory)
+    return build_local_qualification(PROJECT_ROOT, state_directory, source_authority)
 
 
 def _default_destruction_factory(
     state_directory: Path,
+    source_authority: str,
 ) -> DestructionLifecycle:
-    return build_local_destruction(PROJECT_ROOT, state_directory)
+    return build_local_destruction(PROJECT_ROOT, state_directory, source_authority)
 
 
-def _default_fixture_factory(state_directory: Path):  # type: ignore[no-untyped-def]
-    return build_local_fixture_operator(PROJECT_ROOT, state_directory)
+def _default_fixture_factory(  # type: ignore[no-untyped-def]
+    state_directory: Path,
+    source_authority: str,
+):
+    return build_local_fixture_operator(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+    )
 
 
-def _default_fixture_status_factory(state_directory: Path):  # type: ignore[no-untyped-def]
-    return build_local_fixture_status_operator(PROJECT_ROOT, state_directory)
+def _default_fixture_status_factory(  # type: ignore[no-untyped-def]
+    state_directory: Path,
+    source_authority: str,
+):
+    return build_local_fixture_status_operator(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+    )
 
 
 def _required(arguments: argparse.Namespace, name: str) -> object:
@@ -178,25 +204,31 @@ def _print(value: dict[str, object]) -> None:
 def main(
     argv: Sequence[str] | None = None,
     *,
-    operator_factory: Callable[[Path], LifecycleOperator] = _default_factory,
+    operator_factory: Callable[[Path, str], LifecycleOperator] = _default_factory,
     integration_factory: Callable[
-        [Path], ApplicationIntegrationLifecycle
+        [Path, str], ApplicationIntegrationLifecycle
     ] = _default_integration_factory,
     qualification_factory: Callable[
-        [Path], QualificationLifecycle
+        [Path, str], QualificationLifecycle
     ] = _default_qualification_factory,
     destruction_factory: Callable[
-        [Path], DestructionLifecycle
+        [Path, str], DestructionLifecycle
     ] = _default_destruction_factory,
-    fixture_factory: Callable[[Path], object] = _default_fixture_factory,
-    fixture_status_factory: Callable[[Path], object] = _default_fixture_status_factory,
+    fixture_factory: Callable[[Path, str], object] = _default_fixture_factory,
+    fixture_status_factory: Callable[[Path, str], object] = _default_fixture_status_factory,
 ) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.operation in {"prepare", "deploy", "status"}:
-        operator = operator_factory(arguments.state_directory)
+        operator = operator_factory(
+            arguments.state_directory,
+            arguments.source_authority,
+        )
     elif arguments.operation in {"detach", "outputs", "register", "retire"}:
         try:
-            integration = integration_factory(arguments.state_directory)
+            integration = integration_factory(
+                arguments.state_directory,
+                arguments.source_authority,
+            )
         except RuntimeError as error:
             _print(
                 {
@@ -208,7 +240,10 @@ def main(
             return 2
     elif arguments.operation in {"fixture-deploy", "fixture-destroy"}:
         try:
-            fixture = fixture_factory(arguments.state_directory)
+            fixture = fixture_factory(
+                arguments.state_directory,
+                arguments.source_authority,
+            )
         except RuntimeError as error:
             _print(
                 {
@@ -220,7 +255,10 @@ def main(
             return 2
     elif arguments.operation == "fixture-status":
         try:
-            fixture = fixture_status_factory(arguments.state_directory)
+            fixture = fixture_status_factory(
+                arguments.state_directory,
+                arguments.source_authority,
+            )
         except RuntimeError as error:
             _print(
                 {
@@ -232,7 +270,10 @@ def main(
             return 2
     elif arguments.operation == "qualify":
         try:
-            qualification = qualification_factory(arguments.state_directory)
+            qualification = qualification_factory(
+                arguments.state_directory,
+                arguments.source_authority,
+            )
         except RuntimeError as error:
             _print(
                 {
@@ -244,7 +285,10 @@ def main(
             return 2
     else:
         try:
-            destruction = destruction_factory(arguments.state_directory)
+            destruction = destruction_factory(
+                arguments.state_directory,
+                arguments.source_authority,
+            )
         except RuntimeError as error:
             _print(
                 {
@@ -264,6 +308,7 @@ def main(
                 "complete": result.complete,
                 "environment": arguments.environment,
                 "outcome": result.outcome,
+                "source_authority": arguments.source_authority,
                 "specification_digest": result.specification_digest,
             }
         )
@@ -278,6 +323,7 @@ def main(
                 "environment": arguments.environment,
                 "image_reference": result.image_reference,
                 "outcome": result.outcome,
+                "source_authority": arguments.source_authority,
                 "registration_generation": result.registration_generation,
                 "registration_generation_digest": (
                     result.registration_generation_digest
@@ -302,6 +348,7 @@ def main(
                 "blockers": list(result.blockers),
                 "environment": arguments.environment,
                 "outcome": result.outcome,
+                "source_authority": arguments.source_authority,
                 "registration_generation": result.registration_generation,
                 "registration_generation_digest": (
                     result.registration_generation_digest
@@ -321,6 +368,7 @@ def main(
                 "blockers": list(result.blockers),
                 "environment": arguments.environment,
                 "outcome": result.outcome,
+                "source_authority": arguments.source_authority,
                 "registration_generation": result.registration_generation,
                 "registration_generation_digest": (
                     result.registration_generation_digest
@@ -344,6 +392,7 @@ def main(
                         "blockers": list(prepared.blockers),
                         "environment": arguments.environment,
                         "outcome": prepared.outcome,
+                        "source_authority": arguments.source_authority,
                         "specification_digest": specification_digest,
                     }
                 )
@@ -358,6 +407,7 @@ def main(
                 "environment": arguments.environment,
                 "journal_digest": result.journal_digest,
                 "outcome": result.outcome,
+                "source_authority": arguments.source_authority,
                 "specification_digest": specification_digest,
             }
         )
@@ -367,8 +417,13 @@ def main(
         result = qualification.qualify_current(arguments.environment)
         evidence_path: str | None = None
         if result.evidence is not None and result.evidence_digest is not None:
+            qualification_root = (
+                "qualification"
+                if arguments.source_authority == "accepted"
+                else "qualification/candidates"
+            )
             evidence_path = (
-                f"environments/{arguments.environment}/qualification/evidence/"
+                f"environments/{arguments.environment}/{qualification_root}/evidence/"
                 f"{result.evidence_digest[7:]}.v1.json"
             )
             filesystem = LocalFilesystem(
@@ -391,7 +446,7 @@ def main(
                 }
                 filesystem.write_state(
                     (
-                        f"environments/{arguments.environment}/qualification/"
+                        f"environments/{arguments.environment}/{qualification_root}/"
                         "current-evidence.v1.json"
                     ),
                     json.dumps(
@@ -418,9 +473,10 @@ def main(
                 "evidence_digest": result.evidence_digest,
                 "evidence_path": evidence_path,
                 "outcome": result.outcome,
+                "source_authority": arguments.source_authority,
             }
         )
-        return 0 if result.outcome == "qualified" else 2
+        return 0 if result.outcome in {"candidate-qualified", "qualified"} else 2
 
     if arguments.operation == "destroy":
         result = destruction.destroy_current(arguments.environment)
@@ -430,6 +486,7 @@ def main(
                 "environment": arguments.environment,
                 "last_closed_stage": result.last_closed_stage,
                 "outcome": result.outcome,
+                "source_authority": arguments.source_authority,
                 "specification_digest": result.specification_digest,
             }
         )
@@ -488,6 +545,7 @@ def main(
                 "bundle_path": output_path,
                 "environment": arguments.environment,
                 "outcome": result.outcome,
+                "source_authority": arguments.source_authority,
             }
         )
         return 0 if result.outcome == "generated" else 2

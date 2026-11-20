@@ -35,7 +35,7 @@ prefixed with `sha256:`.
 | Schema | Stable identifier | Interface |
 | --- | --- | --- |
 | `schemas/environment-profile.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:environment-profile:v1` | stable decisions for one isolated environment |
-| `schemas/deployment-specification.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:deployment-specification:v1` | exact source, ordered stages, allow-lists, output bindings, checkpoints, readback, stop behavior, and destructive boundary |
+| `schemas/deployment-specification.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:deployment-specification:v1` | exact source authority and revision, ordered stages, allow-lists, output bindings, checkpoints, readback, stop behavior, and destructive boundary |
 | `schemas/execution-journal.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:execution-journal:v1` | machine-generated, append-only, digest-chained execution progress |
 | `schemas/environment-status.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:environment-status:v1` | truthful environment progress, blockers, and qualification state |
 | `schemas/platform-integration-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1` | application-scoped non-secret platform endpoints, identity values, caller, attachment contract, and qualification status |
@@ -51,11 +51,11 @@ digest; limits entries and outputs to declared specification stages; requires ev
 output; and proves that a later journal revision preserves every preceding entry and carries the
 exact predecessor digest. A journal records a plan digest, never a saved or raw plan.
 
-Environment Status binds the exact profile, source, specification, journal, last closed stage, and
+Environment Status binds the exact profile, source authority and revision, specification, journal, last closed stage, and
 journal outcome. A disabled production status carries `OWNERSHIP_TRANSFER_REQUIRED` without
 inventing a source, specification, journal, or generated resource.
 
-An integration bundle contains an OAuth client identifier and application audience only for an
+An integration bundle identifies Accepted Source or Candidate Source and contains an OAuth client identifier and application audience only for an
 authenticated access mode. A public bundle omits those identity values. No bundle admits an OAuth
 client secret, application provider key, credential payload, Terraform state, saved plan, raw
 provider response, or platform secret reference. Attachment validation preserves application

@@ -112,6 +112,18 @@ def _run_git(project_root: Path, *arguments: str) -> str:
     return completed.stdout.strip()
 
 
+def _try_run_git(project_root: Path, *arguments: str) -> str | None:
+    completed = subprocess.run(
+        ["git", "-C", str(project_root), *arguments],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return None
+    return completed.stdout.strip()
+
+
 def _repository_identity(remote: str) -> str:
     normalized = remote.strip().removesuffix(".git")
     if normalized.startswith("git@github.com:"):
@@ -128,6 +140,32 @@ class LocalGit:
 
     def inspect(self) -> GitSnapshot:
         remote = _run_git(self.project_root, "config", "--get", "remote.origin.url")
+        upstream_branch = _try_run_git(
+            self.project_root,
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+        )
+        upstream_revision = _try_run_git(
+            self.project_root,
+            "rev-parse",
+            "@{upstream}",
+        )
+        ancestor = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.project_root),
+                "merge-base",
+                "--is-ancestor",
+                "origin/main",
+                "HEAD",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
         return GitSnapshot(
             repository=_repository_identity(remote),
             revision=_run_git(self.project_root, "rev-parse", "HEAD"),
@@ -146,6 +184,9 @@ class LocalGit:
                 "rev-parse",
                 "origin/main",
             ),
+            upstream_branch=upstream_branch,
+            upstream_revision=upstream_revision,
+            origin_main_ancestor=ancestor.returncode == 0,
         )
 
 
@@ -486,7 +527,11 @@ def _local_deployment_executor(
         return None
 
 
-def build_local_operator(project_root: Path, state_root: Path) -> LifecycleOperator:
+def build_local_operator(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+) -> LifecycleOperator:
     """Construct the local operator around the active human Cloud SDK session."""
 
     resolved_project = project_root.resolve()
@@ -518,7 +563,8 @@ def build_local_operator(project_root: Path, state_root: Path) -> LifecycleOpera
                 gcp,
                 terminal,
             ),
-        )
+        ),
+        source_authority=source_authority,
     )
 
 
@@ -566,6 +612,7 @@ def _local_generation_provider(
 def build_local_integration(
     project_root: Path,
     state_root: Path,
+    source_authority: str = "accepted",
 ):
     """Construct local handoff reads and conditionally arm provider mutation."""
 
@@ -580,7 +627,11 @@ def build_local_integration(
 
     resolved_project = project_root.resolve()
     filesystem = LocalFilesystem(resolved_project, state_root)
-    operator = build_local_operator(resolved_project, state_root)
+    operator = build_local_operator(
+        resolved_project,
+        state_root,
+        source_authority,
+    )
     provider = _local_generation_provider(resolved_project, state_root)
     generations = LocalRegistrationGenerationControl(filesystem, provider)
     return ApplicationIntegrationLifecycle(
@@ -591,7 +642,11 @@ def build_local_integration(
     )
 
 
-def build_local_fixture_operator(project_root: Path, state_root: Path):
+def build_local_fixture_operator(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+):
     """Construct the complete fixture operator only from the verified human session."""
 
     from infrastructure.operator.commands import (
@@ -686,7 +741,7 @@ def build_local_fixture_operator(project_root: Path, state_root: Path):
     )
     platform = LocalPlatformIntegrationReader(
         filesystem,
-        build_local_operator(resolved_project, resolved_state),
+        build_local_operator(resolved_project, resolved_state, source_authority),
         generations,
     )
     terminal = ConsoleTerminal()
@@ -721,10 +776,15 @@ def build_local_fixture_operator(project_root: Path, state_root: Path):
         platform,
         lifecycle,
         LocalApplicationHandoffs(filesystem),
+        source_authority=source_authority,
     )
 
 
-def build_local_fixture_status_operator(project_root: Path, state_root: Path):
+def build_local_fixture_status_operator(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+):
     """Construct fixture status without arming Terraform or image mutation."""
 
     from infrastructure.operator.integration import ApplicationIntegrationLifecycle
@@ -747,7 +807,7 @@ def build_local_fixture_status_operator(project_root: Path, state_root: Path):
     generations = LocalRegistrationGenerationControl(filesystem, provider)
     platform = LocalPlatformIntegrationReader(
         filesystem,
-        build_local_operator(resolved_project, resolved_state),
+        build_local_operator(resolved_project, resolved_state, source_authority),
         generations,
     )
     return LocalFixtureStatusOperator(
@@ -759,7 +819,11 @@ def build_local_fixture_status_operator(project_root: Path, state_root: Path):
     )
 
 
-def build_local_qualification(project_root: Path, state_root: Path):
+def build_local_qualification(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+):
     """Construct exact staging qualification only for a verified human session."""
 
     from infrastructure.operator.live_qualification import (
@@ -821,12 +885,12 @@ def build_local_qualification(project_root: Path, state_root: Path):
     generations = LocalRegistrationGenerationControl(filesystem, provider)
     platform = LocalPlatformIntegrationReader(
         filesystem,
-        build_local_operator(resolved_project, resolved_state),
+        build_local_operator(resolved_project, resolved_state, source_authority),
         generations,
     )
     terminal = ConsoleTerminal()
     state_reader = LocalQualificationStateReader(
-        build_local_operator(resolved_project, resolved_state),
+        build_local_operator(resolved_project, resolved_state, source_authority),
         generations,
         LocalApplicationHandoffs(filesystem),
         provider,
@@ -844,7 +908,11 @@ def build_local_qualification(project_root: Path, state_root: Path):
     return QualificationLifecycle(state_reader, QualificationSuiteEvaluator(probe))
 
 
-def build_local_destruction(project_root: Path, state_root: Path):
+def build_local_destruction(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+):
     """Construct exact safe destruction only for a verified human session."""
 
     from infrastructure.operator.commands import (
@@ -928,7 +996,11 @@ def build_local_destruction(project_root: Path, state_root: Path):
         resolved_project,
         ClosedDigRunner(dig, resolved_project),
     )
-    status = build_local_operator(resolved_project, resolved_state)
+    status = build_local_operator(
+        resolved_project,
+        resolved_state,
+        source_authority,
+    )
     return DestructionLifecycle(
         LocalDestructionStateReader(
             filesystem,

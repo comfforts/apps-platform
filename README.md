@@ -1,7 +1,7 @@
 # Comfforts App Platform
 
-Status: AP-M9-W8 qualification and safe-destruction mechanics implemented and deterministically
-verified; AP-M9-W9 fixture deployment lifecycle is next; no platform environment is deployed or qualified
+Status: AP-M9-W9 fixture deployment lifecycle implemented and deterministically verified;
+AP-M9-W10 staging operation is next; no platform environment is deployed or qualified
 
 Comfforts App Platform owns the shared hostname edge, catalogue, registration, routing, admission,
 platform identity, and environment lifecycle used by independently owned applications. Applications
@@ -18,7 +18,7 @@ prepare -> approve -> deploy -> status -> outputs -> qualify -> destroy
                  application deploy -> register -> detach/retire
 ```
 
-For the repository-owned synthetic applications, AP-M9-W9 supplies the missing interactive
+For the repository-owned synthetic applications, AP-M9-W9 supplies the interactive
 `fixture-deploy`, `fixture-status`, and `fixture-destroy` application-owner path between platform
 outputs and registration.
 
@@ -48,14 +48,15 @@ comparison and rollback behavior.
   revision-bound qualification, closed evidence, reviewed rollback, safe Platform Environment
   destruction, the production Shared Edge composition and non-root image entry point, and the
   guarded real shared-platform deployment adapters. W9 implements the missing Fixture Application
-  deployment lifecycle without invoking it. W10 is the first real staging operation.
+  deployment lifecycle plus staging-only Candidate Source verification without invoking it. W10 is
+  the first accepted staging operation.
 
 No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
 application registration, or Live evidence is created merely by the repository implementation.
 
 ## Operator interface
 
-AP-M9-W4, W6, W7, and W8 expose these thin targets over one deep interactive Python lifecycle module:
+AP-M9-W4, W6 through W9 expose these thin targets over one deep interactive Python lifecycle module:
 
 ```bash
 make platform-prepare ENVIRONMENT=staging
@@ -74,10 +75,17 @@ make platform-retire ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> GENERATION_DIGEST=sha256:<64-lowercase-hex>
 make platform-qualify ENVIRONMENT=staging
 make platform-destroy ENVIRONMENT=staging
+make fixture-deploy ENVIRONMENT=staging
+make fixture-status ENVIRONMENT=staging
+make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 ```
 
-Deploy requires clean current `main`, the committed Environment Profile, the expected active human
-account and provider project, and user Application Default Credentials. Its Make target verifies or
+Deploy defaults to Accepted Source and requires clean current `main`, the committed Environment
+Profile, the expected active human account and provider project, and user Application Default
+Credentials. Before merge, a clean pushed pull-request revision containing current `origin/main`
+may use `SOURCE_AUTHORITY=candidate` for staging-only provider verification. Candidate
+specifications, bundles, and evidence remain distinct, never qualify production or overwrite
+accepted qualification, and must be repeated from main after merge. The Make target verifies or
 installs the checksum-bound local Terraform toolchain first. In one invocation it
 performs read-only preparation, writes and displays one canonical specification in the ignored
 private `.platform-operator/` directory, requests approval, and journals each closed stage. The
@@ -100,13 +108,16 @@ generation publication, exact traffic activation, provider attachment posture, a
 readback. Read-only integration uses closed local state. Staging deployment is conditionally armed
 only by the pinned toolchain, `gcloud`, `dig`, a real Cloud SDK configuration, and a verified human
 session; Cloud Build receives only an explicit source allow-list. `platform-qualify` and
-`platform-destroy` remain externally uninvoked while W9 completes the fixture operator and every
-remaining staging-operation adapter. `make check` invokes none of them.
+`platform-qualify` and `platform-destroy` are conditionally armed only for the verified human
+session. W9 adds the complete fixture deploy/status/destroy journey, exact live qualification and
+retained-resource destruction adapters, and fail-closed Candidate Source admission. The repository
+work invoked none of them; `make check` invokes none of them.
 
 The deployment wizard stays active across Google OAuth and Squarespace DNS work and continues
 when the operator presses Enter. It never requests an OAuth secret in the terminal. The pull
 request itself performs no authentication, backend initialization, plan, apply, image publication,
-provider readback, DNS lookup/change, or deployment; AP-M9-W10 remains the first real operation.
+provider readback, DNS lookup/change, or deployment; AP-M9-W10 remains the first accepted
+operation.
 
 ## Application boundary
 

@@ -371,7 +371,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertEqual(result.blockers, ())
             self.assertEqual(
                 result.specification_digest,
-                "sha256:6238b39c813701a95c3b8cac770ce1b0c6f714fb3ee001d959d803ebd334c340",
+                "sha256:7496585f27b3f0f10971e22bed020766431d28368d9065dd2e50768c33c6569f",
             )
             assert result.specification is not None
             self.assertEqual(result.specification["environment"], "staging")
@@ -655,7 +655,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             with mock.patch("sys.stdout", prepare_stdout):
                 prepare_code = operator_main(
                     ["prepare", "--environment", "staging"],
-                    operator_factory=lambda _: operator,
+                    operator_factory=lambda _path, _authority: operator,
                 )
             prepared = json.loads(prepare_stdout.getvalue().splitlines()[-1])
 
@@ -669,7 +669,7 @@ class OperatorLifecycleTest(unittest.TestCase):
                         "--specification-digest",
                         prepared["specification_digest"],
                     ],
-                    operator_factory=lambda _: operator,
+                    operator_factory=lambda _path, _authority: operator,
                 )
             deployed = json.loads(deploy_stdout.getvalue().splitlines()[-1])
 
@@ -677,7 +677,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             with mock.patch("sys.stdout", status_stdout):
                 status_code = operator_main(
                     ["status", "--environment", "staging"],
-                    operator_factory=lambda _: operator,
+                    operator_factory=lambda _path, _authority: operator,
                 )
             status = json.loads(status_stdout.getvalue())
 
@@ -699,7 +699,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             with mock.patch("sys.stdout", combined_stdout):
                 combined_code = operator_main(
                     ["deploy", "--environment", "staging"],
-                    operator_factory=lambda _: combined_operator,
+                    operator_factory=lambda _path, _authority: combined_operator,
                 )
             combined = json.loads(combined_stdout.getvalue().splitlines()[-1])
             self.assertEqual(combined_code, 0)

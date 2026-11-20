@@ -50,8 +50,9 @@
     "source": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "revision"],
+      "required": ["authority", "repository", "revision"],
       "properties": {
+        "authority": {"enum": ["accepted", "candidate"]},
         "repository": {"const": "comfforts/apps-platform"},
         "revision": {
           "type": "string",

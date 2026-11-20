@@ -1,65 +1,59 @@
-# App Platform AP-M9-W9 Fixture Application deployment lifecycle handoff
+# App Platform AP-M9-W10 staging operation handoff
 
 Continue the separately governed Comfforts App Platform from its canonical repository root.
 
-Use this handoff only after the AP-M9-W8 qualification-and-safe-destruction pull request has merged,
-local `main` is current and clean, and the owner approves AP-M9-W9. Create branch
-`feat/ap-m9-fixture-application-deployment`. Inspect the branch, working tree, remotes, and
-relationship to `origin/main`; preserve unrelated changes. Do not pull, reset, commit, push, or
-perform an external mutation without its applicable approval.
+Use this handoff only after the AP-M9-W9 fixture-application lifecycle pull request has merged and
+protected `main` is current and clean. AP-M9-W10 is the first accepted external staging operation.
+Any pre-merge Candidate Qualification is non-accepted evidence and must not be promoted. W10 deploys,
+qualifies, rehearses approved destruction/redeployment, and leaves `apps-staging.comfforts.com`
+deployed and qualified with the three repository-owned Fixture Applications.
 
 Read `AGENTS.md` and follow the complete order in `docs/README.md`. State the slice and authority:
-AP-M9-W9; AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009; ADR-001 through ADR-013;
-AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-001 through AP-TM-014. Confirm AP-M9-W8 is merged
-before modifying anything.
+AP-M9-W10; AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009; ADR-001 through ADR-013;
+AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-001 through AP-TM-014. Inspect the branch, working
+tree, remotes, and relationship to `origin/main`. Stop on any mismatch; do not pull, reset, switch,
+commit, push, or change repository settings without its applicable owner direction.
 
-`integrations/ai_finance_assistant/README.md` remains an inactive, non-authoritative input. Read it
-only if the owner separately scopes a compatibility review; it cannot define generic platform
-behavior or fixture, application, deployment, state, qualification, destruction, or production
-behavior.
+The owner's deliberate instruction to execute W10, or the owner's deliberate invocation of a named
+deploy command, authorizes ordinary reversible staging creation/update through that command's
+same-process specification and exact-plan confirmations. Do not request a duplicate chat, ticket,
+or out-of-band approval. Destruction, purge, ownership transfer, production cutover, and scope
+expansion retain separately named approval at their boundary.
 
-Implement only the repository-side Fixture Application deployment lifecycle:
+Perform the staging journey from exact merged source:
 
-1. First reconcile governance so ordinary reversible staging creation or update is authorized by
-   deliberate invocation of the named command plus same-process specification and plan
-   confirmations. Retain separate approval for destruction, purge, ownership transfer, production
-   cutover, and scope expansion. Move the first staging operation to AP-M9-W10 and production
-   readiness to AP-M9-W11.
-2. Add shallow `fixture-deploy`, `fixture-status`, and `fixture-destroy` targets over the existing
-   deep Python lifecycle module. A fresh operator must not hand-author Terraform variables,
-   integration bundles, attachment bundles, registration intent, or provider inventory.
-3. Build one immutable, source-bound, non-root Fixture Application image through the existing pinned
-   and allow-listed build boundary. Use the same digest for all three synthetic applications and
-   reject a mutable image reference or source mismatch.
-4. Generate public, authenticated, and restricted Platform Integration Bundles, derive exact
-   application inputs, and plan/apply the three existing fixture roots sequentially in independent
-   Application State lineages. Every plan is fresh, policy-checked, displayed, confirmed with
-   `y/N`, applied as the same artifact, and read back before the next root begins.
-5. Generate each Application Attachment Bundle from exact Terraform/provider readback, validate
-   owner, ingress, caller grant, audience, and bundle digest, then publish and activate one complete
-   Registration Generation. Preserve platform/application state separation throughout.
-6. Make `fixture-status` strictly read-only. Make `fixture-destroy` detach before destruction,
-   require fixture-specific typed confirmation, reread ownership and active-generation state after
-   confirmation, destroy only selected Fixture Application State, and support deterministic
-   redeployment/reactivation without releasing its identifier or route.
-7. Complete the exact live qualification and safe-destruction adapter wiring required before the
-   AP-M9-W10 staging operation, while invoking none of it in this repository slice. No target may
-   use ambient credentials, shell interpolation, mutable plans/images, automatic cleanup, or state
-   access across an ownership boundary.
-8. Add deterministic command, transcript, plan, readback, bundle, registration, status,
-   interruption, resume, cancellation, conflict, stale-input, partial-failure, and destruction tests.
-   A test must exercise the complete fixture journey through injected fakes; static Terraform or a
-   process-local server alone is not deployment-lifecycle evidence.
+1. Run the complete credential-free `make check` gate and stop on any failure, warning, or skip.
+2. Verify the pinned Terraform toolchain, exact staging project, active human Cloud SDK account,
+   user Application Default Credentials, `gcloud`, and `dig`. Never create or store a service-account
+   key or copy a token, OAuth secret, Terraform state, plan, or provider payload into Git.
+3. Run `make platform-deploy ENVIRONMENT=staging`. Keep the interactive wizard in one process.
+   Review each displayed specification/action/plan, use its `y/N` gates, complete Google OAuth and
+   Squarespace DNS work only at the displayed checkpoint, and press Enter for immediate readback.
+   Enter the OAuth client secret only in Secret Manager, never in the terminal.
+4. Run `make fixture-deploy ENVIRONMENT=staging`. It must build one immutable source-bound image,
+   deploy the public/authenticated/restricted applications sequentially in three independent
+   Application State lineages, read back their posture, and activate one complete Registration
+   Generation without operator-authored manifests or bundle fields.
+5. Run `make fixture-status ENVIRONMENT=staging`, `make platform-status ENVIRONMENT=staging`, and
+   `make platform-qualify ENVIRONMENT=staging`. Complete browser checkpoints without exporting
+   cookies, sessions, assertions, identity claims, screenshots, or application payloads.
+6. Report the exact revision, specification/journal/generation/evidence digests, coarse outcomes,
+   and every failed or unavailable AP-EVAL-M9 gate. Do not call staging qualified unless every
+   mandatory check passes for those exact bindings.
+7. Only after separately named owner approval for the destructive rehearsal, detach and destroy
+   each Fixture Application through `fixture-destroy`, then run `platform-destroy`. Verify the
+   retained backend, configuration, signing-key, provider-service, recovery, and evidence inventory;
+   never target Application State from platform destruction and never issue a blind Terraform
+   destroy. Redeploy the platform and fixtures through the same commands and requalify them.
+8. Leave staging deployed and qualified at the accepted revision. Commit only an owner-approved,
+   secret-free evidence index on a dedicated evidence branch if requested; keep private evidence,
+   raw outputs, state, plans, browser state, and checkpoint artifacts outside Git.
 
-Run `make check` from the repository root and report the exact result. The check must remain
-credential-free, deterministic, network-free after local setup, and non-mutating.
-
-Do not authenticate or run a real Terraform/backend/provider/image/OAuth/Secret Manager/DNS/TLS
-operation. Do not deploy or destroy a platform or application, publish a real image or generation,
-collect Live evidence, mutate a credential, state, cloud resource, repository setting, Finance
-Assistant, `apps.comfforts.com`, or the inactive Finance integration package. AP-M9-W10 is the first
-real staging operation. Do not claim Application Adoption or production readiness.
-
-Use small coherent commits. Do not commit credentials, state, saved plans, provider payloads,
-browser state, restricted membership, application data, raw traffic, recovery material, private
-evidence, or manual-checkpoint artifacts.
+Stop on the first discrepancy. Resume only through the existing private journal and identical
+immutable bindings. Do not mutate Finance Assistant, `apps.comfforts.com`, production, the inactive
+Finance integration package at `integrations/ai_finance_assistant/README.md`, or any real
+application. Read that package only if the owner separately scopes a compatibility review; it
+remains a non-authoritative input, cannot define generic platform behavior, and cannot define this
+operation. Do not claim Application Adoption,
+production readiness, or production ownership transfer. AP-M9-W11 owns read-only production
+readiness after W10 is accepted.

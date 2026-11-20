@@ -326,7 +326,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_overview = " ".join(overview.split())
 
         self.assertIn(
-            "AP-M9-W8 qualification and safe-destruction mechanics implemented",
+            "AP-M9-W9 fixture deployment lifecycle and candidate verification implemented",
             normalized_index,
         )
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
@@ -676,7 +676,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("independent synthetic Application State roots", layout)
 
-    def test_ap_m9_w9_handoff_loads_authority_without_granting_operations(
+    def test_ap_m9_w10_handoff_loads_exact_staging_operation_authority(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -686,7 +686,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         for authority in (
             "AGENTS.md",
             "docs/README.md",
-            "AP-M9-W9",
+            "AP-M9-W10",
             "AP-PR-001 through AP-PR-012",
             "AP-QR-001 through AP-QR-009",
             "ADR-001 through ADR-013",
@@ -695,23 +695,23 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M9-W8 qualification-and-safe-destruction pull request has merged",
-            "Implement only the repository-side Fixture Application deployment lifecycle",
+            "after the AP-M9-W9 fixture-application lifecycle pull request has merged",
+            "AP-M9-W10 is the first accepted external staging operation",
             "fixture-deploy",
             "fixture-status",
             "fixture-destroy",
             "independent Application State lineages",
-            "deterministic command, transcript, plan, readback, bundle, registration, status",
-            "Do not authenticate or run a real",
-            "Run `make check` from the repository root",
-            "AP-M9-W10 is the first real staging operation",
+            "same-process specification and exact-plan confirmations",
+            "Run the complete credential-free `make check` gate",
+            "separately named owner approval for the destructive rehearsal",
+            "Leave staging deployed and qualified",
             "Finance Assistant",
         ):
             self.assertIn(boundary, normalized_prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W9 Fixture Application deployment lifecycle handoff](starting_prompt.md)",
+            "[AP-M9-W10 staging operation handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -725,10 +725,10 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(f"AP-M9-W{work_package}", index)
         self.assertIn("Each work package is one bounded branch and pull request", normalized_index)
         self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W11"))
-        self.assertIn("AP-M9-W9", normalized_prompt)
-        self.assertIn("Fixture Application deployment lifecycle", normalized_prompt)
-        self.assertIn("Do not authenticate", normalized_prompt)
-        self.assertIn("AP-M9-W10 is the first real staging operation", normalized_prompt)
+        self.assertIn("AP-M9-W10", normalized_prompt)
+        self.assertIn("first accepted external staging operation", normalized_prompt)
+        self.assertIn("Do not request a duplicate", normalized_prompt)
+        self.assertIn("Do not mutate Finance Assistant", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
@@ -1486,7 +1486,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("operator-attested", threat_model)
         self.assertIn("No current result proves", threat_model)
 
-    def test_ap_m9_w8_status_and_w9_fixture_handoff_are_bounded(self) -> None:
+    def test_ap_m9_w9_status_and_w10_operation_handoff_are_bounded(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         docs_index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         runbook = (
@@ -1501,25 +1501,26 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_prompt = " ".join(prompt.split())
 
         for document in (overview, docs_index, runbook, layout):
-            self.assertIn("AP-M9-W8", document)
+            self.assertIn("AP-M9-W9", document)
             self.assertIn("implemented", document.lower())
         self.assertIn("platform-prepare", overview)
         self.assertIn("platform-status", overview)
         self.assertIn("platform-deploy", overview)
-        self.assertIn("W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED", runbook)
-        self.assertIn("W9_DESTRUCTION_AUTHORITY_REQUIRED", runbook)
+        self.assertNotIn("W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED", runbook)
+        self.assertNotIn("W9_DESTRUCTION_AUTHORITY_REQUIRED", runbook)
+        self.assertIn("never issues a blind root destroy", runbook)
         self.assertIn("`infrastructure/operator/`", layout)
 
         for required in (
-            "AP-M9-W9",
+            "AP-M9-W10",
             "AP-EVAL-M9-09",
-            "feat/ap-m9-fixture-application-deployment",
-            "Fixture Application deployment lifecycle",
+            "first accepted external staging operation",
+            "platform-deploy",
             "fixture-deploy",
             "fixture-status",
             "fixture-destroy",
-            "Do not authenticate",
-            "AP-M9-W10 is the first real staging operation",
+            "Do not request a duplicate",
+            "Do not mutate Finance Assistant",
         ):
             self.assertIn(required, normalized_prompt)
         self.assertNotIn("AP-M9-W8 qualification and safe destruction handoff", prompt)

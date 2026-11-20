@@ -1,6 +1,6 @@
 # App Platform product requirements
 
-Version 0.2 | Status: requirements authority through the AP-M9 operator lifecycle; operational
+Version 0.3 | Status: requirements authority through the AP-M9 operator lifecycle; operational
 qualification remains unavailable
 
 This document defines what Comfforts App Platform must provide and the ownership boundaries it must
@@ -126,6 +126,14 @@ named lifecycle command selects the operation, and the same process reviews and 
 specification and plans; no separate out-of-band approval is required. Destruction, purge,
 ownership transfer, production cutover, or a scope expansion retains its separately named approval
 and stronger confirmation boundary.
+
+Source authority must be explicit and digest-bound. Accepted operations use the exact clean current
+protected-main revision. Before merge, a clean pushed pull-request revision whose branch tracks its
+matching origin branch and contains current `origin/main` may operate only on staging as Candidate
+Source. Candidate specifications, bundles, and qualification evidence must remain distinguishable
+from Accepted Source, cannot qualify or authorize production, and cannot overwrite accepted
+qualification. After merge, the operator must deploy and qualify the accepted main revision rather
+than promoting candidate evidence.
 
 ### AP-PR-011 · Versioned platform and application handoff
 

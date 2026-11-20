@@ -1,6 +1,6 @@
 # App Platform implementation plan
 
-Version 0.14 | Status: AP-M9-W1 through AP-M9-W8 implemented;
+Version 0.15 | Status: AP-M9-W1 through AP-M9-W9 implemented;
 AP-M8-W1/W2 preserved historically; AP-M8-W3 through W12 superseded without execution; every
 external operator action remains pending
 
@@ -1619,7 +1619,8 @@ contracts and profiles, AP-M9-W4 implemented the credential-free interactive cor
 implemented the deployable Terraform lifecycle, AP-M9-W6 implemented interactive deployment
 mechanics, AP-M9-W7 implemented the application integration lifecycle, and AP-M9-W8 implemented
 qualification and safe-destruction mechanics without running an external operation. AP-M9-W9
-implements the missing Fixture Application deployment lifecycle only after W8 merges.
+implements the missing Fixture Application deployment lifecycle and staging-only Candidate Source
+admission after W8 merged.
 
 Each AP-M9 repository package begins from updated clean `main`, uses a dedicated branch and pull
 request, passes `make check`, and merges before the next package starts. Repository implementation
@@ -1764,12 +1765,12 @@ separate purge authority. Guarded shell-free Cloud SDK generation, traffic, atta
 readback adapters are deterministic-test covered but were not invoked. W8 also completes the real
 staging deployment adapter: exact first-run/recovery bootstrap, provider-service enablement,
 digest-pinned and source-allow-listed image build, create-only initial generation, OAuth metadata,
-authoritative/recursive DNS, TLS, and final readback. The live qualification and destruction
-defaults require new W9 authority.
+authoritative/recursive DNS, TLS, and final readback. W9 completes the live qualification and
+destruction defaults without invoking them.
 
-#### AP-M9-W9 · Fixture Application deployment lifecycle
+#### AP-M9-W9 · Fixture Application deployment lifecycle — implemented
 
-Implement one interactive fixture operator over the existing image, bundle, Terraform, provider,
+Implemented one interactive fixture operator over the existing image, bundle, Terraform, provider,
 and registration seams. `fixture-deploy` builds and publishes one immutable source-bound fixture
 image, generates the public, authenticated, and restricted integration bundles, plans and applies
 the three roots sequentially in independent Application State lineages, reads back target and IAM
@@ -1778,11 +1779,17 @@ posture, emits exact attachment bundles, and activates one complete Registration
 confirmation, destroys only selected fixture Application State, and supports deterministic
 redeployment/reactivation. Every mutation uses the verified human session, fresh exact plans,
 policy, confirmation, readback, private journals, and safe resume. Deterministic fakes cover the
-complete journey. This repository package performs no authenticated command or external operation.
+complete journey. W9 also completes browser-mediated live qualification and staged platform
+destruction through traffic disable, external-DNS removal, Shared Edge removal, protection unlock,
+destructible-foundation removal, and retained-inventory readback. W9 also binds `accepted` or
+`candidate` source authority into specifications, status, bundles, and qualification evidence. A
+candidate must be a clean pushed non-main revision containing current `origin/main`, can operate
+only on staging, publishes separate candidate evidence, and cannot authorize production or accepted
+qualification. This repository package performed no authenticated command or external operation.
 
 #### AP-M9-W10 · Staging deployment and qualification
 
-From clean protected main, deliberately invoke staging preparation/deployment, complete the OAuth
+From Accepted Source on clean protected main, deliberately invoke staging preparation/deployment, complete the OAuth
 and Squarespace checkpoints, deploy/register the fixture suite, complete AP-EVAL-M9, detach and
 destroy fixture assets, and perform an owner-approved platform destroy/redeploy rehearsal. Ordinary
 staging creation and update use the command's same-process review and confirmations; destructive
@@ -1802,8 +1809,10 @@ deployment is a later joint platform checkpoint plus Finance-owned Application A
 
 AP-M9-W1 through W9 are repository branches in order. No staging resource is created merely because
 W6 contains shared-platform deployment mechanics or W9 contains Fixture Application deployment
-mechanics. W10 begins only after W9 is merged so every shared-platform and fixture operator target
-exists before the first provider mutation. W11 follows the accepted staging result.
+mechanics. A clean pushed W9 pull-request revision may deliberately exercise those targets on
+staging with `SOURCE_AUTHORITY=candidate`; its digest-bound evidence is Candidate Qualification and
+cannot satisfy AP-EVAL-M9 or qualify production. W10 begins after W9 is merged and repeats the
+journey from Accepted Source, producing the first accepted staging result. W11 follows that result.
 
 Within W10 the operator order is preparation and digest approval; shared-platform deployment; fixture
 integration-bundle generation; fixture application deployment; attachment registration;

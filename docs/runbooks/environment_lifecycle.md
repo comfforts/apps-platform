@@ -1,12 +1,12 @@
 # AP-M9 environment lifecycle runbook
 
-Status: AP-M9-W8 shared-platform lifecycle mechanics implemented; AP-M9-W9 fixture deployment
-lifecycle is next; no external action has run, and AP-M9-W10 remains the first operation
+Status: AP-M9-W9 fixture deployment lifecycle and candidate verification implemented; no external
+action has run, and AP-M9-W10 remains the first accepted staging operation
 
 This runbook describes the intended human experience. It is subordinate to AP-PR-010 through
 AP-PR-012, AP-QR-007 through AP-QR-009, ADR-010 through ADR-013, AP-M9-W1 through AP-M9-W11, and
-AP-EVAL-M9. AP-M9-W1 through AP-M9-W8 create no credential, identity, backend, cloud resource, DNS
-record, certificate, deployment, or Live evidence. W3 implements the closed profiles and lifecycle
+AP-EVAL-M9. Repository implementation alone creates no credential, identity, backend, cloud
+resource, DNS record, certificate, deployment, or Live evidence. W3 implements the closed profiles and lifecycle
 documents, W4 implements credential-free local preparation/status, W5 implements the exact
 Terraform phase, backend, and plan-policy seams, and W6 implements staged execution, confirmation,
 manual checkpoints, readback, and resume. W7 implements the platform side of application
@@ -15,6 +15,11 @@ reversible detachment/reactivation, and terminal retirement behind injected boun
 W8 implements exact-revision qualification, redacted evidence, process-local network fixtures, failure injection,
 reviewed rollback, separate safe-destruction authority with resumable progress, and the real staging
 deployment adapters behind verified-human-session gates.
+W9 implements the source-bound fixture image and three independent Application State journeys,
+browser-mediated live qualification, and exact safe-destruction transitions that retain backend,
+configuration, signing-key, provider-service, recovery, and evidence material. It also admits a
+clean pushed Candidate Source for staging-only pre-merge verification without treating it as
+Accepted Source.
 
 ## Environment flow
 
@@ -66,15 +71,18 @@ Staging and production have distinct projects, hostnames, backends, state lineag
 specifications, journals, bundles, approvals, and evidence. A staging approval or artifact cannot
 be reused for production.
 
-The first real operation belongs to AP-M9-W10 and targets `apps-staging.comfforts.com` with synthetic
-applications. Production preparation must stop with `OWNERSHIP_TRANSFER_REQUIRED` while Finance
+The first accepted operation belongs to AP-M9-W10 and targets `apps-staging.comfforts.com` with
+synthetic applications. A candidate exercise may use the same staging environment before merge,
+but cannot qualify it for accepted use. Production preparation must stop with
+`OWNERSHIP_TRANSFER_REQUIRED` while Finance
 Assistant or `apps.comfforts.com` remains Finance-owned. AP-M9 never silently imports, mutates, or
 destroys those assets.
 
 ## Current operator rule
 
-After W8 merges, `make platform-prepare ENVIRONMENT=staging` may be used from clean current `main`
-to create and explicitly approve one complete specification in the ignored private
+The default `SOURCE_AUTHORITY=accepted` mode requires clean current `main`. After W9 merges,
+`make platform-prepare ENVIRONMENT=staging` creates and explicitly approves one complete
+specification in the ignored private
 `.platform-operator/` directory. It performs read-only Git, profile, repository-identity,
 pinned-tool, active-account, project, billing-reference, Google-subject, and user-ADC discovery.
 Tokens are discarded in memory and never enter the specification or journal. `make platform-status
@@ -95,6 +103,31 @@ invokes `platform-deploy`; its same-process specification and plan confirmations
 execution without a duplicate out-of-band approval. Destructive and irreversible boundaries retain
 their separately named approvals.
 
+Before merge, the operator may test the exact pushed pull-request revision on staging by setting
+`SOURCE_AUTHORITY=candidate` on every lifecycle command:
+
+```bash
+git push -u origin HEAD
+make platform-deploy ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make fixture-deploy ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+```
+
+Candidate admission requires a clean non-main branch, an exact matching `origin/<branch>` revision,
+and current `origin/main` as an ancestor. It fails before provider mutation when any binding is
+missing, stale, dirty, or unpushed, and it is always refused for production. The authority label is
+part of the specification digest, status, integration bundles, and qualification evidence.
+Candidate qualification is stored beneath `qualification/candidates/`; it never replaces the
+accepted current-evidence pointer. Candidate fixture and platform destruction use the same
+`SOURCE_AUTHORITY=candidate` binding and retain their existing typed destructive confirmations.
+Only one staging operation may proceed at a time because candidate and accepted runs intentionally
+exercise the same staging environment.
+
+After merge, switch to clean current `main` and rerun the deployment, fixture, status, and
+qualification sequence with the default accepted authority. Candidate artifacts are never promoted
+or relabeled as accepted evidence, even when the resulting source content is unchanged.
+
 W7 adds `platform-outputs`, `platform-register`, `platform-detach`, and `platform-retire`. Outputs
 writes canonical create-only bundles beneath `.platform-operator/`. Register accepts an exact
 integration bundle, attachment bundle, and strict private registration intent; it publishes and
@@ -102,7 +135,10 @@ activates only complete immutable generations after readback and confirmation. D
 and retire require the expected active-generation digest. Interrupted confirmation can resume only
 the identical create-only publication. W8 conditionally constructs provider and generation-control
 adapters only when an explicit private Cloud SDK configuration exists.
-W8 adds `platform-qualify` and `platform-destroy`; their default live entry points return
-`W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED` or `W9_DESTRUCTION_AUTHORITY_REQUIRED` until the owner
-merges the W9 fixture lifecycle and exact live executors. W9 replaces these implementation gates;
-W10 invokes the merged targets. `make check` remains credential-free, deterministic, and non-mutating.
+W8 adds `platform-qualify` and `platform-destroy`; W9 replaces their former implementation gates
+with exact live adapters and adds `fixture-deploy`, `fixture-status`, and `fixture-destroy`.
+`platform-destroy` never issues a blind root destroy: it disables traffic, verifies external DNS
+removal, removes Shared Edge, unlocks only the reviewed foundation protections, deletes only the
+closed destructible inventory, and reads back the retained inventory. W10 invokes the merged
+targets from Accepted Source. `make check` remains credential-free, deterministic, network-free,
+and non-mutating.

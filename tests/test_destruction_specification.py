@@ -81,6 +81,19 @@ class DestructionSpecificationTest(unittest.TestCase):
             (),
         )
 
+    def test_candidate_destruction_remains_bound_to_candidate_authority(self) -> None:
+        candidate_request = replace(request(), source_authority="candidate")
+        candidate_snapshot = replace(snapshot(), source_authority="candidate")
+
+        result = compile_destruction_specification(
+            candidate_request,
+            candidate_snapshot,
+        )
+
+        self.assertEqual(result.outcome, "prepared")
+        assert result.specification is not None
+        self.assertEqual(result.specification["source"]["authority"], "candidate")
+
     def test_active_attachment_ownership_or_inventory_mismatch_blocks_compilation(self) -> None:
         cases = {
             "active": (

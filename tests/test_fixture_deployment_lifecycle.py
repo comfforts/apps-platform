@@ -61,6 +61,7 @@ def _bundle(application_id: str, access_mode: str, route_intent: str) -> dict[st
         "route_intent": route_intent,
         "generation": 7,
         "profile_digest": PROFILE_DIGEST,
+        "platform_source_authority": "accepted",
         "platform_source_revision": PLATFORM_REVISION,
         "specification_digest": SPECIFICATION_DIGEST,
         "journal_digest": JOURNAL_DIGEST,

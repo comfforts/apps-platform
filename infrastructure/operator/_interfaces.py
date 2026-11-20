@@ -17,6 +17,9 @@ class GitSnapshot:
     clean: bool
     main_revision: str
     origin_main_revision: str
+    upstream_branch: str | None = None
+    upstream_revision: str | None = None
+    origin_main_ancestor: bool = False
 
 
 @dataclass(frozen=True, slots=True)

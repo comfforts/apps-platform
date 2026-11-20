@@ -17,27 +17,27 @@ VECTOR_DIRECTORY = PROJECT_ROOT / "contracts" / "lifecycle" / "test-vectors" / "
 VECTORS = {
     "application-attachment-bundle.staging.synthetic.v1.json": (
         "application-attachment-bundle",
-        "sha256:88bbbefbe9f753c77c97bcdca07efe4f854b1b6f16dec6ced95e760a4c63aa04",
+        "sha256:87c53c012f9aaade05943983eb0b1bc80a99491038fd8efafef8507ff0776694",
     ),
     "deployment-specification.staging.synthetic.v1.json": (
         "deployment-specification",
-        "sha256:2a4bd4b6d78de880d8872d04609013aedd6dae77441d9c56a3865d748438545e",
+        "sha256:0c307e09e19262701855d8ec92e3a93e6027b639b40a749c5765ee89d5da46c1",
     ),
     "environment-status.staging.synthetic.v1.json": (
         "environment-status",
-        "sha256:3c7112d4e812a505e4769e65c4ab8ac008c994f368f3efc41f51c714278ffd88",
+        "sha256:160c03afb53895ae188f94564c2086c71e367530c9aba0943a76f7c7d3308d5c",
     ),
     "execution-journal.staging.synthetic.v1.json": (
         "execution-journal",
-        "sha256:70dda6f7bdc74d992a417c15ea7d7c6e3d364c7346fa59f65e545ec3cfb2df99",
+        "sha256:07039c77d05224c98a14d2111e5f09bfb20d928ba82dcb8704853d003bb29091",
     ),
     "platform-integration-bundle.staging.synthetic.v1.json": (
         "platform-integration-bundle",
-        "sha256:6fc56779c115978e38f3db5d2cad671c482f898bbab911f2fb523b9ca7865af7",
+        "sha256:462f3c33853b9c63cb2fa23645766e86cba4f1f525a09d3890d59e2e3f8b2db0",
     ),
     "qualification-evidence.staging.synthetic.v1.json": (
         "qualification-evidence",
-        "sha256:d9d4274691cd628ef3bdb21fa2626d901339ee4d485ec1c9732c31da5f29e914",
+        "sha256:24df3c604305298ee24086c94294b16a3d0257bddde1de996c0a84a569ce1e7c",
     ),
 }
 

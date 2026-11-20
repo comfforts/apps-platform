@@ -99,6 +99,8 @@ class LocalPlatformIntegrationReader:
         status: dict[str, Any],
         generation: RegistrationGenerationProposal,
     ) -> str:
+        if status.get("source_authority") != "accepted":
+            return "unqualified"
         pointer_payload = self._filesystem.read_state(
             f"environments/{environment}/qualification/current-evidence.v1.json"
         )
@@ -126,6 +128,7 @@ class LocalPlatformIntegrationReader:
         evidence = loaded.value
         bindings = (
             ("environment", environment),
+            ("source_authority", "accepted"),
             ("source_revision", status.get("source_revision")),
             ("profile_digest", status.get("profile_digest")),
             ("specification_digest", status.get("specification_digest")),
@@ -162,6 +165,7 @@ class LocalPlatformIntegrationReader:
             raise ValueError("active registration generation is invalid")
         required = (
             "profile_digest",
+            "source_authority",
             "source_revision",
             "specification_digest",
             "journal_digest",
@@ -184,6 +188,7 @@ class LocalPlatformIntegrationReader:
                 status,
                 generation,
             ),
+            source_authority=str(status["source_authority"]),
         )
 
 

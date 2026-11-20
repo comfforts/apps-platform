@@ -115,6 +115,7 @@ class QualificationRequest:
     registration_generation_digest: str
     component_revisions: tuple[ComponentRevision, ...]
     fixture_revisions: tuple[FixtureRevision, ...]
+    source_authority: str = "accepted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +131,7 @@ class QualificationReadback:
     registration_generation_digest: str
     component_revisions: tuple[ComponentRevision, ...]
     fixture_revisions: tuple[FixtureRevision, ...]
+    source_authority: str = "accepted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -329,6 +331,10 @@ class QualificationLifecycle:
                 "QUALIFICATION_SOURCE_MISMATCH",
             ),
             (
+                current.source_authority == request.source_authority,
+                "QUALIFICATION_SOURCE_AUTHORITY_MISMATCH",
+            ),
+            (
                 current.profile_digest == request.profile_digest,
                 "QUALIFICATION_PROFILE_MISMATCH",
             ),
@@ -434,6 +440,7 @@ class QualificationLifecycle:
             "contract_version": 1,
             "document_kind": "qualification-evidence",
             "environment": request.environment,
+            "source_authority": request.source_authority,
             "source_revision": request.source_revision,
             "profile_digest": request.profile_digest,
             "specification_digest": request.specification_digest,
@@ -453,8 +460,13 @@ class QualificationLifecycle:
         }
         if validate_lifecycle_document(evidence, "qualification-evidence"):
             return self._blocked("QUALIFICATION_EVIDENCE_INVALID")
+        outcome = (
+            "candidate-qualified"
+            if verdict == "qualified" and request.source_authority == "candidate"
+            else verdict
+        )
         return QualificationResult(
-            outcome=verdict,
+            outcome=outcome,
             evidence=evidence,
             evidence_digest=lifecycle_digest(
                 evidence,
@@ -481,6 +493,7 @@ class QualificationLifecycle:
             ),
             component_revisions=current.component_revisions,
             fixture_revisions=current.fixture_revisions,
+            source_authority=current.source_authority,
         )
         return self.qualify(request)
 

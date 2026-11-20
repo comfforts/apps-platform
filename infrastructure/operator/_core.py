@@ -25,6 +25,10 @@ from infrastructure.operator._interfaces import (
     StageExecution,
     StatusResult,
 )
+from infrastructure.operator.source_authority import (
+    source_authority_blockers,
+    validate_source_authority,
+)
 
 
 _PROFILE_PATHS = {
@@ -214,8 +218,14 @@ def _deployment_stages() -> list[dict[str, object]]:
 class LifecycleOperator:
     """Prepare and approve exact lifecycle intent without external mutation."""
 
-    def __init__(self, adapters: OperatorAdapters) -> None:
+    def __init__(
+        self,
+        adapters: OperatorAdapters,
+        *,
+        source_authority: str = "accepted",
+    ) -> None:
         self._adapters = adapters
+        self._source_authority = validate_source_authority(source_authority)
 
     def _load_profile(self, environment: str) -> tuple[dict[str, Any], str]:
         try:
@@ -230,22 +240,18 @@ class LifecycleOperator:
             raise ValueError(f"invalid committed environment profile: {loaded.violations!r}")
         return loaded.value, loaded.digest
 
-    @staticmethod
-    def _source_blockers(snapshot: GitSnapshot) -> list[str]:
-        blockers: list[str] = []
-        if snapshot.repository != "comfforts/apps-platform":
-            blockers.append("REPOSITORY_MISMATCH")
-        if not snapshot.clean:
-            blockers.append("SOURCE_NOT_CLEAN")
-        if snapshot.branch != "main":
-            blockers.append("SOURCE_NOT_MAIN")
-        if not (
-            snapshot.revision
-            == snapshot.main_revision
-            == snapshot.origin_main_revision
-        ):
-            blockers.append("SOURCE_NOT_CURRENT")
-        return blockers
+    def _source_blockers(
+        self,
+        snapshot: GitSnapshot,
+        environment: str,
+    ) -> list[str]:
+        return list(
+            source_authority_blockers(
+                snapshot,
+                environment,
+                self._source_authority,
+            )
+        )
 
     @staticmethod
     def _discovery_conflicts(
@@ -274,8 +280,8 @@ class LifecycleOperator:
             return ["DISCOVERY_CONFLICT"]
         return []
 
-    @staticmethod
     def _specification(
+        self,
         environment: str,
         profile_digest: str,
         revision: str,
@@ -287,6 +293,7 @@ class LifecycleOperator:
             "operation": "deploy",
             "profile_digest": profile_digest,
             "source": {
+                "authority": self._source_authority,
                 "repository": "comfforts/apps-platform",
                 "revision": revision,
             },
@@ -650,6 +657,7 @@ class LifecycleOperator:
                 "document_kind": "environment-status",
                 "environment": environment,
                 "profile_digest": profile_digest,
+                "source_authority": None,
                 "source_revision": None,
                 "specification_digest": None,
                 "journal_digest": None,
@@ -669,6 +677,7 @@ class LifecycleOperator:
                 "document_kind": "environment-status",
                 "environment": environment,
                 "profile_digest": profile_digest,
+                "source_authority": None,
                 "source_revision": None,
                 "specification_digest": None,
                 "journal_digest": None,
@@ -684,9 +693,12 @@ class LifecycleOperator:
         specification = self._load_specification(environment, specification_digest)
         source = specification["source"]
         assert isinstance(source, dict)
+        source_authority = str(source["authority"])
         source_revision = str(source["revision"])
         git = self._adapters.git.inspect()
-        conflicts = self._source_blockers(git)
+        conflicts = self._source_blockers(git, environment)
+        if source_authority != self._source_authority:
+            conflicts.append("SOURCE_AUTHORITY_MISMATCH")
         if git.revision != source_revision:
             conflicts.append("SOURCE_REVISION_MISMATCH")
         if specification.get("profile_digest") != profile_digest:
@@ -700,6 +712,7 @@ class LifecycleOperator:
                 "document_kind": "environment-status",
                 "environment": environment,
                 "profile_digest": profile_digest,
+                "source_authority": None,
                 "source_revision": None,
                 "specification_digest": None,
                 "journal_digest": None,
@@ -746,6 +759,7 @@ class LifecycleOperator:
             "document_kind": "environment-status",
             "environment": environment,
             "profile_digest": profile_digest,
+            "source_authority": source_authority,
             "source_revision": source_revision,
             "specification_digest": specification_digest,
             "journal_digest": journal_digest,
@@ -786,7 +800,9 @@ class LifecycleOperator:
         assert isinstance(source, dict)
         source_revision = str(source["revision"])
         git = self._adapters.git.inspect()
-        blockers = self._source_blockers(git)
+        blockers = self._source_blockers(git, environment)
+        if source.get("authority") != self._source_authority:
+            blockers.append("SOURCE_AUTHORITY_MISMATCH")
         if git.revision != source_revision:
             blockers.append("SOURCE_REVISION_MISMATCH")
         if specification.get("profile_digest") != profile_digest:
@@ -984,7 +1000,7 @@ class LifecycleOperator:
             self._adapters.terraform.inspect(),
             self._adapters.dns.inspect(profile),
         )
-        blockers = self._source_blockers(git)
+        blockers = self._source_blockers(git, environment)
         blockers.extend(
             blocker for discovery in discoveries for blocker in discovery.blockers
         )

@@ -1,6 +1,6 @@
 # App Platform threat model
 
-Version 1.10 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
+Version 1.11 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
 implemented AP-M9-W8 repository lifecycle controls; no provider operation or live
 infrastructure is deployed
 
@@ -785,10 +785,14 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   directly. Profiles, specifications, journals, bundles, status, logs, and evidence exclude
   credentials, secret values, state, plans, raw provider responses, browser state, identity claims,
   restricted membership, and application data.
-- **AP-TM-011:** The lifecycle binds clean reviewed source, pinned tools and dependencies, one
-  environment, an approved specification digest, the verified active human account and provider
-  project, an exact plan, and readback. A profile or journal edit, alternate source, wrong project, provider
-  default, console mutation, or unexpected drift stops before continuation.
+- **AP-TM-011:** The lifecycle binds explicit source authority, clean reviewed source, pinned tools
+  and dependencies, one environment, an approved specification digest, the verified active human
+  account and provider project, an exact plan, and readback. Accepted Source must be exact current
+  protected main. Candidate Source must be a clean pushed matching branch containing current
+  `origin/main`, is staging-only, records separate evidence, and cannot authorize production or
+  overwrite accepted qualification. A profile or journal edit, alternate or unpushed source, stale
+  candidate base, wrong project, provider default, console mutation, or unexpected drift stops
+  before continuation.
 - **AP-TM-012:** Preparation inventories every billable resource and destruction names every target.
   Existing limits, budgets, retention, scale-to-zero, and approved-service controls remain. A
   budget event never authorizes automated destruction.
@@ -830,8 +834,9 @@ destruction refusal, exact scope confirmation, post-confirmation reread, ordered
 destruction, retained recovery/evidence boundaries, and create-only resume state. The non-fake
 deployment adapters are wired behind pinned-tool, exact-project, active-account, user-ADC,
 digest-bound plan, confirmation, source-upload allow-list, and readback gates, but remain uninvoked;
-W9 adds the missing repository-only Fixture Application deployment lifecycle and completes every
-operator target needed before W10 may perform the first staging operation.
+W9 adds the repository-only Fixture Application deployment lifecycle, browser qualification, and
+closed safe-destruction transitions, completing every operator target needed before W10 may perform
+the first staging operation.
 No current result proves an identity, backend, provider, OAuth, DNS,
 deployment, or Live control operational.
 
@@ -849,7 +854,7 @@ pass:
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
 | Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
-| Executable fixture image, independent Application State plans, attachment handoff, registration, status, and destruction | AP-M9-W9 acceptance before the first staging operation |
+| Executable fixture image, independent Application State plans, attachment handoff, registration, status, destruction, and staging Candidate Source admission | AP-M9-W9 acceptance before candidate verification or the first accepted staging operation |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |

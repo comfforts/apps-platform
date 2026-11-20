@@ -58,6 +58,7 @@ class DestructionRequest:
     deployment_journal_digest: str
     registration_generation_digest: str
     qualification_evidence_digest: str
+    source_authority: str = "accepted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +77,7 @@ class DestructionSnapshot:
     platform_resource_types: tuple[str, ...]
     retained_resource_types: tuple[str, ...]
     ownership_matches: bool
+    source_authority: str = "accepted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,6 +203,11 @@ def _blockers(
     comparisons = (
         (snapshot.environment, request.environment, "DESTRUCTION_ENVIRONMENT_MISMATCH"),
         (snapshot.source_revision, request.source_revision, "DESTRUCTION_SOURCE_MISMATCH"),
+        (
+            snapshot.source_authority,
+            request.source_authority,
+            "DESTRUCTION_SOURCE_AUTHORITY_MISMATCH",
+        ),
         (snapshot.profile_digest, request.profile_digest, "DESTRUCTION_PROFILE_MISMATCH"),
         (
             snapshot.deployed_specification_digest,
@@ -254,6 +261,7 @@ def compile_destruction_specification(
         "operation": "destroy",
         "profile_digest": request.profile_digest,
         "source": {
+            "authority": request.source_authority,
             "repository": "comfforts/apps-platform",
             "revision": request.source_revision,
         },
@@ -690,6 +698,7 @@ class DestructionLifecycle:
             qualification_evidence_digest=(
                 current.qualification_evidence_digest
             ),
+            source_authority=current.source_authority,
         )
         return self.destroy(request)
 

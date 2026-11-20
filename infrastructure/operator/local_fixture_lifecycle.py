@@ -34,6 +34,10 @@ from infrastructure.operator.integration import (
     RegistrationIntent,
     PlatformIntegrationReader,
 )
+from infrastructure.operator.source_authority import (
+    source_authority_blockers,
+    validate_source_authority,
+)
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 
 
@@ -537,11 +541,14 @@ class LocalFixtureOperator:
         platform: PlatformIntegrationReader,
         lifecycle,
         handoffs: LocalApplicationHandoffs | None = None,
+        *,
+        source_authority: str = "accepted",
     ) -> None:  # type: ignore[no-untyped-def]
         self._git = git
         self._platform = platform
         self._lifecycle = lifecycle
         self._handoffs = handoffs
+        self._source_authority = validate_source_authority(source_authority)
 
     def deploy(self, environment: str):  # type: ignore[no-untyped-def]
         from infrastructure.operator.fixture_lifecycle import (
@@ -561,17 +568,15 @@ class LocalFixtureOperator:
                 None,
                 ("FIXTURE_PREFLIGHT_FAILED",),
             )
-        blockers = []
-        if source.repository != "comfforts/apps-platform":
-            blockers.append("SOURCE_REPOSITORY_MISMATCH")
-        if not source.clean:
-            blockers.append("SOURCE_WORKTREE_DIRTY")
-        if source.branch != "main":
-            blockers.append("SOURCE_BRANCH_MISMATCH")
-        if not (
-            source.revision == source.main_revision == source.origin_main_revision
-        ):
-            blockers.append("SOURCE_REVISION_MISMATCH")
+        blockers = list(
+            source_authority_blockers(
+                source,
+                environment,
+                self._source_authority,
+            )
+        )
+        if platform.source_authority != self._source_authority:
+            blockers.append("SOURCE_AUTHORITY_MISMATCH")
         if platform.environment != environment or platform.lifecycle_state != "deployed":
             blockers.append("PLATFORM_NOT_DEPLOYED")
         if blockers:
@@ -655,17 +660,15 @@ class LocalFixtureOperator:
             )
         except ValueError:
             handoff = None
-        blockers = []
-        if source.repository != "comfforts/apps-platform":
-            blockers.append("SOURCE_REPOSITORY_MISMATCH")
-        if not source.clean:
-            blockers.append("SOURCE_WORKTREE_DIRTY")
-        if source.branch != "main":
-            blockers.append("SOURCE_BRANCH_MISMATCH")
-        if not (
-            source.revision == source.main_revision == source.origin_main_revision
-        ):
-            blockers.append("SOURCE_REVISION_MISMATCH")
+        blockers = list(
+            source_authority_blockers(
+                source,
+                environment,
+                self._source_authority,
+            )
+        )
+        if platform.source_authority != self._source_authority:
+            blockers.append("SOURCE_AUTHORITY_MISMATCH")
         if platform.lifecycle_state != "deployed":
             blockers.append("PLATFORM_NOT_DEPLOYED")
         if handoff is None:

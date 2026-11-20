@@ -1,6 +1,6 @@
 # App Platform architecture decision records
 
-Version 0.7 | Status: accepted decisions through the AP-M9 operator-driven environment lifecycle;
+Version 0.8 | Status: accepted decisions through the AP-M9 operator-driven environment lifecycle;
 no platform infrastructure is deployed
 
 These records capture hard-to-reverse App Platform boundaries. They are authoritative only for this
@@ -871,12 +871,17 @@ verify than the proven Finance Assistant scripts.
 
 ### Decision
 
-The normal local lifecycle verifies the active human account, exact provider project, clean current
-`main`, pinned tools, selected environment, and reviewed Deployment Specification before mutation.
-It uses that short-lived human-authenticated session directly for the bounded interactive run. It
-creates no operation-identity fleet, impersonation binding, service-account key, or long-lived
-credential. Runtime service accounts remain Terraform-managed resources with their existing
-Platform State or Application State owners.
+The normal local lifecycle verifies the active human account, exact provider project, explicit
+source authority, pinned tools, selected environment, and reviewed Deployment Specification before
+mutation. Accepted Source is the exact clean current protected `main`. Candidate Source is a clean
+pushed non-main revision whose matching origin branch contains current `origin/main`; it is admitted
+only for pre-merge staging verification. Source authority is part of the specification and bundle
+bindings. Candidate qualification uses separate evidence pointers, cannot overwrite accepted
+qualification, cannot authorize production, and must be repeated from Accepted Source after merge.
+The lifecycle uses that short-lived human-authenticated session directly for the bounded interactive
+run. It creates no operation-identity fleet, impersonation binding, service-account key, or
+long-lived credential. Runtime service accounts remain Terraform-managed resources with their
+existing Platform State or Application State owners.
 
 For ordinary reversible staging creation and update, the owner's deliberate invocation of the
 named command selects the operation. The same process prepares and displays the specification,
@@ -904,6 +909,8 @@ interactive interface.
   repository merge alone never starts one.
 - Source binding is enforced by the lifecycle and retained evidence rather than by a remote runner
   alone.
+- A pull request can exercise the real staging provider boundary before merge without presenting
+  its result as accepted-main qualification; production remains main-only.
 - The operator account remains powerful; exact plans, small command allow-lists, confirmations,
   readback, drift detection, and evidence are the active controls. Provider IAM outside the script
   remains an owner responsibility and residual risk.

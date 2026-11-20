@@ -14,6 +14,7 @@
     "route_intent",
     "generation",
     "profile_digest",
+    "platform_source_authority",
     "platform_source_revision",
     "specification_digest",
     "journal_digest",
@@ -42,6 +43,7 @@
       "maximum": 2147483647
     },
     "profile_digest": {"$ref": "#/$defs/digest"},
+    "platform_source_authority": {"enum": ["accepted", "candidate"]},
     "platform_source_revision": {"$ref": "#/$defs/sourceRevision"},
     "specification_digest": {"$ref": "#/$defs/digest"},
     "journal_digest": {"$ref": "#/$defs/digest"},

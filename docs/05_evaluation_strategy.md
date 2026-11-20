@@ -1,6 +1,6 @@
 # App Platform evaluation strategy
 
-Version 0.14 | Status: AP-M9-W8 qualification and safe-destruction repository controls implemented; historical AP-EVAL-M8
+Version 0.16 | Status: AP-M9-W9 fixture lifecycle and live-adapter repository controls implemented; historical AP-EVAL-M8
 and standalone AP-EVAL-M9 proposals superseded without execution; no AP-M9 provider or Live result
 exists
 
@@ -17,6 +17,8 @@ supplies deterministic least-data output, attachment/target validation, immutabl
 activation, detach/reactivate, retirement, route-response, interruption, and conflict evidence.
 W8 supplies deterministic exact-revision qualification, evidence redaction, network-fixture,
 failure-injection, rollback, destruction-scope, confirmation, interruption, and resume evidence.
+W9 supplies deterministic source-bound fixture deployment, independent state, handoff, registration,
+browser qualification, exact destruction-transition, retained-resource, status, and redeployment evidence.
 No result qualifies a provider operation, Live environment, consuming application's adoption, or
 product authorization.
 
@@ -1540,8 +1542,13 @@ It performs no credential lookup, provider request, DNS lookup, Terraform backen
 mutation, or browser action. It uses synthetic profiles, command fakes, temporary mode-`0700`
 directories, mocked Terraform providers, process-local loopback, and deterministic clocks.
 
-Staging Live gates begin only after AP-M9-W1 through W9 are merged and the exact protected-main
-revision passes the complete gate. The owner starts an ordinary reversible staging creation or
+Accepted staging Live gates begin only after AP-M9-W1 through W9 are merged and the exact
+protected-main revision passes the complete gate. Before merge, a clean pushed pull-request
+revision containing current `origin/main` may run the same staging journey with
+`SOURCE_AUTHORITY=candidate` to test provider behavior. Candidate specifications, bundles, and
+evidence remain digest-bound and separate, cannot satisfy AP-EVAL-M9, cannot overwrite accepted
+qualification, and cannot authorize production. After merge, the owner repeats deployment and
+qualification from Accepted Source. The owner starts an ordinary reversible staging creation or
 update by deliberately invoking its named command; that process completes specification approval,
 exact plan or bounded-action confirmation, and readback without a duplicate out-of-band approval.
 Destruction, purge, ownership transfer, production cutover, scope expansion, rollback, or recovery

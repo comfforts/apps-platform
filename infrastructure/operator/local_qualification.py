@@ -80,6 +80,7 @@ class LocalQualificationStateReader:
         required_status = (
             "journal_digest",
             "profile_digest",
+            "source_authority",
             "source_revision",
             "specification_digest",
         )
@@ -138,6 +139,7 @@ class LocalQualificationStateReader:
             registration_generation_digest=proposal.generation_digest,
             component_revisions=tuple(sorted(provider.component_revisions)),
             fixture_revisions=tuple(sorted(fixtures)),
+            source_authority=str(status["source_authority"]),
         )
 
 

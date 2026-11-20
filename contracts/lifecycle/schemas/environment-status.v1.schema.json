@@ -10,6 +10,7 @@
     "document_kind",
     "environment",
     "profile_digest",
+    "source_authority",
     "source_revision",
     "specification_digest",
     "journal_digest",
@@ -23,6 +24,12 @@
     "document_kind": {"const": "environment-status"},
     "environment": {"enum": ["production", "staging"]},
     "profile_digest": {"$ref": "#/$defs/digest"},
+    "source_authority": {
+      "oneOf": [
+        {"type": "null"},
+        {"enum": ["accepted", "candidate"]}
+      ]
+    },
     "source_revision": {
       "oneOf": [{"type": "null"}, {"$ref": "#/$defs/sourceRevision"}]
     },

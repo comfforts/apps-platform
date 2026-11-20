@@ -27,6 +27,7 @@ class FakeStatus:
                 "journal_digest": self._journal_digest,
                 "lifecycle_state": "deployed",
                 "profile_digest": "sha256:" + ("1" * 64),
+                "source_authority": "accepted",
                 "source_revision": "a" * 40,
                 "specification_digest": "sha256:" + ("2" * 64),
             }

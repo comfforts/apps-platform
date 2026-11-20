@@ -77,15 +77,16 @@ readback, the closed ten-check suite, process-local networked Fixture Applicatio
 reviewed whole-generation rollback, safe-destruction compilation/orchestration, private create-only
 destruction progress, least-data fixture handoff records, guarded Cloud SDK generation and target
 adapters, the production Shared Edge composition, its non-root image entry point, and
-`platform-qualify`/`platform-destroy`. Qualification and destruction live entry points remain gated
-on explicit W9 authority; this repository slice performed no provider request, image build,
-generation activation, rollback, qualification, or destruction.
+`platform-qualify`/`platform-destroy`. W9 replaces the former live-entry implementation gates with
+verified-session qualification and exact retained-resource destruction adapters; neither W8 nor W9
+performed a provider request, image build, generation activation, rollback, qualification, or destruction.
 
 AP-M9-W9 adds the executable Fixture Application owner lifecycle over the existing image and three
 independent Terraform roots. It introduces shallow `fixture-deploy`, `fixture-status`, and
 `fixture-destroy` targets over the deep operator module, automatic platform/attachment bundle
 handoff, provider posture readback, complete-generation registration, and deterministic fake
-coverage. Repository implementation performs no external operation; AP-M9-W10 is the first staging
+coverage, plus live qualification and safe platform-destruction adapter completion. Repository
+implementation performs no external operation; AP-M9-W10 is the first staging
 invocation from merged code.
 
 ## AP-M9 capability locations

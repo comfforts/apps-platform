@@ -4,7 +4,7 @@ Prompts are bounded task entry points, not architecture authority. Each prompt m
 platform documentation required for its task instead of copying requirements, decisions, or
 acceptance criteria.
 
-- [AP-M9-W9 Fixture Application deployment lifecycle handoff](starting_prompt.md) starts a new chat
+- [AP-M9-W10 staging operation handoff](starting_prompt.md) starts a new chat
   from updated, clean `main` only after the AP-M9-W8 pull request merges. It adds the interactive
   synthetic application-owner deployment, status, handoff, registration, and destruction path.
 

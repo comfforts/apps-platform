@@ -32,6 +32,7 @@ class PlatformIntegrationState:
     oauth_client_id: str | None
     edge_caller_reference: str
     qualification_status: str
+    source_authority: str = "accepted"
 
 
 class PlatformIntegrationReader(Protocol):
@@ -271,6 +272,7 @@ class ApplicationIntegrationLifecycle:
             "generation": state.generation,
             "profile_digest": state.profile_digest,
             "platform_source_revision": state.platform_source_revision,
+            "platform_source_authority": state.source_authority,
             "specification_digest": state.specification_digest,
             "journal_digest": state.journal_digest,
             "endpoints": {
@@ -329,6 +331,8 @@ class ApplicationIntegrationLifecycle:
             and bundle.get("profile_digest") == state.profile_digest
             and bundle.get("platform_source_revision")
             == state.platform_source_revision
+            and bundle.get("platform_source_authority")
+            == state.source_authority
             and bundle.get("specification_digest") == state.specification_digest
             and bundle.get("journal_digest") == state.journal_digest
             and bundle.get("generation") == state.generation

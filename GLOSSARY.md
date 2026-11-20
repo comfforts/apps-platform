@@ -59,6 +59,22 @@ in-process specification and plan confirmations together authorize that executio
 out-of-band approval is not another safety boundary. Destruction, purge, ownership transfer,
 production cutover, and scope expansion remain separately governed decisions.
 
+## Accepted Source
+
+The reviewed source revision on the repository's current protected main branch. Accepted Source is
+the only source authority that can qualify a Platform Environment for normal use or operate on
+production.
+
+## Candidate Source
+
+A clean pushed pull-request revision admitted only for staging verification before merge. Candidate
+Source remains visibly distinct from Accepted Source and cannot produce accepted qualification.
+
+## Candidate Qualification
+
+Revision-bound staging evidence showing that a Candidate Source passed its declared checks. It is
+pre-merge verification evidence, not accepted Platform Environment qualification.
+
 ## Canonical Plan Summary
 
 The deterministic non-secret projection of a Terraform plan used for policy and digest binding. It
@@ -206,4 +222,5 @@ application's own authorities, implementation, migration, evidence, and release 
 ## Qualification
 
 Versioned evidence that implemented behavior passed its declared evaluation gate. The presence of
-documentation, code, or a cloud resource alone is not qualification.
+documentation, code, or a cloud resource alone is not qualification; Candidate Qualification does
+not replace qualification from Accepted Source.

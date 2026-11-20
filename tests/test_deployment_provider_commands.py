@@ -27,6 +27,7 @@ REGION = "us-west1"
 class FakeGcloud:
     generation_contents: bytes
     requests: list[ProviderCommandRequest] = field(default_factory=list)
+    image_built: bool = False
 
     def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
         self.requests.append(request)
@@ -70,6 +71,13 @@ class FakeGcloud:
                 ).encode(),
                 b"",
             )
+        if arguments[:4] == ("artifacts", "docker", "images", "describe"):
+            if not self.image_built:
+                return ProviderCommandResult(1, b"", b"not found")
+            return ProviderCommandResult(0, b"sha256:" + b"d" * 64 + b"\n", b"")
+        if arguments[:2] == ("builds", "submit"):
+            self.image_built = True
+            return ProviderCommandResult(0, b"{}", b"")
         return ProviderCommandResult(2, b"", b"unexpected secret output")
 
 
@@ -145,6 +153,37 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
         self.assertTrue(secret.endswith("/versions/1"))
         self.assertTrue(certificate.ready)
         self.assertNotIn("secret payload", repr((signing, secret, certificate)))
+
+    def test_shared_edge_build_is_source_tagged_and_returns_only_digest_reference(
+        self,
+    ) -> None:
+        generation = initial_generation("d" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / "infrastructure/images/shared-edge/cloudbuild.yaml"
+            config.parent.mkdir(parents=True)
+            config.write_text("steps: []\n", encoding="utf-8")
+            fake = FakeGcloud(generation.contents)
+            provider = self._provider(directory, fake)
+
+            reference = provider.publish_shared_edge_image("e" * 40)
+            resumed = provider.publish_shared_edge_image("e" * 40)
+
+        self.assertEqual(reference, resumed)
+        self.assertTrue(reference.endswith("@sha256:" + "d" * 64))
+        builds = [
+            request
+            for request in fake.requests
+            if request.argv[1:3] == ("builds", "submit")
+        ]
+        self.assertEqual(len(builds), 1)
+        self.assertEqual(builds[0].timeout_seconds, 900)
+        self.assertIn(
+            "--substitutions=_IMAGE=us-west1-docker.pkg.dev/"
+            "comfforts-platform-non-prod/app-platform-images/shared-edge:source-"
+            + "e" * 40,
+            builds[0].argv,
+        )
 
     def test_closed_runner_rejects_session_switch_and_unapproved_commands(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

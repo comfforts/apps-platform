@@ -22,6 +22,8 @@ _ALLOWED_ENVIRONMENT = {
     "CLOUDSDK_PYTHON_SITEPACKAGES",
 }
 _ALLOWED_COMMANDS = {
+    ("artifacts", "docker", "images", "describe"),
+    ("builds", "submit"),
     ("compute", "ssl-certificates", "describe"),
     ("kms", "keys", "versions", "list"),
     ("secrets", "versions", "list"),
@@ -50,6 +52,10 @@ _OAUTH_SECRET = "app-platform-edge-oauth"
 _SIGNING_KEY_RING = "app-platform"
 _SIGNING_KEY = "edge-signing"
 _CERTIFICATE = "app-platform-edge-certificate"
+_IMAGE_PACKAGE = (
+    f"{_REGION}-docker.pkg.dev/{_PROJECT_ID}/app-platform-images/shared-edge"
+)
+_SOURCE_REVISION = re.compile(r"[0-9a-f]{40}")
 _VERSION_REFERENCE = re.compile(
     r"projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
     r"app-platform/cryptoKeys/edge-signing/cryptoKeyVersions/[1-9][0-9]*"
@@ -171,21 +177,30 @@ class GcloudDeploymentProvider:
         self,
         *arguments: str,
         stdin: bytes | None = None,
+        timeout_seconds: int = 300,
     ) -> ProviderCommandRequest:
         return ProviderCommandRequest(
             argv=(str(self._executable), *arguments),
             cwd=self._working_root,
             environment=self._environment(),
             stdin=stdin,
+            timeout_seconds=timeout_seconds,
         )
 
     def _try(
         self,
         *arguments: str,
         stdin: bytes | None = None,
+        timeout_seconds: int = 300,
     ) -> ProviderCommandResult:
         try:
-            return self._runner.run(self._request(*arguments, stdin=stdin))
+            return self._runner.run(
+                self._request(
+                    *arguments,
+                    stdin=stdin,
+                    timeout_seconds=timeout_seconds,
+                )
+            )
         except (OSError, subprocess.SubprocessError, ValueError) as error:
             raise DeploymentProviderError("PROVIDER_COMMAND_REJECTED") from error
 
@@ -194,8 +209,13 @@ class GcloudDeploymentProvider:
         code: str,
         *arguments: str,
         stdin: bytes | None = None,
+        timeout_seconds: int = 300,
     ) -> ProviderCommandResult:
-        result = self._try(*arguments, stdin=stdin)
+        result = self._try(
+            *arguments,
+            stdin=stdin,
+            timeout_seconds=timeout_seconds,
+        )
         if result.returncode != 0:
             raise DeploymentProviderError(code)
         return result
@@ -208,8 +228,15 @@ class GcloudDeploymentProvider:
         code: str,
         *arguments: str,
         stdin: bytes | None = None,
+        timeout_seconds: int = 300,
     ) -> ProviderCommandResult:
-        return self._run(code, *arguments, *self._common(), stdin=stdin)
+        return self._run(
+            code,
+            *arguments,
+            *self._common(),
+            stdin=stdin,
+            timeout_seconds=timeout_seconds,
+        )
 
     @staticmethod
     def _json(code: str, payload: bytes) -> Any:
@@ -284,6 +311,55 @@ class GcloudDeploymentProvider:
         if contents != generation.contents:
             raise DeploymentProviderError("GENERATION_OBJECT_CONTENT_MISMATCH")
         return object_generation
+
+    def read_shared_edge_image(self, source_revision: str) -> str | None:
+        if _SOURCE_REVISION.fullmatch(source_revision) is None:
+            raise ValueError("source revision must be exact")
+        tagged_image = f"{_IMAGE_PACKAGE}:source-{source_revision}"
+        result = self._try(
+            "artifacts",
+            "docker",
+            "images",
+            "describe",
+            tagged_image,
+            "--format=value(image_summary.digest)",
+            *self._common(),
+        )
+        if result.returncode != 0:
+            return None
+        digest = result.stdout.decode("ascii", errors="strict").strip()
+        if re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
+            raise DeploymentProviderError("EDGE_IMAGE_READBACK_INVALID")
+        return f"{_IMAGE_PACKAGE}@{digest}"
+
+    def publish_shared_edge_image(self, source_revision: str) -> str:
+        existing = self.read_shared_edge_image(source_revision)
+        if existing is not None:
+            return existing
+        config = (
+            self._working_root
+            / "infrastructure/images/shared-edge/cloudbuild.yaml"
+        ).resolve()
+        if (
+            self._working_root not in config.parents
+            or not config.is_file()
+            or config.is_symlink()
+        ):
+            raise DeploymentProviderError("EDGE_IMAGE_BUILD_CONFIG_INVALID")
+        tagged_image = f"{_IMAGE_PACKAGE}:source-{source_revision}"
+        self._run_common(
+            "EDGE_IMAGE_BUILD_FAILED",
+            "builds",
+            "submit",
+            str(self._working_root),
+            f"--config={config}",
+            f"--substitutions=_IMAGE={tagged_image}",
+            timeout_seconds=900,
+        )
+        observed = self.read_shared_edge_image(source_revision)
+        if observed is None:
+            raise DeploymentProviderError("EDGE_IMAGE_READBACK_MISSING")
+        return observed
 
     def active_signing_key_version(self) -> str:
         values = self._json(

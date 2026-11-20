@@ -54,7 +54,10 @@ OAuth, Shared Edge, external DNS, TLS, and final readback stages. Terraform muta
 fresh mode-`0600` saved plan under a
 mode-`0700` private root, W5 policy acceptance, a redacted summary and digest, a `y/N`
 confirmation, application of the same bound artifact, and provider/state readback. Image actions
-use the same reviewed confirmation model. OAuth and DNS display exact non-secret instructions,
+use the same reviewed confirmation model. The operator module derives the four backend buckets,
+foundation names, notification email, empty initial Registration Generation, and phase variable
+files from committed profile, verified session, and prior stage outputs; the human maintains no
+Terraform variable manifest. OAuth and DNS display exact non-secret instructions,
 wait for Enter in the same process, and then use provider-verified or explicitly operator-attested
 readback with bounded DNS/TLS polling.
 

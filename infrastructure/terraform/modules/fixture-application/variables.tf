@@ -12,6 +12,7 @@ variable "runtime_configuration" {
     platform_issuer             = string
     public_key_reference        = string
     labels                      = map(string)
+    destruction_enabled         = bool
   })
 }
 

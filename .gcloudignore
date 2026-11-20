@@ -8,8 +8,13 @@
 !contracts/schemas/**
 !edge/
 !edge/*.py
+!fixtures/
+!fixtures/*.py
 !infrastructure/
 !infrastructure/images/
+!infrastructure/images/fixture/
+!infrastructure/images/fixture/Dockerfile
+!infrastructure/images/fixture/cloudbuild.yaml
 !infrastructure/images/shared-edge/
 !infrastructure/images/shared-edge/Dockerfile
 !infrastructure/images/shared-edge/cloudbuild.yaml

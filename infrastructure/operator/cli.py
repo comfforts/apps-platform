@@ -51,6 +51,7 @@ def _parser() -> argparse.ArgumentParser:
             "destroy",
             "fixture-deploy",
             "fixture-status",
+            "fixture-destroy",
         ),
         help="platform lifecycle operation",
     )
@@ -205,7 +206,7 @@ def main(
                 }
             )
             return 2
-    elif arguments.operation == "fixture-deploy":
+    elif arguments.operation in {"fixture-deploy", "fixture-destroy"}:
         try:
             fixture = fixture_factory(arguments.state_directory)
         except RuntimeError as error:
@@ -308,6 +309,25 @@ def main(
             }
         )
         return 0 if result.outcome == "read" else 2
+
+    if arguments.operation == "fixture-destroy":
+        result = fixture.destroy(
+            arguments.environment,
+            str(_required(arguments, "application_id")),
+        )
+        _print(
+            {
+                "application_id": result.application_id,
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "outcome": result.outcome,
+                "registration_generation": result.registration_generation,
+                "registration_generation_digest": (
+                    result.registration_generation_digest
+                ),
+            }
+        )
+        return 0 if result.outcome == "destroyed" else 2
 
     if arguments.operation == "deploy":
         specification_digest = arguments.specification_digest

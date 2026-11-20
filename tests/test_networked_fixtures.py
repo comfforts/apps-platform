@@ -207,6 +207,17 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertIn("org.opencontainers.image.revision=${_SOURCE_REVISION}", cloudbuild)
         self.assertNotIn("latest", cloudbuild.lower())
 
+        upload_allowlist = (PROJECT_ROOT / ".gcloudignore").read_text(
+            encoding="utf-8"
+        )
+        for required in (
+            "!fixtures/",
+            "!fixtures/*.py",
+            "!infrastructure/images/fixture/Dockerfile",
+            "!infrastructure/images/fixture/cloudbuild.yaml",
+        ):
+            self.assertIn(required, upload_allowlist)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -12,7 +12,7 @@ INTEGRATION_BUNDLE ?=
 ATTACHMENT_BUNDLE ?=
 REGISTRATION_INTENT ?=
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-prepare platform-deploy platform-status platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-deploy fixture-status
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-prepare platform-deploy platform-status platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-deploy fixture-status fixture-destroy
 
 check: governance-check contract-check fixture-check runtime-check terraform-check operator-check ## Run every implemented deterministic platform check.
 
@@ -69,3 +69,6 @@ fixture-deploy: terraform-setup ## Build, deploy, validate, and register all thr
 
 fixture-status: ## Reconcile fixture registrations and provider targets without mutation.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-status --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"
+
+fixture-destroy: terraform-setup ## Detach and destroy one selected fixture Application State.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-destroy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --application-id "$(APPLICATION_ID)"

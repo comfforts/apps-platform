@@ -250,6 +250,7 @@ class TerraformCliAdapter:
         variable_file: Path,
         *,
         bootstrap_remote: bool = False,
+        destroy: bool = False,
     ) -> TerraformPlanArtifact:
         root = self._bounded(terraform_root, file_required=False)
         if not root.is_dir():
@@ -285,18 +286,18 @@ class TerraformCliAdapter:
         )
         if initialized.returncode != 0:
             raise DeploymentCommandError("TERRAFORM_INIT_FAILED")
+        plan_arguments = [
+            "plan",
+            "-input=false",
+            "-lock=true",
+            "-lock-timeout=0s",
+            "-detailed-exitcode",
+        ]
+        if destroy:
+            plan_arguments.append("-destroy")
+        plan_arguments.extend((f"-var-file={variables}", f"-out={plan_path}"))
         planned = self._runner.run(
-            self._request(
-                root,
-                plan_environment,
-                "plan",
-                "-input=false",
-                "-lock=true",
-                "-lock-timeout=0s",
-                "-detailed-exitcode",
-                f"-var-file={variables}",
-                f"-out={plan_path}",
-            )
+            self._request(root, plan_environment, *plan_arguments)
         )
         if planned.returncode not in {0, 2}:
             raise DeploymentCommandError("TERRAFORM_PLAN_FAILED")
@@ -412,6 +413,25 @@ class TerraformCliAdapter:
             return json.loads(observed.stdout)
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
             raise DeploymentCommandError("TERRAFORM_OUTPUT_INVALID") from error
+
+    def state_empty(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> bool:
+        """Read only whether the exact initialized fixture lineage is empty."""
+
+        if not request.phase.startswith("fixture-"):
+            raise ValueError("state emptiness readback is allowed only for a fixture root")
+        root = self._bounded(terraform_root, file_required=False)
+        observed = self._runner.run(
+            self._request(root, self._environment(), "state", "list")
+        )
+        if observed.returncode != 0:
+            raise DeploymentCommandError("TERRAFORM_STATE_READ_FAILED")
+        if len(observed.stdout) > 1024 * 1024:
+            raise DeploymentCommandError("TERRAFORM_STATE_OUTPUT_TOO_LARGE")
+        return not observed.stdout.strip()
 
 
 __all__ = (

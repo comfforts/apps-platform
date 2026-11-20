@@ -18,7 +18,10 @@ from infrastructure.operator.integration import (
     RegistrationIntent,
     RegistrationLifecycleResult,
 )
-from infrastructure.operator.fixture_lifecycle import FixtureDeployResult
+from infrastructure.operator.fixture_lifecycle import (
+    FixtureDeployResult,
+    FixtureDestroyResult,
+)
 from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationStatus,
     FixtureStatusResult,
@@ -131,6 +134,15 @@ class FakeFixtureOperator:
             ),
         )
 
+    def destroy(self, environment: str, application_id: str) -> FixtureDestroyResult:
+        self.environments.append(environment)
+        return FixtureDestroyResult(
+            "destroyed",
+            application_id,
+            9,
+            GENERATION_DIGEST,
+        )
+
 
 def _run(
     arguments: list[str],
@@ -186,6 +198,27 @@ class IntegrationCliTest(unittest.TestCase):
         serialized = json.dumps(result)
         self.assertNotIn("restricted_members", serialized)
         self.assertNotIn("terraform", serialized.lower())
+
+    def test_fixture_destroy_selects_one_application_and_emits_coarse_result(self) -> None:
+        fixture = FakeFixtureOperator()
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            code = main(
+                [
+                    "fixture-destroy",
+                    "--environment",
+                    "staging",
+                    "--application-id",
+                    "fixture-public",
+                ],
+                fixture_factory=lambda _: fixture,
+            )
+
+        result = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(result["outcome"], "destroyed")
+        self.assertEqual(result["application_id"], "fixture-public")
 
     def test_outputs_writes_one_canonical_create_only_bundle(self) -> None:
         lifecycle = FakeIntegrationLifecycle()

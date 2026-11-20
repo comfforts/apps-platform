@@ -481,6 +481,8 @@ class DeploymentExecutor:
         phase: str,
     ) -> StageExecution:
         observer = _ArtifactObserver(self._commands, context)
+        actions = context.stage.get("actions")
+        destructive = isinstance(actions, list) and "delete" in actions
         try:
             evaluated = prepare_phase_plan(
                 context.environment,
@@ -488,6 +490,7 @@ class DeploymentExecutor:
                 context.source_revision,
                 self._working_root,
                 observer,
+                destructive=destructive,
             )
         except EnvironmentUnavailableError as error:
             return self._failure(str(error))

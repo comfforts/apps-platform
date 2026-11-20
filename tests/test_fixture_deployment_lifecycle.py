@@ -12,6 +12,7 @@ from infrastructure.operator.fixture_lifecycle import (
     FixtureCommandError,
     FixtureDeployRequest,
     FixtureDeployResult,
+    FixtureDestroyRequest,
     FixtureImageReadback,
     FixtureRegistrationReadback,
     FixtureSuiteLifecycle,
@@ -20,6 +21,8 @@ from infrastructure.operator.integration import (
     AttachmentValidationResult,
     IntegrationBundleResult,
     RegistrationLifecycleResult,
+    RegistrationApplicationStatus,
+    RegistrationStatusResult,
 )
 from infrastructure.operator.local_fixture_lifecycle import (
     LocalFixtureLifecycleCommands,
@@ -324,6 +327,7 @@ class LocalFixtureLifecycleCompositionTest(unittest.TestCase):
             integration,  # type: ignore[arg-type]
             image,
             executor,
+            ("https://accounts.google.com", "123456789012345678901"),
         )
 
         result = FixtureSuiteLifecycle(commands).deploy(_request())
@@ -342,7 +346,7 @@ class LocalFixtureLifecycleCompositionTest(unittest.TestCase):
         restricted = integration.entries[2]
         self.assertEqual(
             restricted.intent.restricted_members,
-            (("https://accounts.google.com", "synthetic-subject"),),
+            (("https://accounts.google.com", "123456789012345678901"),),
         )
 
     def test_wrong_attachment_owner_fails_before_generation_activation(self) -> None:
@@ -418,6 +422,122 @@ class LocalFixtureOperatorTest(unittest.TestCase):
             PLATFORM_REVISION,
         )
         self.assertEqual(lifecycle.request.expected_platform_generation, 7)
+
+
+@dataclass
+class FakeDestructionIntegration:
+    target_exists: bool = True
+    calls: list[str] = field(default_factory=list)
+
+    def detach(self, request):  # type: ignore[no-untyped-def]
+        self.calls.append(f"detach:{request.application_id}")
+        return RegistrationLifecycleResult("activated", 8, GENERATION_DIGEST)
+
+    def status_applications(self, environment, application_ids):  # type: ignore[no-untyped-def]
+        del environment
+        self.calls.append("status")
+        application_id = application_ids[0]
+        return RegistrationStatusResult(
+            "read",
+            8,
+            GENERATION_DIGEST,
+            (
+                RegistrationApplicationStatus(
+                    application_id,
+                    "suspended",
+                    (
+                        "urn:comfforts:app-platform:gcp:cloud-run:455651441682:"
+                        f"us-west1:{application_id}"
+                    ),
+                    self.target_exists,
+                    self.target_exists,
+                ),
+            ),
+        )
+
+    def outputs(self, request):  # type: ignore[no-untyped-def]
+        self.calls.append("bundle")
+        bundle = _bundle(
+            request.application_id,
+            request.access_mode,
+            request.route_intent,
+        )
+        bundle["generation"] = request.expected_generation
+        return IntegrationBundleResult(
+            "generated",
+            bundle,
+            lifecycle_digest(bundle, "platform-integration-bundle"),
+        )
+
+
+@dataclass
+class FakeDestructionTerminal:
+    prompts: list[tuple[str, str]] = field(default_factory=list)
+
+    def confirm_exact(self, prompt: str, expected: str) -> bool:
+        self.prompts.append((prompt, expected))
+        return True
+
+
+@dataclass
+class FakeDestructionExecutor:
+    integration: FakeDestructionIntegration
+    contexts: list[object] = field(default_factory=list)
+
+    def execute(self, context):  # type: ignore[no-untyped-def]
+        self.contexts.append(context)
+        if "delete" in context.stage["actions"]:
+            self.integration.target_exists = False
+            return StageExecution(
+                "succeeded",
+                (("fixture-destroyed", context.stage["stage_id"]),),
+                "sha256:" + ("9" * 64),
+            )
+        return StageExecution(
+            "succeeded",
+            (("attachment-reference", "reviewed"),),
+            "sha256:" + ("8" * 64),
+        )
+
+
+class FixtureDestructionLifecycleTest(unittest.TestCase):
+    def test_detaches_confirms_rereads_unlocks_and_destroys_selected_state(self) -> None:
+        integration = FakeDestructionIntegration()
+        terminal = FakeDestructionTerminal()
+        executor = FakeDestructionExecutor(integration)
+        commands = LocalFixtureLifecycleCommands(
+            integration,  # type: ignore[arg-type]
+            FakeImageProvider([SOURCE_REVISION]),
+            executor,
+            ("https://accounts.google.com", "123456789012345678901"),
+            terminal=terminal,
+        )
+        lifecycle = FixtureSuiteLifecycle(commands)
+
+        result = lifecycle.destroy(
+            FixtureDestroyRequest(
+                environment="staging",
+                application_id="fixture-authenticated",
+                operator_source_revision="c" * 40,
+                fixture_source_revision=SOURCE_REVISION,
+                expected_platform_source_revision=PLATFORM_REVISION,
+                expected_platform_generation=7,
+                expected_registration_generation_digest="sha256:" + ("7" * 64),
+            )
+        )
+
+        self.assertEqual(result.outcome, "destroyed")
+        self.assertEqual(integration.calls[0], "detach:fixture-authenticated")
+        self.assertEqual(integration.calls.count("status"), 2)
+        self.assertEqual(len(terminal.prompts), 1)
+        self.assertEqual(
+            terminal.prompts[0][1],
+            "DESTROY staging FIXTURE fixture-authenticated APPLICATION STATE",
+        )
+        self.assertEqual(
+            [context.stage["actions"] for context in executor.contexts],
+            [["read", "update"], ["delete", "read"]],
+        )
 
 
 if __name__ == "__main__":

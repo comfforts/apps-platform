@@ -13,6 +13,7 @@ module "fixture_application" {
     platform_issuer             = var.platform_reference.platform_issuer
     public_key_reference        = var.platform_reference.public_key_reference
     labels                      = var.fixture_configuration.labels
+    destruction_enabled         = var.destruction_enabled
   }
   edge_caller_principal = var.platform_reference.edge_caller_principal
 }

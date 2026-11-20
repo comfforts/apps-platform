@@ -701,7 +701,8 @@ class GcloudGenerationProvider(GenerationProvider):
         )
         ingress = (
             "shared_edge_only"
-            if annotations.get("run.googleapis.com/ingress") == "internal"
+            if annotations.get("run.googleapis.com/ingress")
+            == "internal-and-cloud-load-balancing"
             else "unverified"
         )
         policy = self._json(

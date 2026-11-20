@@ -18,6 +18,7 @@ from infrastructure.operator.deployment import (
     TerraformReadback,
     TerraformReadbackRequest,
 )
+from infrastructure.operator.integration import AttachmentTargetReader
 from infrastructure.operator.local_deployment import (
     LocalDeploymentInputError,
     PrivateTerraformWorkspace,
@@ -151,6 +152,10 @@ class FixtureConfigurationRenderer:
         return render_private_terraform_input(
             root,
             {
+                "destruction_enabled": (
+                    context.stage.get("destruction_enabled") is True
+                    or "delete" in context.stage.get("actions", [])
+                ),
                 "fixture_configuration": fixture_configuration,
                 "platform_reference": platform_reference,
             },
@@ -167,6 +172,7 @@ class FixtureTerraform(Protocol):
         variable_file: Path,
         *,
         bootstrap_remote: bool = False,
+        destroy: bool = False,
     ) -> TerraformPlanArtifact: ...
 
     def apply_plan(
@@ -183,11 +189,18 @@ class FixtureTerraform(Protocol):
         output_name: str,
     ) -> object: ...
 
+    def state_empty(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> bool: ...
+
 
 @dataclass(frozen=True, slots=True)
 class _RenderedFixturePlan:
     request: PhasePlanRequest
     rendered: RenderedTerraformInput
+    destructive: bool
 
 
 class LocalFixtureDeploymentCommands:
@@ -197,9 +210,11 @@ class LocalFixtureDeploymentCommands:
         self,
         renderer: FixtureConfigurationRenderer,
         terraform: FixtureTerraform,
+        target_reader: AttachmentTargetReader | None = None,
     ) -> None:
         self._renderer = renderer
         self._terraform = terraform
+        self._target_reader = target_reader
         self._plans_by_stage: dict[str, _RenderedFixturePlan] = {}
         self._plans_by_request: dict[int, _RenderedFixturePlan] = {}
 
@@ -210,7 +225,9 @@ class LocalFixtureDeploymentCommands:
     ) -> TerraformPlanArtifact:
         try:
             rendered = self._renderer.render(context, request)
-            planned = _RenderedFixturePlan(request, rendered)
+            actions = context.stage.get("actions")
+            destructive = isinstance(actions, list) and "delete" in actions
+            planned = _RenderedFixturePlan(request, rendered, destructive)
             stage_id = str(context.stage.get("stage_id", ""))
             self._plans_by_stage[stage_id] = planned
             self._plans_by_request[id(request)] = planned
@@ -218,6 +235,7 @@ class LocalFixtureDeploymentCommands:
                 request,
                 rendered.terraform_root,
                 rendered.variable_file,
+                destroy=destructive,
             )
         except DeploymentCommandError:
             raise
@@ -296,6 +314,33 @@ class LocalFixtureDeploymentCommands:
         ):
             return TerraformReadback(False, blockers=("FIXTURE_CONTEXT_MISMATCH",))
         try:
+            if planned.destructive:
+                if self._target_reader is None:
+                    return TerraformReadback(
+                        False,
+                        blockers=("FIXTURE_TARGET_READBACK_UNAVAILABLE",),
+                    )
+                state_empty = self._terraform.state_empty(
+                    planned.request,
+                    planned.rendered.terraform_root,
+                )
+                resource_reference = (
+                    "urn:comfforts:app-platform:gcp:cloud-run:"
+                    f"{_PROJECT_NUMBER}:{_REGION}:{planned.request.owner_id}"
+                )
+                target = self._target_reader.read_target(
+                    request.environment,
+                    resource_reference,
+                )
+                if not state_empty or target.exists:
+                    return TerraformReadback(
+                        False,
+                        blockers=("FIXTURE_DESTRUCTION_READBACK_MISMATCH",),
+                    )
+                return TerraformReadback(
+                    True,
+                    (("fixture-destroyed", planned.request.owner_id),),
+                )
             value = self._terraform.read_output(
                 planned.request,
                 planned.rendered.terraform_root,

@@ -70,6 +70,8 @@ def prepare_phase_plan(
     source_revision: str,
     working_root: Path,
     commands: TerraformPlanCommands,
+    *,
+    destructive: bool = False,
 ) -> PhasePlanResult:
     """Render and policy-check one fake-observed phase plan without applying it."""
 
@@ -98,7 +100,7 @@ def prepare_phase_plan(
             environment,
             phase,
             source_revision,
-            destructive=False,
+            destructive=destructive,
         ),
         observed,
     )

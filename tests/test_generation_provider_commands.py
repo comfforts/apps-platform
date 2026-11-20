@@ -425,7 +425,9 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                             {
                                 "metadata": {
                                     "annotations": {
-                                        "run.googleapis.com/ingress": "internal"
+                                        "run.googleapis.com/ingress": (
+                                            "internal-and-cloud-load-balancing"
+                                        )
                                     },
                                     "labels": {
                                         "environment": "staging",

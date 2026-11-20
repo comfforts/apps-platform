@@ -24,6 +24,7 @@ from infrastructure.operator.local_fixture_deployment import (
     FixtureConfigurationRenderer,
     LocalFixtureDeploymentCommands,
 )
+from infrastructure.operator.integration import AttachmentTargetReadback
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -169,6 +170,7 @@ class FixtureConfigurationRendererTest(unittest.TestCase):
                 self.assertEqual(configuration["admission_mode"], access_mode)
                 self.assertEqual(configuration["assertion_audience"], audience)
                 self.assertEqual(configuration["image_digest"], IMAGE_REFERENCE)
+                self.assertFalse(variables["destruction_enabled"])
                 self.assertEqual(
                     variables["platform_reference"]["state_owner"],
                     "platform",
@@ -234,6 +236,9 @@ class FakeTerraform:
     applied: list[str] = field(default_factory=list)
     outputs: list[str] = field(default_factory=list)
     prohibited_resource: bool = False
+    plan_count: int = 0
+    destroyed: bool = False
+    planned_destroy: dict[int, bool] = field(default_factory=dict)
 
     def create_plan(
         self,
@@ -242,12 +247,14 @@ class FakeTerraform:
         variable_file: Path,
         *,
         bootstrap_remote: bool = False,
+        destroy: bool = False,
     ) -> TerraformPlanArtifact:
         if bootstrap_remote:
             raise AssertionError("fixture roots never use bootstrap migration")
         if stat.S_IMODE(variable_file.stat().st_mode) != 0o600:
             raise AssertionError("fixture variables are not private")
-        saved_plan = terraform_root / "saved.tfplan"
+        self.plan_count += 1
+        saved_plan = terraform_root / f"saved-{self.plan_count}.tfplan"
         saved_plan.write_bytes(b"exact fixture plan")
         saved_plan.chmod(0o600)
         resource_type = (
@@ -255,7 +262,7 @@ class FakeTerraform:
             if self.prohibited_resource
             else "google_cloud_run_v2_service"
         )
-        return TerraformPlanArtifact(
+        artifact = TerraformPlanArtifact(
             saved_plan,
             {
                 "environment": request.environment,
@@ -277,11 +284,13 @@ class FakeTerraform:
                         "provider_source": (
                             "registry.terraform.io/hashicorp/google"
                         ),
-                        "actions": ["create"],
+                        "actions": ["delete" if destroy else "create"],
                     }
                 ],
             },
         )
+        self.planned_destroy[id(request)] = destroy
+        return artifact
 
     def apply_plan(
         self,
@@ -293,6 +302,8 @@ class FakeTerraform:
         if saved_plan.read_bytes() != b"exact fixture plan":
             raise AssertionError("a different plan was applied")
         self.applied.append(request.phase)
+        if self.planned_destroy.get(id(request), False):
+            self.destroyed = True
 
     def read_output(
         self,
@@ -320,6 +331,39 @@ class FakeTerraform:
             ),
             "audience": configuration["assertion_audience"],
         }
+
+    def state_empty(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> bool:
+        del request, terraform_root
+        return self.destroyed
+
+
+@dataclass
+class FakeTargetReader:
+    terraform: FakeTerraform
+
+    def read_target(
+        self,
+        environment: str,
+        resource_reference: str,
+    ) -> AttachmentTargetReadback:
+        del environment
+        application_id = resource_reference.rsplit(":", maxsplit=1)[1]
+        return AttachmentTargetReadback(
+            exists=not self.terraform.destroyed,
+            ready=not self.terraform.destroyed,
+            owner_application_id=application_id,
+            adapter_kind="gcp-cloud-run-v1",
+            resource_reference=resource_reference,
+            ingress_mode="shared_edge_only",
+            caller_grant=EDGE_CALLER,
+            audience=(
+                "urn:comfforts:app-platform:audience:fixture-authenticated"
+            ),
+        )
 
 
 class FixtureExactPlanExecutionTest(unittest.TestCase):
@@ -371,6 +415,48 @@ class FixtureExactPlanExecutionTest(unittest.TestCase):
                 self.assertEqual(result.outcome, outcome)
                 self.assertEqual(terraform.applied, [])
                 self.assertEqual(terraform.outputs, [])
+
+    def test_unlock_then_destroy_uses_separate_exact_plans_and_empty_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            working_root = Path(temporary_directory) / "private"
+            working_root.mkdir(mode=0o700)
+            terminal = FakeTerminal()
+            terraform = FakeTerraform()
+            commands = LocalFixtureDeploymentCommands(
+                FixtureConfigurationRenderer(PROJECT_ROOT, working_root),
+                terraform,
+                FakeTargetReader(terraform),
+            )
+            executor = DeploymentExecutor(working_root, terminal, commands)  # type: ignore[arg-type]
+            unlock_context = _context(
+                "fixture-authenticated",
+                "authenticated",
+            )
+            unlock_context = replace(
+                unlock_context,
+                stage={
+                    **unlock_context.stage,
+                    "actions": ["read", "update"],
+                    "destruction_enabled": True,
+                },
+            )
+            destroy_context = replace(
+                unlock_context,
+                stage={
+                    **unlock_context.stage,
+                    "actions": ["delete", "read"],
+                    "produces": ["fixture-destroyed"],
+                },
+            )
+
+            unlocked = executor.execute(unlock_context)
+            destroyed = executor.execute(destroy_context)
+
+        self.assertEqual(unlocked.outcome, "succeeded")
+        self.assertEqual(destroyed.outcome, "succeeded")
+        self.assertEqual(destroyed.outputs, (("fixture-destroyed", "fixture-authenticated"),))
+        self.assertEqual(terraform.applied, ["fixture-authenticated"] * 2)
+        self.assertTrue(terraform.destroyed)
 
 
 if __name__ == "__main__":

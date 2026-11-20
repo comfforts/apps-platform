@@ -94,6 +94,12 @@ variable "fixture_configuration" {
   }
 }
 
+variable "destruction_enabled" {
+  description = "Explicit operator-controlled transition that permits this fixture root to be destroyed."
+  type        = bool
+  default     = false
+}
+
 variable "platform_reference" {
   description = "Typed non-secret Platform State reference consumed as data."
   type = object({

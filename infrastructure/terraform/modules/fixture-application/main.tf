@@ -4,7 +4,7 @@ resource "google_service_account" "runtime" {
   display_name = "${var.runtime_configuration.application_id} runtime"
   description  = "Application-owned qualification runtime identity for ${var.runtime_configuration.application_id}."
 
-  deletion_policy = "PREVENT"
+  deletion_policy = var.runtime_configuration.destruction_enabled ? "DELETE" : "PREVENT"
 }
 
 resource "google_cloud_run_v2_service" "runtime" {
@@ -13,8 +13,8 @@ resource "google_cloud_run_v2_service" "runtime" {
   name     = var.runtime_configuration.service_name
   labels   = var.runtime_configuration.labels
 
-  deletion_protection  = true
-  ingress              = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  deletion_protection  = !var.runtime_configuration.destruction_enabled
+  ingress              = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   invoker_iam_disabled = false
 
   template {

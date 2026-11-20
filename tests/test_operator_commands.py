@@ -25,19 +25,29 @@ def _phase_request(root: Path, phase: str = "platform-foundation") -> PhasePlanR
         "bootstrap": "infrastructure/terraform/bootstrap",
         "platform-foundation": "infrastructure/terraform/platform",
         "shared-edge": "infrastructure/terraform/platform",
+        "fixture-public": "infrastructure/terraform/fixtures/fixture-public",
     }[phase]
+    fixture = phase.startswith("fixture-")
     return PhasePlanRequest(
         environment="staging",
         source_revision=SOURCE_REVISION,
         phase=phase,
         terraform_root=terraform_root,
-        state_owner="platform",
-        owner_id="app-platform",
+        state_owner="application" if fixture else "platform",
+        owner_id=phase if fixture else "app-platform",
         project_id="comfforts-platform-non-prod",
         backend_path=root / "backend.tf",
         backend_digest="sha256:" + "7" * 64,
-        backend_bucket="comfforts-ap-stg-455651441682-platform-state",
-        backend_prefix="bootstrap" if phase == "bootstrap" else "platform",
+        backend_bucket=(
+            "comfforts-ap-stg-455651441682-fixture-public-state"
+            if fixture
+            else "comfforts-ap-stg-455651441682-platform-state"
+        ),
+        backend_prefix=(
+            "fixtures/fixture-public"
+            if fixture
+            else ("bootstrap" if phase == "bootstrap" else "platform")
+        ),
     )
 
 
@@ -176,6 +186,57 @@ class OperatorCommandTest(unittest.TestCase):
             dict(invocation.environment)["CLOUDSDK_CONFIG"],
             str(workspace / "gcloud"),
         )
+
+    def test_fixture_destroy_plan_and_empty_state_readback_are_explicit(self) -> None:
+        plan_json = {
+            "format_version": "1.2",
+            "terraform_version": "1.17.2",
+            "resource_changes": [
+                {
+                    "address": "module.fixture.google_cloud_run_v2_service.runtime",
+                    "type": "google_cloud_run_v2_service",
+                    "provider_name": "registry.terraform.io/hashicorp/google",
+                    "change": {"actions": ["delete"]},
+                }
+            ]
+        }
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(2, b"", b""),
+                CommandResult(0, json.dumps(plan_json).encode(), b""),
+                CommandResult(0, b"\n", b""),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "fixture-public"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root, "fixture-public")
+            self._private_file(request.backend_path, b'terraform { backend "gcs" {} }\n')
+            variables = self._private_file(root / "values.json", b"{}\n")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            artifact = adapter.create_plan(
+                request,
+                root,
+                variables,
+                destroy=True,
+            )
+            empty = adapter.state_empty(request, root)
+
+        self.assertIn("-destroy", runner.requests[1].argv)
+        self.assertEqual(artifact.observation["changes"][0]["actions"], ["delete"])
+        self.assertTrue(empty)
+        self.assertEqual(runner.requests[3].argv[1:3], ("state", "list"))
 
     def test_bootstrap_uses_explicit_local_backend_and_short_lived_human_session(self) -> None:
         plan_json = {

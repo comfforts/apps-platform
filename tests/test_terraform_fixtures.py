@@ -52,7 +52,11 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
 
                 self.assertEqual(
                     re.findall(r'^variable "([^"]+)"', variables, re.MULTILINE),
-                    ["fixture_configuration", "platform_reference"],
+                    [
+                        "fixture_configuration",
+                        "destruction_enabled",
+                        "platform_reference",
+                    ],
                 )
                 self.assertEqual(
                     re.findall(r'^output "([^"]+)"', outputs, re.MULTILINE),
@@ -143,9 +147,9 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
             ],
         )
         for required_control in (
-            'deletion_policy = "PREVENT"',
-            "deletion_protection  = true",
-            'ingress              = "INGRESS_TRAFFIC_INTERNAL_ONLY"',
+            'destruction_enabled ? "DELETE" : "PREVENT"',
+            "deletion_protection  = !var.runtime_configuration.destruction_enabled",
+            'ingress              = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"',
             "invoker_iam_disabled = false",
             "max_instance_request_concurrency = 10",
             "min_instance_count = 0",

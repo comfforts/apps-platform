@@ -633,10 +633,18 @@ def build_local_fixture_operator(project_root: Path, state_root: Path):
         raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
     gcloud = Path(executable_name).resolve()
     gcp = ProfileGcp(gcloud, configuration)
+    session = gcp.operator_session(
+        {
+            "project_id": "comfforts-platform-non-prod",
+            "project_number": "455651441682",
+            "region": "us-west1",
+        }
+    )
     if (
         not gcloud.is_file()
         or not configuration.is_dir()
         or configuration.is_symlink()
+        or session is None
         or not gcp.application_default_ready()
         or not TERRAFORM.is_file()
         or not OFFLINE_CLI_CONFIG.is_file()
@@ -691,6 +699,7 @@ def build_local_fixture_operator(project_root: Path, state_root: Path):
     fixture_terraform_commands = LocalFixtureDeploymentCommands(
         FixtureConfigurationRenderer(resolved_project, working_root),
         terraform,
+        generation_provider,
     )
     executor = DeploymentExecutor(
         working_root,
@@ -702,10 +711,17 @@ def build_local_fixture_operator(project_root: Path, state_root: Path):
             integration,
             image_provider,
             executor,
+            (session.operator_issuer, session.operator_subject),
             LocalApplicationHandoffs(filesystem),
+            terminal,
         )
     )
-    return LocalFixtureOperator(LocalGit(resolved_project), platform, lifecycle)
+    return LocalFixtureOperator(
+        LocalGit(resolved_project),
+        platform,
+        lifecycle,
+        LocalApplicationHandoffs(filesystem),
+    )
 
 
 def build_local_fixture_status_operator(project_root: Path, state_root: Path):

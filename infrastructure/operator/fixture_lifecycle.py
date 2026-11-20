@@ -128,6 +128,29 @@ class FixtureStatusResult:
     blockers: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class FixtureDestroyRequest:
+    environment: str
+    application_id: str
+    operator_source_revision: str
+    fixture_source_revision: str
+    expected_platform_source_revision: str
+    expected_platform_generation: int
+    expected_registration_generation_digest: str
+
+
+@dataclass(frozen=True, slots=True)
+class FixtureDestroyReadback:
+    outcome: str
+    application_id: str
+    registration_generation: int | None
+    registration_generation_digest: str | None
+    blockers: tuple[str, ...] = ()
+
+
+FixtureDestroyResult = FixtureDestroyReadback
+
+
 class FixtureCommandError(RuntimeError):
     """One safe blocker returned by a Fixture Application command boundary."""
 
@@ -153,6 +176,11 @@ class FixtureCommands(Protocol):
     ) -> FixtureRegistrationReadback: ...
 
     def status(self, environment: str) -> FixtureStatusResult: ...
+
+    def destroy_application(
+        self,
+        request: FixtureDestroyRequest,
+    ) -> FixtureDestroyReadback: ...
 
 
 class FixtureSuiteLifecycle:
@@ -335,6 +363,45 @@ class FixtureSuiteLifecycle:
                 (str(error) or "FIXTURE_STATUS_FAILED",),
             )
 
+    def destroy(self, request: FixtureDestroyRequest) -> FixtureDestroyResult:
+        """Detach and destroy one selected fixture Application State lineage."""
+
+        if (
+            request.environment != "staging"
+            or request.application_id
+            not in {
+                "fixture-public",
+                "fixture-authenticated",
+                "fixture-restricted",
+            }
+            or _REVISION.fullmatch(request.operator_source_revision) is None
+            or _REVISION.fullmatch(request.fixture_source_revision) is None
+            or _REVISION.fullmatch(request.expected_platform_source_revision) is None
+            or request.expected_platform_generation < 1
+            or re.fullmatch(
+                r"sha256:[0-9a-f]{64}",
+                request.expected_registration_generation_digest,
+            )
+            is None
+        ):
+            return FixtureDestroyResult(
+                "blocked",
+                request.application_id,
+                None,
+                None,
+                ("FIXTURE_DESTROY_REQUEST_INVALID",),
+            )
+        try:
+            return self._commands.destroy_application(request)
+        except FixtureCommandError as error:
+            return FixtureDestroyResult(
+                "blocked",
+                request.application_id,
+                None,
+                None,
+                (str(error) or "FIXTURE_DESTROY_FAILED",),
+            )
+
 
 __all__ = (
     "FixtureApplicationDeployRequest",
@@ -346,6 +413,9 @@ __all__ = (
     "FixtureDefinition",
     "FixtureDeployRequest",
     "FixtureDeployResult",
+    "FixtureDestroyReadback",
+    "FixtureDestroyRequest",
+    "FixtureDestroyResult",
     "FixtureImageReadback",
     "FixtureImageRequest",
     "FixtureRegistrationReadback",

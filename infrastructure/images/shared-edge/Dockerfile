@@ -1,7 +1,9 @@
 ARG UV_IMAGE
+ARG PYTHON_BUILD_IMAGE
+ARG PYTHON_RUNTIME_IMAGE
+
 FROM ${UV_IMAGE} AS uv
 
-ARG PYTHON_BUILD_IMAGE
 FROM ${PYTHON_BUILD_IMAGE} AS build
 
 COPY --from=uv /uv /uvx /bin/
@@ -13,7 +15,6 @@ WORKDIR /srv/app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-editable
 
-ARG PYTHON_RUNTIME_IMAGE
 FROM ${PYTHON_RUNTIME_IMAGE}
 
 ENV PATH=/srv/app/.venv/bin:$PATH \

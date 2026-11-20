@@ -93,6 +93,13 @@ class LiveRuntimeTest(unittest.TestCase):
         self.assertIn("ARG UV_IMAGE", dockerfile)
         self.assertIn("ARG PYTHON_BUILD_IMAGE", dockerfile)
         self.assertIn("COPY --from=uv /uv /uvx /bin/", dockerfile)
+        first_from = dockerfile.index("FROM ")
+        for argument in (
+            "ARG UV_IMAGE",
+            "ARG PYTHON_BUILD_IMAGE",
+            "ARG PYTHON_RUNTIME_IMAGE",
+        ):
+            self.assertLess(dockerfile.index(argument), first_from)
         self.assertIn("uv sync --frozen --no-dev --no-editable", dockerfile)
         self.assertIn("COPY contracts ./contracts", dockerfile)
         self.assertIn("COPY edge ./edge", dockerfile)

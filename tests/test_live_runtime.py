@@ -86,6 +86,9 @@ class LiveRuntimeTest(unittest.TestCase):
         build = (
             PROJECT_ROOT / "infrastructure/images/shared-edge/cloudbuild.yaml"
         ).read_text(encoding="utf-8")
+        upload_allowlist = (PROJECT_ROOT / ".gcloudignore").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("ARG UV_IMAGE", dockerfile)
         self.assertIn("ARG PYTHON_BUILD_IMAGE", dockerfile)
@@ -104,6 +107,18 @@ class LiveRuntimeTest(unittest.TestCase):
         self.assertNotIn(":latest", build)
         self.assertIn("--tag=${_IMAGE}", build)
         self.assertIn("source-revision-required", build)
+        self.assertTrue(upload_allowlist.startswith("**\n"))
+        for allowed in (
+            "!pyproject.toml",
+            "!uv.lock",
+            "!contracts/**",
+            "!edge/**",
+            "!infrastructure/images/shared-edge/Dockerfile",
+            "!infrastructure/images/shared-edge/cloudbuild.yaml",
+        ):
+            self.assertIn(allowed, upload_allowlist)
+        for prohibited in (".platform-operator", ".git/", ".env", "credentials"):
+            self.assertNotIn(f"!{prohibited}", upload_allowlist)
 
     def test_settings_bind_exact_revision_generation_project_and_operator(self) -> None:
         settings = LiveRuntimeSettings.from_environment(_environment())

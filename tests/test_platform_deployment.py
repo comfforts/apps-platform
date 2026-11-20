@@ -117,7 +117,12 @@ class FakeCommands:
     checkpoint_outcomes: list[str] = field(default_factory=lambda: ["succeeded"])
     terraform_readiness: list[bool] = field(default_factory=list)
 
-    def create_terraform_plan(self, request: object) -> TerraformPlanArtifact:
+    def create_terraform_plan(
+        self,
+        context: StageContext,
+        request: object,
+    ) -> TerraformPlanArtifact:
+        del context
         self.planned.append(request)
         phase = str(getattr(request, "phase"))
         path = self.working_root / f"{phase}-{len(self.planned):04d}.tfplan"
@@ -485,8 +490,12 @@ class PlatformDeploymentTest(unittest.TestCase):
 
     def test_saved_plan_must_be_private_and_bounded(self) -> None:
         class UnsafeCommands(FakeCommands):
-            def create_terraform_plan(self, request: object) -> TerraformPlanArtifact:
-                artifact = super().create_terraform_plan(request)
+            def create_terraform_plan(
+                self,
+                context: StageContext,
+                request: object,
+            ) -> TerraformPlanArtifact:
+                artifact = super().create_terraform_plan(context, request)
                 os.chmod(artifact.saved_plan_path, 0o644)
                 return artifact
 

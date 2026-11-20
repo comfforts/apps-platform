@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import secrets
 import stat
 import subprocess
 from typing import Protocol
@@ -121,7 +122,6 @@ class TerraformCliAdapter:
         self._working_root = working_root.resolve()
         self._runner = runner
         self._operator_environment = tuple(sorted(operator_environment))
-        self._plan_sequence = 0
         if not self._working_root.is_dir():
             raise ValueError("Terraform working root does not exist")
         if stat.S_IMODE(self._working_root.stat().st_mode) & 0o077:
@@ -240,8 +240,9 @@ class TerraformCliAdapter:
         plan_directory = self._working_root / "plans"
         plan_directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         plan_directory.chmod(0o700)
-        self._plan_sequence += 1
-        plan_path = plan_directory / f"{request.phase}-{self._plan_sequence:04d}.tfplan"
+        plan_path = plan_directory / (
+            f"{request.phase}-{secrets.token_hex(12)}.tfplan"
+        )
         if plan_path.exists():
             raise FileExistsError("refusing to replace an existing saved plan")
 

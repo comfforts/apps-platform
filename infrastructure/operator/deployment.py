@@ -132,6 +132,7 @@ class DeploymentCommands(Protocol):
 
     def create_terraform_plan(
         self,
+        context: StageContext,
         request: PhasePlanRequest,
     ) -> TerraformPlanArtifact: ...
 
@@ -166,12 +167,13 @@ class DeploymentCommands(Protocol):
 @dataclass
 class _ArtifactObserver(TerraformPlanCommands):
     commands: DeploymentCommands
+    context: StageContext
     request: PhasePlanRequest | None = None
     artifact: TerraformPlanArtifact | None = None
 
     def observe_plan(self, request: PhasePlanRequest) -> dict[str, object]:
         self.request = request
-        self.artifact = self.commands.create_terraform_plan(request)
+        self.artifact = self.commands.create_terraform_plan(self.context, request)
         return self.artifact.observation
 
 
@@ -459,7 +461,7 @@ class DeploymentExecutor:
         stage_id: str,
         phase: str,
     ) -> StageExecution:
-        observer = _ArtifactObserver(self._commands)
+        observer = _ArtifactObserver(self._commands, context)
         try:
             evaluated = prepare_phase_plan(
                 context.environment,

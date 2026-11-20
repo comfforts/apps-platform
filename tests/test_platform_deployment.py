@@ -211,6 +211,16 @@ class FakeCommands:
 
     def prepare_action(self, context: StageContext) -> ActionProposal:
         self.prepared_actions.append(context)
+        if context.stage["stage_id"] == "bootstrap-services":
+            return ActionProposal(
+                action="enable-bootstrap-provider-services",
+                summary={
+                    "services": [
+                        "serviceusage.googleapis.com",
+                        "storage.googleapis.com",
+                    ]
+                },
+            )
         if context.stage["stage_id"] == "generation-publish":
             return ActionProposal(
                 action="publish-initial-registration-generation",
@@ -232,6 +242,11 @@ class FakeCommands:
 
     def readback_action(self, context: StageContext) -> StageReadback:
         self.action_readbacks.append(context)
+        if context.stage["stage_id"] == "bootstrap-services":
+            return StageReadback(
+                matched=True,
+                outputs=(("bootstrap-services-attestation", "verified-services"),),
+            )
         if context.stage["stage_id"] == "generation-publish":
             return StageReadback(
                 matched=True,
@@ -701,7 +716,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             working_root.mkdir(mode=0o700)
             state_root = base / "state"
             terminal = FakeTerminal(
-                approvals=[True] * 7,
+                approvals=[True] * 8,
             )
             commands = FakeCommands(working_root)
             executor = DeploymentExecutor(
@@ -732,6 +747,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             [entry["stage_id"] for entry in deployed.journal["entries"]],
             [
                 "preflight",
+                "bootstrap-services",
                 "bootstrap",
                 "foundation",
                 "image-publish",
@@ -743,7 +759,7 @@ class PlatformDeploymentTest(unittest.TestCase):
                 "readback",
             ],
         )
-        self.assertEqual(call_counts, (4, 2, 2))
+        self.assertEqual(call_counts, (4, 3, 2))
         self.assertEqual(unchanged.outcome, "unchanged")
         self.assertEqual(
             (
@@ -780,7 +796,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             working_root = base / "work"
             working_root.mkdir(mode=0o700)
             terminal = InterruptOnceTerminal(
-                approvals=[True] * 7,
+                approvals=[True] * 8,
             )
             commands = FakeCommands(working_root)
             executor = DeploymentExecutor(
@@ -807,10 +823,10 @@ class PlatformDeploymentTest(unittest.TestCase):
 
         self.assertEqual(interrupted.outcome, "interrupted")
         self.assertEqual(closed_plan_count, 2)
-        self.assertEqual(closed_action_count, 2)
+        self.assertEqual(closed_action_count, 3)
         self.assertEqual(resumed.outcome, "succeeded")
         self.assertEqual(len(commands.planned), 4)
-        self.assertEqual(len(commands.executed_actions), 2)
+        self.assertEqual(len(commands.executed_actions), 3)
         self.assertEqual(last_closed_stage, "readback")
 
 

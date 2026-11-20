@@ -60,6 +60,8 @@ module "platform_foundation" {
 module "platform_controls" {
   source = "../modules/platform-controls"
 
+  depends_on = [module.platform_foundation]
+
   controls_configuration = {
     project_id                = local.foundation.project_id
     project_number            = local.foundation.project_number
@@ -83,6 +85,8 @@ module "platform_controls" {
 module "shared_edge" {
   source = "../modules/shared-edge"
   count  = var.platform_configuration.phase == "shared-edge" ? 1 : 0
+
+  depends_on = [module.platform_foundation]
 
   edge_configuration = {
     project_id              = local.foundation.project_id

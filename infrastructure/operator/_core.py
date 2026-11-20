@@ -66,11 +66,25 @@ def _deployment_stages() -> list[dict[str, object]]:
             "readback": "not-applicable",
         },
         {
+            "stage_id": "bootstrap-services",
+            "actions": ["read", "update"],
+            "resource_types": ["provider-service"],
+            "consumes": [
+                {"stage_id": "preflight", "output_name": "preflight-attestation"}
+            ],
+            "produces": ["bootstrap-services-attestation"],
+            "manual_checkpoint": "none",
+            "readback": "provider-verified",
+        },
+        {
             "stage_id": "bootstrap",
             "actions": ["create", "read"],
             "resource_types": ["backend-bucket"],
             "consumes": [
-                {"stage_id": "preflight", "output_name": "preflight-attestation"}
+                {
+                    "stage_id": "bootstrap-services",
+                    "output_name": "bootstrap-services-attestation",
+                }
             ],
             "produces": ["backend-reference"],
             "manual_checkpoint": "none",

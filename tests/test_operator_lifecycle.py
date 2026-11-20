@@ -261,7 +261,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertEqual(result.blockers, ())
             self.assertEqual(
                 result.specification_digest,
-                "sha256:43d23e83311d1e653628df0b73bfb3afd9b4d3840cc0919eaaeaee3a5043c58c",
+                "sha256:6238b39c813701a95c3b8cac770ce1b0c6f714fb3ee001d959d803ebd334c340",
             )
             assert result.specification is not None
             self.assertEqual(result.specification["environment"], "staging")
@@ -270,6 +270,7 @@ class OperatorLifecycleTest(unittest.TestCase):
                 [stage["stage_id"] for stage in result.specification["stages"]],
                 [
                     "preflight",
+                    "bootstrap-services",
                     "bootstrap",
                     "foundation",
                     "image-publish",
@@ -412,7 +413,8 @@ class OperatorLifecycleTest(unittest.TestCase):
 
             self.assertEqual(resumed.outcome, "succeeded")
             self.assertEqual(executor.calls.count("preflight"), 1)
-            self.assertEqual(executor.calls.count("bootstrap"), 2)
+            self.assertEqual(executor.calls.count("bootstrap-services"), 2)
+            self.assertEqual(executor.calls.count("bootstrap"), 1)
             self.assertEqual(
                 operator.status("staging").environment_status["lifecycle_state"],
                 "deployed",

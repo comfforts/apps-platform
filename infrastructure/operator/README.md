@@ -48,9 +48,10 @@ Specification, writes canonical bytes, asks for approval, and continues in the s
 is read-only. Production remains blocked by
 `OWNERSHIP_TRANSFER_REQUIRED`.
 
-Deploy accepts only the exact current, approved specification. It journals preflight, backend
-bootstrap, foundation, immutable image and closed initial Registration Generation publication,
-OAuth, Shared Edge, external DNS, TLS, and final readback stages. Terraform mutation requires a
+Deploy accepts only the exact current, approved specification. It journals preflight, reviewed
+bootstrap-service enablement, backend bootstrap, foundation, immutable image and closed initial
+Registration Generation publication, OAuth, Shared Edge, external DNS, TLS, and final readback
+stages. Terraform mutation requires a
 fresh mode-`0600` saved plan under a
 mode-`0700` private root, W5 policy acceptance, a redacted summary and digest, a `y/N`
 confirmation, application of the same bound artifact, and provider/state readback. Image actions

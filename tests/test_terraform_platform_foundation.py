@@ -58,6 +58,7 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
         self.assertEqual(
             resources,
             [
+                ("google_project_service", "platform"),
                 ("google_storage_bucket", "configuration"),
                 ("google_service_account", "edge_runtime"),
                 ("google_service_account", "edge_caller"),
@@ -96,6 +97,9 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             "manual_rotation_days",
             "verification_overlap_hours",
             'registration_generation         = "later-stage-input"',
+            '"cloudbuild.googleapis.com"',
+            "disable_on_destroy         = false",
+            "depends_on = [google_project_service.platform]",
         ):
             self.assertIn(required_control, module)
 

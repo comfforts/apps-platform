@@ -182,7 +182,7 @@ _TERRAFORM_PHASES = {
     "tls-readiness": "shared-edge",
 }
 _READ_ONLY_STAGES = {"preflight", "readback"}
-_ACTION_STAGES = {"generation-publish", "image-publish"}
+_ACTION_STAGES = {"bootstrap-services", "generation-publish", "image-publish"}
 _MANUAL_STAGES = {"oauth-configuration", "external-dns"}
 _POLLING = {
     "external-dns": (12, 10),

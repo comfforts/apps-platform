@@ -40,6 +40,7 @@ DESTRUCTIBLE_PLATFORM_RESOURCES = (
 RETAINED_PLATFORM_RESOURCES = (
     "backend-bucket",
     "evidence-bucket",
+    "provider-service",
     "recovery-copy",
     "state-backend",
 )

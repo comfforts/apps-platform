@@ -788,18 +788,19 @@ Deployment consumes exactly that approved digest and advances one Execution Jour
 logical stages:
 
 1. source, identity, environment, state, ownership, and drift preflight;
-2. one-time backend bootstrap when absent;
-3. platform foundation, including configuration storage, registry, identities, KMS, Firestore,
+2. reviewed enablement and readback of the two APIs required for state bootstrap;
+3. one-time backend bootstrap when absent;
+4. platform foundation, including configuration storage, registry, identities, KMS, Firestore,
    Secret Manager containers, logging, evidence, and cost controls;
-4. immutable Shared Edge image publication;
-5. immutable closed initial Registration Generation publication;
-6. platform-owned OAuth branding/client creation and direct Secret Manager entry through an
+5. immutable Shared Edge image publication;
+6. immutable closed initial Registration Generation publication;
+7. platform-owned OAuth branding/client creation and direct Secret Manager entry through an
    interactive provider-console checkpoint;
-7. Shared Edge, load balancer, and reserved address;
-8. the exact external Squarespace record through an interactive checkpoint;
-9. authoritative and recursive DNS verification, certificate creation or readiness, and bounded
+8. Shared Edge, load balancer, and reserved address;
+9. the exact external Squarespace record through an interactive checkpoint;
+10. authoritative and recursive DNS verification, certificate creation or readiness, and bounded
    propagation wait; and
-10. state/provider/ownership readback and status reconciliation.
+11. state/provider/ownership readback and status reconciliation.
 
 The local wizard remains active at a manual checkpoint, prints the exact approved values and
 provider destination, and waits for Enter. It never asks for a secret payload. After acknowledgement

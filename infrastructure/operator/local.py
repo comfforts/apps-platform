@@ -205,15 +205,24 @@ class ProfileGcp:
             "--format=value(account)",
         )
         active_project = self._read("config", "get-value", "project")
+        application_default_ready = bool(
+            self._read("auth", "application-default", "print-access-token")
+        )
         blockers: list[str] = []
         if not active_account or not active_project:
             blockers.append("OPERATOR_SESSION_UNAVAILABLE")
         elif active_project != profile.get("project_id"):
             blockers.append("OPERATOR_PROJECT_MISMATCH")
+        if not application_default_ready:
+            blockers.append("OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE")
         return DiscoverySnapshot(
             "gcp",
             (
                 ("active_account", active_account or "unavailable"),
+                (
+                    "application_default_credentials",
+                    "ready" if application_default_ready else "unavailable",
+                ),
                 ("project_id", active_project or "unavailable"),
                 ("project_number", str(profile.get("project_number", ""))),
                 ("region", str(profile.get("region", ""))),
@@ -272,6 +281,11 @@ class ProfileGcp:
             )
         except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
             return None
+
+    def application_default_ready(self) -> bool:
+        """Verify Terraform-compatible user ADC without retaining its access token."""
+
+        return bool(self._read("auth", "application-default", "print-access-token"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -407,6 +421,7 @@ def _local_deployment_executor(
         or configuration is None
         or dig_name is None
         or session is None
+        or not gcp.application_default_ready()
         or not gcloud.is_file()
         or not configuration.is_dir()
         or configuration.is_symlink()

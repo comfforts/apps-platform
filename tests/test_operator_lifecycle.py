@@ -138,6 +138,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             subprocess.CompletedProcess(
                 [], 0, "comfforts-platform-non-prod\n", ""
             ),
+            subprocess.CompletedProcess([], 0, "discarded-access-token\n", ""),
         )
         with mock.patch.object(
             local_adapters.subprocess,
@@ -154,11 +155,17 @@ class OperatorLifecycleTest(unittest.TestCase):
             dict(result.facts)["project_id"],
             "comfforts-platform-non-prod",
         )
+        self.assertEqual(
+            dict(result.facts)["application_default_credentials"],
+            "ready",
+        )
+        self.assertNotIn("discarded-access-token", repr(result))
 
     def test_local_gcp_discovery_blocks_wrong_project(self) -> None:
         observed = (
             subprocess.CompletedProcess([], 0, "operator@example.com\n", ""),
             subprocess.CompletedProcess([], 0, "wrong-project\n", ""),
+            subprocess.CompletedProcess([], 0, "discarded-access-token\n", ""),
         )
         with mock.patch.object(
             local_adapters.subprocess,
@@ -255,6 +262,11 @@ class OperatorLifecycleTest(unittest.TestCase):
                     ProfileGcp,
                     "operator_session",
                     return_value=session,
+                ),
+                mock.patch.object(
+                    ProfileGcp,
+                    "application_default_ready",
+                    return_value=True,
                 ),
             ):
                 operator = build_local_operator(PROJECT_ROOT, state)

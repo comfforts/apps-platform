@@ -3,7 +3,9 @@
 Internal module for the Platform State foundation phase. Its one interface accepts only values
 available before Shared Edge deployment. The implementation owns the configuration bucket,
 Platform Session database and TTL field, edge runtime and caller identities, regional asymmetric
-signing key, OAuth Secret Manager container, and the minimum runtime access intents.
+signing key, OAuth Secret Manager container, required provider services, and the minimum runtime
+access intents. Provider services remain enabled on destroy so teardown cannot silently affect
+unmanaged project workloads.
 
 The root retains environment, state-owner, backend, provider, and operator-input policy. This
 module does not accept an image, OAuth client identifier, secret version, signing key version,

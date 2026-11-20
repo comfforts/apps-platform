@@ -10,15 +10,15 @@ work:
   and prefix bindings.
 - `render_backend_declaration()` writes one canonical private `backend.tf` beneath an explicitly
   supplied working root and returns its digest.
-- `operation_authorities()` returns the exact keyless identity intent for each lineage and action;
-  it creates no service account, IAM binding, credential, or token.
 - `plan_policy()` and `evaluate_plan()` reduce a redacted plan observation to an accepted canonical
   summary and digest, or ordered fail-closed violations.
 - `prepare_phase_plan()` composes those declarations through an injected `TerraformPlanCommands`
   interface. W5 tests supply deterministic command fakes; this package provides no production
   command adapter.
 
-Production remains unavailable and returns `OWNERSHIP_TRANSFER_REQUIRED`. Generated backend files,
+The active operator uses one verified short-lived human session; this package creates no operation
+identity, impersonation binding, service-account key, credential, or token. Production remains
+unavailable and returns `OWNERSHIP_TRANSFER_REQUIRED`. Generated backend files,
 saved plans, state, credentials, provider payloads, and authenticated artifacts must remain outside
 Git in an owner-approved private working directory. AP-M9-W6 may add non-fake command adapters only
 behind the injected boundary and must preserve these declarations and fail-closed policies.

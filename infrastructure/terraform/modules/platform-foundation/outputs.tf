@@ -13,6 +13,7 @@ output "foundation_reference" {
 output "policy_summary" {
   description = "Internal mocked-plan surface for foundation controls."
   value = {
+    enabled_services = sort(tolist(local.platform_services))
     configuration_bucket = {
       configured_name             = var.foundation_configuration.configuration_bucket
       configured_labels           = var.foundation_configuration.labels

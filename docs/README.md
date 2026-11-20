@@ -1,6 +1,6 @@
 # App Platform documentation
 
-Version 1.21 | Status: AP-M9-W7 application integration lifecycle implemented; AP-M8-W1/W2 retained as
+Version 1.22 | Status: AP-M9-W8 qualification and safe-destruction lifecycle implemented; AP-M8-W1/W2 retained as
 historical evidence; no platform environment is deployed or qualified
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
@@ -45,7 +45,7 @@ is not part of the active instruction path and cannot authorize an operation.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W7 implemented | operator-driven environment and application lifecycle |
+| AP-M9 | W8 implemented | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
@@ -69,23 +69,25 @@ small reviewable commits, merge it, and only then begin the next package.
    status, exact digest approval, append-only journals, redaction, truthful failure state, and
    resumable deterministic fake execution behind injected adapters.
 5. **AP-M9-W5 — deployable Terraform (implemented):** phased bootstrap, foundation, and Shared
-   Edge configuration; exact backend and keyless operation-authority declarations; canonical plan
+   Edge configuration; exact backend declarations; canonical plan
    policy; closed outputs; mocked plans; and deterministic command fakes.
 6. **AP-M9-W6 — interactive platform deployment (implemented):** staged exact-plan execution,
-   immutable action confirmation, human OAuth and external-DNS checkpoints, bounded DNS/TLS
+   reviewed action confirmation, human OAuth and external-DNS checkpoints, bounded DNS/TLS
    polling, readback, stop-on-discrepancy, transcript redaction, and interruption-safe resume.
 7. **AP-M9-W7 — application lifecycle (implemented):** least-data bundle generation, exact target
    posture validation, immutable whole-generation registration and activation, reversible
    detachment/reactivation, terminal retirement, and distinct reserved-route responses.
-8. **AP-M9-W8 — qualification and safe destruction:** implement revision-bound qualification and
-   environment destruction that never destroys Application State.
+8. **AP-M9-W8 — qualification and safe destruction (implemented):** revision-bound qualification,
+   redacted evidence, synthetic network fixtures, failure injection, reviewed generation rollback,
+   resumable environment destruction that never targets Application State, and guarded real
+   staging deployment adapters ready for the separately approved first operation.
 9. **AP-M9-W9 — staging operation:** deploy and qualify `apps-staging.comfforts.com` with synthetic
    applications under new explicit owner approvals.
 10. **AP-M9-W10 — production readiness:** prove the production handoff and stop with
     `OWNERSHIP_TRANSFER_REQUIRED` while Finance Assistant or `apps.comfforts.com` remains
     Finance-owned.
 
-AP-M9-W8 begins only after AP-M9-W7 merges. No staging operation is authorized before AP-M9-W8
+AP-M9-W8 began only after AP-M9-W7 merged. No staging operation is authorized before AP-M9-W8
 merges. AP-M9-W9 owns the first real staging operation and requires its own values and approvals.
 Production migration and Application Adoption remain separate owner-controlled work after
 AP-M9-W10.

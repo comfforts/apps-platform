@@ -21,13 +21,17 @@ variable "platform_configuration" {
       signing_key_ring_id       = string
       signing_key_id            = string
       billing_account_reference = string
-      notification_destination  = string
+      notification_email        = string
     })
     shared_edge = object({
       edge_image_digest           = string
       oauth_client_id             = string
       oauth_client_secret_version = string
       signing_key_version         = string
+      operator_identity = object({
+        issuer  = string
+        subject = string
+      })
       registration_generation = object({
         source_revision   = string
         generation        = number
@@ -102,10 +106,9 @@ variable "platform_configuration" {
   validation {
     condition = (
       can(regex("^billingAccounts/[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$", var.platform_configuration.foundation.billing_account_reference)) &&
-      can(regex("^projects/(?:[a-z][a-z0-9-]{4,28}[a-z0-9]|[1-9][0-9]{5,18})/notificationChannels/[1-9][0-9]{0,18}$", var.platform_configuration.foundation.notification_destination)) &&
-      startswith(var.platform_configuration.foundation.notification_destination, "projects/${var.platform_configuration.foundation.project_id}/")
+      can(regex("^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$", var.platform_configuration.foundation.notification_email))
     )
-    error_message = "foundation billing and notification references must be explicit and project-scoped."
+    error_message = "foundation billing reference and notification email must use canonical forms."
   }
 
   validation {
@@ -116,10 +119,12 @@ variable "platform_configuration" {
       can(regex("^projects/(?:[a-z][a-z0-9-]{4,28}[a-z0-9]|[1-9][0-9]{5,18})/secrets/[A-Za-z][A-Za-z0-9_-]{0,254}/versions/[1-9][0-9]{0,18}$", var.platform_configuration.shared_edge.oauth_client_secret_version)) &&
       startswith(var.platform_configuration.shared_edge.oauth_client_secret_version, "projects/${var.platform_configuration.foundation.project_id}/secrets/${var.platform_configuration.foundation.oauth_secret_id}/versions/") &&
       can(regex("^projects/(?:[a-z][a-z0-9-]{4,28}[a-z0-9]|[1-9][0-9]{5,18})/locations/[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?/keyRings/[A-Za-z0-9_-]{1,63}/cryptoKeys/[A-Za-z0-9_-]{1,63}/cryptoKeyVersions/[1-9][0-9]{0,18}$", var.platform_configuration.shared_edge.signing_key_version)) &&
-      startswith(var.platform_configuration.shared_edge.signing_key_version, "projects/${var.platform_configuration.foundation.project_id}/locations/${var.platform_configuration.foundation.region}/keyRings/${var.platform_configuration.foundation.signing_key_ring_id}/cryptoKeys/${var.platform_configuration.foundation.signing_key_id}/cryptoKeyVersions/"),
+      startswith(var.platform_configuration.shared_edge.signing_key_version, "projects/${var.platform_configuration.foundation.project_id}/locations/${var.platform_configuration.foundation.region}/keyRings/${var.platform_configuration.foundation.signing_key_ring_id}/cryptoKeys/${var.platform_configuration.foundation.signing_key_id}/cryptoKeyVersions/") &&
+      var.platform_configuration.shared_edge.operator_identity.issuer == "https://accounts.google.com" &&
+      can(regex("^[1-9][0-9]{5,63}$", var.platform_configuration.shared_edge.operator_identity.subject)),
       false,
     )
-    error_message = "Shared Edge values must be immutable generated references bound to the foundation project."
+    error_message = "Shared Edge values must be immutable generated references and operator identity bound to the foundation project."
   }
 
   validation {
@@ -162,7 +167,7 @@ variable "platform_configuration" {
             var.platform_configuration.foundation.oauth_secret_id,
             var.platform_configuration.foundation.signing_key_ring_id,
             var.platform_configuration.foundation.signing_key_id,
-            var.platform_configuration.foundation.notification_destination,
+            var.platform_configuration.foundation.notification_email,
           ],
           var.platform_configuration.shared_edge == null ? [] : [
             var.platform_configuration.shared_edge.edge_image_digest,

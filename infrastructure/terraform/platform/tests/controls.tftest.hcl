@@ -23,7 +23,7 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
       module.platform_controls.policy_summary.logging.exclusion_count == 3 &&
       module.platform_controls.policy_summary.logging.default_bucket_excluded &&
       module.platform_controls.policy_summary.logging.owner_reader_role == "roles/logging.viewAccessor" &&
-      module.platform_controls.policy_summary.logging.owner_principal == "projectOwner:synthetic-platform"
+      module.platform_controls.policy_summary.logging.owner_principal == "user:owner@example.invalid"
     )
     error_message = "Shared Edge logs must remain regional, owner-readable, internally routed, excluded, and limited to seven days"
   }
@@ -67,7 +67,7 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
       !module.platform_controls.policy_summary.evidence.force_destroy &&
       module.platform_controls.policy_summary.evidence.deletion_policy == "PREVENT" &&
       module.platform_controls.policy_summary.evidence.owner_reader_role == "roles/storage.objectViewer" &&
-      module.platform_controls.policy_summary.evidence.owner_principal == "projectOwner:synthetic-platform" &&
+      module.platform_controls.policy_summary.evidence.owner_principal == "user:owner@example.invalid" &&
       module.platform_controls.policy_summary.evidence.object_upload == "deferred" &&
       contains(module.platform_controls.policy_summary.evidence.allowed_material, "redacted_provider_readback") &&
       contains(module.platform_controls.policy_summary.evidence.allowed_material, "limitations") &&
@@ -84,7 +84,7 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
       module.platform_controls.policy_summary.budget.monthly_amount == 20 &&
       module.platform_controls.policy_summary.budget.threshold_percents == [50, 80, 100] &&
       module.platform_controls.policy_summary.budget.spend_basis == "CURRENT_SPEND" &&
-      module.platform_controls.policy_summary.budget.notification_destination == "projects/synthetic-platform/notificationChannels/1" &&
+      module.platform_controls.policy_summary.budget.notification_email == "owner@example.invalid" &&
       !module.platform_controls.policy_summary.budget.implicit_notification &&
       !module.platform_controls.policy_summary.budget.automatic_billing_disablement &&
       !module.platform_controls.policy_summary.budget.automatic_resource_mutation &&
@@ -97,6 +97,7 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
     condition = (
       module.platform_controls.policy_summary.artifacts.repository_id == "synthetic-images" &&
       module.platform_controls.policy_summary.artifacts.repository_format == "DOCKER" &&
+      module.platform_controls.policy_summary.artifacts.immutable_tags &&
       module.platform_controls.policy_summary.artifacts.region == "us-west1" &&
       module.platform_controls.policy_summary.artifacts.cleanup_dry_run &&
       module.platform_controls.policy_summary.artifacts.retained_roles == ["active", "rollback", "candidate"] &&

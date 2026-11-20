@@ -46,4 +46,5 @@ output "bootstrap_phase_output" {
     condition     = length(module.state_bucket) == 4
     error_message = "bootstrap_phase_output requires exactly four exclusive backend buckets."
   }
+
 }

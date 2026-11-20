@@ -18,6 +18,7 @@ locals {
     oauth_client_id                 = local.shared_edge.oauth_client_id
     oauth_client_secret_version     = local.shared_edge.oauth_client_secret_version
     signing_key_version             = local.shared_edge.signing_key_version
+    operator_identity               = local.shared_edge.operator_identity
     identity_contract_version       = 1
     attachment_adapter_version      = "gcp-cloud-run-v1"
     platform_configuration_version  = var.platform_configuration.contract_version
@@ -59,6 +60,8 @@ module "platform_foundation" {
 module "platform_controls" {
   source = "../modules/platform-controls"
 
+  depends_on = [module.platform_foundation]
+
   controls_configuration = {
     project_id                = local.foundation.project_id
     project_number            = local.foundation.project_number
@@ -67,8 +70,8 @@ module "platform_controls" {
     evidence_bucket           = local.foundation.evidence_bucket
     artifact_repository_id    = local.foundation.artifact_repository_id
     billing_account_reference = local.foundation.billing_account_reference
-    notification_destination  = local.foundation.notification_destination
-    owner_principal           = "projectOwner:${local.foundation.project_id}"
+    notification_email        = local.foundation.notification_email
+    owner_principal           = "user:${local.foundation.notification_email}"
     labels                    = var.platform_configuration.labels
     artifact_packages = [
       "fixture-authenticated",
@@ -83,6 +86,8 @@ module "shared_edge" {
   source = "../modules/shared-edge"
   count  = var.platform_configuration.phase == "shared-edge" ? 1 : 0
 
+  depends_on = [module.platform_foundation]
+
   edge_configuration = {
     project_id              = local.foundation.project_id
     region                  = local.foundation.region
@@ -91,6 +96,7 @@ module "shared_edge" {
     service_name            = local.edge_service_name
     candidate_revision      = local.edge_candidate_revision
     runtime_identity_email  = module.platform_foundation.foundation_reference.edge_runtime_email
+    edge_caller_principal   = module.platform_foundation.foundation_reference.edge_caller_principal
     image_digest            = local.shared_edge.edge_image_digest
     configuration_bucket    = local.foundation.configuration_bucket
     registration_generation = local.shared_edge.registration_generation
@@ -104,6 +110,7 @@ module "shared_edge" {
       client_id             = local.shared_edge.oauth_client_id
       client_secret_version = local.shared_edge.oauth_client_secret_version
     }
+    operator_identity   = local.shared_edge.operator_identity
     signing_key_version = local.shared_edge.signing_key_version
     tls_enabled         = local.shared_edge.tls_enabled
   }

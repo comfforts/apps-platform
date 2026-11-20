@@ -8,7 +8,7 @@ variable "controls_configuration" {
     evidence_bucket           = string
     artifact_repository_id    = string
     billing_account_reference = string
-    notification_destination  = string
+    notification_email        = string
     owner_principal           = string
     labels                    = map(string)
     artifact_packages         = list(string)

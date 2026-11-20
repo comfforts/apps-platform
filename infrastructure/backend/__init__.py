@@ -9,10 +9,8 @@ from infrastructure.backend._integration import (
 from infrastructure.backend._lifecycle import (
     BackendDeclaration,
     EnvironmentUnavailableError,
-    OperationAuthority,
     RenderedBackend,
     backend_declarations,
-    operation_authorities,
     render_backend_declaration,
 )
 from infrastructure.backend._plans import (
@@ -26,7 +24,6 @@ from infrastructure.backend._plans import (
 __all__ = (
     "BackendDeclaration",
     "EnvironmentUnavailableError",
-    "OperationAuthority",
     "PhasePlanRequest",
     "PhasePlanResult",
     "PlanPolicy",
@@ -36,7 +33,6 @@ __all__ = (
     "TerraformPlanCommands",
     "backend_declarations",
     "evaluate_plan",
-    "operation_authorities",
     "plan_policy",
     "prepare_phase_plan",
     "render_backend_declaration",

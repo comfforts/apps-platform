@@ -74,6 +74,14 @@ class FakeTerminal:
     confirmations: list[tuple[str, str]] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
     pauses: list[str] = field(default_factory=list)
+    answers: list[str] = field(
+        default_factory=lambda: ["verified-client-id.apps.googleusercontent.com"]
+    )
+    questions: list[str] = field(default_factory=list)
+
+    def ask(self, prompt: str) -> str:
+        self.questions.append(prompt)
+        return self.answers.pop(0)
 
     def confirm(self, prompt: str) -> bool:
         self.confirmations.append((prompt, "yes"))
@@ -113,11 +121,18 @@ class FakeCommands:
     executed_actions: list[object] = field(default_factory=list)
     action_readbacks: list[StageContext] = field(default_factory=list)
     manual_preparations: list[StageContext] = field(default_factory=list)
-    manual_verifications: list[tuple[StageContext, int]] = field(default_factory=list)
+    manual_verifications: list[
+        tuple[StageContext, int, tuple[tuple[str, str], ...]]
+    ] = field(default_factory=list)
     checkpoint_outcomes: list[str] = field(default_factory=lambda: ["succeeded"])
     terraform_readiness: list[bool] = field(default_factory=list)
 
-    def create_terraform_plan(self, request: object) -> TerraformPlanArtifact:
+    def create_terraform_plan(
+        self,
+        context: StageContext,
+        request: object,
+    ) -> TerraformPlanArtifact:
+        del context
         self.planned.append(request)
         phase = str(getattr(request, "phase"))
         path = self.working_root / f"{phase}-{len(self.planned):04d}.tfplan"
@@ -170,7 +185,6 @@ class FakeCommands:
         outputs = {
             "bootstrap": (
                 ("backend-reference", "verified-backend"),
-                ("identity-reference", "verified-identities"),
             ),
             "foundation": (
                 ("foundation-reference", "verified-foundation"),
@@ -212,6 +226,24 @@ class FakeCommands:
 
     def prepare_action(self, context: StageContext) -> ActionProposal:
         self.prepared_actions.append(context)
+        if context.stage["stage_id"] == "bootstrap-services":
+            return ActionProposal(
+                action="enable-bootstrap-provider-services",
+                summary={
+                    "services": [
+                        "serviceusage.googleapis.com",
+                        "storage.googleapis.com",
+                    ]
+                },
+            )
+        if context.stage["stage_id"] == "generation-publish":
+            return ActionProposal(
+                action="publish-initial-registration-generation",
+                summary={
+                    "generation": 1,
+                    "generation_digest": "sha256:" + "b" * 64,
+                },
+            )
         return ActionProposal(
             action="publish-immutable-image",
             summary={
@@ -225,6 +257,16 @@ class FakeCommands:
 
     def readback_action(self, context: StageContext) -> StageReadback:
         self.action_readbacks.append(context)
+        if context.stage["stage_id"] == "bootstrap-services":
+            return StageReadback(
+                matched=True,
+                outputs=(("bootstrap-services-attestation", "verified-services"),),
+            )
+        if context.stage["stage_id"] == "generation-publish":
+            return StageReadback(
+                matched=True,
+                outputs=(("registration-generation-reference", "verified-generation"),),
+            )
         return StageReadback(
             matched=True,
             outputs=(("shared-edge-image-digest", "sha256:" + "a" * 64),),
@@ -256,8 +298,9 @@ class FakeCommands:
         self,
         context: StageContext,
         attempt: int,
+        supplied_inputs: tuple[tuple[str, str], ...],
     ) -> CheckpointVerification:
-        self.manual_verifications.append((context, attempt))
+        self.manual_verifications.append((context, attempt, supplied_inputs))
         outcome = (
             self.checkpoint_outcomes.pop(0)
             if self.checkpoint_outcomes
@@ -275,10 +318,11 @@ class FakeCommands:
             )
         stage_id = str(context.stage["stage_id"])
         if stage_id == "oauth-configuration":
+            supplied = dict(supplied_inputs)
             return CheckpointVerification(
                 outcome="succeeded",
                 outputs=(
-                    ("oauth-client-id", "verified-client-id.apps.googleusercontent.com"),
+                    ("oauth-client-id", supplied["oauth-client-id"]),
                     ("oauth-secret-version", "projects/example/secrets/oauth-client/versions/1"),
                 ),
                 acknowledgement="operator-attested",
@@ -373,7 +417,7 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(applied_plan.policy_digest, result.plan_digest)
         self.assertEqual(
             terminal.confirmations[0][1],
-            f"APPLY foundation {result.plan_digest}",
+            "yes",
         )
         displayed = "\n".join(terminal.messages)
         self.assertIn(result.plan_digest or "", displayed)
@@ -390,7 +434,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor = DeploymentExecutor(root, terminal, commands)
 
             result = executor.execute(
-                _context("bootstrap", ("backend-reference", "identity-reference"))
+                _context("bootstrap", ("backend-reference",))
             )
 
         self.assertEqual(result.outcome, "succeeded")
@@ -421,7 +465,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             root = Path(directory) / "work"
             root.mkdir(mode=0o700)
             commands = FakeCommands(root)
-            terminal = FakeTerminal([False])
+            terminal = FakeTerminal(approvals=[False])
             executor = DeploymentExecutor(root, terminal, commands)
 
             result = executor.execute(
@@ -458,8 +502,12 @@ class PlatformDeploymentTest(unittest.TestCase):
 
     def test_saved_plan_must_be_private_and_bounded(self) -> None:
         class UnsafeCommands(FakeCommands):
-            def create_terraform_plan(self, request: object) -> TerraformPlanArtifact:
-                artifact = super().create_terraform_plan(request)
+            def create_terraform_plan(
+                self,
+                context: StageContext,
+                request: object,
+            ) -> TerraformPlanArtifact:
+                artifact = super().create_terraform_plan(context, request)
                 os.chmod(artifact.saved_plan_path, 0o644)
                 return artifact
 
@@ -470,7 +518,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor = DeploymentExecutor(root, FakeTerminal([]), commands)
 
             result = executor.execute(
-                _context("bootstrap", ("backend-reference", "identity-reference"))
+                _context("bootstrap", ("backend-reference",))
             )
 
         self.assertEqual(result.outcome, "failed")
@@ -485,7 +533,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor = DeploymentExecutor(root, FakeTerminal([]), commands)
             context = _context(
                 "bootstrap",
-                ("backend-reference", "identity-reference"),
+                ("backend-reference",),
             )
             context = StageContext(
                 environment="production",
@@ -545,7 +593,7 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(len(commands.action_readbacks), 1)
         self.assertEqual(
             terminal.confirmations[0][1],
-            f"EXECUTE image-publish {result.plan_digest}",
+            "yes",
         )
         self.assertIn("publish-immutable-image", "\n".join(terminal.messages))
 
@@ -568,6 +616,14 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertIn("Comfforts Apps Staging", transcript)
         self.assertIn("Secret Manager directly", transcript)
         self.assertNotIn("client_secret", transcript)
+        self.assertEqual(
+            terminal.questions,
+            ["Paste the OAuth client ID (never the client secret): "],
+        )
+        self.assertEqual(
+            commands.manual_verifications[0][2],
+            (("oauth-client-id", "verified-client-id.apps.googleusercontent.com"),),
+        )
         self.assertEqual(len(commands.manual_verifications), 1)
 
     def test_dns_checkpoint_polls_authoritative_and_recursive_readback_with_a_bound(self) -> None:
@@ -601,7 +657,7 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(result.manual_acknowledgement, "provider-verified")
         self.assertEqual(waiter.delays, [10, 10])
         self.assertEqual(
-            [attempt for _, attempt in commands.manual_verifications],
+            [attempt for _, attempt, _ in commands.manual_verifications],
             [1, 2, 3],
         )
         transcript = "\n".join(terminal.messages)
@@ -689,8 +745,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             working_root.mkdir(mode=0o700)
             state_root = base / "state"
             terminal = FakeTerminal(
-                typed_approvals=[True] * 5,
-                approvals=[True],
+                approvals=[True] * 8,
             )
             commands = FakeCommands(working_root)
             executor = DeploymentExecutor(
@@ -721,9 +776,11 @@ class PlatformDeploymentTest(unittest.TestCase):
             [entry["stage_id"] for entry in deployed.journal["entries"]],
             [
                 "preflight",
+                "bootstrap-services",
                 "bootstrap",
                 "foundation",
                 "image-publish",
+                "generation-publish",
                 "oauth-configuration",
                 "shared-edge",
                 "external-dns",
@@ -731,7 +788,7 @@ class PlatformDeploymentTest(unittest.TestCase):
                 "readback",
             ],
         )
-        self.assertEqual(call_counts, (4, 1, 2))
+        self.assertEqual(call_counts, (4, 3, 2))
         self.assertEqual(unchanged.outcome, "unchanged")
         self.assertEqual(
             (
@@ -768,8 +825,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             working_root = base / "work"
             working_root.mkdir(mode=0o700)
             terminal = InterruptOnceTerminal(
-                typed_approvals=[True] * 5,
-                approvals=[True],
+                approvals=[True] * 8,
             )
             commands = FakeCommands(working_root)
             executor = DeploymentExecutor(
@@ -796,10 +852,10 @@ class PlatformDeploymentTest(unittest.TestCase):
 
         self.assertEqual(interrupted.outcome, "interrupted")
         self.assertEqual(closed_plan_count, 2)
-        self.assertEqual(closed_action_count, 1)
+        self.assertEqual(closed_action_count, 3)
         self.assertEqual(resumed.outcome, "succeeded")
         self.assertEqual(len(commands.planned), 4)
-        self.assertEqual(len(commands.executed_actions), 1)
+        self.assertEqual(len(commands.executed_actions), 3)
         self.assertEqual(last_closed_stage, "readback")
 
 

@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import base64
 import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
+import time
+from typing import TYPE_CHECKING
 
 from infrastructure.operator._core import LifecycleOperator
 from infrastructure.operator._interfaces import (
@@ -21,9 +25,13 @@ from infrastructure.tools.terraform_setup import (
     GOOGLE_PROVIDER_VERSION,
     MANIFEST,
     MIRROR_ROOT,
+    OFFLINE_CLI_CONFIG,
     TERRAFORM,
     TERRAFORM_VERSION,
 )
+
+if TYPE_CHECKING:
+    from infrastructure.operator.local_deployment import OperatorSessionFacts
 
 
 def _credential_free_environment() -> dict[str, str]:
@@ -156,16 +164,128 @@ class LocalGitHub:
 
 @dataclass(frozen=True, slots=True)
 class ProfileGcp:
+    executable: Path | None = None
+    cloud_sdk_configuration: Path | None = None
+
+    def _environment(self) -> dict[str, str]:
+        environment = {
+            name: os.environ[name]
+            for name in ("HOME", "LANG", "LC_ALL", "LC_CTYPE", "PATH", "TMPDIR")
+            if name in os.environ
+        }
+        environment["CLOUDSDK_CORE_DISABLE_PROMPTS"] = "1"
+        environment["CLOUDSDK_PYTHON_SITEPACKAGES"] = "0"
+        if self.cloud_sdk_configuration is not None:
+            environment["CLOUDSDK_CONFIG"] = str(self.cloud_sdk_configuration)
+        return environment
+
+    def _read(self, *arguments: str) -> str | None:
+        if self.executable is None:
+            return None
+        try:
+            completed = subprocess.run(
+                [str(self.executable), *arguments],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=self._environment(),
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if completed.returncode != 0:
+            return None
+        return completed.stdout.strip()
+
     def inspect(self, profile: dict[str, object]) -> DiscoverySnapshot:
-        names = ("project_id", "project_number", "region")
+        active_account = self._read(
+            "auth",
+            "list",
+            "--filter=status:ACTIVE",
+            "--format=value(account)",
+        )
+        active_project = self._read("config", "get-value", "project")
+        application_default_ready = bool(
+            self._read("auth", "application-default", "print-access-token")
+        )
+        blockers: list[str] = []
+        if not active_account or not active_project:
+            blockers.append("OPERATOR_SESSION_UNAVAILABLE")
+        elif active_project != profile.get("project_id"):
+            blockers.append("OPERATOR_PROJECT_MISMATCH")
+        if not application_default_ready:
+            blockers.append("OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE")
         return DiscoverySnapshot(
             "gcp",
-            tuple(
-                (name, str(profile[name]))
-                for name in names
-                if name in profile
+            (
+                ("active_account", active_account or "unavailable"),
+                (
+                    "application_default_credentials",
+                    "ready" if application_default_ready else "unavailable",
+                ),
+                ("project_id", active_project or "unavailable"),
+                ("project_number", str(profile.get("project_number", ""))),
+                ("region", str(profile.get("region", ""))),
             ),
+            tuple(blockers),
         )
+
+    def operator_session(
+        self,
+        profile: dict[str, object],
+    ) -> OperatorSessionFacts | None:
+        """Derive immutable session facts without persisting the identity token."""
+
+        from infrastructure.operator.local_deployment import OperatorSessionFacts
+
+        active_account = self._read(
+            "auth",
+            "list",
+            "--filter=status:ACTIVE",
+            "--format=value(account)",
+        )
+        active_project = self._read("config", "get-value", "project")
+        billing_account = self._read(
+            "billing",
+            "projects",
+            "describe",
+            str(profile.get("project_id", "")),
+            "--format=value(billingAccountName)",
+        )
+        identity_token = self._read("auth", "print-identity-token")
+        if (
+            not active_account
+            or active_project != profile.get("project_id")
+            or not billing_account
+            or not identity_token
+        ):
+            return None
+        try:
+            segments = identity_token.split(".")
+            if len(segments) != 3:
+                return None
+            encoded = segments[1] + "=" * (-len(segments[1]) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(encoded).decode("utf-8"))
+            if (
+                not isinstance(claims, dict)
+                or claims.get("iss") != "https://accounts.google.com"
+                or claims.get("email") != active_account
+                or not isinstance(claims.get("sub"), str)
+            ):
+                return None
+            return OperatorSessionFacts(
+                active_account=active_account,
+                billing_account_reference=billing_account,
+                operator_issuer="https://accounts.google.com",
+                operator_subject=claims["sub"],
+            )
+        except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
+            return None
+
+    def application_default_ready(self) -> bool:
+        """Verify Terraform-compatible user ADC without retaining its access token."""
+
+        return bool(self._read("auth", "application-default", "print-access-token"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,6 +357,9 @@ class PinnedTerraform:
 
 @dataclass(frozen=True, slots=True)
 class ConsoleTerminal:
+    def ask(self, prompt: str) -> str:
+        return input(prompt)
+
     def confirm(self, prompt: str) -> bool:
         return input(prompt).strip().lower() in {"y", "yes"}
 
@@ -256,19 +379,212 @@ class SystemClock:
         return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+@dataclass(frozen=True, slots=True)
+class SystemWaiter:
+    def wait(self, seconds: int) -> None:
+        time.sleep(seconds)
+
+
+def _local_deployment_executor(
+    project_root: Path,
+    state_root: Path,
+    gcp: ProfileGcp,
+    terminal: ConsoleTerminal,
+):
+    """Arm real staging commands only when every local human-session seam exists."""
+
+    from infrastructure.operator.commands import (
+        ClosedSubprocessRunner,
+        TerraformCliAdapter,
+    )
+    from infrastructure.operator.deployment import DeploymentExecutor
+    from infrastructure.operator.deployment_dns import ClosedDigRunner, DigDnsReadback
+    from infrastructure.operator.deployment_provider import (
+        ClosedDeploymentGcloudRunner,
+        GcloudDeploymentProvider,
+    )
+    from infrastructure.operator.local_deployment import DeploymentConfigurationRenderer
+    from infrastructure.operator.local_deployment_commands import LocalDeploymentCommands
+
+    gcloud = gcp.executable
+    configuration = gcp.cloud_sdk_configuration
+    dig_name = shutil.which("dig")
+    session = gcp.operator_session(
+        {
+            "project_id": "comfforts-platform-non-prod",
+            "project_number": "455651441682",
+            "region": "us-west1",
+        }
+    )
+    if (
+        gcloud is None
+        or configuration is None
+        or dig_name is None
+        or session is None
+        or not gcp.application_default_ready()
+        or not gcloud.is_file()
+        or not configuration.is_dir()
+        or configuration.is_symlink()
+        or not TERRAFORM.is_file()
+        or not OFFLINE_CLI_CONFIG.is_file()
+    ):
+        return None
+    try:
+        resolved_state = state_root.resolve()
+        if state_root.is_symlink():
+            return None
+        resolved_state.mkdir(mode=0o700, parents=True, exist_ok=True)
+        resolved_state.chmod(0o700)
+        working_root = resolved_state / "work/deployment"
+        working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        working_root.chmod(0o700)
+        terraform_runner = ClosedSubprocessRunner((TERRAFORM,), working_root)
+        terraform = TerraformCliAdapter(
+            TERRAFORM,
+            OFFLINE_CLI_CONFIG,
+            working_root,
+            terraform_runner,
+            operator_environment=(
+                ("CLOUDSDK_CONFIG", str(configuration)),
+                ("HOME", str(Path.home().resolve())),
+            ),
+        )
+        provider = GcloudDeploymentProvider(
+            executable=gcloud,
+            cloud_sdk_configuration=configuration,
+            working_root=project_root,
+            runner=ClosedDeploymentGcloudRunner(
+                gcloud,
+                project_root,
+                configuration,
+            ),
+        )
+        dig = Path(dig_name).resolve()
+        dns = DigDnsReadback(
+            dig,
+            project_root,
+            ClosedDigRunner(dig, project_root),
+        )
+        commands = LocalDeploymentCommands(
+            DeploymentConfigurationRenderer(
+                project_root,
+                working_root,
+                session,
+            ),
+            terraform,
+            provider,
+            dns,
+            session,
+        )
+        return DeploymentExecutor(
+            working_root,
+            terminal,
+            commands,
+            waiter=SystemWaiter(),
+        )
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
 def build_local_operator(project_root: Path, state_root: Path) -> LifecycleOperator:
-    """Construct the credential-free W4 operator; no executor is installed."""
+    """Construct the local operator around the active human Cloud SDK session."""
 
     resolved_project = project_root.resolve()
+    executable_name = shutil.which("gcloud")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    cloud_sdk_configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
+    gcp = ProfileGcp(
+        Path(executable_name).resolve() if executable_name else None,
+        cloud_sdk_configuration,
+    )
+    terminal = ConsoleTerminal()
     return LifecycleOperator(
         OperatorAdapters(
             git=LocalGit(resolved_project),
             github=LocalGitHub(resolved_project),
-            gcp=ProfileGcp(),
+            gcp=gcp,
             terraform=PinnedTerraform(),
             dns=ProfileDns(),
-            terminal=ConsoleTerminal(),
+            terminal=terminal,
             filesystem=LocalFilesystem(resolved_project, state_root),
             clock=SystemClock(),
+            executor=_local_deployment_executor(
+                resolved_project,
+                state_root,
+                gcp,
+                terminal,
+            ),
         )
+    )
+
+
+def _local_generation_provider(
+    project_root: Path,
+    state_root: Path,
+):
+    """Build the closed provider boundary only from explicit private local state."""
+
+    from infrastructure.operator.provider_commands import (
+        ClosedGcloudRunner,
+        GcloudGenerationProvider,
+    )
+
+    executable_name = shutil.which("gcloud")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    cloud_sdk_configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
+    if executable_name is None or not cloud_sdk_configuration.is_dir():
+        return None
+    if cloud_sdk_configuration.is_symlink():
+        return None
+    executable = Path(executable_name).resolve()
+    runner = ClosedGcloudRunner(
+        executable,
+        project_root,
+        cloud_sdk_configuration,
+    )
+    return GcloudGenerationProvider(
+        executable=executable,
+        cloud_sdk_configuration=cloud_sdk_configuration,
+        working_root=project_root,
+        project_id="comfforts-platform-non-prod",
+        project_number="455651441682",
+        region="us-west1",
+        service_name="app-platform-edge",
+        configuration_bucket="comfforts-ap-stg-455651441682-configuration",
+        runner=runner,
+    )
+
+
+def build_local_integration(
+    project_root: Path,
+    state_root: Path,
+):
+    """Construct local handoff reads and conditionally arm provider mutation."""
+
+    from infrastructure.operator.integration import ApplicationIntegrationLifecycle
+    from infrastructure.operator.local_generation import (
+        LocalRegistrationGenerationControl,
+    )
+    from infrastructure.operator.local_integration import (
+        LocalPlatformIntegrationReader,
+    )
+
+    resolved_project = project_root.resolve()
+    filesystem = LocalFilesystem(resolved_project, state_root)
+    operator = build_local_operator(resolved_project, state_root)
+    provider = _local_generation_provider(resolved_project, state_root)
+    generations = LocalRegistrationGenerationControl(filesystem, provider)
+    return ApplicationIntegrationLifecycle(
+        LocalPlatformIntegrationReader(filesystem, operator, generations),
+        attachment_reader=provider,
+        generation_control=generations if provider is not None else None,
+        terminal=ConsoleTerminal(),
     )

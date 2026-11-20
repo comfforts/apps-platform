@@ -28,6 +28,7 @@ SCHEMA_FILES = (
     "environment-status.v1.schema.json",
     "execution-journal.v1.schema.json",
     "platform-integration-bundle.v1.schema.json",
+    "qualification-evidence.v1.schema.json",
 )
 SCHEMA_IDS = {
     "application-attachment-bundle": (
@@ -48,6 +49,9 @@ SCHEMA_IDS = {
     "platform-integration-bundle": (
         "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1"
     ),
+    "qualification-evidence": (
+        "urn:comfforts:app-platform:lifecycle:qualification-evidence:v1"
+    ),
 }
 
 _PROHIBITED_KEYS = {
@@ -58,10 +62,17 @@ _PROHIBITED_KEYS = {
     "password",
     "private_key",
     "provider_response",
+    "recovery_material",
+    "request_body",
+    "response_body",
+    "restricted_members",
     "saved_plan",
     "secret",
     "secret_value",
     "terraform_state",
+    "assertion",
+    "browser_state",
+    "session",
 }
 _PROHIBITED_VALUE_MARKERS = (
     "-----begin private key-----",
@@ -262,12 +273,45 @@ def _specification_violations(value: dict[str, Any]) -> list[Violation]:
                         "destroy specifications require an explicit destructive boundary",
                     )
                 )
-            if resources == []:
+            deleted_resources = {
+                resource
+                for stage in stages
+                if isinstance(stage, dict)
+                and isinstance(stage.get("actions"), list)
+                and "delete" in stage["actions"]
+                and isinstance(stage.get("resource_types"), list)
+                for resource in stage["resource_types"]
+                if isinstance(resource, str)
+            }
+            platform_destroy_resources = {
+                "artifact-registry",
+                "budget",
+                "configuration-bucket",
+                "dns-a-record",
+                "load-balancer",
+                "logging",
+                "managed-certificate",
+                "oauth-client",
+                "oauth-secret-version",
+                "operation-identity",
+                "platform-identity",
+                "reserved-address",
+                "secret-container",
+                "session-store",
+                "shared-edge",
+                "shared-edge-image",
+                "signing-key",
+            }
+            if (
+                not isinstance(resources, list)
+                or set(resources) != deleted_resources
+                or not set(resources).issubset(platform_destroy_resources)
+            ):
                 violations.append(
                     Violation(
                         "DESTRUCTIVE_BOUNDARY_INVALID",
                         "/destructive_boundary/resource_types",
-                        "destroy specifications require explicit destructive resource types",
+                        "destroy scope must exactly match allowed platform deletions",
                     )
                 )
         elif allowed is not False or resources != []:
@@ -462,6 +506,145 @@ def _attachment_bundle_violations(value: dict[str, Any]) -> list[Violation]:
     return []
 
 
+_QUALIFICATION_CHECKS = {
+    "admission-identity",
+    "assertion-jwks",
+    "attachment-posture",
+    "catalogue-routing",
+    "direct-origin-denial",
+    "dns-tls",
+    "isolation-limits",
+    "lifecycle-rollback",
+    "redaction",
+    "source-integrity",
+}
+_QUALIFICATION_FIXTURES = {
+    "fixture-authenticated",
+    "fixture-public",
+    "fixture-restricted",
+}
+
+
+def _qualification_evidence_violations(
+    value: dict[str, Any],
+) -> list[Violation]:
+    violations: list[Violation] = []
+    checks = value.get("checks")
+    fixtures = value.get("fixture_revisions")
+    components = value.get("component_revisions")
+    verdict = value.get("verdict")
+
+    if isinstance(components, list):
+        names = [
+            item.get("name")
+            for item in components
+            if isinstance(item, dict)
+        ]
+        if len(names) != len(set(names)):
+            violations.append(
+                Violation(
+                    "QUALIFICATION_COMPONENT_CONFLICT",
+                    "/component_revisions",
+                    "component revision names must be unique",
+                )
+            )
+
+    if isinstance(fixtures, list):
+        fixture_ids = [
+            item.get("application_id")
+            for item in fixtures
+            if isinstance(item, dict)
+        ]
+        if len(fixture_ids) != len(set(fixture_ids)):
+            violations.append(
+                Violation(
+                    "QUALIFICATION_FIXTURE_CONFLICT",
+                    "/fixture_revisions",
+                    "fixture application identifiers must be unique",
+                )
+            )
+        if verdict == "qualified" and set(fixture_ids) != _QUALIFICATION_FIXTURES:
+            violations.append(
+                Violation(
+                    "QUALIFICATION_FIXTURES_INCOMPLETE",
+                    "/fixture_revisions",
+                    "qualified evidence requires the exact synthetic fixture set",
+                )
+            )
+
+    if isinstance(checks, list):
+        check_ids = [
+            item.get("check_id")
+            for item in checks
+            if isinstance(item, dict)
+        ]
+        if len(check_ids) != len(set(check_ids)):
+            violations.append(
+                Violation(
+                    "QUALIFICATION_CHECK_CONFLICT",
+                    "/checks",
+                    "qualification check identifiers must be unique",
+                )
+            )
+        if verdict == "qualified" and set(check_ids) != _QUALIFICATION_CHECKS:
+            violations.append(
+                Violation(
+                    "QUALIFICATION_CHECKS_INCOMPLETE",
+                    "/checks",
+                    "qualified evidence requires the exact mandatory check set",
+                )
+            )
+        for index, check in enumerate(checks):
+            if not isinstance(check, dict):
+                continue
+            outcome = check.get("outcome")
+            blockers = check.get("blockers")
+            if outcome == "pass" and blockers != []:
+                violations.append(
+                    Violation(
+                        "QUALIFICATION_CHECK_INVALID",
+                        f"/checks/{index}/blockers",
+                        "a passing check cannot retain blockers",
+                    )
+                )
+            if outcome != "pass" and blockers == []:
+                violations.append(
+                    Violation(
+                        "QUALIFICATION_CHECK_INVALID",
+                        f"/checks/{index}/blockers",
+                        "a non-passing check must identify a blocker",
+                    )
+                )
+            if verdict == "qualified" and outcome != "pass":
+                violations.append(
+                    Violation(
+                        "QUALIFICATION_VERDICT_INVALID",
+                        "/verdict",
+                        "qualified evidence cannot contain a non-passing check",
+                    )
+                )
+            if (
+                verdict == "qualified"
+                and check.get("verification") == "operator-attested"
+            ):
+                violations.append(
+                    Violation(
+                        "QUALIFICATION_VERIFICATION_INVALID",
+                        f"/checks/{index}/verification",
+                        "operator attestation cannot replace a mandatory qualification check",
+                    )
+                )
+    if verdict == "qualified" and value.get("environment") != "staging":
+        violations.append(
+            Violation(
+                "QUALIFICATION_ENVIRONMENT_INVALID",
+                "/environment",
+                "AP-M9 qualifies only the staging Platform Environment",
+            )
+        )
+    return violations
+
+
 def validate_lifecycle_document(
     value: Any,
     expected_kind: str,
@@ -498,6 +681,8 @@ def validate_lifecycle_document(
             violations.extend(_integration_bundle_violations(value))
         elif expected_kind == "application-attachment-bundle":
             violations.extend(_attachment_bundle_violations(value))
+        elif expected_kind == "qualification-evidence":
+            violations.extend(_qualification_evidence_violations(value))
     return _ordered(violations)
 
 

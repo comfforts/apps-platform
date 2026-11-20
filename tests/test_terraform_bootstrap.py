@@ -31,7 +31,10 @@ class TerraformBootstrapTest(unittest.TestCase):
         outputs = (BOOTSTRAP_ROOT / "outputs.tf").read_text(encoding="utf-8")
         main = (BOOTSTRAP_ROOT / "main.tf").read_text(encoding="utf-8")
 
-        self.assertEqual(re.findall(r'^variable "([^"]+)"', variables, re.MULTILINE), ["backend_configuration"])
+        self.assertEqual(
+            re.findall(r'^variable "([^"]+)"', variables, re.MULTILINE),
+            ["backend_configuration"],
+        )
         self.assertEqual(
             re.findall(r'^output "([^"]+)"', outputs, re.MULTILINE),
             ["bootstrap_phase_output"],
@@ -149,18 +152,19 @@ class TerraformBootstrapTest(unittest.TestCase):
         self.assertIn('"test"', check)
         self.assertIn('"-test-directory=tests"', check)
 
-    def test_bootstrap_has_no_backend_identity_iam_or_mutation_command(self) -> None:
+    def test_bootstrap_has_no_identity_fleet_or_mutation_command(self) -> None:
         bootstrap = _terraform_sources(BOOTSTRAP_ROOT)
         bootstrap_implementation = "\n".join((bootstrap, _terraform_sources(MODULE_ROOT)))
         self.assertNotIn('backend "', bootstrap)
         for prohibited in (
             "terraform_remote_state",
-            "google_storage_bucket_iam",
-            "google_project_iam",
-            "service_account",
             "terraform apply",
             "terraform destroy",
             "force-unlock",
+            "google_service_account",
+            "google_service_account_key",
+            "google_project_iam",
+            "google_billing_account_iam",
         ):
             self.assertNotIn(prohibited, bootstrap_implementation)
 

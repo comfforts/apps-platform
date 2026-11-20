@@ -168,6 +168,8 @@ class IntegrationCliTest(unittest.TestCase):
                     "register",
                     "--environment",
                     "staging",
+                    "--state-directory",
+                    str(Path(directory) / "operator"),
                     "--integration-bundle",
                     str(
                         VECTORS
@@ -183,12 +185,25 @@ class IntegrationCliTest(unittest.TestCase):
                 ],
                 lifecycle,
             )
+            handoff_path = (
+                Path(directory)
+                / "operator/environments/staging/applications/"
+                "fixture-authenticated/handoffs/"
+                f"{GENERATION_DIGEST[7:]}.v1.json"
+            )
+            handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
 
         self.assertEqual(code, 0)
         self.assertEqual(result["outcome"], "activated")
         self.assertEqual(result["generation"], 7)
         self.assertNotIn("restricted_members", json.dumps(result))
         self.assertNotIn("resource_reference", json.dumps(result))
+        self.assertEqual(
+            handoff["registration_generation_digest"],
+            GENERATION_DIGEST,
+        )
+        self.assertNotIn("restricted_members", handoff)
+        self.assertNotIn("target", handoff)
         self.assertEqual(len(lifecycle.registrations), 1)
         self.assertEqual(lifecycle.registrations[0][2].attachment_id, "primary")
 
@@ -222,18 +237,36 @@ class IntegrationCliTest(unittest.TestCase):
         )
         self.assertEqual(lifecycle.retirements[0], lifecycle.detaches[0])
 
-    def test_unarmed_local_adapter_fails_closed_without_external_action(self) -> None:
+    def test_local_adapter_fails_closed_without_deployed_readback(self) -> None:
         output = io.StringIO()
 
-        with redirect_stdout(output):
-            exit_code = main(["outputs", "--environment", "staging"])
+        with tempfile.TemporaryDirectory() as directory, redirect_stdout(output):
+            exit_code = main(
+                [
+                    "outputs",
+                    "--environment",
+                    "staging",
+                    "--state-directory",
+                    str(Path(directory) / "operator"),
+                    "--application-id",
+                    "fixture-public",
+                    "--access-mode",
+                    "public",
+                    "--route-intent",
+                    "/fixture-public",
+                    "--platform-source-revision",
+                    SOURCE_REVISION,
+                    "--platform-generation",
+                    "1",
+                ]
+            )
 
         result = json.loads(output.getvalue())
         self.assertEqual(exit_code, 2)
         self.assertEqual(result["outcome"], "blocked")
         self.assertEqual(
             result["blockers"],
-            ["APPLICATION_INTEGRATION_ADAPTER_UNAVAILABLE"],
+            ["PLATFORM_READBACK_FAILED"],
         )
 
 

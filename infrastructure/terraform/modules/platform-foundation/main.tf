@@ -1,6 +1,29 @@
 locals {
   edge_runtime_principal = "serviceAccount:${var.foundation_configuration.identities.edge_runtime_account_id}@${var.foundation_configuration.project_id}.iam.gserviceaccount.com"
   edge_caller_principal  = "serviceAccount:${var.foundation_configuration.identities.edge_caller_account_id}@${var.foundation_configuration.project_id}.iam.gserviceaccount.com"
+  platform_services = toset([
+    "artifactregistry.googleapis.com",
+    "billingbudgets.googleapis.com",
+    "cloudbuild.googleapis.com",
+    "cloudkms.googleapis.com",
+    "compute.googleapis.com",
+    "firestore.googleapis.com",
+    "iam.googleapis.com",
+    "logging.googleapis.com",
+    "monitoring.googleapis.com",
+    "run.googleapis.com",
+    "secretmanager.googleapis.com",
+  ])
+}
+
+resource "google_project_service" "platform" {
+  for_each = local.platform_services
+
+  project = var.foundation_configuration.project_id
+  service = each.value
+
+  disable_dependent_services = false
+  disable_on_destroy         = false
 }
 
 resource "google_storage_bucket" "configuration" {
@@ -8,6 +31,8 @@ resource "google_storage_bucket" "configuration" {
   name     = var.foundation_configuration.configuration_bucket
   location = upper(var.foundation_configuration.region)
   labels   = var.foundation_configuration.labels
+
+  depends_on = [google_project_service.platform]
 
   storage_class               = "STANDARD"
   force_destroy               = false
@@ -31,6 +56,8 @@ resource "google_service_account" "edge_runtime" {
   display_name = "App Platform edge runtime"
   description  = "Platform-owned Shared Edge runtime identity."
 
+  depends_on = [google_project_service.platform]
+
   deletion_policy = "PREVENT"
 }
 
@@ -39,6 +66,8 @@ resource "google_service_account" "edge_caller" {
   account_id   = var.foundation_configuration.identities.edge_caller_account_id
   display_name = "App Platform edge caller"
   description  = "Platform-owned caller identity for Fixture Application invocation."
+
+  depends_on = [google_project_service.platform]
 
   deletion_policy = "PREVENT"
 }
@@ -54,6 +83,8 @@ resource "google_firestore_database" "sessions" {
   name        = "(default)"
   location_id = var.foundation_configuration.region
   type        = "FIRESTORE_NATIVE"
+
+  depends_on = [google_project_service.platform]
 
   database_edition                  = "STANDARD"
   app_engine_integration_mode       = "DISABLED"
@@ -78,6 +109,8 @@ resource "google_kms_key_ring" "assertion_signing" {
   project  = var.foundation_configuration.project_id
   location = var.foundation_configuration.region
   name     = var.foundation_configuration.signing_key_ring_id
+
+  depends_on = [google_project_service.platform]
 
   lifecycle {
     prevent_destroy = true
@@ -113,6 +146,8 @@ resource "google_secret_manager_secret" "edge_oauth" {
   project   = var.foundation_configuration.project_id
   secret_id = var.foundation_configuration.oauth_secret_id
   labels    = var.foundation_configuration.labels
+
+  depends_on = [google_project_service.platform]
 
   deletion_protection = true
 

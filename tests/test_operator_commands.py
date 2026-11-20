@@ -38,17 +38,6 @@ def _phase_request(root: Path, phase: str = "platform-foundation") -> PhasePlanR
         backend_digest="sha256:" + "7" * 64,
         backend_bucket="comfforts-ap-stg-455651441682-platform-state",
         backend_prefix="bootstrap" if phase == "bootstrap" else "platform",
-        service_account_email=(
-            f"ap-stg-{'bootstrap' if phase == 'bootstrap' else 'platform'}-plan@"
-            "comfforts-platform-non-prod.iam.gserviceaccount.com"
-        ),
-        impersonation_environment=(
-            (
-                "GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
-                f"ap-stg-{'bootstrap' if phase == 'bootstrap' else 'platform'}-plan@"
-                "comfforts-platform-non-prod.iam.gserviceaccount.com",
-            ),
-        ),
     )
 
 
@@ -135,10 +124,6 @@ class OperatorCommandTest(unittest.TestCase):
         self.assertIn("-lock=true", plan.argv)
         self.assertNotIn("-lock=false", plan.argv)
         self.assertIn("show", show.argv)
-        self.assertEqual(
-            dict(plan.environment)["GOOGLE_IMPERSONATE_SERVICE_ACCOUNT"],
-            request.service_account_email,
-        )
         self.assertNotIn("GOOGLE_IMPERSONATE_SERVICE_ACCOUNT", dict(show.environment))
         self.assertEqual(
             artifact.observation["changes"],
@@ -154,7 +139,7 @@ class OperatorCommandTest(unittest.TestCase):
         self.assertNotIn("before", json.dumps(artifact.observation))
         self.assertNotIn("after", json.dumps(artifact.observation))
 
-    def test_apply_accepts_only_the_same_private_saved_plan_and_apply_identity(self) -> None:
+    def test_apply_accepts_only_the_same_private_saved_plan_and_operator_session(self) -> None:
         runner = FakeRunner([CommandResult(0, b"", b"")])
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory) / "private"
@@ -170,6 +155,10 @@ class OperatorCommandTest(unittest.TestCase):
                 cli_config,
                 workspace,
                 runner,
+                operator_environment=(
+                    ("CLOUDSDK_CONFIG", str(workspace / "gcloud")),
+                    ("HOME", str(workspace / "home")),
+                ),
             )
 
             adapter.apply_plan(request, root, saved_plan)
@@ -181,9 +170,11 @@ class OperatorCommandTest(unittest.TestCase):
         )
         self.assertIn("apply", invocation.argv)
         self.assertIn("-auto-approve", invocation.argv)
+        self.assertNotIn("GOOGLE_IMPERSONATE_SERVICE_ACCOUNT", dict(invocation.environment))
+        self.assertEqual(dict(invocation.environment)["HOME"], str(workspace / "home"))
         self.assertEqual(
-            dict(invocation.environment)["GOOGLE_IMPERSONATE_SERVICE_ACCOUNT"],
-            "ap-stg-platform-apply@comfforts-platform-non-prod.iam.gserviceaccount.com",
+            dict(invocation.environment)["CLOUDSDK_CONFIG"],
+            str(workspace / "gcloud"),
         )
 
     def test_bootstrap_uses_explicit_local_backend_and_short_lived_human_session(self) -> None:
@@ -223,6 +214,111 @@ class OperatorCommandTest(unittest.TestCase):
             dict(runner.requests[1].environment),
         )
 
+    def test_bootstrap_migrates_only_to_exact_remote_lineage_and_reads_it_back(
+        self,
+    ) -> None:
+        output = {
+            "contract_version": 1,
+            "output_kind": "bootstrap",
+            "environment": "staging",
+        }
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(0, json.dumps(output).encode(), b""),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "bootstrap"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root, "bootstrap")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            adapter.migrate_bootstrap_state(request, root)
+            observed = adapter.read_output(
+                request,
+                root,
+                "bootstrap_phase_output",
+            )
+
+        migration, readback = runner.requests
+        self.assertEqual(migration.authority, "bootstrap-state-migration")
+        self.assertEqual(
+            migration.argv[1:],
+            (
+                "init",
+                "-input=false",
+                "-lockfile=readonly",
+                "-migrate-state",
+                "-force-copy",
+                "-backend-config=bucket=comfforts-ap-stg-455651441682-platform-state",
+                "-backend-config=prefix=bootstrap",
+            ),
+        )
+        self.assertEqual(
+            readback.argv[1:],
+            ("output", "-json", "bootstrap_phase_output"),
+        )
+        self.assertEqual(observed, output)
+
+    def test_existing_bootstrap_initializes_the_exact_remote_lineage(self) -> None:
+        plan_json = {
+            "format_version": "1.2",
+            "terraform_version": "1.17.2",
+            "resource_changes": [],
+        }
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(0, b"", b""),
+                CommandResult(0, json.dumps(plan_json).encode(), b""),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "bootstrap"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root, "bootstrap")
+            self._private_file(
+                request.backend_path,
+                b'terraform { backend "gcs" {} }\n',
+            )
+            values = self._private_file(workspace / "values.json", b"{}")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            adapter.create_plan(
+                request,
+                root,
+                values,
+                bootstrap_remote=True,
+            )
+
+        init = runner.requests[0]
+        self.assertNotIn("-backend=false", init.argv)
+        self.assertIn(
+            "-backend-config=bucket="
+            "comfforts-ap-stg-455651441682-platform-state",
+            init.argv,
+        )
+        self.assertIn("-backend-config=prefix=bootstrap", init.argv)
+
     def test_closed_runner_rejects_shells_unapproved_executables_and_ambient_environment(
         self,
     ) -> None:
@@ -243,6 +339,12 @@ class OperatorCommandTest(unittest.TestCase):
                     (str(executable), "version"),
                     root,
                     (("GOOGLE_APPLICATION_CREDENTIALS", "/tmp/key.json"),),
+                ),
+                CommandRequest(
+                    (str(executable), "init", "-migrate-state", "-force-copy"),
+                    root,
+                    (),
+                    authority="bootstrap-state-migration",
                 ),
             )
 

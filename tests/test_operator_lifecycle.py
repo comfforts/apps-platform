@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import base64
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -21,7 +23,11 @@ from infrastructure.operator import (
     StageContext,
     StageExecution,
 )
-from infrastructure.operator.local import LocalFilesystem
+from infrastructure.operator.local import (
+    LocalFilesystem,
+    ProfileGcp,
+    build_local_operator,
+)
 from infrastructure.operator.cli import main as operator_main
 from infrastructure.operator import local as local_adapters
 
@@ -121,6 +127,158 @@ class FakeExecutor:
 
 
 class OperatorLifecycleTest(unittest.TestCase):
+    def test_local_gcp_discovery_verifies_active_human_session_and_project(self) -> None:
+        profile = {
+            "project_id": "comfforts-platform-non-prod",
+            "project_number": "455651441682",
+            "region": "us-west1",
+        }
+        observed = (
+            subprocess.CompletedProcess([], 0, "operator@example.com\n", ""),
+            subprocess.CompletedProcess(
+                [], 0, "comfforts-platform-non-prod\n", ""
+            ),
+            subprocess.CompletedProcess([], 0, "discarded-access-token\n", ""),
+        )
+        with mock.patch.object(
+            local_adapters.subprocess,
+            "run",
+            side_effect=observed,
+        ):
+            result = ProfileGcp(Path("/usr/bin/gcloud"), Path("/tmp/gcloud")).inspect(
+                profile
+            )
+
+        self.assertEqual(result.blockers, ())
+        self.assertEqual(dict(result.facts)["active_account"], "operator@example.com")
+        self.assertEqual(
+            dict(result.facts)["project_id"],
+            "comfforts-platform-non-prod",
+        )
+        self.assertEqual(
+            dict(result.facts)["application_default_credentials"],
+            "ready",
+        )
+        self.assertNotIn("discarded-access-token", repr(result))
+
+    def test_local_gcp_discovery_blocks_wrong_project(self) -> None:
+        observed = (
+            subprocess.CompletedProcess([], 0, "operator@example.com\n", ""),
+            subprocess.CompletedProcess([], 0, "wrong-project\n", ""),
+            subprocess.CompletedProcess([], 0, "discarded-access-token\n", ""),
+        )
+        with mock.patch.object(
+            local_adapters.subprocess,
+            "run",
+            side_effect=observed,
+        ):
+            result = ProfileGcp(Path("/usr/bin/gcloud"), Path("/tmp/gcloud")).inspect(
+                {
+                    "project_id": "comfforts-platform-non-prod",
+                    "project_number": "455651441682",
+                    "region": "us-west1",
+                }
+            )
+
+        self.assertEqual(result.blockers, ("OPERATOR_PROJECT_MISMATCH",))
+
+    def test_local_gcp_session_derives_billing_and_subject_without_retaining_token(
+        self,
+    ) -> None:
+        claims = base64.urlsafe_b64encode(
+            json.dumps(
+                {
+                    "email": "operator@example.com",
+                    "iss": "https://accounts.google.com",
+                    "sub": "123456789012345678901",
+                },
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).rstrip(b"=").decode("ascii")
+        token = f"header.{claims}.signature"
+        observed = (
+            subprocess.CompletedProcess([], 0, "operator@example.com\n", ""),
+            subprocess.CompletedProcess([], 0, "comfforts-platform-non-prod\n", ""),
+            subprocess.CompletedProcess(
+                [],
+                0,
+                "billingAccounts/ABCDEF-123456-789ABC\n",
+                "",
+            ),
+            subprocess.CompletedProcess([], 0, token + "\n", ""),
+        )
+        with mock.patch.object(
+            local_adapters.subprocess,
+            "run",
+            side_effect=observed,
+        ):
+            session = ProfileGcp(
+                Path("/usr/bin/gcloud"),
+                Path("/tmp/gcloud"),
+            ).operator_session(
+                {
+                    "project_id": "comfforts-platform-non-prod",
+                    "project_number": "455651441682",
+                    "region": "us-west1",
+                }
+            )
+
+        assert session is not None
+        self.assertEqual(session.active_account, "operator@example.com")
+        self.assertEqual(
+            session.billing_account_reference,
+            "billingAccounts/ABCDEF-123456-789ABC",
+        )
+        self.assertEqual(session.operator_subject, "123456789012345678901")
+        self.assertNotIn(token, repr(session))
+
+    def test_local_factory_arms_executor_only_for_complete_human_session(self) -> None:
+        from infrastructure.operator.local_deployment import OperatorSessionFacts
+
+        session = OperatorSessionFacts(
+            active_account="operator@example.com",
+            billing_account_reference="billingAccounts/ABCDEF-123456-789ABC",
+            operator_issuer="https://accounts.google.com",
+            operator_subject="123456789012345678901",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            configuration = base / "gcloud"
+            configuration.mkdir(mode=0o700)
+            state = base / "state"
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {"CLOUDSDK_CONFIG": str(configuration)},
+                ),
+                mock.patch.object(
+                    local_adapters.shutil,
+                    "which",
+                    side_effect=lambda name: "/usr/bin/true"
+                    if name in {"gcloud", "dig"}
+                    else None,
+                ),
+                mock.patch.object(
+                    ProfileGcp,
+                    "operator_session",
+                    return_value=session,
+                ),
+                mock.patch.object(
+                    ProfileGcp,
+                    "application_default_ready",
+                    return_value=True,
+                ),
+            ):
+                operator = build_local_operator(PROJECT_ROOT, state)
+
+            executor = operator._adapters.executor
+            state_mode = state.stat().st_mode & 0o777
+            working_mode = (state / "work/deployment").stat().st_mode & 0o777
+
+        self.assertIsNotNone(executor)
+        self.assertEqual(state_mode, 0o700)
+        self.assertEqual(working_mode, 0o700)
+
     def test_executor_receives_one_exact_immutable_stage_context(self) -> None:
         @dataclass
         class ContextExecutor:
@@ -213,7 +371,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertEqual(result.blockers, ())
             self.assertEqual(
                 result.specification_digest,
-                "sha256:a362f9836014acbac6b07d19873a1f4dab6434eefd39ba5eafa53b796557beea",
+                "sha256:6238b39c813701a95c3b8cac770ce1b0c6f714fb3ee001d959d803ebd334c340",
             )
             assert result.specification is not None
             self.assertEqual(result.specification["environment"], "staging")
@@ -222,9 +380,11 @@ class OperatorLifecycleTest(unittest.TestCase):
                 [stage["stage_id"] for stage in result.specification["stages"]],
                 [
                     "preflight",
+                    "bootstrap-services",
                     "bootstrap",
                     "foundation",
                     "image-publish",
+                    "generation-publish",
                     "oauth-configuration",
                     "shared-edge",
                     "external-dns",
@@ -363,7 +523,8 @@ class OperatorLifecycleTest(unittest.TestCase):
 
             self.assertEqual(resumed.outcome, "succeeded")
             self.assertEqual(executor.calls.count("preflight"), 1)
-            self.assertEqual(executor.calls.count("bootstrap"), 2)
+            self.assertEqual(executor.calls.count("bootstrap-services"), 2)
+            self.assertEqual(executor.calls.count("bootstrap"), 1)
             self.assertEqual(
                 operator.status("staging").environment_status["lifecycle_state"],
                 "deployed",
@@ -530,14 +691,19 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertEqual(status_code, 0)
             self.assertEqual(status["lifecycle_state"], "deployed")
 
-            stderr = io.StringIO()
-            with mock.patch("sys.stderr", stderr):
-                with self.assertRaises(SystemExit):
-                    operator_main(
-                        ["deploy", "--environment", "staging"],
-                        operator_factory=lambda _: operator,
-                    )
-            self.assertEqual(stderr.getvalue(), "")
+            combined_operator, _ = self._operator(
+                Path(directory) / "combined",
+                executor=FakeExecutor(),
+            )
+            combined_stdout = io.StringIO()
+            with mock.patch("sys.stdout", combined_stdout):
+                combined_code = operator_main(
+                    ["deploy", "--environment", "staging"],
+                    operator_factory=lambda _: combined_operator,
+                )
+            combined = json.loads(combined_stdout.getvalue().splitlines()[-1])
+            self.assertEqual(combined_code, 0)
+            self.assertEqual(combined["outcome"], "succeeded")
 
     def test_make_targets_are_shallow_and_private_state_is_ignored(self) -> None:
         makefile = (PROJECT_ROOT / "Makefile").read_text(encoding="utf-8")
@@ -549,7 +715,7 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertIn("-m infrastructure.operator prepare", makefile)
         self.assertIn("-m infrastructure.operator deploy", makefile)
         self.assertIn("-m infrastructure.operator status", makefile)
-        self.assertIn("SPECIFICATION_DIGEST is required", makefile)
+        self.assertIn("$(if $(SPECIFICATION_DIGEST)", makefile)
         self.assertIn(".platform-operator/", gitignore)
 
     def test_local_filesystem_does_not_create_state_during_read_only_status(self) -> None:

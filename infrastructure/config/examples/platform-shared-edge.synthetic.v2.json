@@ -19,13 +19,17 @@
     "signing_key_ring_id": "synthetic-platform",
     "signing_key_id": "synthetic-edge-signing",
     "billing_account_reference": "billingAccounts/000000-000000-000000",
-    "notification_destination": "projects/synthetic-platform/notificationChannels/1"
+    "notification_email": "owner@example.invalid"
   },
   "shared_edge": {
     "edge_image_digest": "us-west1-docker.pkg.dev/synthetic-platform/synthetic-images/shared-edge@sha256:0000000000000000000000000000000000000000000000000000000000000000",
     "oauth_client_id": "synthetic-client.apps.example.invalid",
     "oauth_client_secret_version": "projects/synthetic-platform/secrets/synthetic-oauth-secret/versions/1",
     "signing_key_version": "projects/synthetic-platform/locations/us-west1/keyRings/synthetic-platform/cryptoKeys/synthetic-edge-signing/cryptoKeyVersions/1",
+    "operator_identity": {
+      "issuer": "https://accounts.google.com",
+      "subject": "123456789012345678901"
+    },
     "registration_generation": {
       "source_revision": "0000000000000000000000000000000000000000",
       "generation": 1,

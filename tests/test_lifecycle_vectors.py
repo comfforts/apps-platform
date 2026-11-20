@@ -35,6 +35,10 @@ VECTORS = {
         "platform-integration-bundle",
         "sha256:6fc56779c115978e38f3db5d2cad671c482f898bbab911f2fb523b9ca7865af7",
     ),
+    "qualification-evidence.staging.synthetic.v1.json": (
+        "qualification-evidence",
+        "sha256:d9d4274691cd628ef3bdb21fa2626d901339ee4d485ec1c9732c31da5f29e914",
+    ),
 }
 
 

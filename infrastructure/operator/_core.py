@@ -66,13 +66,27 @@ def _deployment_stages() -> list[dict[str, object]]:
             "readback": "not-applicable",
         },
         {
-            "stage_id": "bootstrap",
-            "actions": ["create", "read"],
-            "resource_types": ["backend-bucket", "operation-identity"],
+            "stage_id": "bootstrap-services",
+            "actions": ["read", "update"],
+            "resource_types": ["provider-service"],
             "consumes": [
                 {"stage_id": "preflight", "output_name": "preflight-attestation"}
             ],
-            "produces": ["backend-reference", "identity-reference"],
+            "produces": ["bootstrap-services-attestation"],
+            "manual_checkpoint": "none",
+            "readback": "provider-verified",
+        },
+        {
+            "stage_id": "bootstrap",
+            "actions": ["create", "read"],
+            "resource_types": ["backend-bucket"],
+            "consumes": [
+                {
+                    "stage_id": "bootstrap-services",
+                    "output_name": "bootstrap-services-attestation",
+                }
+            ],
+            "produces": ["backend-reference"],
             "manual_checkpoint": "none",
             "readback": "provider-verified",
         },
@@ -92,7 +106,6 @@ def _deployment_stages() -> list[dict[str, object]]:
             ],
             "consumes": [
                 {"stage_id": "bootstrap", "output_name": "backend-reference"},
-                {"stage_id": "bootstrap", "output_name": "identity-reference"},
             ],
             "produces": ["foundation-reference", "oauth-secret-container"],
             "manual_checkpoint": "none",
@@ -106,6 +119,17 @@ def _deployment_stages() -> list[dict[str, object]]:
                 {"stage_id": "foundation", "output_name": "foundation-reference"}
             ],
             "produces": ["shared-edge-image-digest"],
+            "manual_checkpoint": "none",
+            "readback": "provider-verified",
+        },
+        {
+            "stage_id": "generation-publish",
+            "actions": ["create", "read"],
+            "resource_types": ["compiled-registration-generation"],
+            "consumes": [
+                {"stage_id": "foundation", "output_name": "foundation-reference"}
+            ],
+            "produces": ["registration-generation-reference"],
             "manual_checkpoint": "none",
             "readback": "provider-verified",
         },
@@ -137,6 +161,10 @@ def _deployment_stages() -> list[dict[str, object]]:
                 {
                     "stage_id": "oauth-configuration",
                     "output_name": "oauth-secret-version",
+                },
+                {
+                    "stage_id": "generation-publish",
+                    "output_name": "registration-generation-reference",
                 },
             ],
             "produces": ["edge-reference", "reserved-address"],
@@ -965,6 +993,14 @@ class LifecycleOperator:
         if ordered_blockers:
             return PrepareResult(
                 "blocked", False, False, None, None, ordered_blockers
+            )
+
+        gcp_facts = dict(discoveries[1].facts)
+        active_account = gcp_facts.get("active_account")
+        active_project = gcp_facts.get("project_id")
+        if active_account and active_project:
+            self._adapters.terminal.write(
+                f"Verified operator session {active_account} for {active_project}."
             )
 
         specification = self._specification(

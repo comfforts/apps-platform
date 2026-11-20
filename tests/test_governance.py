@@ -289,7 +289,10 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_layout = " ".join(layout.split())
         normalized_overview = " ".join(overview.split())
 
-        self.assertIn("AP-M9-W7 application integration lifecycle implemented", normalized_index)
+        self.assertIn(
+            "AP-M9-W8 qualification and safe-destruction lifecycle implemented",
+            normalized_index,
+        )
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
         self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
         self.assertIn("AP-M8 | historical", index)
@@ -989,7 +992,6 @@ class ProjectAuthorityTest(unittest.TestCase):
         reserved_paths = (
             "edge/production.py",
             "fixtures/runtime.py",
-            "infrastructure/images",
             "infrastructure/deployment",
             "registrations",
             "artifacts",
@@ -1035,7 +1037,6 @@ class ProjectAuthorityTest(unittest.TestCase):
 
         for later_path in (
             "infrastructure/deployment",
-            "infrastructure/images",
             "edge/production.py",
             "fixtures/runtime.py",
             "registrations/qualification",
@@ -1284,18 +1285,22 @@ class ProjectAuthorityTest(unittest.TestCase):
                 + [
                     "infrastructure/terraform/bootstrap/main.tf",
                     "infrastructure/terraform/bootstrap/outputs.tf",
+                    "infrastructure/terraform/bootstrap/provider.tf",
                     "infrastructure/terraform/bootstrap/variables.tf",
                     "infrastructure/terraform/fixtures/fixture-authenticated/backend.tf",
                     "infrastructure/terraform/fixtures/fixture-authenticated/main.tf",
                     "infrastructure/terraform/fixtures/fixture-authenticated/outputs.tf",
+                    "infrastructure/terraform/fixtures/fixture-authenticated/provider.tf",
                     "infrastructure/terraform/fixtures/fixture-authenticated/variables.tf",
                     "infrastructure/terraform/fixtures/fixture-public/backend.tf",
                     "infrastructure/terraform/fixtures/fixture-public/main.tf",
                     "infrastructure/terraform/fixtures/fixture-public/outputs.tf",
+                    "infrastructure/terraform/fixtures/fixture-public/provider.tf",
                     "infrastructure/terraform/fixtures/fixture-public/variables.tf",
                     "infrastructure/terraform/fixtures/fixture-restricted/backend.tf",
                     "infrastructure/terraform/fixtures/fixture-restricted/main.tf",
                     "infrastructure/terraform/fixtures/fixture-restricted/outputs.tf",
+                    "infrastructure/terraform/fixtures/fixture-restricted/provider.tf",
                     "infrastructure/terraform/fixtures/fixture-restricted/variables.tf",
                     "infrastructure/terraform/modules/fixture-application/main.tf",
                     "infrastructure/terraform/modules/fixture-application/outputs.tf",
@@ -1315,6 +1320,7 @@ class ProjectAuthorityTest(unittest.TestCase):
                     "infrastructure/terraform/platform/backend.tf",
                     "infrastructure/terraform/platform/main.tf",
                     "infrastructure/terraform/platform/outputs.tf",
+                    "infrastructure/terraform/platform/provider.tf",
                     "infrastructure/terraform/platform/variables.tf",
                 ]
             ),
@@ -1444,7 +1450,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("operator-attested", threat_model)
         self.assertIn("No current result proves", threat_model)
 
-    def test_ap_m9_w7_status_and_w8_handoff_are_bounded(self) -> None:
+    def test_ap_m9_w8_status_and_w9_handoff_are_bounded(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         docs_index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         runbook = (
@@ -1459,12 +1465,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_prompt = " ".join(prompt.split())
 
         for document in (overview, docs_index, runbook, layout):
-            self.assertIn("AP-M9-W7", document)
+            self.assertIn("AP-M9-W8", document)
             self.assertIn("implemented", document.lower())
         self.assertIn("platform-prepare", overview)
         self.assertIn("platform-status", overview)
         self.assertIn("platform-deploy", overview)
-        self.assertIn("default local construction remains deliberately unarmed", runbook.lower())
+        self.assertIn("W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED", runbook)
+        self.assertIn("W9_DESTRUCTION_AUTHORITY_REQUIRED", runbook)
         self.assertIn("`infrastructure/operator/`", layout)
 
         for required in (

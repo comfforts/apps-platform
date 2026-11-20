@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:comfforts:app-platform:lifecycle:qualification-evidence:v1",
+  "title": "Qualification Evidence Version 1",
+  "description": "Revision-bound redacted qualification evidence for one Platform Environment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "document_kind",
+    "environment",
+    "source_revision",
+    "profile_digest",
+    "specification_digest",
+    "deployment_journal_digest",
+    "registration_generation_digest",
+    "component_revisions",
+    "fixture_revisions",
+    "checks",
+    "limitations",
+    "verdict"
+  ],
+  "properties": {
+    "contract_version": {"const": 1},
+    "document_kind": {"const": "qualification-evidence"},
+    "environment": {"enum": ["production", "staging"]},
+    "source_revision": {"$ref": "#/$defs/sourceRevision"},
+    "profile_digest": {"$ref": "#/$defs/digest"},
+    "specification_digest": {"$ref": "#/$defs/digest"},
+    "deployment_journal_digest": {"$ref": "#/$defs/digest"},
+    "registration_generation_digest": {"$ref": "#/$defs/digest"},
+    "component_revisions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {"$ref": "#/$defs/componentRevision"}
+    },
+    "fixture_revisions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {"$ref": "#/$defs/fixtureRevision"}
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {"$ref": "#/$defs/check"}
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/code"}
+    },
+    "verdict": {"enum": ["failed", "qualified"]}
+  },
+  "$defs": {
+    "applicationId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]$"
+    },
+    "code": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 96,
+      "pattern": "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$"
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 71,
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "sourceRevision": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 40,
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "componentRevision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "digest"],
+      "properties": {
+        "name": {"$ref": "#/$defs/name"},
+        "digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "fixtureRevision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "application_id",
+        "application_source_revision",
+        "integration_bundle_digest",
+        "attachment_bundle_digest"
+      ],
+      "properties": {
+        "application_id": {"$ref": "#/$defs/applicationId"},
+        "application_source_revision": {"$ref": "#/$defs/sourceRevision"},
+        "integration_bundle_digest": {"$ref": "#/$defs/digest"},
+        "attachment_bundle_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "check_id",
+        "outcome",
+        "verification",
+        "evidence_digest",
+        "blockers"
+      ],
+      "properties": {
+        "check_id": {"$ref": "#/$defs/name"},
+        "outcome": {"enum": ["blocked", "fail", "pass", "unavailable"]},
+        "verification": {
+          "enum": [
+            "deterministic",
+            "operator-attested",
+            "provider-verified",
+            "runtime-verified"
+          ]
+        },
+        "evidence_digest": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/digest"}]
+        },
+        "blockers": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/code"}
+        }
+      }
+    }
+  }
+}

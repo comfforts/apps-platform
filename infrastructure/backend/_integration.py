@@ -9,7 +9,6 @@ from typing import Any, Protocol
 from infrastructure.backend._lifecycle import (
     BackendDeclaration,
     backend_declarations,
-    operation_authorities,
     render_backend_declaration,
 )
 from infrastructure.backend._plans import (
@@ -34,8 +33,6 @@ class PhasePlanRequest:
     backend_digest: str
     backend_bucket: str
     backend_prefix: str
-    service_account_email: str
-    impersonation_environment: tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,17 +74,6 @@ def prepare_phase_plan(
     """Render and policy-check one fake-observed phase plan without applying it."""
 
     declaration = _phase_declaration(environment, phase)
-    authorities = tuple(
-        value
-        for value in operation_authorities(environment)
-        if value.action == "plan"
-        and value.terraform_root == declaration.terraform_root
-        and value.backend_bucket == declaration.bucket
-        and value.backend_prefix == declaration.prefix
-    )
-    if len(authorities) != 1:
-        raise ValueError("phase has no unique plan authority")
-    authority = authorities[0]
     rendered = render_backend_declaration(
         declaration,
         working_root,
@@ -105,8 +91,6 @@ def prepare_phase_plan(
         backend_digest=rendered.digest,
         backend_bucket=declaration.bucket,
         backend_prefix=declaration.prefix,
-        service_account_email=authority.service_account_email,
-        impersonation_environment=authority.impersonation_environment,
     )
     observed = commands.observe_plan(request)
     result = evaluate_plan(

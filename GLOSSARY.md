@@ -43,10 +43,13 @@ owners or backends.
 A generated non-secret Terraform backend block binding one exact root lineage to its reviewed GCS
 bucket and prefix. Rendering a declaration does not initialize, migrate, read, or write a backend.
 
-## Operation Authority
+## Operator Session
 
-One exact environment, root, state owner, action, and short-lived service-account impersonation
-scope. An authority profile contains no credential and creates no identity or IAM binding.
+One short-lived human-authenticated local session verified against the selected environment,
+provider project, reviewed source, and lifecycle scope. It contains no stored service-account key
+and does not make an out-of-band provider action reviewed.
+
+_Avoid_: Operation authority, operation identity, impersonation profile
 
 ## Canonical Plan Summary
 

@@ -5,11 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import secrets
 import stat
 import subprocess
 from typing import Protocol
 
-from infrastructure.backend import PhasePlanRequest, operation_authorities
+from infrastructure.backend import PhasePlanRequest
 from infrastructure.operator.deployment import (
     DeploymentCommandError,
     TerraformPlanArtifact,
@@ -18,7 +19,8 @@ from infrastructure.operator.deployment import (
 
 _ALLOWED_ENVIRONMENT = {
     "CHECKPOINT_DISABLE",
-    "GOOGLE_IMPERSONATE_SERVICE_ACCOUNT",
+    "CLOUDSDK_CONFIG",
+    "HOME",
     "TF_CLI_CONFIG_FILE",
 }
 _PROHIBITED_TERRAFORM_ARGUMENTS = {
@@ -41,6 +43,7 @@ class CommandRequest:
     cwd: Path
     environment: tuple[tuple[str, str], ...]
     timeout_seconds: int = 900
+    authority: str = "ordinary"
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,8 +80,26 @@ class ClosedSubprocessRunner:
         names = [name for name, _ in request.environment]
         if len(names) != len(set(names)) or not set(names) <= _ALLOWED_ENVIRONMENT:
             raise ValueError("command environment contains an unapproved name")
+        if request.authority not in {"ordinary", "bootstrap-state-migration"}:
+            raise ValueError("command authority is outside the approved set")
+        if request.authority == "bootstrap-state-migration":
+            expected = (
+                str(Path(request.argv[0]).resolve()),
+                "init",
+                "-input=false",
+                "-lockfile=readonly",
+                "-migrate-state",
+                "-force-copy",
+                "-backend-config=bucket=comfforts-ap-stg-455651441682-platform-state",
+                "-backend-config=prefix=bootstrap",
+            )
+            if request.argv != expected:
+                raise ValueError("bootstrap migration command is not exact")
         if Path(request.argv[0]).name == "terraform":
-            if any(argument in _PROHIBITED_TERRAFORM_ARGUMENTS for argument in request.argv[1:]):
+            prohibited = _PROHIBITED_TERRAFORM_ARGUMENTS
+            if request.authority == "bootstrap-state-migration":
+                prohibited = prohibited - {"-force-copy", "-migrate-state"}
+            if any(argument in prohibited for argument in request.argv[1:]):
                 raise ValueError("prohibited Terraform operation or argument")
             if any(
                 argument.startswith(prefix)
@@ -113,18 +134,26 @@ class TerraformCliAdapter:
         cli_configuration: Path,
         working_root: Path,
         runner: CommandRunner,
+        operator_environment: tuple[tuple[str, str], ...] = (),
     ) -> None:
         self._executable = executable.resolve()
         self._cli_configuration = cli_configuration.resolve()
         self._working_root = working_root.resolve()
         self._runner = runner
-        self._plan_sequence = 0
+        self._operator_environment = tuple(sorted(operator_environment))
         if not self._working_root.is_dir():
             raise ValueError("Terraform working root does not exist")
         if stat.S_IMODE(self._working_root.stat().st_mode) & 0o077:
             raise ValueError("Terraform working root must be private")
         if not self._executable.is_file() or not self._cli_configuration.is_file():
             raise ValueError("pinned Terraform executable and CLI configuration are required")
+        names = [name for name, _ in self._operator_environment]
+        if (
+            len(names) != len(set(names))
+            or not set(names) <= {"CLOUDSDK_CONFIG", "HOME"}
+            or any(not value for _, value in self._operator_environment)
+        ):
+            raise ValueError("operator environment is not a bounded human session")
 
     def _bounded(self, path: Path, *, file_required: bool) -> Path:
         if path.is_symlink():
@@ -138,16 +167,13 @@ class TerraformCliAdapter:
             raise ValueError("Terraform workspace material must be private")
         return resolved
 
-    def _environment(
-        self,
-        impersonation: tuple[tuple[str, str], ...] = (),
-    ) -> tuple[tuple[str, str], ...]:
+    def _environment(self) -> tuple[tuple[str, str], ...]:
         return tuple(
             sorted(
                 (
                     ("CHECKPOINT_DISABLE", "1"),
                     ("TF_CLI_CONFIG_FILE", str(self._cli_configuration)),
-                    *impersonation,
+                    *self._operator_environment,
                 )
             )
         )
@@ -157,11 +183,13 @@ class TerraformCliAdapter:
         root: Path,
         environment: tuple[tuple[str, str], ...],
         *arguments: str,
+        authority: str = "ordinary",
     ) -> CommandRequest:
         return CommandRequest(
             argv=(str(self._executable), *arguments),
             cwd=root,
             environment=environment,
+            authority=authority,
         )
 
     @staticmethod
@@ -220,12 +248,14 @@ class TerraformCliAdapter:
         request: PhasePlanRequest,
         terraform_root: Path,
         variable_file: Path,
+        *,
+        bootstrap_remote: bool = False,
     ) -> TerraformPlanArtifact:
         root = self._bounded(terraform_root, file_required=False)
         if not root.is_dir():
             raise ValueError("Terraform root is not a directory")
         variables = self._bounded(variable_file, file_required=True)
-        if request.phase != "bootstrap":
+        if request.phase != "bootstrap" or bootstrap_remote:
             backend = self._bounded(request.backend_path, file_required=True)
             if backend.parent != root:
                 raise ValueError("backend declaration is outside the Terraform root")
@@ -233,18 +263,15 @@ class TerraformCliAdapter:
         plan_directory = self._working_root / "plans"
         plan_directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         plan_directory.chmod(0o700)
-        self._plan_sequence += 1
-        plan_path = plan_directory / f"{request.phase}-{self._plan_sequence:04d}.tfplan"
+        plan_path = plan_directory / (
+            f"{request.phase}-{secrets.token_hex(12)}.tfplan"
+        )
         if plan_path.exists():
             raise FileExistsError("refusing to replace an existing saved plan")
 
-        plan_environment = (
-            self._environment()
-            if request.phase == "bootstrap"
-            else self._environment(request.impersonation_environment)
-        )
+        plan_environment = self._environment()
         init_arguments = ["init", "-input=false", "-lockfile=readonly"]
-        if request.phase == "bootstrap":
+        if request.phase == "bootstrap" and not bootstrap_remote:
             init_arguments.append("-backend=false")
         else:
             init_arguments.extend(
@@ -290,24 +317,6 @@ class TerraformCliAdapter:
             self._projection(request, shown.stdout),
         )
 
-    @staticmethod
-    def _apply_impersonation(request: PhasePlanRequest) -> tuple[tuple[str, str], ...]:
-        if request.phase == "bootstrap":
-            return ()
-        matches = tuple(
-            authority
-            for authority in operation_authorities(request.environment)
-            if authority.action == "apply"
-            and authority.terraform_root == request.terraform_root
-            and authority.state_owner == request.state_owner
-            and authority.owner_id == request.owner_id
-            and authority.backend_bucket == request.backend_bucket
-            and authority.backend_prefix == request.backend_prefix
-        )
-        if len(matches) != 1:
-            raise DeploymentCommandError("APPLY_IDENTITY_UNAVAILABLE")
-        return matches[0].impersonation_environment
-
     def apply_plan(
         self,
         request: PhasePlanRequest,
@@ -321,7 +330,7 @@ class TerraformCliAdapter:
         applied = self._runner.run(
             self._request(
                 root,
-                self._environment(self._apply_impersonation(request)),
+                self._environment(),
                 "apply",
                 "-input=false",
                 "-auto-approve",
@@ -330,6 +339,76 @@ class TerraformCliAdapter:
         )
         if applied.returncode != 0:
             raise DeploymentCommandError("TERRAFORM_APPLY_FAILED")
+
+    def migrate_bootstrap_state(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> None:
+        """Move the just-created local bootstrap state into its exact remote lineage."""
+
+        if (
+            request.phase != "bootstrap"
+            or request.backend_bucket
+            != "comfforts-ap-stg-455651441682-platform-state"
+            or request.backend_prefix != "bootstrap"
+        ):
+            raise ValueError("bootstrap state migration scope is not exact")
+        root = self._bounded(terraform_root, file_required=False)
+        if not root.is_dir():
+            raise ValueError("Terraform root is not a directory")
+        migrated = self._runner.run(
+            self._request(
+                root,
+                self._environment(),
+                "init",
+                "-input=false",
+                "-lockfile=readonly",
+                "-migrate-state",
+                "-force-copy",
+                f"-backend-config=bucket={request.backend_bucket}",
+                f"-backend-config=prefix={request.backend_prefix}",
+                authority="bootstrap-state-migration",
+            )
+        )
+        if migrated.returncode != 0:
+            raise DeploymentCommandError("BOOTSTRAP_STATE_MIGRATION_FAILED")
+
+    def read_output(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+        output_name: str,
+    ) -> object:
+        """Read one closed non-secret output from the initialized exact lineage."""
+
+        allowed = {
+            "bootstrap": {"bootstrap_phase_output"},
+            "platform-foundation": {"foundation_phase_output"},
+            "shared-edge": {"shared_edge_phase_output"},
+        }
+        if output_name not in allowed.get(request.phase, set()):
+            raise ValueError("Terraform output is outside the approved phase")
+        root = self._bounded(terraform_root, file_required=False)
+        if not root.is_dir():
+            raise ValueError("Terraform root is not a directory")
+        observed = self._runner.run(
+            self._request(
+                root,
+                self._environment(),
+                "output",
+                "-json",
+                output_name,
+            )
+        )
+        if observed.returncode != 0:
+            raise DeploymentCommandError("TERRAFORM_OUTPUT_READ_FAILED")
+        if len(observed.stdout) > 1024 * 1024:
+            raise DeploymentCommandError("TERRAFORM_OUTPUT_TOO_LARGE")
+        try:
+            return json.loads(observed.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise DeploymentCommandError("TERRAFORM_OUTPUT_INVALID") from error
 
 
 __all__ = (

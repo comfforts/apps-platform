@@ -1,28 +1,34 @@
 # AP-M9 environment lifecycle runbook
 
-Status: AP-M9-W7 application integration mechanics implemented; external actions remain
-unavailable until their later operator gates
+Status: AP-M9-W8 lifecycle and guarded staging deployment mechanics implemented; no external action
+has run, and AP-M9-W9 remains the first-operation gate
 
 This runbook describes the intended human experience. It is subordinate to AP-PR-010 through
 AP-PR-012, AP-QR-007 through AP-QR-009, ADR-010 through ADR-013, AP-M9-W1 through AP-M9-W10, and
-AP-EVAL-M9. AP-M9-W1 through AP-M9-W7 create no credential, identity, backend, cloud resource, DNS
+AP-EVAL-M9. AP-M9-W1 through AP-M9-W8 create no credential, identity, backend, cloud resource, DNS
 record, certificate, deployment, or Live evidence. W3 implements the closed profiles and lifecycle
 documents, W4 implements credential-free local preparation/status, W5 implements the exact
-Terraform phase, backend, operation-authority, and plan-policy seams, and W6 implements staged
-execution, exact typed confirmation, manual checkpoints, readback, and resume. W7 implements
+Terraform phase, backend, and plan-policy seams, and W6 implements staged execution, confirmation,
+manual checkpoints, readback, and resume. W7 implements
 least-data bundle generation, exact attachment validation, immutable whole-generation activation,
 reversible detachment/reactivation, and terminal retirement behind injected boundaries.
+W8 implements exact-revision qualification, redacted evidence, network fixtures, failure injection,
+reviewed rollback, separate safe-destruction authority with resumable progress, and the real staging
+deployment adapters behind verified-human-session gates.
 
 ## Environment flow
 
-1. `platform-prepare` selects `staging` or `production`, loads a small non-secret profile, performs
+1. `platform-deploy` selects `staging` or `production`, loads a small non-secret profile, performs
    bounded read-only discovery, shows unresolved human inputs and ownership blockers, and writes a
-   digest-bound Deployment Specification.
-2. The operator reviews and explicitly approves that exact specification. Approval is a property
+   digest-bound Deployment Specification. `platform-prepare` offers the same read-only work as an
+   optional dry run.
+2. In the same deploy invocation, the operator reviews and explicitly approves that exact
+   specification. Approval is a property
    of a complete valid specification; it does not hide or override an unresolved blocker.
-3. `platform-deploy` verifies source, profile, specification, environment, and approval bindings,
-   then creates fresh exact Terraform plans immediately before each stage and applies only the
-   plan just shown in the same process.
+3. Deployment verifies source, profile, specification, environment, active human account, exact
+   provider project, and approval bindings, then creates fresh exact Terraform plans immediately
+   before each stage. After showing a plan it uses one `y/N` confirmation and applies only that
+   saved plan in the same process. Typed phrases are reserved for irreversible actions.
 4. The deployment remains in one interactive process for human-only checkpoints. It displays the
    allocated edge address, pauses while the operator adds the external Squarespace DNS record, and
    continues on Enter only after readback verifies propagation. Google OAuth branding and client
@@ -44,6 +50,12 @@ The interactive process may be resumed after an ordinary retryable failure using
 execution journal, but a changed specification or source requires new preparation and approval.
 Pressing Enter acknowledges a named human checkpoint; it never grants a general permission.
 
+The operator experience intentionally follows the proven Finance Assistant script model: one
+command, readable staged output, discovered defaults, `y/N` plan gates, browser-console guidance,
+Enter-to-continue pauses, immediate readback, and a clear stop on the first mismatch. The platform
+does not require a hand-authored manifest, a mandatory prepare/deploy round trip, or an
+operation-service-account bootstrap.
+
 ## Environment isolation
 
 Staging and production have distinct projects, hostnames, backends, state lineages, identities,
@@ -57,27 +69,34 @@ destroys those assets.
 
 ## Current operator rule
 
-After W7 merges, `make platform-prepare ENVIRONMENT=staging` may be used from clean current `main`
+After W8 merges, `make platform-prepare ENVIRONMENT=staging` may be used from clean current `main`
 to create and explicitly approve one complete specification in the ignored private
-`.platform-operator/` directory. It performs only local Git, profile, repository-identity, and
-pinned-tool discovery. `make platform-status ENVIRONMENT=staging` reads the local status without
-changing it. Production preparation reports `OWNERSHIP_TRANSFER_REQUIRED`.
+`.platform-operator/` directory. It performs read-only Git, profile, repository-identity,
+pinned-tool, active-account, project, billing-reference, Google-subject, and user-ADC discovery.
+Tokens are discarded in memory and never enter the specification or journal. `make platform-status
+ENVIRONMENT=staging` reads the local status without changing provider state. Production preparation
+reports `OWNERSHIP_TRANSFER_REQUIRED`.
 
-Neither preparation nor status authenticates, queries a provider, initializes a backend, creates a
-Terraform plan, or mutates a repository, cloud resource, OAuth client, secret, DNS record,
-certificate, or application. W6 adds
+Preparation may use the already authenticated Cloud SDK for bounded read-only session discovery;
+neither preparation nor status initializes a backend, creates a Terraform plan, or mutates a
+repository, cloud resource, OAuth client, secret, DNS record, certificate, or application. W6 adds
 `make platform-deploy ENVIRONMENT=staging SPECIFICATION_DIGEST=sha256:<digest>` as the exact
-interactive entry point, but the default local construction remains deliberately unarmed until the
-qualification and safe-destruction package completes. The non-fake Terraform subprocess boundary
+interactive entry point. The non-fake Terraform subprocess boundary
 is implemented and closed to shell interpolation, ambient credentials, path escape, target/replace,
 state push, import, force-unlock, and lock bypass; repository tests invoke only deterministic
-recording fakes.
+recording fakes. W8 wires that boundary to the local deploy command only when `gcloud`, `dig`, the
+pinned Terraform mirror, the exact staging project, an active human account, and user Application
+Default Credentials are all ready. `platform-deploy` still requires the separate W9 owner approval
+before its first real invocation.
 
 W7 adds `platform-outputs`, `platform-register`, `platform-detach`, and `platform-retire`. Outputs
 writes canonical create-only bundles beneath `.platform-operator/`. Register accepts an exact
 integration bundle, attachment bundle, and strict private registration intent; it publishes and
-activates only complete immutable generations after readback and exact typed confirmation. Detach
+activates only complete immutable generations after readback and confirmation. Detach
 and retire require the expected active-generation digest. Interrupted confirmation can resume only
-the identical create-only publication. Until W8 arms the provider and generation-control adapters,
-these local targets fail closed with `APPLICATION_INTEGRATION_ADAPTER_UNAVAILABLE` and perform no
-partial external work. `make check` remains credential-free, deterministic, and non-mutating.
+the identical create-only publication. W8 conditionally constructs provider and generation-control
+adapters only when an explicit private Cloud SDK configuration exists.
+W8 adds `platform-qualify` and `platform-destroy`; their default live entry points return
+`W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED` or `W9_DESTRUCTION_AUTHORITY_REQUIRED` until the owner
+approves the exact W9 probe or destructive executor. `make check` remains credential-free,
+deterministic, and non-mutating.

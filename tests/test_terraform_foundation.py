@@ -60,6 +60,14 @@ class TerraformFoundationTest(unittest.TestCase):
         self.assertEqual(len(re.findall(r'"h1:[^"]+"', lock)), 2)
         self.assertGreaterEqual(len(re.findall(r'"zh:[0-9a-f]{64}"', lock)), 2)
 
+    def test_every_root_explicitly_binds_provider_project_and_region(self) -> None:
+        for root in terraform_setup.ROOTS:
+            provider = (root / "provider.tf").read_text(encoding="utf-8")
+            with self.subTest(root=root):
+                self.assertEqual(provider.count('provider "google"'), 1)
+                self.assertIn("project = var.", provider)
+                self.assertIn("region  = var.", provider)
+
     def test_setup_is_checksum_pinned_and_kept_out_of_git(self) -> None:
         self.assertEqual(terraform_setup.TERRAFORM_VERSION, "1.17.2")
         self.assertEqual(terraform_setup.GOOGLE_PROVIDER_VERSION, "8.11.0")

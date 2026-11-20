@@ -13,13 +13,20 @@ from contracts.lifecycle import (
     load_lifecycle_document,
 )
 from infrastructure.operator._core import LifecycleOperator
+from infrastructure.operator.destruction import DestructionLifecycle
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
     IntegrationBundleRequest,
     LifecycleChangeRequest,
     RegistrationIntent,
 )
-from infrastructure.operator.local import LocalFilesystem, build_local_operator
+from infrastructure.operator.local import (
+    LocalFilesystem,
+    build_local_integration,
+    build_local_operator,
+)
+from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
+from infrastructure.operator.qualification import QualificationLifecycle
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -35,9 +42,11 @@ def _parser() -> argparse.ArgumentParser:
             "detach",
             "outputs",
             "prepare",
+            "qualify",
             "register",
             "retire",
             "status",
+            "destroy",
         ),
         help="platform lifecycle operation",
     )
@@ -78,8 +87,21 @@ def _default_factory(state_directory: Path) -> LifecycleOperator:
 def _default_integration_factory(
     state_directory: Path,
 ) -> ApplicationIntegrationLifecycle:
+    return build_local_integration(PROJECT_ROOT, state_directory)
+
+
+def _default_qualification_factory(
+    state_directory: Path,
+) -> QualificationLifecycle:
     del state_directory
-    raise RuntimeError("APPLICATION_INTEGRATION_ADAPTER_UNAVAILABLE")
+    raise RuntimeError("W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED")
+
+
+def _default_destruction_factory(
+    state_directory: Path,
+) -> DestructionLifecycle:
+    del state_directory
+    raise RuntimeError("W9_DESTRUCTION_AUTHORITY_REQUIRED")
 
 
 def _required(arguments: argparse.Namespace, name: str) -> object:
@@ -147,13 +169,43 @@ def main(
     integration_factory: Callable[
         [Path], ApplicationIntegrationLifecycle
     ] = _default_integration_factory,
+    qualification_factory: Callable[
+        [Path], QualificationLifecycle
+    ] = _default_qualification_factory,
+    destruction_factory: Callable[
+        [Path], DestructionLifecycle
+    ] = _default_destruction_factory,
 ) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.operation in {"prepare", "deploy", "status"}:
         operator = operator_factory(arguments.state_directory)
-    else:
+    elif arguments.operation in {"detach", "outputs", "register", "retire"}:
         try:
             integration = integration_factory(arguments.state_directory)
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+    elif arguments.operation == "qualify":
+        try:
+            qualification = qualification_factory(arguments.state_directory)
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+    else:
+        try:
+            destruction = destruction_factory(arguments.state_directory)
         except RuntimeError as error:
             _print(
                 {
@@ -179,11 +231,27 @@ def main(
         return 0 if result.outcome in {"prepared", "unchanged"} else 2
 
     if arguments.operation == "deploy":
-        if arguments.specification_digest is None:
-            raise SystemExit("deploy requires --specification-digest")
+        specification_digest = arguments.specification_digest
+        if specification_digest is None:
+            prepared = operator.prepare(arguments.environment)
+            specification_digest = prepared.specification_digest
+            if (
+                prepared.outcome not in {"prepared", "unchanged"}
+                or not prepared.approved
+                or specification_digest is None
+            ):
+                _print(
+                    {
+                        "blockers": list(prepared.blockers),
+                        "environment": arguments.environment,
+                        "outcome": prepared.outcome,
+                        "specification_digest": specification_digest,
+                    }
+                )
+                return 2
         result = operator.execute(
             arguments.environment,
-            arguments.specification_digest,
+            specification_digest,
         )
         _print(
             {
@@ -191,10 +259,82 @@ def main(
                 "environment": arguments.environment,
                 "journal_digest": result.journal_digest,
                 "outcome": result.outcome,
-                "specification_digest": arguments.specification_digest,
+                "specification_digest": specification_digest,
             }
         )
         return 0 if result.outcome in {"succeeded", "unchanged"} else 2
+
+    if arguments.operation == "qualify":
+        result = qualification.qualify_current(arguments.environment)
+        evidence_path: str | None = None
+        if result.evidence is not None and result.evidence_digest is not None:
+            evidence_path = (
+                f"environments/{arguments.environment}/qualification/evidence/"
+                f"{result.evidence_digest[7:]}.v1.json"
+            )
+            filesystem = LocalFilesystem(
+                PROJECT_ROOT,
+                arguments.state_directory,
+            )
+            try:
+                filesystem.write_state(
+                    evidence_path,
+                    canonical_lifecycle_bytes(
+                        result.evidence,
+                        "qualification-evidence",
+                    )
+                    + b"\n",
+                    replace=False,
+                )
+                pointer = {
+                    "evidence_digest": result.evidence_digest,
+                    "outcome": result.outcome,
+                }
+                filesystem.write_state(
+                    (
+                        f"environments/{arguments.environment}/qualification/"
+                        "current-evidence.v1.json"
+                    ),
+                    json.dumps(
+                        pointer,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                    + b"\n",
+                    replace=True,
+                )
+            except (FileExistsError, ValueError):
+                _print(
+                    {
+                        "blockers": ["QUALIFICATION_EVIDENCE_PUBLICATION_FAILED"],
+                        "environment": arguments.environment,
+                        "outcome": "blocked",
+                    }
+                )
+                return 2
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "evidence_digest": result.evidence_digest,
+                "evidence_path": evidence_path,
+                "outcome": result.outcome,
+            }
+        )
+        return 0 if result.outcome == "qualified" else 2
+
+    if arguments.operation == "destroy":
+        result = destruction.destroy_current(arguments.environment)
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "last_closed_stage": result.last_closed_stage,
+                "outcome": result.outcome,
+                "specification_digest": result.specification_digest,
+            }
+        )
+        return 0 if result.outcome == "destroyed" else 2
 
     if arguments.operation == "outputs":
         result = integration.outputs(
@@ -280,6 +420,34 @@ def main(
             attachment_bundle,
             intent,
         )
+        if (
+            result.outcome in {"activated", "unchanged"}
+            and result.generation is not None
+            and result.generation_digest is not None
+        ):
+            try:
+                handoffs = LocalApplicationHandoffs(
+                    LocalFilesystem(PROJECT_ROOT, arguments.state_directory)
+                )
+                handoff = handoffs.from_bundles(
+                    integration_bundle,
+                    attachment_bundle,
+                    int(result.generation),
+                    result.generation_digest,
+                )
+                if not handoffs.record(handoff):
+                    raise ValueError("handoff record readback mismatch")
+            except (FileExistsError, ValueError):
+                _print(
+                    {
+                        "blockers": ["APPLICATION_HANDOFF_RECORD_FAILED"],
+                        "environment": arguments.environment,
+                        "generation": result.generation,
+                        "generation_digest": result.generation_digest,
+                        "outcome": "blocked",
+                    }
+                )
+                return 2
         _print(
             {
                 "blockers": list(result.blockers),

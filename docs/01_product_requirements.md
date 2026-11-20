@@ -190,7 +190,11 @@ available from reviewed source and provider readback, derive deterministic value
 manual action at the point of use, and accept an Enter-to-continue acknowledgement without making
 the operator restart the lifecycle. Generated execution records must be machine-produced rather
 than hand-authored. An interrupted operation must report its last accepted stage and provide a safe
-resume path.
+resume path. The normal deploy command must perform read-only preparation, specification review,
+approval, deployment, and manual checkpoints in one invocation; a separate prepare command is an
+optional dry run, not a mandatory operator round trip. Ordinary reviewed plan applications use one
+clear `y/N` confirmation after the plan is shown. Typed phrases are reserved for destruction,
+purge, ownership transfer, and similarly irreversible actions.
 
 ### AP-QR-008 · Environment isolation
 

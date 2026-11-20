@@ -42,6 +42,9 @@ PLATFORM_INTEGRATION_BUNDLE_SCHEMA_ID = (
 APPLICATION_ATTACHMENT_BUNDLE_SCHEMA_ID = (
     "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1"
 )
+QUALIFICATION_EVIDENCE_SCHEMA_ID = (
+    "urn:comfforts:app-platform:lifecycle:qualification-evidence:v1"
+)
 
 
 def _profile(name: str) -> dict[str, object]:
@@ -292,6 +295,7 @@ class EnvironmentProfileContractTest(unittest.TestCase):
                 ENVIRONMENT_STATUS_SCHEMA_ID,
                 PLATFORM_INTEGRATION_BUNDLE_SCHEMA_ID,
                 APPLICATION_ATTACHMENT_BUNDLE_SCHEMA_ID,
+                QUALIFICATION_EVIDENCE_SCHEMA_ID,
             },
         )
 

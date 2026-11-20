@@ -103,7 +103,8 @@ output "policy_summary" {
       monthly_amount                = 20
       threshold_percents            = [50, 80, 100]
       spend_basis                   = "CURRENT_SPEND"
-      notification_destination      = var.controls_configuration.notification_destination
+      notification_destination      = google_monitoring_notification_channel.budget_email.id
+      notification_email            = var.controls_configuration.notification_email
       implicit_notification         = false
       automatic_billing_disablement = false
       automatic_resource_mutation   = false
@@ -112,6 +113,7 @@ output "policy_summary" {
     artifacts = {
       repository_id                    = var.controls_configuration.artifact_repository_id
       repository_format                = "DOCKER"
+      immutable_tags                   = true
       region                           = var.controls_configuration.region
       cleanup_dry_run                  = true
       retained_roles                   = ["active", "rollback", "candidate"]

@@ -1,6 +1,6 @@
 # App Platform evaluation strategy
 
-Version 0.13 | Status: AP-M9-W7 application lifecycle repository controls implemented; historical AP-EVAL-M8
+Version 0.14 | Status: AP-M9-W8 qualification and safe-destruction repository controls implemented; historical AP-EVAL-M8
 and standalone AP-EVAL-M9 proposals superseded without execution; no AP-M9 provider or Live result
 exists
 
@@ -15,6 +15,8 @@ fake evidence. W6 supplies exact-plan/action binding, typed confirmation, same-p
 checkpoint, bounded-poll, transcript-redaction, stop-on-discrepancy, and resume evidence. W7
 supplies deterministic least-data output, attachment/target validation, immutable generation,
 activation, detach/reactivate, retirement, route-response, interruption, and conflict evidence.
+W8 supplies deterministic exact-revision qualification, evidence redaction, network-fixture,
+failure-injection, rollback, destruction-scope, confirmation, interruption, and resume evidence.
 No result qualifies a provider operation, Live environment, consuming application's adoption, or
 product authorization.
 
@@ -1542,8 +1544,8 @@ Staging Live gates begin only after AP-M9-W1 through W8 are merged, the exact pr
 revision passes the complete gate, one staging Deployment Specification is complete and explicitly
 approved by digest, and the owner separately approves each bootstrap, OAuth, DNS, qualification,
 rollback, destroy, or recovery action that crosses its named authority. The local wizard uses only
-short-lived authentication and operation-specific impersonation. Production commands remain
-read-only throughout AP-M9.
+the verified short-lived human operator session and creates no operation-identity fleet or stored
+key. Production commands remain read-only throughout AP-M9.
 
 ### Evidence model
 
@@ -1584,17 +1586,19 @@ mutable references, non-canonical bytes, stale digests, and incomplete stage-out
 With deterministic adapters, exercise first deployment, update, no-change, drift, conflict,
 interruption, and resume. Prove preparation is read-only, asks only unresolved decisions, emits one
 complete specification and digest, keeps approval separate from completeness, and never repeats a
-closed stage. Verify terminal transcripts for Enter checkpoints, bounded polling, cancellation,
-truthful waiting/failure states, and no secret prompt or output.
+closed stage. Verify the default deploy invocation performs preparation, review, approval, and
+deployment without a mandatory second command; standalone prepare remains a dry run. Verify
+terminal transcripts for `y/N` plan review, typed irreversible boundaries, Enter checkpoints,
+bounded polling, cancellation, truthful waiting/failure states, and no secret prompt or output.
 
-#### AP-EVAL-M9-04 · State, Terraform, identities, plans, and ownership
+#### AP-EVAL-M9-04 · State, Terraform, operator session, plans, and ownership
 
 Verify deployable bootstrap/foundation/edge phases preserve independent state ownership, locking,
-recovery, provider locks, environment isolation, operation-specific identities, key absence, exact
-impersonation scope, plan canonicalization, policy enforcement, same-execution plan/apply binding,
-and readback. Reject a broad role, wrong project, cross-root access, alternate source, implicit
-provider default, replacement, unexpected destroy, state push, force-unlock, import, or automatic
-recovery.
+recovery, provider locks, environment isolation, runtime-identity separation, key absence, active
+human account/project checks, plan canonicalization, policy enforcement, same-execution plan/apply
+binding, and readback. Reject a wrong account or project, cross-root target, alternate source,
+implicit provider default, replacement, unexpected destroy, state push, force-unlock, import, or
+automatic recovery. Verify the lifecycle creates no operation-identity or impersonation fleet.
 
 #### AP-EVAL-M9-05 · Interactive staging deployment, OAuth, DNS, and TLS
 
@@ -1666,8 +1670,10 @@ destruction. Those remain production-cutover, later migration, or Application Ad
 This definition originated in AP-M9-W1. AP-M9-W2 removed the retired manifest path, W3 implemented
 the lifecycle contracts, W4 implemented credential-free preparation/status and deterministic fake
 journal execution, W5 implemented repository-only Terraform lifecycle policy and mocked plans, and
-W6 implemented the unarmed interactive deployment engine plus closed command boundary. W7
-implemented application handoff and registration lifecycle controls behind injected boundaries.
-They create no identity, credential, Terraform state or saved plan, provider
+W6 implemented the interactive deployment engine plus closed command boundary. W7
+implemented application handoff and registration lifecycle controls, and W8 implemented
+qualification and safe-destruction controls behind guarded boundaries and wired the real staging
+deployment adapters only for a verified human session. The repository work itself created no identity,
+credential, Terraform state or saved plan, provider
 resource, OAuth client, secret, DNS record, certificate, application asset, Live evidence bundle,
 deployment, destruction, or passing operational result.

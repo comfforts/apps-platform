@@ -108,6 +108,10 @@ class DeploymentCommandError(RuntimeError):
 
 
 class DeploymentTerminal(Protocol):
+    def ask(self, prompt: str) -> str: ...
+
+    def confirm(self, prompt: str) -> bool: ...
+
     def confirm_exact(self, prompt: str, expected: str) -> bool: ...
 
     def write(self, message: str) -> None: ...
@@ -130,6 +134,7 @@ class DeploymentCommands(Protocol):
 
     def create_terraform_plan(
         self,
+        context: StageContext,
         request: PhasePlanRequest,
     ) -> TerraformPlanArtifact: ...
 
@@ -158,18 +163,20 @@ class DeploymentCommands(Protocol):
         self,
         context: StageContext,
         attempt: int,
+        supplied_inputs: tuple[tuple[str, str], ...],
     ) -> CheckpointVerification: ...
 
 
 @dataclass
 class _ArtifactObserver(TerraformPlanCommands):
     commands: DeploymentCommands
+    context: StageContext
     request: PhasePlanRequest | None = None
     artifact: TerraformPlanArtifact | None = None
 
     def observe_plan(self, request: PhasePlanRequest) -> dict[str, object]:
         self.request = request
-        self.artifact = self.commands.create_terraform_plan(request)
+        self.artifact = self.commands.create_terraform_plan(self.context, request)
         return self.artifact.observation
 
 
@@ -180,7 +187,7 @@ _TERRAFORM_PHASES = {
     "tls-readiness": "shared-edge",
 }
 _READ_ONLY_STAGES = {"preflight", "readback"}
-_ACTION_STAGES = {"image-publish"}
+_ACTION_STAGES = {"bootstrap-services", "generation-publish", "image-publish"}
 _MANUAL_STAGES = {"oauth-configuration", "external-dns"}
 _POLLING = {
     "external-dns": (12, 10),
@@ -345,10 +352,8 @@ class DeploymentExecutor:
         exact = ExactAction(proposal.action, digest, proposal.summary)
         self._terminal.write(f"ACTION {canonical}")
         self._terminal.write(f"ACTION_DIGEST {digest}")
-        expected = f"EXECUTE {stage_id} {digest}"
-        if not self._terminal.confirm_exact(
-            f"Type {expected!r} to execute the exact action: ",
-            expected,
+        if not self._terminal.confirm(
+            f"Execute the reviewed {stage_id} action {digest}? [y/N] "
         ):
             return StageExecution(
                 outcome="cancelled",
@@ -399,6 +404,18 @@ class DeploymentExecutor:
         self._terminal.pause(
             f"Complete checkpoint {checkpoint.checkpoint!r}, then Press Enter to verify: "
         )
+        supplied_inputs: tuple[tuple[str, str], ...] = ()
+        if stage_id == "oauth-configuration":
+            client_id = self._terminal.ask(
+                "Paste the OAuth client ID (never the client secret): "
+            ).strip()
+            if not client_id:
+                return StageExecution(
+                    outcome="failed",
+                    plan_digest=digest,
+                    blockers=("OAUTH_CLIENT_ID_REQUIRED",),
+                )
+            supplied_inputs = (("oauth-client-id", client_id),)
 
         max_attempts, interval = _POLLING.get(stage_id, (1, 0))
         latest_blockers: tuple[str, ...] = ()
@@ -407,6 +424,7 @@ class DeploymentExecutor:
                 verification = self._commands.verify_manual_checkpoint(
                     context,
                     attempt,
+                    supplied_inputs,
                 )
             except DeploymentCommandError as error:
                 return StageExecution(
@@ -459,7 +477,7 @@ class DeploymentExecutor:
         stage_id: str,
         phase: str,
     ) -> StageExecution:
-        observer = _ArtifactObserver(self._commands)
+        observer = _ArtifactObserver(self._commands, context)
         try:
             evaluated = prepare_phase_plan(
                 context.environment,
@@ -502,10 +520,9 @@ class DeploymentExecutor:
         self._terminal.write(f"PLAN_DIGEST {exact_plan.policy_digest}")
 
         if self._requires_apply(exact_plan.canonical_summary):
-            expected = f"APPLY {stage_id} {exact_plan.policy_digest}"
-            if not self._terminal.confirm_exact(
-                f"Type {expected!r} to apply the exact private plan: ",
-                expected,
+            if not self._terminal.confirm(
+                f"Apply the reviewed {stage_id} plan "
+                f"{exact_plan.policy_digest}? [y/N] "
             ):
                 return StageExecution(
                     outcome="cancelled",

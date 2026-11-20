@@ -1,0 +1,15 @@
+**
+!pyproject.toml
+!uv.lock
+!contracts/
+!contracts/__init__.py
+!contracts/validation.py
+!contracts/schemas/
+!contracts/schemas/**
+!edge/
+!edge/*.py
+!infrastructure/
+!infrastructure/images/
+!infrastructure/images/shared-edge/
+!infrastructure/images/shared-edge/Dockerfile
+!infrastructure/images/shared-edge/cloudbuild.yaml

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from infrastructure.backend._lifecycle import (
     EnvironmentUnavailableError,
@@ -15,6 +16,9 @@ _PROJECT_ID = "comfforts-platform-non-prod"
 _PROJECT_RESOURCE = f"projects/{_PROJECT_ID}"
 _CONFIGURATION_BUCKET = "comfforts-ap-stg-455651441682-configuration"
 _EDGE_SERVICE = f"{_PROJECT_RESOURCE}/locations/us-west1/services/app-platform-edge"
+_BILLING_ACCOUNT = re.compile(
+    r"^billingAccounts/[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$"
+)
 
 _PLATFORM_READ_ROLES = (
     "roles/artifactregistry.reader",
@@ -143,6 +147,7 @@ def _project_roles(authority: OperationAuthority) -> tuple[str, ...]:
 
 def _resource_bindings(
     authority: OperationAuthority,
+    billing_account_reference: str | None,
 ) -> tuple[OperationRoleBinding, ...]:
     values: list[OperationRoleBinding] = []
     if authority.terraform_root == "infrastructure/terraform/platform":
@@ -176,12 +181,15 @@ def _resource_bindings(
                         "roles/iam.serviceAccountUser",
                     )
                 )
-        if authority.action in {"apply", "destroy"}:
+        if (
+            authority.action in {"apply", "destroy"}
+            and billing_account_reference is not None
+        ):
             values.append(
                 _binding(
                     authority,
                     "billing-account",
-                    "approved-discovered-billing-account",
+                    billing_account_reference,
                     "roles/billing.costsManager",
                 )
             )
@@ -202,11 +210,18 @@ def _resource_bindings(
 
 def operation_role_bindings(
     environment: str,
+    *,
+    billing_account_reference: str | None = None,
 ) -> tuple[OperationRoleBinding, ...]:
     """Return deterministic IAM intent; this function performs no IAM action."""
 
     if environment != "staging":
         raise EnvironmentUnavailableError("OWNERSHIP_TRANSFER_REQUIRED")
+    if (
+        billing_account_reference is not None
+        and _BILLING_ACCOUNT.fullmatch(billing_account_reference) is None
+    ):
+        raise ValueError("billing account reference is not canonical")
     values: list[OperationRoleBinding] = []
     for authority in operation_authorities(environment):
         backend = _backend_binding(authority)
@@ -221,7 +236,7 @@ def operation_role_bindings(
             )
             for role in _project_roles(authority)
         )
-        values.extend(_resource_bindings(authority))
+        values.extend(_resource_bindings(authority, billing_account_reference))
     return tuple(sorted(values))
 
 

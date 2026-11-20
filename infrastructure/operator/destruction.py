@@ -20,7 +20,6 @@ from infrastructure.operator._interfaces import (
 DESTRUCTIBLE_PLATFORM_RESOURCES = (
     "artifact-registry",
     "budget",
-    "configuration-bucket",
     "dns-a-record",
     "load-balancer",
     "logging",
@@ -33,15 +32,17 @@ DESTRUCTIBLE_PLATFORM_RESOURCES = (
     "session-store",
     "shared-edge",
     "shared-edge-image",
-    "signing-key",
 )
 
 # These resources require separately approved purge or recovery authority.
 RETAINED_PLATFORM_RESOURCES = (
     "backend-bucket",
+    "configuration-bucket",
     "evidence-bucket",
+    "logging-exclusion",
     "provider-service",
     "recovery-copy",
+    "signing-key",
     "state-backend",
 )
 
@@ -152,12 +153,7 @@ def _destruction_stages() -> list[dict[str, object]]:
         {
             "stage_id": "identity-destroy",
             "actions": ["delete", "read"],
-            "resource_types": [
-                "oauth-client",
-                "oauth-secret-version",
-                "session-store",
-                "signing-key",
-            ],
+            "resource_types": ["oauth-client"],
             "consumes": [_binding("edge-destroy", "edge-destroyed")],
             "produces": ["identity-destroyed"],
             "manual_checkpoint": "provider-console",
@@ -165,14 +161,15 @@ def _destruction_stages() -> list[dict[str, object]]:
         },
         {
             "stage_id": "foundation-destroy",
-            "actions": ["delete", "read"],
+            "actions": ["delete", "read", "update"],
             "resource_types": [
                 "artifact-registry",
                 "budget",
-                "configuration-bucket",
                 "logging",
+                "oauth-secret-version",
                 "platform-identity",
                 "secret-container",
+                "session-store",
                 "shared-edge-image",
             ],
             "consumes": [_binding("identity-destroy", "identity-destroyed")],

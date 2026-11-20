@@ -5,6 +5,7 @@ variable "platform_configuration" {
     configuration_kind  = string
     configuration_class = string
     phase               = string
+    destruction_mode    = string
     repository          = string
     environment         = string
     foundation = object({
@@ -55,10 +56,15 @@ variable "platform_configuration" {
       var.platform_configuration.configuration_kind == "platform" &&
       contains(["operator", "synthetic"], var.platform_configuration.configuration_class) &&
       contains(["foundation", "shared-edge"], var.platform_configuration.phase) &&
+      contains(["none", "shared-edge-unlock", "shared-edge-remove", "platform-unlock", "retained"], var.platform_configuration.destruction_mode) &&
       var.platform_configuration.repository == "comfforts/apps-platform" &&
       var.platform_configuration.environment == "staging" &&
       var.platform_configuration.foundation.state_owner == "platform" &&
       (
+        contains(["shared-edge-remove", "platform-unlock", "retained"], var.platform_configuration.destruction_mode) ?
+        var.platform_configuration.phase == "foundation" && var.platform_configuration.shared_edge == null :
+        var.platform_configuration.destruction_mode == "shared-edge-unlock" ?
+        var.platform_configuration.phase == "shared-edge" && var.platform_configuration.shared_edge != null :
         var.platform_configuration.phase == "foundation" ?
         var.platform_configuration.shared_edge == null :
         var.platform_configuration.shared_edge != null

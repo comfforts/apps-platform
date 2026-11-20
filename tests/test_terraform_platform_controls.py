@@ -88,7 +88,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             "location         = var.controls_configuration.region",
             "retention_days   = 7",
             "enable_analytics = false",
-            'deletion_policy  = "PREVENT"',
+            'deletion_policy  = local.destruction_enabled ? "DELETE" : "PREVENT"',
             "logging.googleapis.com/projects/${var.controls_configuration.project_id}/locations/${var.controls_configuration.region}/buckets/",
             'resource.type=\\"cloud_run_revision\\"',
             'jsonPayload.event_type=\\"request_completion\\"',
@@ -165,7 +165,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             self.assertIn(f"threshold_percent = {threshold}", main)
         self.assertEqual(main.count('spend_basis       = "CURRENT_SPEND"'), 3)
         self.assertIn(
-            "monitoring_notification_channels = [google_monitoring_notification_channel.budget_email.id]",
+            "monitoring_notification_channels = [google_monitoring_notification_channel.budget_email[0].id]",
             main,
         )
         self.assertIn(
@@ -191,7 +191,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             "labels        = var.controls_configuration.labels",
             "immutable_tags = true",
             "cleanup_policy_dry_run = true",
-            'deletion_policy        = "PREVENT"',
+            'deletion_policy        = local.destruction_enabled ? "DELETE" : "PREVENT"',
             'id     = "retain-generation-roles"',
             'action = "KEEP"',
             'tag_prefixes = ["active", "rollback", "candidate"]',
@@ -204,6 +204,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
         ):
             self.assertIn(required_control, main)
         self.assertEqual(main.count("cleanup_policies {"), 3)
+        self.assertIn('retained_only          = var.destruction_mode == "retained"', main)
 
     def test_existing_runtime_caps_and_labels_remain_exact(self) -> None:
         edge = _terraform_sources(TERRAFORM_ROOT / "modules" / "shared-edge")

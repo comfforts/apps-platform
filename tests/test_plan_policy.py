@@ -217,6 +217,57 @@ class PlanPolicyTest(unittest.TestCase):
         refused = evaluate_plan(policy, observation)
         self.assertIn("ACTION_PROHIBITED", [item.code for item in refused.violations])
 
+    def test_platform_destroy_policy_never_authorizes_retained_state(self) -> None:
+        policy = plan_policy(
+            "staging",
+            "platform-foundation",
+            SOURCE_REVISION,
+            destructive=True,
+        )
+        for address, resource_type in (
+            (
+                "module.platform_foundation.google_storage_bucket.configuration",
+                "google_storage_bucket",
+            ),
+            (
+                "module.platform_foundation.google_kms_crypto_key.assertion_signing",
+                "google_kms_crypto_key",
+            ),
+            (
+                "module.platform_controls.google_storage_bucket.evidence",
+                "google_storage_bucket",
+            ),
+        ):
+            with self.subTest(address=address):
+                observation = _foundation_observation()
+                observation["changes"] = [
+                    {
+                        "address": address,
+                        "resource_type": resource_type,
+                        "provider_source": "registry.terraform.io/hashicorp/google",
+                        "actions": ["delete"],
+                    }
+                ]
+                result = evaluate_plan(policy, observation)
+                self.assertIn(
+                    "RETAINED_RESOURCE_DELETE_PROHIBITED",
+                    [item.code for item in result.violations],
+                )
+
+        destructible = _foundation_observation()
+        destructible["changes"] = [
+            {
+                "address": (
+                    "module.platform_foundation."
+                    "google_secret_manager_secret.edge_oauth[0]"
+                ),
+                "resource_type": "google_secret_manager_secret",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["delete"],
+            }
+        ]
+        self.assertTrue(evaluate_plan(policy, destructible).accepted)
+
     def test_fixture_policy_binds_each_independent_application_owner(self) -> None:
         for application_id in (
             "fixture-public",

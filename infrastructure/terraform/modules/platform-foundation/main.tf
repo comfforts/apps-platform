@@ -1,4 +1,6 @@
 locals {
+  destruction_enabled    = contains(["platform-unlock", "retained"], var.destruction_mode)
+  retained_only          = var.destruction_mode == "retained"
   edge_runtime_principal = "serviceAccount:${var.foundation_configuration.identities.edge_runtime_account_id}@${var.foundation_configuration.project_id}.iam.gserviceaccount.com"
   edge_caller_principal  = "serviceAccount:${var.foundation_configuration.identities.edge_caller_account_id}@${var.foundation_configuration.project_id}.iam.gserviceaccount.com"
   platform_services = toset([
@@ -51,6 +53,8 @@ resource "google_storage_bucket" "configuration" {
 }
 
 resource "google_service_account" "edge_runtime" {
+  count = local.retained_only ? 0 : 1
+
   project      = var.foundation_configuration.project_id
   account_id   = var.foundation_configuration.identities.edge_runtime_account_id
   display_name = "App Platform edge runtime"
@@ -58,10 +62,12 @@ resource "google_service_account" "edge_runtime" {
 
   depends_on = [google_project_service.platform]
 
-  deletion_policy = "PREVENT"
+  deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"
 }
 
 resource "google_service_account" "edge_caller" {
+  count = local.retained_only ? 0 : 1
+
   project      = var.foundation_configuration.project_id
   account_id   = var.foundation_configuration.identities.edge_caller_account_id
   display_name = "App Platform edge caller"
@@ -69,16 +75,20 @@ resource "google_service_account" "edge_caller" {
 
   depends_on = [google_project_service.platform]
 
-  deletion_policy = "PREVENT"
+  deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"
 }
 
 resource "google_storage_bucket_iam_member" "edge_configuration_reader" {
+  count = local.retained_only ? 0 : 1
+
   bucket = google_storage_bucket.configuration.name
   role   = "roles/storage.objectViewer"
   member = local.edge_runtime_principal
 }
 
 resource "google_firestore_database" "sessions" {
+  count = local.retained_only ? 0 : 1
+
   project     = var.foundation_configuration.project_id
   name        = "(default)"
   location_id = var.foundation_configuration.region
@@ -89,20 +99,22 @@ resource "google_firestore_database" "sessions" {
   database_edition                  = "STANDARD"
   app_engine_integration_mode       = "DISABLED"
   point_in_time_recovery_enablement = "POINT_IN_TIME_RECOVERY_DISABLED"
-  delete_protection_state           = "DELETE_PROTECTION_ENABLED"
-  deletion_policy                   = "PREVENT"
+  delete_protection_state           = local.destruction_enabled ? "DELETE_PROTECTION_DISABLED" : "DELETE_PROTECTION_ENABLED"
+  deletion_policy                   = local.destruction_enabled ? "DELETE" : "PREVENT"
 }
 
 resource "google_firestore_field" "session_expiration" {
+  count = local.retained_only ? 0 : 1
+
   project    = var.foundation_configuration.project_id
-  database   = google_firestore_database.sessions.name
+  database   = google_firestore_database.sessions[0].name
   collection = var.foundation_configuration.sessions.collection_name
   field      = var.foundation_configuration.sessions.expiration_field
 
   ttl_config {}
   index_config {}
 
-  deletion_policy = "PREVENT"
+  deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"
 }
 
 resource "google_kms_key_ring" "assertion_signing" {
@@ -137,19 +149,23 @@ resource "google_kms_crypto_key" "assertion_signing" {
 }
 
 resource "google_kms_crypto_key_iam_member" "edge_signer" {
+  count = local.retained_only ? 0 : 1
+
   crypto_key_id = google_kms_crypto_key.assertion_signing.id
   role          = "roles/cloudkms.signerVerifier"
   member        = local.edge_runtime_principal
 }
 
 resource "google_secret_manager_secret" "edge_oauth" {
+  count = local.retained_only ? 0 : 1
+
   project   = var.foundation_configuration.project_id
   secret_id = var.foundation_configuration.oauth_secret_id
   labels    = var.foundation_configuration.labels
 
   depends_on = [google_project_service.platform]
 
-  deletion_protection = true
+  deletion_protection = !local.destruction_enabled
 
   replication {
     user_managed {
@@ -161,8 +177,10 @@ resource "google_secret_manager_secret" "edge_oauth" {
 }
 
 resource "google_secret_manager_secret_iam_member" "edge_oauth_secret_reader" {
+  count = local.retained_only ? 0 : 1
+
   project   = var.foundation_configuration.project_id
-  secret_id = google_secret_manager_secret.edge_oauth.id
+  secret_id = google_secret_manager_secret.edge_oauth[0].id
   role      = "roles/secretmanager.secretAccessor"
   member    = local.edge_runtime_principal
 }

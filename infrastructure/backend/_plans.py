@@ -97,6 +97,7 @@ class PlanPolicy:
     provider_service: str
     allowed_resource_types: tuple[str, ...]
     allowed_actions: tuple[str, ...]
+    prohibited_delete_address_prefixes: tuple[str, ...]
     destructive: bool
 
 
@@ -140,6 +141,15 @@ def plan_policy(
         "read",
         "update",
     )
+    retained_prefixes = (
+        "module.platform_foundation.google_project_service.platform",
+        "module.platform_foundation.google_storage_bucket.configuration",
+        "module.platform_foundation.google_kms_key_ring.assertion_signing",
+        "module.platform_foundation.google_kms_crypto_key.assertion_signing",
+        "module.platform_controls.google_storage_bucket.evidence",
+        "module.platform_controls.google_storage_bucket_iam_member.evidence_owner_reader",
+        "module.platform_controls.google_logging_project_exclusion.edge_from_default",
+    ) if destructive and phase == "platform-foundation" else ()
     return PlanPolicy(
         environment="staging",
         source_revision=source_revision,
@@ -152,6 +162,7 @@ def plan_policy(
         provider_service="google",
         allowed_resource_types=tuple(inventory["resource_types"]),
         allowed_actions=actions,
+        prohibited_delete_address_prefixes=retained_prefixes,
         destructive=destructive,
     )
 
@@ -303,6 +314,17 @@ def _change_summaries(
                         "DESTRUCTIVE_ACTION_PROHIBITED",
                         f"{path}/actions",
                         "delete requires a separate destructive policy",
+                    )
+                )
+            elif "delete" in normalized_actions and any(
+                isinstance(address, str) and address.startswith(prefix)
+                for prefix in policy.prohibited_delete_address_prefixes
+            ):
+                violations.append(
+                    _violation(
+                        "RETAINED_RESOURCE_DELETE_PROHIBITED",
+                        f"{path}/address",
+                        "retained recovery, evidence, or provider material cannot be deleted",
                     )
                 )
             elif (

@@ -29,6 +29,8 @@ locals {
 module "platform_foundation" {
   source = "../modules/platform-foundation"
 
+  destruction_mode = var.platform_configuration.destruction_mode
+
   foundation_configuration = {
     project_id           = local.foundation.project_id
     project_number       = local.foundation.project_number
@@ -60,6 +62,8 @@ module "platform_foundation" {
 module "platform_controls" {
   source = "../modules/platform-controls"
 
+  destruction_mode = var.platform_configuration.destruction_mode
+
   depends_on = [module.platform_foundation]
 
   controls_configuration = {
@@ -87,6 +91,8 @@ module "shared_edge" {
   count  = var.platform_configuration.phase == "shared-edge" ? 1 : 0
 
   depends_on = [module.platform_foundation]
+
+  destruction_enabled = var.platform_configuration.destruction_mode == "shared-edge-unlock"
 
   edge_configuration = {
     project_id              = local.foundation.project_id

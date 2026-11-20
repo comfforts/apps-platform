@@ -9,16 +9,22 @@ import unittest
 
 from infrastructure.operator._interfaces import StatusResult
 from infrastructure.operator.integration import RegistrationGenerationProposal
+from infrastructure.operator.integration import (
+    GenerationActivationReadback,
+    PlatformIntegrationState,
+)
 from infrastructure.operator.local import LocalFilesystem
 from infrastructure.operator.local_handoffs import (
     ApplicationHandoffRecord,
     LocalApplicationHandoffs,
 )
 from infrastructure.operator.local_qualification import (
+    LiveGenerationRollbackExercise,
     LocalQualificationStateReader,
     ProviderQualificationSnapshot,
 )
 from infrastructure.operator.qualification import ComponentRevision
+from infrastructure.operator.rollback import ReviewedGeneration
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -168,6 +174,91 @@ class LocalQualificationStateReaderTest(unittest.TestCase):
             with self.subTest(values=values), tempfile.TemporaryDirectory() as directory:
                 with self.assertRaises(ValueError):
                     self._reader(directory, **values).read_current("staging")
+
+
+class LiveGenerationRollbackExerciseTest(unittest.TestCase):
+    def test_reviews_predecessor_then_restores_exact_original_generation(self) -> None:
+        predecessor_digest = "sha256:" + ("3" * 64)
+        original_digest = "sha256:" + ("4" * 64)
+
+        def reviewed(generation: int, digest: str, previous: str | None):
+            proposal = RegistrationGenerationProposal(
+                environment="staging",
+                registration_set={
+                    "generation": generation,
+                    "previous_generation_digest": previous,
+                },
+                compiled_configuration={},
+                ownership_manifest={},
+                generation_digest=digest,
+                content_digest="sha256:" + ("5" * 64),
+            )
+            return ReviewedGeneration(f"revision:{generation}", proposal)
+
+        predecessor = reviewed(1, predecessor_digest, None)
+        original = reviewed(2, original_digest, predecessor_digest)
+
+        class Platform:
+            def read_platform(self, environment):  # type: ignore[no-untyped-def]
+                return PlatformIntegrationState(
+                    environment,
+                    "deployed",
+                    "sha256:" + ("1" * 64),
+                    "a" * 40,
+                    "sha256:" + ("2" * 64),
+                    "sha256:" + ("6" * 64),
+                    2,
+                    "apps-staging.comfforts.com",
+                    "client.apps.googleusercontent.com",
+                    "edge-caller",
+                    "unqualified",
+                )
+
+        class Generations:
+            selected = original
+
+            def current(self, environment):  # type: ignore[no-untyped-def]
+                del environment
+                return self.selected
+
+            def read_reviewed(self, environment, digest):  # type: ignore[no-untyped-def]
+                del environment
+                return predecessor if digest == predecessor_digest else original
+
+            def activate(self, environment, reference, digest):  # type: ignore[no-untyped-def]
+                del environment, reference
+                self.selected = (
+                    predecessor if digest == predecessor_digest else original
+                )
+                return GenerationActivationReadback(True, digest)
+
+        class Terminal:
+            confirmations: list[str] = []
+
+            def write(self, message):  # type: ignore[no-untyped-def]
+                del message
+
+            def confirm(self, prompt):  # type: ignore[no-untyped-def]
+                del prompt
+                return True
+
+            def confirm_exact(self, prompt, expected):  # type: ignore[no-untyped-def]
+                del prompt
+                self.confirmations.append(expected)
+                return True
+
+        generations = Generations()
+        terminal = Terminal()
+
+        verified = LiveGenerationRollbackExercise(
+            Platform(),
+            generations,
+            terminal,
+        ).verify_rollback("staging", original_digest)
+
+        self.assertTrue(verified)
+        self.assertIs(generations.selected, original)
+        self.assertEqual(len(terminal.confirmations), 2)
 
 
 if __name__ == "__main__":

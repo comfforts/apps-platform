@@ -37,3 +37,9 @@ variable "edge_configuration" {
     tls_enabled = bool
   })
 }
+
+variable "destruction_enabled" {
+  description = "Disable provider deletion protection only for the exact reviewed edge-unlock plan."
+  type        = bool
+  default     = false
+}

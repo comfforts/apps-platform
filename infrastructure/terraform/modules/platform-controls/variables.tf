@@ -14,3 +14,13 @@ variable "controls_configuration" {
     artifact_packages         = list(string)
   })
 }
+
+variable "destruction_mode" {
+  description = "Exact safe-destruction transition for Platform State controls."
+  type        = string
+
+  validation {
+    condition     = contains(["none", "shared-edge-unlock", "shared-edge-remove", "platform-unlock", "retained"], var.destruction_mode)
+    error_message = "destruction_mode must select one closed platform transition."
+  }
+}

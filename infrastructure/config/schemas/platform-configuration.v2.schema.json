@@ -10,6 +10,7 @@
     "configuration_kind",
     "configuration_class",
     "phase",
+    "destruction_mode",
     "repository",
     "environment",
     "foundation",
@@ -21,6 +22,9 @@
     "configuration_kind": {"const": "platform"},
     "configuration_class": {"enum": ["operator", "synthetic"]},
     "phase": {"enum": ["foundation", "shared-edge"]},
+    "destruction_mode": {
+      "enum": ["none", "shared-edge-unlock", "shared-edge-remove", "platform-unlock", "retained"]
+    },
     "repository": {"const": "comfforts/apps-platform"},
     "environment": {"const": "staging"},
     "foundation": {"$ref": "#/$defs/foundation"},

@@ -344,6 +344,8 @@ class LocalFixtureLifecycleCompositionTest(unittest.TestCase):
         )
         self.assertEqual(len(integration.entries), 3)
         restricted = integration.entries[2]
+        authenticated = integration.entries[1]
+        self.assertEqual(authenticated.intent.catalogue_visibility, "unlisted")
         self.assertEqual(
             restricted.intent.restricted_members,
             (("https://accounts.google.com", "123456789012345678901"),),

@@ -315,6 +315,7 @@ def _backend_violations(value: dict[str, Any]) -> list[Violation]:
 def _platform_violations(value: dict[str, Any]) -> list[Violation]:
     violations: list[Violation] = []
     phase = value.get("phase")
+    destruction_mode = value.get("destruction_mode")
     foundation = value.get("foundation")
     shared_edge = value.get("shared_edge")
     if phase == "foundation" and shared_edge is not None:
@@ -331,6 +332,20 @@ def _platform_violations(value: dict[str, Any]) -> list[Violation]:
                 "CONFIGURATION_POLICY_INVALID",
                 "/shared_edge",
                 "Shared Edge phase requires its complete generated input binding",
+            )
+        )
+    expected_phase = {
+        "shared-edge-unlock": "shared-edge",
+        "shared-edge-remove": "foundation",
+        "platform-unlock": "foundation",
+        "retained": "foundation",
+    }.get(destruction_mode)
+    if expected_phase is not None and phase != expected_phase:
+        violations.append(
+            _violation(
+                "CONFIGURATION_POLICY_INVALID",
+                "/destruction_mode",
+                "destruction transition does not match its exact platform phase",
             )
         )
     if not isinstance(foundation, dict):

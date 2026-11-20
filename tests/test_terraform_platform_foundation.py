@@ -83,7 +83,7 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             'type        = "FIRESTORE_NATIVE"',
             'database_edition                  = "STANDARD"',
             'point_in_time_recovery_enablement = "POINT_IN_TIME_RECOVERY_DISABLED"',
-            'delete_protection_state           = "DELETE_PROTECTION_ENABLED"',
+            'delete_protection_state           = local.destruction_enabled ? "DELETE_PROTECTION_DISABLED" : "DELETE_PROTECTION_ENABLED"',
             "ttl_config {}",
             'purpose  = "ASYMMETRIC_SIGN"',
             'algorithm        = "EC_SIGN_P256_SHA256"',
@@ -93,13 +93,15 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             'role   = "roles/storage.objectViewer"',
             'role      = "roles/secretmanager.secretAccessor"',
             'resource "google_secret_manager_secret" "edge_oauth"',
-            "deletion_protection = true",
+            "deletion_protection = !local.destruction_enabled",
             "manual_rotation_days",
             "verification_overlap_hours",
             'registration_generation         = "later-stage-input"',
             '"cloudbuild.googleapis.com"',
             "disable_on_destroy         = false",
             "depends_on = [google_project_service.platform]",
+            'retained_only          = var.destruction_mode == "retained"',
+            'deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"',
         ):
             self.assertIn(required_control, module)
 
@@ -161,6 +163,7 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
     def test_foundation_example_contains_no_later_phase_values(self) -> None:
         platform = json.loads(PLATFORM_EXAMPLE.read_text(encoding="utf-8"))
         self.assertEqual(platform["phase"], "foundation")
+        self.assertEqual(platform["destruction_mode"], "none")
         self.assertIsNone(platform["shared_edge"])
         foundation = platform["foundation"]
         self.assertNotIn("edge_image_digest", foundation)

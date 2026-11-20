@@ -366,6 +366,7 @@ class DeploymentConfigurationRenderer:
             "configuration_kind": "platform",
             "configuration_class": "operator",
             "phase": "foundation" if phase == "platform-foundation" else "shared-edge",
+            "destruction_mode": "none",
             "repository": "comfforts/apps-platform",
             "environment": "staging",
             "foundation": self._foundation(),
@@ -376,6 +377,90 @@ class DeploymentConfigurationRenderer:
                 "state_owner": "platform",
             },
         }
+
+    def render_transition(
+        self,
+        request: PhasePlanRequest,
+        destruction_mode: str,
+        deployed_outputs: dict[str, str],
+    ) -> RenderedTerraformInput:
+        """Render one closed Platform State destruction transition."""
+
+        allowed = {
+            "none": "platform-foundation",
+            "shared-edge-unlock": "shared-edge",
+            "shared-edge-remove": "shared-edge",
+            "platform-unlock": "platform-foundation",
+            "retained": "platform-foundation",
+        }
+        if (
+            request.environment != "staging"
+            or allowed.get(destruction_mode) != request.phase
+            or request.state_owner != "platform"
+            or request.owner_id != "app-platform"
+        ):
+            raise LocalDeploymentInputError("DESTRUCTION_TRANSITION_INVALID")
+        root = self._workspace.prepare_phase(request.phase)
+        if request.backend_path.resolve() != (root / "backend.tf").resolve():
+            raise LocalDeploymentInputError("TERRAFORM_BACKEND_PATH_MISMATCH")
+
+        shared_edge: dict[str, Any] | None = None
+        phase = "foundation"
+        if destruction_mode == "shared-edge-unlock":
+            phase = "shared-edge"
+            try:
+                foundation = _object(
+                    deployed_outputs["foundation-reference"],
+                    "FOUNDATION_REFERENCE_INVALID",
+                )
+                generation = _object(
+                    deployed_outputs["registration-generation-reference"],
+                    "REGISTRATION_GENERATION_REFERENCE_INVALID",
+                )
+                signing_key_version = foundation["signing_key_version"]
+                shared_edge = {
+                    "edge_image_digest": deployed_outputs["shared-edge-image-digest"],
+                    "oauth_client_id": deployed_outputs["oauth-client-id"],
+                    "oauth_client_secret_version": deployed_outputs[
+                        "oauth-secret-version"
+                    ],
+                    "signing_key_version": signing_key_version,
+                    "operator_identity": {
+                        "issuer": self._session.operator_issuer,
+                        "subject": self._session.operator_subject,
+                    },
+                    "registration_generation": {
+                        "source_revision": request.source_revision,
+                        **generation,
+                    },
+                    "tls_enabled": True,
+                }
+            except (KeyError, TypeError) as error:
+                raise LocalDeploymentInputError(
+                    "DESTRUCTION_DEPLOYMENT_BINDING_INCOMPLETE"
+                ) from error
+        configuration = {
+            "contract_version": 2,
+            "configuration_kind": "platform",
+            "configuration_class": "operator",
+            "phase": phase,
+            "destruction_mode": destruction_mode,
+            "repository": "comfforts/apps-platform",
+            "environment": "staging",
+            "foundation": self._foundation(),
+            "shared_edge": shared_edge,
+            "labels": {
+                "environment": "staging",
+                "managed_by": "terraform",
+                "state_owner": "platform",
+            },
+        }
+        if validate_configuration(configuration, "platform"):
+            raise LocalDeploymentInputError("TERRAFORM_CONFIGURATION_INVALID")
+        return render_private_terraform_input(
+            root,
+            {"platform_configuration": configuration},
+        )
 
     def render(
         self,

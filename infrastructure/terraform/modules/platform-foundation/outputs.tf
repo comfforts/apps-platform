@@ -3,9 +3,9 @@ output "foundation_reference" {
   value = {
     configuration_bucket  = google_storage_bucket.configuration.name
     edge_caller_principal = local.edge_caller_principal
-    edge_runtime_email    = google_service_account.edge_runtime.email
-    oauth_secret_id       = google_secret_manager_secret.edge_oauth.id
-    session_database      = google_firestore_database.sessions.name
+    edge_runtime_email    = try(google_service_account.edge_runtime[0].email, null)
+    oauth_secret_id       = try(google_secret_manager_secret.edge_oauth[0].id, null)
+    session_database      = try(google_firestore_database.sessions[0].name, null)
     signing_key_id        = google_kms_crypto_key.assertion_signing.id
   }
 }
@@ -31,8 +31,8 @@ output "policy_summary" {
       app_engine_integration            = "DISABLED"
       pitr                              = "POINT_IN_TIME_RECOVERY_DISABLED"
       backup                            = "disabled"
-      delete_protection                 = "DELETE_PROTECTION_ENABLED"
-      deletion_policy                   = "PREVENT"
+      delete_protection                 = local.destruction_enabled ? "DELETE_PROTECTION_DISABLED" : "DELETE_PROTECTION_ENABLED"
+      deletion_policy                   = local.destruction_enabled ? "DELETE" : "PREVENT"
       collection_name                   = var.foundation_configuration.sessions.collection_name
       expiration_field                  = var.foundation_configuration.sessions.expiration_field
       ttl_enabled                       = true
@@ -60,7 +60,7 @@ output "policy_summary" {
       edge_caller_account_id  = var.foundation_configuration.identities.edge_caller_account_id
       edge_caller_principal   = local.edge_caller_principal
       separated               = local.edge_runtime_principal != local.edge_caller_principal
-      deletion_policy         = "PREVENT"
+      deletion_policy         = local.destruction_enabled ? "DELETE" : "PREVENT"
       service_account_keys    = false
     }
     oauth = {
@@ -69,11 +69,12 @@ output "policy_summary" {
       secret_version_present = false
       secret_value_present   = false
       runtime_reader_role    = "roles/secretmanager.secretAccessor"
-      deletion_protection    = true
+      deletion_protection    = !local.destruction_enabled
     }
     application_identity_management = false
     restricted_membership           = false
     registration_generation         = "later-stage-input"
     compilation                     = "external-reviewed-input"
+    destruction_mode                = var.destruction_mode
   }
 }

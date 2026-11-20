@@ -80,7 +80,12 @@ class ClosedSubprocessRunner:
         names = [name for name, _ in request.environment]
         if len(names) != len(set(names)) or not set(names) <= _ALLOWED_ENVIRONMENT:
             raise ValueError("command environment contains an unapproved name")
-        if request.authority not in {"ordinary", "bootstrap-state-migration"}:
+        if request.authority not in {
+            "ordinary",
+            "bootstrap-state-migration",
+            "platform-state-read",
+            "application-state-read",
+        }:
             raise ValueError("command authority is outside the approved set")
         if request.authority == "bootstrap-state-migration":
             expected = (
@@ -95,10 +100,20 @@ class ClosedSubprocessRunner:
             )
             if request.argv != expected:
                 raise ValueError("bootstrap migration command is not exact")
+        if request.authority in {"platform-state-read", "application-state-read"}:
+            expected = (
+                str(Path(request.argv[0]).resolve()),
+                "state",
+                "list",
+            )
+            if request.argv != expected:
+                raise ValueError("state projection command is not exact")
         if Path(request.argv[0]).name == "terraform":
             prohibited = _PROHIBITED_TERRAFORM_ARGUMENTS
             if request.authority == "bootstrap-state-migration":
                 prohibited = prohibited - {"-force-copy", "-migrate-state"}
+            if request.authority in {"platform-state-read", "application-state-read"}:
+                prohibited = prohibited - {"state"}
             if any(argument in prohibited for argument in request.argv[1:]):
                 raise ValueError("prohibited Terraform operation or argument")
             if any(
@@ -271,21 +286,7 @@ class TerraformCliAdapter:
             raise FileExistsError("refusing to replace an existing saved plan")
 
         plan_environment = self._environment()
-        init_arguments = ["init", "-input=false", "-lockfile=readonly"]
-        if request.phase == "bootstrap" and not bootstrap_remote:
-            init_arguments.append("-backend=false")
-        else:
-            init_arguments.extend(
-                (
-                    f"-backend-config=bucket={request.backend_bucket}",
-                    f"-backend-config=prefix={request.backend_prefix}",
-                )
-            )
-        initialized = self._runner.run(
-            self._request(root, plan_environment, *init_arguments)
-        )
-        if initialized.returncode != 0:
-            raise DeploymentCommandError("TERRAFORM_INIT_FAILED")
+        self._initialize(request, root, bootstrap_remote=bootstrap_remote)
         plan_arguments = [
             "plan",
             "-input=false",
@@ -317,6 +318,29 @@ class TerraformCliAdapter:
             saved_plan,
             self._projection(request, shown.stdout),
         )
+
+    def _initialize(
+        self,
+        request: PhasePlanRequest,
+        root: Path,
+        *,
+        bootstrap_remote: bool = False,
+    ) -> None:
+        init_arguments = ["init", "-input=false", "-lockfile=readonly"]
+        if request.phase == "bootstrap" and not bootstrap_remote:
+            init_arguments.append("-backend=false")
+        else:
+            init_arguments.extend(
+                (
+                    f"-backend-config=bucket={request.backend_bucket}",
+                    f"-backend-config=prefix={request.backend_prefix}",
+                )
+            )
+        initialized = self._runner.run(
+            self._request(root, self._environment(), *init_arguments)
+        )
+        if initialized.returncode != 0:
+            raise DeploymentCommandError("TERRAFORM_INIT_FAILED")
 
     def apply_plan(
         self,
@@ -425,13 +449,62 @@ class TerraformCliAdapter:
             raise ValueError("state emptiness readback is allowed only for a fixture root")
         root = self._bounded(terraform_root, file_required=False)
         observed = self._runner.run(
-            self._request(root, self._environment(), "state", "list")
+            self._request(
+                root,
+                self._environment(),
+                "state",
+                "list",
+                authority="application-state-read",
+            )
         )
         if observed.returncode != 0:
             raise DeploymentCommandError("TERRAFORM_STATE_READ_FAILED")
         if len(observed.stdout) > 1024 * 1024:
             raise DeploymentCommandError("TERRAFORM_STATE_OUTPUT_TOO_LARGE")
         return not observed.stdout.strip()
+
+    def platform_state_addresses(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> tuple[str, ...]:
+        """Project the exact Platform State lineage to addresses only."""
+
+        if (
+            request.phase not in {"platform-foundation", "shared-edge"}
+            or request.state_owner != "platform"
+            or request.owner_id != "app-platform"
+            or request.backend_prefix != "platform"
+        ):
+            raise ValueError("platform state projection scope is not exact")
+        root = self._bounded(terraform_root, file_required=False)
+        if not root.is_dir():
+            raise ValueError("Terraform root is not a directory")
+        self._initialize(request, root)
+        observed = self._runner.run(
+            self._request(
+                root,
+                self._environment(),
+                "state",
+                "list",
+                authority="platform-state-read",
+            )
+        )
+        if observed.returncode != 0:
+            raise DeploymentCommandError("TERRAFORM_STATE_READ_FAILED")
+        if len(observed.stdout) > 1024 * 1024:
+            raise DeploymentCommandError("TERRAFORM_STATE_OUTPUT_TOO_LARGE")
+        try:
+            addresses = tuple(
+                line.strip()
+                for line in observed.stdout.decode("utf-8").splitlines()
+                if line.strip()
+            )
+        except UnicodeDecodeError as error:
+            raise DeploymentCommandError("TERRAFORM_STATE_OUTPUT_INVALID") from error
+        if len(addresses) != len(set(addresses)):
+            raise DeploymentCommandError("TERRAFORM_STATE_OUTPUT_INVALID")
+        return tuple(sorted(addresses))
 
 
 __all__ = (

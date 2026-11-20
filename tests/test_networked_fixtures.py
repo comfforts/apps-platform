@@ -94,6 +94,31 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
         self.assertNotIn("synthetic", repr(root.headers).lower())
 
+    def test_browser_qualification_returns_only_a_loopback_challenge(self) -> None:
+        app = create_network_fixture(configuration("public"))
+        challenge = "a" * 64
+
+        with TestClient(app) as client:
+            accepted = client.get(
+                "/qualification/browser",
+                params={"callback_port": "43210", "challenge": challenge},
+                follow_redirects=False,
+            )
+            invalid = client.get(
+                "/qualification/browser",
+                params={"callback_port": "80", "challenge": challenge},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(accepted.status_code, 303)
+        self.assertEqual(
+            accepted.headers["location"],
+            "http://127.0.0.1:43210/?"
+            "application_id=fixture-public&challenge=" + challenge,
+        )
+        self.assertEqual(accepted.headers["cache-control"], "no-store")
+        self.assertEqual(invalid.status_code, 400)
+
     def test_protected_fixture_requires_one_independently_verified_assertion(self) -> None:
         verifier = FakeVerifier()
         app = create_network_fixture(

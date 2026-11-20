@@ -90,8 +90,8 @@ class TerraformSharedEdgeTest(unittest.TestCase):
     def test_edge_revision_is_immutable_bounded_and_closed_to_direct_origin(self) -> None:
         module = _terraform_sources(MODULE_ROOT)
         for required_control in (
-            'deletion_policy      = "PREVENT"',
-            'ingress              = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"',
+            'deletion_policy      = var.destruction_enabled ? "DELETE" : "PREVENT"',
+            'ingress              = var.destruction_enabled ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"',
             "default_uri_disabled = true",
             "invoker_iam_disabled = false",
             "revision                         = var.edge_configuration.candidate_revision",

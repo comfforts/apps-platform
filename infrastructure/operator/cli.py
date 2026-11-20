@@ -22,10 +22,12 @@ from infrastructure.operator.integration import (
 )
 from infrastructure.operator.local import (
     LocalFilesystem,
+    build_local_destruction,
     build_local_fixture_operator,
     build_local_fixture_status_operator,
     build_local_integration,
     build_local_operator,
+    build_local_qualification,
 )
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 from infrastructure.operator.qualification import QualificationLifecycle
@@ -98,15 +100,13 @@ def _default_integration_factory(
 def _default_qualification_factory(
     state_directory: Path,
 ) -> QualificationLifecycle:
-    del state_directory
-    raise RuntimeError("W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED")
+    return build_local_qualification(PROJECT_ROOT, state_directory)
 
 
 def _default_destruction_factory(
     state_directory: Path,
 ) -> DestructionLifecycle:
-    del state_directory
-    raise RuntimeError("W9_DESTRUCTION_AUTHORITY_REQUIRED")
+    return build_local_destruction(PROJECT_ROOT, state_directory)
 
 
 def _default_fixture_factory(state_directory: Path):  # type: ignore[no-untyped-def]

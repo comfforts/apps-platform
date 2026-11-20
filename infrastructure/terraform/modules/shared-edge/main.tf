@@ -4,9 +4,9 @@ resource "google_cloud_run_v2_service" "edge" {
   name     = var.edge_configuration.service_name
   labels   = var.edge_configuration.labels
 
-  deletion_protection  = true
-  deletion_policy      = "PREVENT"
-  ingress              = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  deletion_protection  = !var.destruction_enabled
+  deletion_policy      = var.destruction_enabled ? "DELETE" : "PREVENT"
+  ingress              = var.destruction_enabled ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   default_uri_disabled = true
   invoker_iam_disabled = false
 

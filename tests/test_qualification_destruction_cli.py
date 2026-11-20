@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from contracts.lifecycle import lifecycle_digest, load_lifecycle_document
 from infrastructure.operator.cli import main
@@ -109,22 +110,26 @@ class QualificationDestructionCliTest(unittest.TestCase):
         self.assertEqual(result["last_closed_stage"], "destruction-readback")
         self.assertEqual(destruction.environments, ["staging"])
 
-    def test_live_authority_gates_fail_closed_without_partial_artifacts(self) -> None:
+    def test_live_adapters_fail_closed_without_session_or_partial_artifacts(self) -> None:
         for operation, blocker in (
-            ("qualify", "W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED"),
-            ("destroy", "W9_DESTRUCTION_AUTHORITY_REQUIRED"),
+            ("qualify", "OPERATOR_SESSION_UNAVAILABLE"),
+            ("destroy", "OPERATOR_SESSION_UNAVAILABLE"),
         ):
             with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
                 state_root = Path(directory) / "operator"
-                code, result = _result(
-                    [
-                        operation,
-                        "--environment",
-                        "staging",
-                        "--state-directory",
-                        str(state_root),
-                    ]
-                )
+                with mock.patch(
+                    "infrastructure.operator.local.shutil.which",
+                    return_value=None,
+                ):
+                    code, result = _result(
+                        [
+                            operation,
+                            "--environment",
+                            "staging",
+                            "--state-directory",
+                            str(state_root),
+                        ]
+                    )
                 self.assertEqual(code, 2)
                 self.assertEqual(result["outcome"], "blocked")
                 self.assertEqual(result["blockers"], [blocker])

@@ -283,7 +283,11 @@ class LocalFixtureLifecycleCommands:
 
     def _intent(self, application_id: str) -> RegistrationIntent:
         return RegistrationIntent(
-            catalogue_visibility="listed",
+            catalogue_visibility=(
+                "unlisted"
+                if application_id == "fixture-authenticated"
+                else "listed"
+            ),
             catalogue_title={
                 "fixture-public": "Public fixture",
                 "fixture-authenticated": "Authenticated fixture",

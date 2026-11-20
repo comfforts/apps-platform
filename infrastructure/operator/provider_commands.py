@@ -620,6 +620,27 @@ class GcloudGenerationProvider(GenerationProvider):
             component_revisions=tuple(sorted(components)),
         )
 
+    def shared_edge_ingress(self, environment: str) -> str:
+        """Read only the closed Shared Edge ingress posture."""
+
+        if environment != "staging":
+            raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
+        service = self._describe_service()
+        annotations = service.get("metadata", {}).get("annotations", {})
+        if not isinstance(annotations, dict):
+            raise GenerationProviderError("EDGE_SERVICE_READBACK_INVALID")
+        ingress = annotations.get("run.googleapis.com/ingress")
+        if ingress not in {"internal", "internal-and-cloud-load-balancing"}:
+            raise GenerationProviderError("EDGE_SERVICE_READBACK_INVALID")
+        return str(ingress)
+
+    def shared_edge_exists(self, environment: str) -> bool:
+        """Read whether the exact platform-owned Shared Edge service exists."""
+
+        if environment != "staging":
+            raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
+        return self._try_describe_named_service(self._service_name) is not None
+
     @staticmethod
     def _service_environment(service: dict[str, Any]) -> dict[str, str]:
         try:
@@ -725,14 +746,19 @@ class GcloudGenerationProvider(GenerationProvider):
             f"{self._project_id}.iam.gserviceaccount.com"
         )
         caller_grant = ""
+        public_invoker = False
         for binding in bindings:
-            if (
-                isinstance(binding, dict)
-                and binding.get("role") == "roles/run.invoker"
-                and isinstance(binding.get("members"), list)
-                and expected_caller in binding["members"]
-            ):
+            if not isinstance(binding, dict) or binding.get("role") != "roles/run.invoker":
+                continue
+            members = binding.get("members")
+            if not isinstance(members, list):
+                raise GenerationProviderError("ATTACHMENT_IAM_READBACK_INVALID")
+            if expected_caller in members:
                 caller_grant = expected_caller
+            if "allUsers" in members or "allAuthenticatedUsers" in members:
+                public_invoker = True
+        if public_invoker:
+            ingress = "unverified"
         return AttachmentTargetReadback(
             exists=True,
             ready=ready,

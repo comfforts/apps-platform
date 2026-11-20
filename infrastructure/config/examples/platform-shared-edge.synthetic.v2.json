@@ -3,6 +3,7 @@
   "configuration_kind": "platform",
   "configuration_class": "synthetic",
   "phase": "shared-edge",
+  "destruction_mode": "none",
   "repository": "comfforts/apps-platform",
   "environment": "staging",
   "foundation": {

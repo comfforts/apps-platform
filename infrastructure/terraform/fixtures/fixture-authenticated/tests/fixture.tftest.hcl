@@ -26,7 +26,7 @@ run "plans_isolated_authenticated_fixture" {
 
   assert {
     condition = (
-      module.fixture_application.policy_summary.ingress == "INGRESS_TRAFFIC_INTERNAL_ONLY" &&
+      module.fixture_application.policy_summary.ingress == "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" &&
       !module.fixture_application.policy_summary.invoker_iam_disabled &&
       !module.fixture_application.policy_summary.unauthenticated_invocation &&
       module.fixture_application.policy_summary.edge_caller_role == "roles/run.invoker" &&

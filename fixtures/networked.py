@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import re
 import time
 from typing import Protocol
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 import httpx
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response, StreamingResponse
+from starlette.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket
 
@@ -28,6 +29,7 @@ _FIXTURE_MODES = {
     "fixture-public": "public",
     "fixture-restricted": "restricted",
 }
+_QUALIFICATION_CHALLENGE = re.compile(r"[0-9a-f]{64}")
 
 
 class NetworkIdentityVerifier(Protocol):
@@ -159,6 +161,40 @@ def create_network_fixture(
                 401,
             )
         path = request.path_params.get("path", "")
+        if path == "qualification/browser" and request.method == "GET":
+            challenge_values = request.query_params.getlist("challenge")
+            port_values = request.query_params.getlist("callback_port")
+            if (
+                len(challenge_values) != 1
+                or len(port_values) != 1
+                or _QUALIFICATION_CHALLENGE.fullmatch(challenge_values[0]) is None
+            ):
+                return _fixed_response(
+                    configuration.application_id,
+                    "qualification-challenge-invalid",
+                    400,
+                )
+            try:
+                callback_port = int(port_values[0])
+            except ValueError:
+                callback_port = 0
+            if not 1024 <= callback_port <= 65535:
+                return _fixed_response(
+                    configuration.application_id,
+                    "qualification-challenge-invalid",
+                    400,
+                )
+            location = "http://127.0.0.1:" + str(callback_port) + "/?" + urlencode(
+                {
+                    "application_id": configuration.application_id,
+                    "challenge": challenge_values[0],
+                }
+            )
+            return RedirectResponse(
+                location,
+                status_code=303,
+                headers={"Cache-Control": "no-store"},
+            )
         if path in {"", "api"} and request.method == "GET":
             return _fixed_response(
                 configuration.application_id,

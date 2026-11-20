@@ -22,7 +22,7 @@ output "policy_summary" {
     operator_identity       = var.edge_configuration.operator_identity
     runtime = {
       region                       = var.edge_configuration.region
-      ingress                      = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+      ingress                      = var.destruction_enabled ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
       default_uri_disabled         = true
       invoker_iam_disabled         = false
       invoker_role                 = "roles/run.invoker"
@@ -35,7 +35,8 @@ output "policy_summary" {
       concurrency                  = 20
       provider_timeout_seconds     = 3600
       runtime_stream_limit_seconds = 3300
-      deletion_protection          = true
+      deletion_protection          = !var.destruction_enabled
+      deletion_policy              = var.destruction_enabled ? "DELETE" : "PREVENT"
       traffic_type                 = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
       traffic_revision             = var.edge_configuration.candidate_revision
       traffic_percent              = 100

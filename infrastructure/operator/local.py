@@ -757,3 +757,198 @@ def build_local_fixture_status_operator(project_root: Path, state_root: Path):
             generation_control=generations,
         )
     )
+
+
+def build_local_qualification(project_root: Path, state_root: Path):
+    """Construct exact staging qualification only for a verified human session."""
+
+    from infrastructure.operator.live_qualification import (
+        HttpxQualificationClient,
+        LoopbackBrowserQualification,
+        StagingQualificationProbe,
+        SystemBrowserLauncher,
+    )
+    from infrastructure.operator.local_generation import (
+        LocalRegistrationGenerationControl,
+        LocalReviewedGenerationControl,
+    )
+    from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
+    from infrastructure.operator.local_integration import (
+        LocalPlatformIntegrationReader,
+    )
+    from infrastructure.operator.local_qualification import (
+        LiveGenerationRollbackExercise,
+        LocalQualificationStateReader,
+    )
+    from infrastructure.operator.qualification import (
+        QualificationLifecycle,
+        QualificationSuiteEvaluator,
+    )
+
+    resolved_project = project_root.resolve()
+    resolved_state = state_root.resolve()
+    executable_name = shutil.which("gcloud")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
+    if executable_name is None:
+        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+    gcloud = Path(executable_name).resolve()
+    gcp = ProfileGcp(gcloud, configuration)
+    session = gcp.operator_session(
+        {
+            "project_id": "comfforts-platform-non-prod",
+            "project_number": "455651441682",
+            "region": "us-west1",
+        }
+    )
+    if (
+        not gcloud.is_file()
+        or not configuration.is_dir()
+        or configuration.is_symlink()
+        or session is None
+        or not gcp.application_default_ready()
+    ):
+        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+    provider = _local_generation_provider(resolved_project, resolved_state)
+    if provider is None:
+        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+
+    filesystem = LocalFilesystem(resolved_project, resolved_state)
+    generations = LocalRegistrationGenerationControl(filesystem, provider)
+    platform = LocalPlatformIntegrationReader(
+        filesystem,
+        build_local_operator(resolved_project, resolved_state),
+        generations,
+    )
+    terminal = ConsoleTerminal()
+    state_reader = LocalQualificationStateReader(
+        build_local_operator(resolved_project, resolved_state),
+        generations,
+        LocalApplicationHandoffs(filesystem),
+        provider,
+    )
+    probe = StagingQualificationProbe(
+        HttpxQualificationClient(),
+        LoopbackBrowserQualification(SystemBrowserLauncher(), terminal),
+        provider,
+        LiveGenerationRollbackExercise(
+            platform,
+            LocalReviewedGenerationControl(generations),
+            terminal,
+        ),
+    )
+    return QualificationLifecycle(state_reader, QualificationSuiteEvaluator(probe))
+
+
+def build_local_destruction(project_root: Path, state_root: Path):
+    """Construct exact safe destruction only for a verified human session."""
+
+    from infrastructure.operator.commands import (
+        ClosedSubprocessRunner,
+        TerraformCliAdapter,
+    )
+    from infrastructure.operator.deployment_dns import ClosedDigRunner, DigDnsReadback
+    from infrastructure.operator.destruction import DestructionLifecycle
+    from infrastructure.operator.local_deployment import DeploymentConfigurationRenderer
+    from infrastructure.operator.local_destruction import LocalDestructionControl
+    from infrastructure.operator.local_destruction_commands import (
+        LocalDestructionExecutor,
+        LocalDestructionStateReader,
+    )
+    from infrastructure.operator.local_generation import (
+        LocalRegistrationGenerationControl,
+    )
+
+    resolved_project = project_root.resolve()
+    resolved_state = state_root.resolve()
+    executable_name = shutil.which("gcloud")
+    dig_name = shutil.which("dig")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
+    if executable_name is None or dig_name is None:
+        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+    gcloud = Path(executable_name).resolve()
+    dig = Path(dig_name).resolve()
+    gcp = ProfileGcp(gcloud, configuration)
+    session = gcp.operator_session(
+        {
+            "project_id": "comfforts-platform-non-prod",
+            "project_number": "455651441682",
+            "region": "us-west1",
+        }
+    )
+    if (
+        not gcloud.is_file()
+        or not dig.is_file()
+        or not configuration.is_dir()
+        or configuration.is_symlink()
+        or session is None
+        or not gcp.application_default_ready()
+        or not TERRAFORM.is_file()
+        or not OFFLINE_CLI_CONFIG.is_file()
+    ):
+        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+    provider = _local_generation_provider(resolved_project, resolved_state)
+    if provider is None:
+        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+
+    resolved_state.mkdir(mode=0o700, parents=True, exist_ok=True)
+    resolved_state.chmod(0o700)
+    working_root = resolved_state / "work/destruction"
+    working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    working_root.chmod(0o700)
+    terraform = TerraformCliAdapter(
+        TERRAFORM,
+        OFFLINE_CLI_CONFIG,
+        working_root,
+        ClosedSubprocessRunner((TERRAFORM,), working_root),
+        operator_environment=(
+            ("CLOUDSDK_CONFIG", str(configuration)),
+            ("HOME", str(Path.home().resolve())),
+        ),
+    )
+    filesystem = LocalFilesystem(resolved_project, resolved_state)
+    renderer = DeploymentConfigurationRenderer(
+        resolved_project,
+        working_root,
+        session,
+    )
+    generations = LocalRegistrationGenerationControl(filesystem, provider)
+    terminal = ConsoleTerminal()
+    dns = DigDnsReadback(
+        dig,
+        resolved_project,
+        ClosedDigRunner(dig, resolved_project),
+    )
+    status = build_local_operator(resolved_project, resolved_state)
+    return DestructionLifecycle(
+        LocalDestructionStateReader(
+            filesystem,
+            status,
+            generations,
+            provider,
+            terraform,
+            renderer,
+            working_root,
+        ),
+        LocalDestructionControl(filesystem),
+        terminal,
+        LocalDestructionExecutor(
+            filesystem,
+            working_root,
+            renderer,
+            terraform,
+            provider,
+            dns,
+            terminal,
+            SystemWaiter(),
+        ),
+    )

@@ -237,6 +237,44 @@ class OperatorCommandTest(unittest.TestCase):
         self.assertEqual(artifact.observation["changes"][0]["actions"], ["delete"])
         self.assertTrue(empty)
         self.assertEqual(runner.requests[3].argv[1:3], ("state", "list"))
+        self.assertEqual(runner.requests[3].authority, "application-state-read")
+
+    def test_platform_state_projection_initializes_only_the_exact_lineage(self) -> None:
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(
+                    0,
+                    b"module.platform_foundation.google_storage_bucket.configuration\n",
+                    b"",
+                ),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "platform-foundation"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            self._private_file(request.backend_path, b'terraform { backend "gcs" {} }\n')
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            addresses = adapter.platform_state_addresses(request, root)
+
+        self.assertEqual(
+            addresses,
+            ("module.platform_foundation.google_storage_bucket.configuration",),
+        )
+        self.assertEqual(runner.requests[0].argv[1], "init")
+        self.assertEqual(runner.requests[1].argv[1:], ("state", "list"))
+        self.assertEqual(runner.requests[1].authority, "platform-state-read")
 
     def test_bootstrap_uses_explicit_local_backend_and_short_lived_human_session(self) -> None:
         plan_json = {

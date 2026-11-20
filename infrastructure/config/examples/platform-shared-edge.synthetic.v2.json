@@ -19,7 +19,7 @@
     "signing_key_ring_id": "synthetic-platform",
     "signing_key_id": "synthetic-edge-signing",
     "billing_account_reference": "billingAccounts/000000-000000-000000",
-    "notification_destination": "projects/synthetic-platform/notificationChannels/1"
+    "notification_email": "owner@example.invalid"
   },
   "shared_edge": {
     "edge_image_digest": "us-west1-docker.pkg.dev/synthetic-platform/synthetic-images/shared-edge@sha256:0000000000000000000000000000000000000000000000000000000000000000",

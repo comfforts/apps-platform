@@ -101,6 +101,18 @@ resource "google_storage_bucket_iam_member" "evidence_owner_reader" {
   member = var.controls_configuration.owner_principal
 }
 
+resource "google_monitoring_notification_channel" "budget_email" {
+  project      = var.controls_configuration.project_id
+  display_name = "App Platform qualification budget owner"
+  type         = "email"
+  labels = {
+    email_address = var.controls_configuration.notification_email
+  }
+
+  enabled         = true
+  deletion_policy = "PREVENT"
+}
+
 resource "google_billing_budget" "qualification" {
   billing_account = var.controls_configuration.billing_account_reference
   display_name    = "App Platform qualification monthly budget"
@@ -134,7 +146,7 @@ resource "google_billing_budget" "qualification" {
   }
 
   all_updates_rule {
-    monitoring_notification_channels = [var.controls_configuration.notification_destination]
+    monitoring_notification_channels = [google_monitoring_notification_channel.budget_email.id]
     disable_default_iam_recipients   = true
     enable_project_level_recipients  = false
   }

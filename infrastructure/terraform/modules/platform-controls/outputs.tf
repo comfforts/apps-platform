@@ -103,7 +103,8 @@ output "policy_summary" {
       monthly_amount                = 20
       threshold_percents            = [50, 80, 100]
       spend_basis                   = "CURRENT_SPEND"
-      notification_destination      = var.controls_configuration.notification_destination
+      notification_destination      = google_monitoring_notification_channel.budget_email.id
+      notification_email            = var.controls_configuration.notification_email
       implicit_notification         = false
       automatic_billing_disablement = false
       automatic_resource_mutation   = false

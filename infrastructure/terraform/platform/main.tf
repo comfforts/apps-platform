@@ -67,8 +67,8 @@ module "platform_controls" {
     evidence_bucket           = local.foundation.evidence_bucket
     artifact_repository_id    = local.foundation.artifact_repository_id
     billing_account_reference = local.foundation.billing_account_reference
-    notification_destination  = local.foundation.notification_destination
-    owner_principal           = "projectOwner:${local.foundation.project_id}"
+    notification_email        = local.foundation.notification_email
+    owner_principal           = "user:${local.foundation.notification_email}"
     labels                    = var.platform_configuration.labels
     artifact_packages = [
       "fixture-authenticated",

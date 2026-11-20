@@ -34,8 +34,8 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             "foundation.log_bucket",
             "foundation.evidence_bucket",
             "foundation.billing_account_reference",
-            "foundation.notification_destination",
-            '"projectOwner:${local.foundation.project_id}"',
+            "foundation.notification_email",
+            '"user:${local.foundation.notification_email}"',
             "foundation.artifact_repository_id",
         ):
             self.assertIn(explicit_input, main)
@@ -46,7 +46,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
         self.assertNotIn('resource "', main)
         self.assertNotIn('data "', main)
 
-    def test_module_owns_only_the_eight_w8_control_resources(self) -> None:
+    def test_module_owns_only_the_nine_platform_control_resources(self) -> None:
         module = _terraform_sources(MODULE_ROOT)
         resources = re.findall(
             r'^resource "([^"]+)" "([^"]+)"', module, re.MULTILINE
@@ -60,6 +60,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
                 ("google_project_iam_member", "log_owner_reader"),
                 ("google_storage_bucket", "evidence"),
                 ("google_storage_bucket_iam_member", "evidence_owner_reader"),
+                ("google_monitoring_notification_channel", "budget_email"),
                 ("google_billing_budget", "qualification"),
                 ("google_artifact_registry_repository", "qualification_images"),
             ],
@@ -74,7 +75,6 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             "google_compute_backend_bucket",
             "google_cloudfunctions",
             "google_pubsub",
-            "google_monitoring_notification_channel",
             "google_service_account_key",
             "google_kms_crypto_key_version",
             "terraform apply",
@@ -165,7 +165,11 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             self.assertIn(f"threshold_percent = {threshold}", main)
         self.assertEqual(main.count('spend_basis       = "CURRENT_SPEND"'), 3)
         self.assertIn(
-            "monitoring_notification_channels = [var.controls_configuration.notification_destination]",
+            "monitoring_notification_channels = [google_monitoring_notification_channel.budget_email.id]",
+            main,
+        )
+        self.assertIn(
+            "email_address = var.controls_configuration.notification_email",
             main,
         )
         self.assertIn("disable_default_iam_recipients   = true", main)

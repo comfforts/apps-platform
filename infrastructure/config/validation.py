@@ -361,15 +361,6 @@ def _platform_violations(value: dict[str, Any]) -> list[Violation]:
                     "resource reference scope does not match platform configuration",
                 )
             )
-    notification = foundation.get("notification_destination")
-    if isinstance(notification, str) and not notification.startswith(f"projects/{project_id}/"):
-        violations.append(
-            _violation(
-                "CONFIGURATION_POLICY_INVALID",
-                "/foundation/notification_destination",
-                "resource reference scope does not match platform configuration",
-            )
-        )
     buckets = [
         foundation.get(name)
         for name in ("configuration_bucket", "log_bucket", "evidence_bucket")

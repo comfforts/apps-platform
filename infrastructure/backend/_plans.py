@@ -31,6 +31,7 @@ _PHASE_INVENTORIES = {
             "google_logging_project_bucket_config",
             "google_logging_project_exclusion",
             "google_logging_project_sink",
+            "google_monitoring_notification_channel",
             "google_project_iam_member",
             "google_secret_manager_secret",
             "google_secret_manager_secret_iam_member",

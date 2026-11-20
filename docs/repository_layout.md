@@ -1,6 +1,6 @@
 # App Platform repository layout
 
-Version 2.1 | Status: canonical dedicated repository; AP-M9-W7 application lifecycle mechanics
+Version 2.2 | Status: canonical dedicated repository; AP-M9-W8 qualification and destruction mechanics
 implemented; no backend, provider, DNS, deployment, or Live operation performed
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
@@ -49,13 +49,13 @@ resumable journal orchestration exercised through deterministic fakes. It added 
 deploy target, credential, provider request, backend operation, Terraform plan or apply, DNS
 action, platform resource, bundle instance, deployment, or Live evidence.
 
-AP-M9-W5 added exact staging backend declarations, keyless operation-authority profiles, canonical
+AP-M9-W5 added exact staging backend declarations, canonical
 plan policy, Version 2 phased Platform State configuration, closed phase outputs, mocked Terraform
 plans, and a deterministic injected command fake. It added no production command adapter, deploy
 target, identity, credential, backend operation, saved plan, state, provider request, DNS action,
 resource, deployment, or Live evidence.
 
-AP-M9-W6 added immutable stage contexts, exact private-plan binding, typed plan/action confirmation,
+AP-M9-W6 added immutable stage contexts, exact private-plan binding, plan/action confirmation,
 policy and readback gates, same-process OAuth and Squarespace checkpoints, bounded DNS/TLS polling,
 interruption-safe resume, a shell-free non-fake Terraform subprocess boundary, deterministic
 command/transcript fakes, and the digest-bound `platform-deploy` target. The repository slice did
@@ -68,10 +68,17 @@ AP-M9-W7 added least-data integration-bundle generation, exact application attac
 posture validation, immutable whole-generation compilation/publication/activation, reversible
 detach and replacement/reactivation, terminal retirement, distinct detached/retired route
 responses, interruption-safe activation resume, and shallow `platform-outputs`, `platform-register`,
-`platform-detach`, and `platform-retire` targets. All provider and generation boundaries remain
-injected and locally unarmed pending W8. The repository slice created no bundle for a real
+`platform-detach`, and `platform-retire` targets. The repository slice created no bundle for a real
 application, provider publication, active generation, application mutation, deployment, or Live
 evidence and never read or destroyed Application State.
+
+AP-M9-W8 added the qualification-evidence contract and canonical vector, exact current-revision
+readback, the closed ten-check suite, networked Fixture Application runtime, failure injection,
+reviewed whole-generation rollback, safe-destruction compilation/orchestration, private create-only
+destruction progress, least-data fixture handoff records, guarded Cloud SDK generation and target
+adapters, and `platform-qualify`/`platform-destroy`. Qualification and destruction live entry points
+remain gated on explicit W9 authority; this repository slice performed no provider request,
+generation activation, rollback, qualification, or destruction.
 
 ## AP-M9 capability locations
 

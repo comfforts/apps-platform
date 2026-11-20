@@ -289,7 +289,10 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_layout = " ".join(layout.split())
         normalized_overview = " ".join(overview.split())
 
-        self.assertIn("AP-M9-W7 application integration lifecycle implemented", normalized_index)
+        self.assertIn(
+            "AP-M9-W8 qualification and safe-destruction lifecycle implemented",
+            normalized_index,
+        )
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
         self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
         self.assertIn("AP-M8 | historical", index)
@@ -1442,7 +1445,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("operator-attested", threat_model)
         self.assertIn("No current result proves", threat_model)
 
-    def test_ap_m9_w7_status_and_w8_handoff_are_bounded(self) -> None:
+    def test_ap_m9_w8_status_and_w9_handoff_are_bounded(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         docs_index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         runbook = (
@@ -1457,12 +1460,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_prompt = " ".join(prompt.split())
 
         for document in (overview, docs_index, runbook, layout):
-            self.assertIn("AP-M9-W7", document)
+            self.assertIn("AP-M9-W8", document)
             self.assertIn("implemented", document.lower())
         self.assertIn("platform-prepare", overview)
         self.assertIn("platform-status", overview)
         self.assertIn("platform-deploy", overview)
-        self.assertIn("default local construction remains deliberately unarmed", runbook.lower())
+        self.assertIn("W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED", runbook)
+        self.assertIn("W9_DESTRUCTION_AUTHORITY_REQUIRED", runbook)
         self.assertIn("`infrastructure/operator/`", layout)
 
         for required in (

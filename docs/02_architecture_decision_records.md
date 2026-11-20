@@ -850,7 +850,7 @@ implemented and superseded; it is not active deployment authority.
 - Deterministic tests exercise the same lifecycle interface with fake command adapters.
 - No AP-M9 repository change alone authorizes credentials or an external mutation.
 
-## ADR-011 · Bind interactive mutation to short-lived operation identities and exact plans
+## ADR-011 · Bind interactive mutation to one verified operator session and exact plans
 
 Status: Accepted
 
@@ -864,28 +864,39 @@ no-key, exact-source, exact-plan, and readback decisions remain accepted.
 
 The product operator is a human running one local interactive lifecycle. Dividing one deployment
 across many protected jobs would require repeated UI approvals and cannot directly support the
-same-process OAuth and Squarespace checkpoints. Routine broad owner credentials would make the
-local interface convenient at the cost of least privilege.
+same-process OAuth and Squarespace checkpoints. The earlier unexecuted design added 31
+operation-specific service accounts and repeated exact-phrase confirmations. That design reduced
+ambient privilege in theory but made the product substantially harder to operate, bootstrap, and
+verify than the proven Finance Assistant scripts.
 
 ### Decision
 
-The local lifecycle verifies clean reviewed source and an approved Deployment Specification before
-mutation. After the one-time identity bootstrap, it uses short-lived human authentication only to
-impersonate an operation-specific service account. Each operation identity is limited to one
-environment, state owner, and action. No service-account key or long-lived credential is created.
+The normal local lifecycle verifies the active human account, exact provider project, clean current
+`main`, pinned tools, selected environment, and reviewed Deployment Specification before mutation.
+It uses that short-lived human-authenticated session directly for the bounded interactive run. It
+creates no operation-identity fleet, impersonation binding, service-account key, or long-lived
+credential. Runtime service accounts remain Terraform-managed resources with their existing
+Platform State or Application State owners.
 
-Every Terraform mutation creates a fresh exact plan, canonical digest, policy result, and owner
-confirmation in the same execution that applies that plan. Provider and state readback close the
-stage. An unexpected change stops without automatic unlock, state push, rollback, cleanup, or
-scope broadening. Repository checks and source review remain protected, but GitHub workflow
-execution is not the product's routine interactive interface.
+Every Terraform mutation creates a fresh exact plan, canonical digest, policy result, and `y/N`
+owner confirmation in the same execution that applies that plan. Typed confirmation remains
+mandatory for destruction, purge, ownership transfer, and other irreversible boundaries. Provider
+and state readback close each stage. An unexpected change stops without automatic unlock, state
+push, rollback, cleanup, or scope broadening. The lifecycle never treats the human session's broad
+provider capability as authority to exceed the displayed plan or named action. Repository checks
+and source review remain protected, but GitHub workflow execution is not the product's routine
+interactive interface.
 
 ### Consequences
 
 - The operator can complete one deployment without switching between local lifecycle invocations.
+- `platform-deploy` performs preparation, review, approval, and deployment in one process;
+  `platform-prepare` remains an optional read-only preview.
 - Source binding is enforced by the lifecycle and retained evidence rather than by a remote runner
   alone.
-- Identity bootstrap and break-glass remain separately approved high-risk operations.
+- The operator account remains powerful; exact plans, small command allow-lists, confirmations,
+  readback, drift detection, and evidence are the active controls. Provider IAM outside the script
+  remains an owner responsibility and residual risk.
 - A later remote execution adapter requires its own decision and parity evidence.
 
 ## ADR-012 · Exchange versioned non-secret bundles across platform and application ownership

@@ -1,7 +1,7 @@
 # App Platform system design
 
-Version 1.6 | Status: Fixture-qualified logical design, implemented AP-M6 runtime and AP-M7
-Terraform profiles, and implemented AP-M9-W7 application lifecycle controls; no provider operation
+Version 1.7 | Status: Fixture-qualified logical design, implemented AP-M6 runtime and AP-M7
+Terraform profiles, and implemented AP-M9-W8 qualification/destruction controls; no provider operation
 or live infrastructure is deployed
 
 This document defines the smallest logical design that can support the App Platform requirements
@@ -788,7 +788,7 @@ Deployment consumes exactly that approved digest and advances one Execution Jour
 logical stages:
 
 1. source, identity, environment, state, ownership, and drift preflight;
-2. one-time backend and operation-identity bootstrap when absent;
+2. one-time backend bootstrap when absent;
 3. platform foundation, including configuration storage, registry, identities, KMS, Firestore,
    Secret Manager containers, logging, evidence, and cost controls;
 4. immutable Shared Edge image publication;
@@ -806,12 +806,13 @@ it verifies every provider-readable value; an unreadable field is recorded as op
 Rerunning the same operation is a crash-recovery path that resumes after the last closed stage. A
 scope change, unapproved mutation, owner mismatch, or drift requires new preparation and approval.
 
-The lifecycle uses short-lived human authentication to impersonate an environment- and operation-
-specific service account after the separately approved bootstrap. Each Terraform mutation plans,
-canonicalizes, policy-checks, confirms, and applies one exact same-execution plan, then reads back
-state and provider results. No service-account key, long-lived credential, routine broad owner
-authority, automatic unlock, state push, import, rollback, cleanup, or destructive recovery is
-permitted.
+The lifecycle verifies and uses one short-lived human-authenticated operator session for the
+selected environment and provider project. Each Terraform mutation plans, canonicalizes,
+policy-checks, shows, confirms with `y/N`, and applies one exact same-execution plan, then reads back
+state and provider results. Typed phrases remain reserved for irreversible boundaries. No
+service-account key, long-lived credential, automatic unlock, state push, import, rollback,
+cleanup, or destructive recovery is permitted. Capability available to the human account outside
+the script is residual risk and never expands the reviewed lifecycle scope.
 
 After environment deployment, `outputs` compiles a Platform Integration Bundle for one application,
 environment, access mode, route intent, and platform revision. A fixture may consume a bundle whose
@@ -850,10 +851,12 @@ Terraform lifecycle described below, and AP-M9-W6 implemented the unarmed staged
 closed command boundary, exact confirmations, manual checkpoints, readback, and resume. AP-M9-W7
 implemented least-data application outputs, exact attachment/target validation, immutable complete-
 generation activation, reversible detachment/reactivation, terminal retirement, and distinct
-reserved-route responses behind injected boundaries. These packages create no identity,
+reserved-route responses behind injected boundaries. AP-M9-W8 implemented exact-revision
+qualification, redacted evidence, network fixtures, failure injection, reviewed rollback, and
+safe-destruction mechanics plus guarded local provider construction. These packages create no identity,
 credential, state,
 provider resource, OAuth client, DNS record, certificate, bundle instance, application change, or
-qualification evidence. Python-to-Go migration remains a later contract-preserving milestone after
+Live qualification evidence. Python-to-Go migration remains a later contract-preserving milestone after
 the Python product is delivered and qualified.
 
 ### AP-M9-W5 deployable Terraform lifecycle
@@ -889,15 +892,12 @@ The backend renderer writes canonical `gcs` declarations only beneath a caller-a
 working root, uses mode `0600`, returns a content digest, is idempotent for identical content, and
 refuses traversal or replacement. It does not invoke Terraform or access a backend.
 
-The operation-authority profile contains 31 distinct keyless identity intents in project
-`comfforts-platform-non-prod`. Root codes are `bootstrap`, `platform`, `fxpub`, `fxauth`, and
-`fxrest`. Each root has `plan`, `apply`, `readback`, `rollback`, `destroy`, and `recovery` identities
-named `ap-stg-<root-code>-<action>`; the bootstrap root also has
-`ap-stg-bootstrap-bootstrap`. The full email appends
-`@comfforts-platform-non-prod.iam.gserviceaccount.com`. Each intent is limited to its environment,
-root, owner, bucket/prefix, action, exact backend/provider capability, and a 3,600-second
-`GOOGLE_IMPERSONATE_SERVICE_ACCOUNT` binding. Service-account keys and self-administration are
-prohibited. These are data declarations only; W5 creates no account, binding, credential, or token.
+The operator-session profile contains the selected environment, exact provider project, active
+human account readback, clean current source revision, and local authentication freshness result.
+It is private execution state, not an operator-authored manifest or committed identity value. The
+lifecycle creates no operation-specific service accounts or impersonation bindings. Terraform-
+managed runtime identities remain distinct per environment and owner, and service-account keys
+remain prohibited.
 
 Plan policy accepts only a redacted observation bound to the exact environment, source revision,
 state owner, owner identifier, root, phase, project, explicitly configured Google provider, and

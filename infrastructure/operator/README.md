@@ -1,6 +1,6 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W7 application integration lifecycle implemented; no external operation performed
+Status: AP-M9-W8 qualification and safe-destruction lifecycle implemented; no external operation performed
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -39,19 +39,22 @@ make platform-retire \
   APPLICATION_ID=fixture-authenticated \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   GENERATION_DIGEST=sha256:<64-lowercase-hex>
+make platform-qualify ENVIRONMENT=staging
+make platform-destroy ENVIRONMENT=staging
 ```
 
-Preparation is credential-free. It loads one committed profile, verifies local source/repository/
-tool facts, builds the complete nine-stage Deployment Specification, writes canonical bytes, and
-asks for explicit approval of its exact digest. Status is read-only. Production remains blocked by
+Standalone preparation is credential-free and remains an optional dry run. The normal deploy
+command verifies local source/repository/tool facts plus the active human account and provider
+project, builds the complete Deployment Specification, writes canonical bytes, asks for approval,
+and continues in the same process. Status is read-only. Production remains blocked by
 `OWNERSHIP_TRANSFER_REQUIRED`.
 
-Deploy accepts only the exact current, approved specification. It journals preflight, backend/
-identity bootstrap, foundation, immutable image publication, OAuth, Shared Edge, external DNS, TLS,
+Deploy accepts only the exact current, approved specification. It journals preflight, backend
+bootstrap, foundation, immutable image publication, OAuth, Shared Edge, external DNS, TLS,
 and final readback stages. Terraform mutation requires a fresh mode-`0600` saved plan under a
-mode-`0700` private root, W5 policy acceptance, a redacted summary and digest, exact typed
+mode-`0700` private root, W5 policy acceptance, a redacted summary and digest, a `y/N`
 confirmation, application of the same bound artifact, and provider/state readback. Image actions
-use the same digest-bound confirmation model. OAuth and DNS display exact non-secret instructions,
+use the same reviewed confirmation model. OAuth and DNS display exact non-secret instructions,
 wait for Enter in the same process, and then use provider-verified or explicitly operator-attested
 readback with bounded DNS/TLS polling.
 
@@ -59,18 +62,18 @@ Outputs generates one canonical application-scoped bundle beneath the private op
 without exposing a secret or another application's values. Register accepts the exact integration
 bundle, application-owned attachment bundle, and a strict private registration-intent document. It
 validates current platform and target posture, publishes the complete immutable generation
-create-only, verifies readback, and requires exact typed activation. Detach and retire require the
+create-only, verifies readback, and requires activation confirmation. Detach and retire require the
 expected active-generation digest; replacement attachment registration reactivates a suspended
 application. Interrupted confirmation may resume only the identical publication.
 
-The default local construction remains deliberately unarmed until AP-M9-W8 completes qualification
-and safe-destruction controls. Therefore the W7 integration targets report
-`APPLICATION_INTEGRATION_ADAPTER_UNAVAILABLE` outside injected tests; they do not perform partial
-work. The repository gate drives deployment and application integration only through deterministic
-fakes and transcript tests. The non-fake Terraform command adapter is implemented behind the
-injected boundary, uses absolute executable paths and argv, and is not invoked by `make check`.
-It rejects path escape, ambient credential variables, shell interpolation, target/replace, lock
-bypass, import, state push, and force-unlock.
+W8 implements exact revision readback, the closed qualification profile, redacted evidence,
+network fixtures, failure injection, reviewed rollback, separate destruction authority, and
+create-only resume state. It constructs shell-free Cloud SDK generation, traffic, attachment, and
+readback adapters through the verified active human session. The qualification
+and destruction live defaults retain explicit W9 authority gates; no partial external work occurs.
+Repository tests use deterministic fakes and process-local loopback only. Non-fake command adapters
+are not invoked by `make check` and reject path escape, ambient credential variables, shell
+interpolation, mutable scope, and raw-output persistence.
 
 ## Private local state
 

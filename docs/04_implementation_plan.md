@@ -1,6 +1,6 @@
 # App Platform implementation plan
 
-Version 0.13 | Status: AP-M9-W1 through AP-M9-W7 implemented;
+Version 0.14 | Status: AP-M9-W1 through AP-M9-W8 implemented;
 AP-M8-W1/W2 preserved historically; AP-M8-W3 through W12 superseded without execution; every
 external operator action remains pending
 
@@ -8,11 +8,12 @@ This document preserves delivery items 3 through 7 and the completed historical 
 AP-M7 implements and statically validates reviewed Terraform configuration and inert workflow
 templates. AP-M8-W1/W2 implemented a manifest-driven qualification-deployment proposal but no real
 manifest was accepted and no AP-M8-W3 through W12 operation began. AP-M9 supersedes that unexecuted
-path with the operator-driven environment lifecycle below. AP-M9-W1 through W7 establish active
+path with the operator-driven environment lifecycle below. AP-M9-W1 through W8 establish active
 governance, remove the retired interface, implement lifecycle contracts and the credential-free
 operator core, implement the repository-only Terraform lifecycle, and implement the unarmed
 interactive deployment engine plus closed command boundary, then implement the application
-integration and registration lifecycle behind injected boundaries. No package authorizes
+integration and registration lifecycle, then qualification and safe destruction behind guarded
+boundaries. No repository package by itself authorizes
 backend initialization, authenticated plan or apply, cloud
 call, credential, identity, provider resource, DNS mutation, deployment, qualification,
 destruction, production change, or Application Adoption.
@@ -1616,8 +1617,9 @@ evidence bundle, or qualification result. AP-M8-W1/W2 remain historical merged w
 removed their retired manifest implementation from the active tree, AP-M9-W3 implemented lifecycle
 contracts and profiles, AP-M9-W4 implemented the credential-free interactive core, AP-M9-W5
 implemented the deployable Terraform lifecycle, AP-M9-W6 implemented interactive deployment
-mechanics, and AP-M9-W7 implemented the application integration lifecycle without running an
-external operation. AP-M9-W8 begins only after W7 merges.
+mechanics, AP-M9-W7 implemented the application integration lifecycle, and AP-M9-W8 implemented
+qualification and safe-destruction mechanics without running an external operation. AP-M9-W9
+begins only after W8 merges.
 
 Each AP-M9 repository package begins from updated clean `main`, uses a dedicated branch and pull
 request, passes `make check`, and merges before the next package starts. Repository implementation
@@ -1712,21 +1714,24 @@ and resumed interrupted fake journeys. This package performs no authenticated mu
 
 Implemented bootstrap, platform-foundation, and Shared Edge phases that preserve exclusive
 ownership and one platform lineage without placeholder inputs. Added exact staging backend
-declarations and a path-bounded renderer, 31 keyless operation-authority intents, local
-impersonation profiles, canonical plan policy, production refusal, closed phase outputs, mocked
-plans, and deterministic command fakes. No authenticated plan, backend operation, provider
-mutation, or DNS action occurred in the repository slice.
+declarations and a path-bounded renderer, canonical plan policy, production refusal, closed phase
+outputs, mocked plans, and deterministic command fakes. The later W8 operator-experience
+rebaseline removed the unexecuted 31-identity/impersonation profile in favor of one verified
+short-lived human operator session. No authenticated plan, backend operation, provider mutation,
+or DNS action occurred in the repository slice.
 
 #### AP-M9-W6 · Interactive platform deployment
 
-Implemented the staged deployment engine: preflight; backend/identity bootstrap; foundation; image
+Implemented the staged deployment engine: preflight; backend bootstrap; foundation; image
 publication; OAuth branding/client/Secret Manager checkpoint; Shared Edge/load balancer/address;
 Squarespace DNS checkpoint; DNS propagation and TLS readiness; readback; stop-on-discrepancy; and
 resume. The same process displays exact manual values and waits for Enter. Every Terraform stage
-binds a fresh private saved plan to W5 policy, redacted digest/summary, exact typed confirmation,
-same-artifact apply, and readback. The closed non-fake subprocess boundary uses absolute executables,
-argv, private bounded paths, closed environments, and operation identities without shell
-interpolation. Deterministic command fakes and transcript tests cover success, no-change,
+binds a fresh private saved plan to W5 policy, redacted digest/summary, confirmation, same-artifact
+apply, and readback. The W8 operator-experience rebaseline makes `platform-deploy` perform
+preparation, review, approval, and deployment in one invocation, uses ordinary `y/N` confirmation
+for reviewed plans, and reserves typed phrases for irreversible actions. The closed non-fake
+subprocess boundary uses absolute executables, argv, bounded paths, and the verified human session
+without shell interpolation. Deterministic command fakes and transcript tests cover success, no-change,
 cancellation, manual checkpoint, bounded polling, partial failure, discrepancy, interruption, and
 resume. The default local construction remains unarmed pending the W8 external-action safety gate;
 the pull request executed no real operation.
@@ -1744,12 +1749,16 @@ Application State, and no external action occurred.
 
 #### AP-M9-W8 · Qualification and safe destruction
 
-Implement networked synthetic Fixture Applications in separate Application State, `platform-
-qualify`, closed evidence, failure injection, rollback, and `platform-destroy`. Qualification covers
-DNS/TLS, catalogue, routing, admission, OAuth/session/logout, assertions/JWKS, attachment IAM,
-direct-origin denial, isolation, streaming, lifecycle, limits, and redaction. Destruction refuses
-active attachments, uses a separate specification and typed confirmation, respects DNS/rollback
-windows, never destroys Application State, and retains backends/evidence absent a separate purge.
+Implemented networked synthetic Fixture Applications, `platform-qualify`, a strict revision-bound
+evidence contract and prohibited-data scan, the closed ten-check profile, failure injection,
+reviewed whole-generation rollback, and `platform-destroy`. Added exact local/provider/fixture
+readback, least-data accepted handoff records, separate destructive specification compilation,
+typed confirmation, post-confirmation reread, ordered stop-on-failure execution, and private
+create-only resume state. Destruction refuses active attachments or ownership/inventory mismatch,
+never targets Application State, and retains backends, recovery material, and evidence absent
+separate purge authority. Guarded shell-free Cloud SDK generation, traffic, attachment, and
+readback adapters are deterministic-test covered but were not invoked. The live qualification and
+destruction defaults require new W9 authority.
 
 #### AP-M9-W9 · Staging deployment and qualification
 

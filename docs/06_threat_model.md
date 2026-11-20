@@ -1,7 +1,7 @@
 # App Platform threat model
 
-Version 1.9 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
-implemented AP-M9-W7 repository lifecycle controls; no provider operation or live
+Version 1.10 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
+implemented AP-M9-W8 repository lifecycle controls; no provider operation or live
 infrastructure is deployed
 
 This document defines the security and privacy threats created by the logical App Platform design,
@@ -786,8 +786,8 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   credentials, secret values, state, plans, raw provider responses, browser state, identity claims,
   restricted membership, and application data.
 - **AP-TM-011:** The lifecycle binds clean reviewed source, pinned tools and dependencies, one
-  environment, an approved specification digest, an operation-specific impersonated identity, an
-  exact plan, and readback. A profile or journal edit, alternate source, wrong project, provider
+  environment, an approved specification digest, the verified active human account and provider
+  project, an exact plan, and readback. A profile or journal edit, alternate source, wrong project, provider
   default, console mutation, or unexpected drift stops before continuation.
 - **AP-TM-012:** Preparation inventories every billable resource and destruction names every target.
   Existing limits, budgets, retention, scale-to-zero, and approved-service controls remain. A
@@ -801,24 +801,28 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   it under its own authority.
 
 The local operator workstation and its short-lived human session are privileged but fallible. The
-lifecycle therefore uses least-privilege service-account impersonation after bootstrap, mode-`0700`
-ephemeral working storage, source and environment checks, exact typed confirmations, prohibited-data
-scans, and post-stage readback. A compromised workstation remains residual risk; no script can make
-an owner credential incapable of out-of-band provider action. Such action is drift and never becomes
-reviewed authority without reconciliation.
+lifecycle therefore verifies the active account and exact project, uses mode-`0700` ephemeral
+working storage, binds every Terraform apply to the plan just shown, uses `y/N` for ordinary plan
+review and typed phrases for irreversible actions, scans prohibited data, and performs post-stage
+readback. A compromised workstation remains residual risk; no script can make an owner credential
+incapable of out-of-band provider action. Such action is drift and never becomes reviewed authority
+without reconciliation. The lifecycle creates no operation-identity or impersonation fleet.
 
 AP-M9-W1 defines controls and evaluation authority, AP-M9-W2 removed the retired manifest attack
 surface, AP-M9-W3 implemented the closed lifecycle contracts, AP-M9-W4 implements local
 source/tool discovery, exact digest approval, append-only journal revisions, truthful status,
 redaction, and interruption-safe fake execution through injected adapters, AP-M9-W5 implements
-exact backend, operation-authority, phase, output, and plan-policy declarations through mocked
+exact backend, phase, output, and plan-policy declarations through mocked
 providers and command fakes, and AP-M9-W6 implements fresh private-plan binding, exact typed
 confirmation, shell-free commands, same-process OAuth/DNS checkpoints, bounded DNS/TLS polling,
 readback, redacted transcripts, and last-closed-stage resume. AP-M9-W7 implements least-data
 application outputs, current-platform and target-posture checks, create-only immutable whole-
 generation publication, exact activation confirmation, detached/retired route isolation, and
-interruption-safe retry. The non-fake command adapter remains uninvoked and all application-
-integration effects remain injected; the default local construction remains unarmed.
+interruption-safe retry. AP-M9-W8 implements revision binding, evidence allow-listing and
+prohibited-data scans, network fixtures, failure injection, reviewed rollback, active-attachment
+destruction refusal, exact scope confirmation, post-confirmation reread, ordered stop-on-failure
+destruction, retained recovery/evidence boundaries, and create-only resume state. Non-fake command
+adapters remain uninvoked; W9 live qualification and destruction authority remains closed.
 No current result proves an identity, backend, provider, OAuth, DNS,
 deployment, or Live control operational.
 

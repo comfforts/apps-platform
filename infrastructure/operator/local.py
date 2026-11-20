@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import base64
 import hashlib
 import json
 import os
@@ -11,6 +12,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from typing import TYPE_CHECKING
 
 from infrastructure.operator._core import LifecycleOperator
 from infrastructure.operator._interfaces import (
@@ -25,6 +27,9 @@ from infrastructure.tools.terraform_setup import (
     TERRAFORM,
     TERRAFORM_VERSION,
 )
+
+if TYPE_CHECKING:
+    from infrastructure.operator.local_deployment import OperatorSessionFacts
 
 
 def _credential_free_environment() -> dict[str, str]:
@@ -213,6 +218,58 @@ class ProfileGcp:
             ),
             tuple(blockers),
         )
+
+    def operator_session(
+        self,
+        profile: dict[str, object],
+    ) -> OperatorSessionFacts | None:
+        """Derive immutable session facts without persisting the identity token."""
+
+        from infrastructure.operator.local_deployment import OperatorSessionFacts
+
+        active_account = self._read(
+            "auth",
+            "list",
+            "--filter=status:ACTIVE",
+            "--format=value(account)",
+        )
+        active_project = self._read("config", "get-value", "project")
+        billing_account = self._read(
+            "billing",
+            "projects",
+            "describe",
+            str(profile.get("project_id", "")),
+            "--format=value(billingAccountName)",
+        )
+        identity_token = self._read("auth", "print-identity-token")
+        if (
+            not active_account
+            or active_project != profile.get("project_id")
+            or not billing_account
+            or not identity_token
+        ):
+            return None
+        try:
+            segments = identity_token.split(".")
+            if len(segments) != 3:
+                return None
+            encoded = segments[1] + "=" * (-len(segments[1]) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(encoded).decode("utf-8"))
+            if (
+                not isinstance(claims, dict)
+                or claims.get("iss") != "https://accounts.google.com"
+                or claims.get("email") != active_account
+                or not isinstance(claims.get("sub"), str)
+            ):
+                return None
+            return OperatorSessionFacts(
+                active_account=active_account,
+                billing_account_reference=billing_account,
+                operator_issuer="https://accounts.google.com",
+                operator_subject=claims["sub"],
+            )
+        except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
+            return None
 
 
 @dataclass(frozen=True, slots=True)

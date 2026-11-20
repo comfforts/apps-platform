@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import base64
 import hashlib
 import io
 import json
@@ -168,6 +169,56 @@ class OperatorLifecycleTest(unittest.TestCase):
             )
 
         self.assertEqual(result.blockers, ("OPERATOR_PROJECT_MISMATCH",))
+
+    def test_local_gcp_session_derives_billing_and_subject_without_retaining_token(
+        self,
+    ) -> None:
+        claims = base64.urlsafe_b64encode(
+            json.dumps(
+                {
+                    "email": "operator@example.com",
+                    "iss": "https://accounts.google.com",
+                    "sub": "123456789012345678901",
+                },
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).rstrip(b"=").decode("ascii")
+        token = f"header.{claims}.signature"
+        observed = (
+            subprocess.CompletedProcess([], 0, "operator@example.com\n", ""),
+            subprocess.CompletedProcess([], 0, "comfforts-platform-non-prod\n", ""),
+            subprocess.CompletedProcess(
+                [],
+                0,
+                "billingAccounts/ABCDEF-123456-789ABC\n",
+                "",
+            ),
+            subprocess.CompletedProcess([], 0, token + "\n", ""),
+        )
+        with mock.patch.object(
+            local_adapters.subprocess,
+            "run",
+            side_effect=observed,
+        ):
+            session = ProfileGcp(
+                Path("/usr/bin/gcloud"),
+                Path("/tmp/gcloud"),
+            ).operator_session(
+                {
+                    "project_id": "comfforts-platform-non-prod",
+                    "project_number": "455651441682",
+                    "region": "us-west1",
+                }
+            )
+
+        assert session is not None
+        self.assertEqual(session.active_account, "operator@example.com")
+        self.assertEqual(
+            session.billing_account_reference,
+            "billingAccounts/ABCDEF-123456-789ABC",
+        )
+        self.assertEqual(session.operator_subject, "123456789012345678901")
+        self.assertNotIn(token, repr(session))
 
     def test_executor_receives_one_exact_immutable_stage_context(self) -> None:
         @dataclass

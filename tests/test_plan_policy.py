@@ -42,6 +42,46 @@ def _foundation_observation() -> dict[str, object]:
     }
 
 
+def _fixture_observation(application_id: str) -> dict[str, object]:
+    return {
+        "environment": "staging",
+        "source_revision": SOURCE_REVISION,
+        "state_owner": "application",
+        "owner_id": application_id,
+        "terraform_root": f"infrastructure/terraform/fixtures/{application_id}",
+        "phase": application_id,
+        "provider": {
+            "source": "registry.terraform.io/hashicorp/google",
+            "service": "google",
+            "project_id": "comfforts-platform-non-prod",
+            "configuration": "explicit",
+        },
+        "changes": [
+            {
+                "address": "module.fixture_application.google_service_account.runtime",
+                "resource_type": "google_service_account",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["create"],
+            },
+            {
+                "address": "module.fixture_application.google_cloud_run_v2_service.runtime",
+                "resource_type": "google_cloud_run_v2_service",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["create"],
+            },
+            {
+                "address": (
+                    "module.fixture_application."
+                    "google_cloud_run_v2_service_iam_member.edge_invoker"
+                ),
+                "resource_type": "google_cloud_run_v2_service_iam_member",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["create"],
+            },
+        ],
+    }
+
+
 class PlanPolicyTest(unittest.TestCase):
     def test_accepted_summary_is_canonical_redacted_and_order_independent(self) -> None:
         policy = plan_policy(
@@ -176,6 +216,62 @@ class PlanPolicyTest(unittest.TestCase):
         observation["changes"][0]["actions"] = ["create"]  # type: ignore[index]
         refused = evaluate_plan(policy, observation)
         self.assertIn("ACTION_PROHIBITED", [item.code for item in refused.violations])
+
+    def test_fixture_policy_binds_each_independent_application_owner(self) -> None:
+        for application_id in (
+            "fixture-public",
+            "fixture-authenticated",
+            "fixture-restricted",
+        ):
+            with self.subTest(application_id=application_id):
+                policy = plan_policy(
+                    "staging",
+                    application_id,
+                    SOURCE_REVISION,
+                    destructive=False,
+                )
+                accepted = evaluate_plan(
+                    policy,
+                    _fixture_observation(application_id),
+                )
+
+                self.assertTrue(accepted.accepted)
+                self.assertEqual(policy.state_owner, "application")
+                self.assertEqual(policy.owner_id, application_id)
+
+                wrong_owner = _fixture_observation(application_id)
+                wrong_owner["owner_id"] = "app-platform"
+                refused = evaluate_plan(policy, wrong_owner)
+                self.assertIn(
+                    "OWNER_MISMATCH",
+                    [item.code for item in refused.violations],
+                )
+
+    def test_fixture_destroy_policy_allows_only_fixture_resource_deletes(self) -> None:
+        application_id = "fixture-public"
+        policy = plan_policy(
+            "staging",
+            application_id,
+            SOURCE_REVISION,
+            destructive=True,
+        )
+        observation = _fixture_observation(application_id)
+        for change in observation["changes"]:  # type: ignore[union-attr]
+            change["actions"] = ["delete"]
+
+        accepted = evaluate_plan(policy, observation)
+
+        self.assertTrue(accepted.accepted)
+        observation["changes"].append(  # type: ignore[union-attr]
+            {
+                "address": "google_storage_bucket.platform",
+                "resource_type": "google_storage_bucket",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["delete"],
+            }
+        )
+        refused = evaluate_plan(policy, observation)
+        self.assertIn("RESOURCE_PROHIBITED", [item.code for item in refused.violations])
 
 
 if __name__ == "__main__":

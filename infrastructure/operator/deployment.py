@@ -185,6 +185,9 @@ _TERRAFORM_PHASES = {
     "foundation": "platform-foundation",
     "shared-edge": "shared-edge",
     "tls-readiness": "shared-edge",
+    "fixture-public": "fixture-public",
+    "fixture-authenticated": "fixture-authenticated",
+    "fixture-restricted": "fixture-restricted",
 }
 _READ_ONLY_STAGES = {"preflight", "readback"}
 _ACTION_STAGES = {"bootstrap-services", "generation-publish", "image-publish"}

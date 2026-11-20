@@ -32,7 +32,13 @@ _PHASE_SOURCES = {
     "bootstrap": "infrastructure/terraform/bootstrap",
     "platform-foundation": "infrastructure/terraform/platform",
     "shared-edge": "infrastructure/terraform/platform",
+    "fixture-public": "infrastructure/terraform/fixtures/fixture-public",
+    "fixture-authenticated": (
+        "infrastructure/terraform/fixtures/fixture-authenticated"
+    ),
+    "fixture-restricted": "infrastructure/terraform/fixtures/fixture-restricted",
 }
+_PLATFORM_PHASES = {"bootstrap", "platform-foundation", "shared-edge"}
 _FOUNDATION_NAMES = {
     "configuration_bucket": "comfforts-ap-stg-455651441682-configuration",
     "log_bucket": "comfforts-ap-stg-455651441682-logs",
@@ -237,6 +243,22 @@ class RenderedTerraformInput:
     configuration_digest: str
 
 
+def render_private_terraform_input(
+    terraform_root: Path,
+    variables: dict[str, Any],
+) -> RenderedTerraformInput:
+    """Write one canonical, mode-private variable file in an isolated root."""
+
+    contents = _canonical(variables) + b"\n"
+    variable_file = terraform_root / "terraform.tfvars.json"
+    _private_write(variable_file, contents)
+    return RenderedTerraformInput(
+        terraform_root,
+        variable_file,
+        _digest(contents),
+    )
+
+
 class DeploymentConfigurationRenderer:
     """Derive complete Terraform phase values without an operator manifest."""
 
@@ -364,7 +386,7 @@ class DeploymentConfigurationRenderer:
             raise LocalDeploymentInputError("OWNERSHIP_TRANSFER_REQUIRED")
         if (
             request.source_revision != context.source_revision
-            or request.phase not in _PHASE_SOURCES
+            or request.phase not in _PLATFORM_PHASES
         ):
             raise LocalDeploymentInputError("TERRAFORM_CONTEXT_MISMATCH")
         root = self._workspace.prepare_phase(request.phase)
@@ -382,10 +404,10 @@ class DeploymentConfigurationRenderer:
         violations = validate_configuration(configuration, kind)
         if violations:
             raise LocalDeploymentInputError("TERRAFORM_CONFIGURATION_INVALID")
-        contents = _canonical({variable_name: configuration}) + b"\n"
-        variable_file = root / "terraform.tfvars.json"
-        _private_write(variable_file, contents)
-        return RenderedTerraformInput(root, variable_file, _digest(contents))
+        return render_private_terraform_input(
+            root,
+            {variable_name: configuration},
+        )
 
 
 __all__ = (
@@ -396,4 +418,5 @@ __all__ = (
     "PrivateTerraformWorkspace",
     "RenderedTerraformInput",
     "initial_generation",
+    "render_private_terraform_input",
 )

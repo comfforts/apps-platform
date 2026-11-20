@@ -16,10 +16,14 @@ _SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
 _PHASE_INVENTORIES = {
     "bootstrap": {
         "terraform_root": "infrastructure/terraform/bootstrap",
+        "state_owner": "platform",
+        "owner_id": "app-platform",
         "resource_types": ("google_storage_bucket",),
     },
     "platform-foundation": {
         "terraform_root": "infrastructure/terraform/platform",
+        "state_owner": "platform",
+        "owner_id": "app-platform",
         "resource_types": (
             "google_artifact_registry_repository",
             "google_billing_budget",
@@ -43,6 +47,8 @@ _PHASE_INVENTORIES = {
     },
     "shared-edge": {
         "terraform_root": "infrastructure/terraform/platform",
+        "state_owner": "platform",
+        "owner_id": "app-platform",
         "resource_types": (
             "google_cloud_run_v2_service",
             "google_cloud_run_v2_service_iam_member",
@@ -55,6 +61,23 @@ _PHASE_INVENTORIES = {
             "google_compute_target_https_proxy",
             "google_compute_url_map",
         ),
+    },
+    **{
+        owner_id: {
+            "terraform_root": f"infrastructure/terraform/fixtures/{owner_id}",
+            "state_owner": "application",
+            "owner_id": owner_id,
+            "resource_types": (
+                "google_cloud_run_v2_service",
+                "google_cloud_run_v2_service_iam_member",
+                "google_service_account",
+            ),
+        }
+        for owner_id in (
+            "fixture-public",
+            "fixture-authenticated",
+            "fixture-restricted",
+        )
     },
 }
 
@@ -120,8 +143,8 @@ def plan_policy(
     return PlanPolicy(
         environment="staging",
         source_revision=source_revision,
-        state_owner="platform",
-        owner_id="app-platform",
+        state_owner=str(inventory["state_owner"]),
+        owner_id=str(inventory["owner_id"]),
         terraform_root=str(inventory["terraform_root"]),
         phase=phase,
         project_id="comfforts-platform-non-prod",

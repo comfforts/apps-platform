@@ -2,9 +2,12 @@
 !pyproject.toml
 !uv.lock
 !contracts/
-!contracts/**
+!contracts/__init__.py
+!contracts/validation.py
+!contracts/schemas/
+!contracts/schemas/**
 !edge/
-!edge/**
+!edge/*.py
 !infrastructure/
 !infrastructure/images/
 !infrastructure/images/shared-edge/

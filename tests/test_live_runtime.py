@@ -111,8 +111,10 @@ class LiveRuntimeTest(unittest.TestCase):
         for allowed in (
             "!pyproject.toml",
             "!uv.lock",
-            "!contracts/**",
-            "!edge/**",
+            "!contracts/__init__.py",
+            "!contracts/validation.py",
+            "!contracts/schemas/**",
+            "!edge/*.py",
             "!infrastructure/images/shared-edge/Dockerfile",
             "!infrastructure/images/shared-edge/cloudbuild.yaml",
         ):

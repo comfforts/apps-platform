@@ -8,6 +8,7 @@ variable "edge_configuration" {
     service_name           = string
     candidate_revision     = string
     runtime_identity_email = string
+    edge_caller_principal  = string
     image_digest           = string
     configuration_bucket   = string
     registration_generation = object({
@@ -29,6 +30,10 @@ variable "edge_configuration" {
       client_secret_version = string
     })
     signing_key_version = string
-    tls_enabled         = bool
+    operator_identity = object({
+      issuer  = string
+      subject = string
+    })
+    tls_enabled = bool
   })
 }

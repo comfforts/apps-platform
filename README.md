@@ -41,8 +41,9 @@ comparison and rollback behavior.
   staged deployment engine, closed command boundary, interactive checkpoints, and
   `platform-deploy`. W7 implements least-data outputs, attachment validation, immutable
   whole-generation registration, detach/reactivate, and terminal retirement. W8 implements
-  revision-bound qualification, closed evidence, reviewed rollback, and safe Platform Environment
-  destruction. W9 is the first real staging operation and is next.
+  revision-bound qualification, closed evidence, reviewed rollback, safe Platform Environment
+  destruction, and the production Shared Edge composition and non-root image entry point. W9 is
+  the first real staging operation and is next.
 
 No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
 application registration, or Live evidence is created merely by the repository implementation.

@@ -14,10 +14,12 @@ output "policy_summary" {
     service_name            = var.edge_configuration.service_name
     candidate_revision      = var.edge_configuration.candidate_revision
     runtime_identity_email  = var.edge_configuration.runtime_identity_email
+    edge_caller_principal   = var.edge_configuration.edge_caller_principal
     immutable_image_digest  = var.edge_configuration.image_digest
     registration_generation = var.edge_configuration.registration_generation
     binding_versions        = var.edge_configuration.binding_versions
     configuration_bucket    = var.edge_configuration.configuration_bucket
+    operator_identity       = var.edge_configuration.operator_identity
     runtime = {
       region                       = var.edge_configuration.region
       ingress                      = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"

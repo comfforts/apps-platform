@@ -180,6 +180,7 @@
         "oauth_client_id",
         "oauth_client_secret_version",
         "signing_key_version",
+        "operator_identity",
         "registration_generation",
         "tls_enabled"
       ],
@@ -193,6 +194,20 @@
         },
         "oauth_client_secret_version": {"$ref": "#/$defs/secretVersion"},
         "signing_key_version": {"$ref": "#/$defs/kmsKeyVersion"},
+        "operator_identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["issuer", "subject"],
+          "properties": {
+            "issuer": {"const": "https://accounts.google.com"},
+            "subject": {
+              "type": "string",
+              "minLength": 6,
+              "maxLength": 64,
+              "pattern": "^[1-9][0-9]{5,63}$"
+            }
+          }
+        },
         "registration_generation": {"$ref": "#/$defs/registrationGeneration"},
         "tls_enabled": {"enum": [false, true]}
       }

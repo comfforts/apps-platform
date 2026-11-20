@@ -26,7 +26,7 @@ fixture-check: ## Verify the deterministic in-process fixture edge without exter
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_fixtures tests.test_networked_fixtures
 
 runtime-check: ## Verify the Shared Edge interface without credentials or external network access.
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_edge_runtime tests.test_proxy tests.test_observability tests.test_runtime_qualification
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_edge_runtime tests.test_proxy tests.test_observability tests.test_runtime_qualification tests.test_live_runtime
 
 terraform-setup: ## Install pinned Terraform dependencies into the ignored project-local mirror.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) infrastructure/tools/terraform_setup.py

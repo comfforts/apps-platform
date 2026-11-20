@@ -261,7 +261,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertEqual(result.blockers, ())
             self.assertEqual(
                 result.specification_digest,
-                "sha256:a362f9836014acbac6b07d19873a1f4dab6434eefd39ba5eafa53b796557beea",
+                "sha256:240691c6407b5384e9f4bf0cff89b67acfb3d0aaeb2520cfc4b23b47dd4c6515",
             )
             assert result.specification is not None
             self.assertEqual(result.specification["environment"], "staging")

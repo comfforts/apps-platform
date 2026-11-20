@@ -853,7 +853,11 @@ implemented least-data application outputs, exact attachment/target validation, 
 generation activation, reversible detachment/reactivation, terminal retirement, and distinct
 reserved-route responses behind injected boundaries. AP-M9-W8 implemented exact-revision
 qualification, redacted evidence, network fixtures, failure injection, reviewed rollback, and
-safe-destruction mechanics plus guarded local provider construction. These packages create no identity,
+safe-destruction mechanics plus guarded local provider construction and the production Shared Edge
+composition. The live process accepts exact generated revision, generation, provider,
+OAuth-secret-version, KMS-key-version, edge-caller, and operator-subject bindings. It reads the
+OAuth payload directly from the selected Secret Manager version and never puts that payload in an
+environment variable, terminal, image, output, or evidence record. These packages create no identity,
 credential, state,
 provider resource, OAuth client, DNS record, certificate, bundle instance, application change, or
 Live qualification evidence. Python-to-Go migration remains a later contract-preserving milestone after

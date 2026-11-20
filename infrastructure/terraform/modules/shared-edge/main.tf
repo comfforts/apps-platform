@@ -44,6 +44,16 @@ resource "google_cloud_run_v2_service" "edge" {
       }
 
       env {
+        name  = "APP_PLATFORM_PROJECT_ID"
+        value = var.edge_configuration.project_id
+      }
+
+      env {
+        name  = "APP_PLATFORM_REGION"
+        value = var.edge_configuration.region
+      }
+
+      env {
         name  = "APP_PLATFORM_COMPILER_VERSION"
         value = tostring(var.edge_configuration.binding_versions.compiler)
       }
@@ -111,6 +121,21 @@ resource "google_cloud_run_v2_service" "edge" {
       env {
         name  = "APP_PLATFORM_SIGNING_KEY_VERSION"
         value = var.edge_configuration.signing_key_version
+      }
+
+      env {
+        name  = "APP_PLATFORM_EDGE_CALLER_PRINCIPAL"
+        value = var.edge_configuration.edge_caller_principal
+      }
+
+      env {
+        name  = "APP_PLATFORM_OPERATOR_ISSUER"
+        value = var.edge_configuration.operator_identity.issuer
+      }
+
+      env {
+        name  = "APP_PLATFORM_OPERATOR_SUBJECT"
+        value = var.edge_configuration.operator_identity.subject
       }
     }
   }

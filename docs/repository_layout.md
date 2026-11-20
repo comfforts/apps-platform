@@ -76,8 +76,9 @@ AP-M9-W8 added the qualification-evidence contract and canonical vector, exact c
 readback, the closed ten-check suite, networked Fixture Application runtime, failure injection,
 reviewed whole-generation rollback, safe-destruction compilation/orchestration, private create-only
 destruction progress, least-data fixture handoff records, guarded Cloud SDK generation and target
-adapters, and `platform-qualify`/`platform-destroy`. Qualification and destruction live entry points
-remain gated on explicit W9 authority; this repository slice performed no provider request,
+adapters, the production Shared Edge composition, its non-root image entry point, and
+`platform-qualify`/`platform-destroy`. Qualification and destruction live entry points remain gated
+on explicit W9 authority; this repository slice performed no provider request, image build,
 generation activation, rollback, qualification, or destruction.
 
 ## AP-M9 capability locations
@@ -88,7 +89,7 @@ absence is expected until the named AP-M9 package implements them.
 
 | Path | Intended owner |
 | --- | --- |
-| `infrastructure/images/` | reproducible Shared Edge and synthetic Fixture images |
+| `infrastructure/images/` | reproducible non-root Shared Edge and synthetic Fixture images |
 | `registrations/` | future reviewed provider-backed Registration Sets |
 | `registrations/qualification/` | provider-backed synthetic qualification registrations |
 | `infrastructure/evidence/` | redacted operation and qualification evidence tooling |

@@ -18,6 +18,7 @@ locals {
     oauth_client_id                 = local.shared_edge.oauth_client_id
     oauth_client_secret_version     = local.shared_edge.oauth_client_secret_version
     signing_key_version             = local.shared_edge.signing_key_version
+    operator_identity               = local.shared_edge.operator_identity
     identity_contract_version       = 1
     attachment_adapter_version      = "gcp-cloud-run-v1"
     platform_configuration_version  = var.platform_configuration.contract_version
@@ -91,6 +92,7 @@ module "shared_edge" {
     service_name            = local.edge_service_name
     candidate_revision      = local.edge_candidate_revision
     runtime_identity_email  = module.platform_foundation.foundation_reference.edge_runtime_email
+    edge_caller_principal   = module.platform_foundation.foundation_reference.edge_caller_principal
     image_digest            = local.shared_edge.edge_image_digest
     configuration_bucket    = local.foundation.configuration_bucket
     registration_generation = local.shared_edge.registration_generation
@@ -104,6 +106,7 @@ module "shared_edge" {
       client_id             = local.shared_edge.oauth_client_id
       client_secret_version = local.shared_edge.oauth_client_secret_version
     }
+    operator_identity   = local.shared_edge.operator_identity
     signing_key_version = local.shared_edge.signing_key_version
     tls_enabled         = local.shared_edge.tls_enabled
   }

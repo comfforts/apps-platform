@@ -26,6 +26,10 @@
     "oauth_client_id": "synthetic-client.apps.example.invalid",
     "oauth_client_secret_version": "projects/synthetic-platform/secrets/synthetic-oauth-secret/versions/1",
     "signing_key_version": "projects/synthetic-platform/locations/us-west1/keyRings/synthetic-platform/cryptoKeys/synthetic-edge-signing/cryptoKeyVersions/1",
+    "operator_identity": {
+      "issuer": "https://accounts.google.com",
+      "subject": "123456789012345678901"
+    },
     "registration_generation": {
       "source_revision": "0000000000000000000000000000000000000000",
       "generation": 1,

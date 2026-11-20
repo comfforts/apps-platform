@@ -1,0 +1,377 @@
+"""Closed Google Cloud readback and bounded staging deployment actions."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import json
+from pathlib import Path
+import re
+import subprocess
+from typing import Any, Protocol
+
+from infrastructure.operator.local_deployment import InitialGeneration
+from infrastructure.operator.provider_commands import (
+    ProviderCommandRequest,
+    ProviderCommandResult,
+)
+
+
+_ALLOWED_ENVIRONMENT = {
+    "CLOUDSDK_CONFIG",
+    "CLOUDSDK_CORE_DISABLE_PROMPTS",
+    "CLOUDSDK_PYTHON_SITEPACKAGES",
+}
+_ALLOWED_COMMANDS = {
+    ("compute", "ssl-certificates", "describe"),
+    ("kms", "keys", "versions", "list"),
+    ("secrets", "versions", "list"),
+    ("services", "describe"),
+    ("services", "enable"),
+    ("storage", "cat"),
+    ("storage", "cp"),
+    ("storage", "objects", "describe"),
+}
+_PROHIBITED_ARGUMENT_PREFIXES = (
+    "--access-token-file=",
+    "--account=",
+    "--billing-project=",
+    "--configuration=",
+    "--credential-file-override=",
+    "--impersonate-service-account=",
+)
+_BOOTSTRAP_SERVICES = (
+    "serviceusage.googleapis.com",
+    "storage.googleapis.com",
+)
+_PROJECT_ID = "comfforts-platform-non-prod"
+_REGION = "us-west1"
+_CONFIGURATION_BUCKET = "comfforts-ap-stg-455651441682-configuration"
+_OAUTH_SECRET = "app-platform-edge-oauth"
+_SIGNING_KEY_RING = "app-platform"
+_SIGNING_KEY = "edge-signing"
+_CERTIFICATE = "app-platform-edge-certificate"
+_VERSION_REFERENCE = re.compile(
+    r"projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
+    r"app-platform/cryptoKeys/edge-signing/cryptoKeyVersions/[1-9][0-9]*"
+)
+
+
+class DeploymentProviderError(RuntimeError):
+    """Coarse provider failure that never contains raw command output."""
+
+
+class DeploymentProviderRunner(Protocol):
+    def run(self, request: ProviderCommandRequest) -> ProviderCommandResult: ...
+
+
+class ClosedDeploymentGcloudRunner:
+    """Run only fixed deployment command families through the human Cloud SDK session."""
+
+    def __init__(
+        self,
+        executable: Path,
+        working_root: Path,
+        cloud_sdk_configuration: Path,
+    ) -> None:
+        self._executable = executable.resolve()
+        self._working_root = working_root.resolve()
+        self._cloud_sdk_configuration = cloud_sdk_configuration.resolve()
+
+    def validate(self, request: ProviderCommandRequest) -> None:
+        if len(request.argv) < 3 or Path(request.argv[0]).resolve() != self._executable:
+            raise ValueError("deployment provider command is outside the approved set")
+        if not any(
+            request.argv[1 : 1 + len(command)] == command
+            for command in _ALLOWED_COMMANDS
+        ):
+            raise ValueError("deployment provider command is outside the approved set")
+        cwd = request.cwd.resolve()
+        if cwd != self._working_root and self._working_root not in cwd.parents:
+            raise ValueError("deployment provider working directory escapes its root")
+        if request.cwd.is_symlink() or not cwd.is_dir():
+            raise ValueError("deployment provider working directory is not real")
+        if not 1 <= request.timeout_seconds <= 900:
+            raise ValueError("deployment provider timeout is outside the approved bound")
+        names = [name for name, _ in request.environment]
+        if len(names) != len(set(names)) or set(names) != _ALLOWED_ENVIRONMENT:
+            raise ValueError("deployment provider environment is not closed")
+        if dict(request.environment)["CLOUDSDK_CONFIG"] != str(
+            self._cloud_sdk_configuration
+        ):
+            raise ValueError("deployment provider Cloud SDK configuration is not approved")
+        if any(
+            argument == "--async"
+            or argument.startswith(_PROHIBITED_ARGUMENT_PREFIXES)
+            for argument in request.argv[1:]
+        ):
+            raise ValueError("deployment provider command contains a prohibited argument")
+        if request.stdin is not None:
+            if request.argv[1:3] != ("storage", "cp"):
+                raise ValueError("deployment provider input is allowed only for object creation")
+            if len(request.stdin) > 16 * 1024 * 1024:
+                raise ValueError("deployment provider input exceeds the approved bound")
+
+    def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
+        self.validate(request)
+        completed = subprocess.run(
+            list(request.argv),
+            cwd=request.cwd,
+            env=dict(request.environment),
+            input=request.stdin,
+            check=False,
+            capture_output=True,
+            timeout=request.timeout_seconds,
+        )
+        return ProviderCommandResult(
+            completed.returncode,
+            completed.stdout,
+            completed.stderr,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CertificateReadback:
+    reference: str
+    ready: bool
+
+
+class GcloudDeploymentProvider:
+    """Perform only the non-Terraform actions needed by the staging deployment."""
+
+    def __init__(
+        self,
+        *,
+        executable: Path,
+        cloud_sdk_configuration: Path,
+        working_root: Path,
+        runner: DeploymentProviderRunner,
+    ) -> None:
+        self._executable = executable.resolve()
+        self._cloud_sdk_configuration = cloud_sdk_configuration.resolve()
+        self._working_root = working_root.resolve()
+        self._runner = runner
+        if not self._executable.is_file():
+            raise ValueError("an absolute Cloud SDK executable is required")
+        if (
+            not self._cloud_sdk_configuration.is_dir()
+            or self._cloud_sdk_configuration.is_symlink()
+        ):
+            raise ValueError("Cloud SDK configuration must be a real directory")
+        if not self._working_root.is_dir() or self._working_root.is_symlink():
+            raise ValueError("deployment provider working root must be real")
+
+    def _environment(self) -> tuple[tuple[str, str], ...]:
+        return (
+            ("CLOUDSDK_CONFIG", str(self._cloud_sdk_configuration)),
+            ("CLOUDSDK_CORE_DISABLE_PROMPTS", "1"),
+            ("CLOUDSDK_PYTHON_SITEPACKAGES", "0"),
+        )
+
+    def _request(
+        self,
+        *arguments: str,
+        stdin: bytes | None = None,
+    ) -> ProviderCommandRequest:
+        return ProviderCommandRequest(
+            argv=(str(self._executable), *arguments),
+            cwd=self._working_root,
+            environment=self._environment(),
+            stdin=stdin,
+        )
+
+    def _try(
+        self,
+        *arguments: str,
+        stdin: bytes | None = None,
+    ) -> ProviderCommandResult:
+        try:
+            return self._runner.run(self._request(*arguments, stdin=stdin))
+        except (OSError, subprocess.SubprocessError, ValueError) as error:
+            raise DeploymentProviderError("PROVIDER_COMMAND_REJECTED") from error
+
+    def _run(
+        self,
+        code: str,
+        *arguments: str,
+        stdin: bytes | None = None,
+    ) -> ProviderCommandResult:
+        result = self._try(*arguments, stdin=stdin)
+        if result.returncode != 0:
+            raise DeploymentProviderError(code)
+        return result
+
+    def _common(self) -> tuple[str, ...]:
+        return (f"--project={_PROJECT_ID}", "--quiet")
+
+    def _run_common(
+        self,
+        code: str,
+        *arguments: str,
+        stdin: bytes | None = None,
+    ) -> ProviderCommandResult:
+        return self._run(code, *arguments, *self._common(), stdin=stdin)
+
+    @staticmethod
+    def _json(code: str, payload: bytes) -> Any:
+        if len(payload) > 4 * 1024 * 1024:
+            raise DeploymentProviderError(code)
+        try:
+            return json.loads(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise DeploymentProviderError(code) from error
+
+    def enable_bootstrap_services(self) -> None:
+        self._run_common(
+            "BOOTSTRAP_SERVICE_ENABLE_FAILED",
+            "services",
+            "enable",
+            *_BOOTSTRAP_SERVICES,
+        )
+
+    def bootstrap_services_ready(self) -> bool:
+        for service in _BOOTSTRAP_SERVICES:
+            result = self._run_common(
+                "BOOTSTRAP_SERVICE_READBACK_FAILED",
+                "services",
+                "describe",
+                service,
+                "--format=value(state)",
+            )
+            if result.stdout.strip() != b"ENABLED":
+                return False
+        return True
+
+    def publish_initial_generation(self, generation: InitialGeneration) -> int:
+        object_uri = f"gs://{_CONFIGURATION_BUCKET}/{generation.object_name}"
+        self._try(
+            "storage",
+            "cp",
+            "-",
+            object_uri,
+            "--if-generation-match=0",
+            *self._common(),
+            stdin=generation.contents,
+        )
+        return self.read_initial_generation(generation)
+
+    def read_initial_generation(self, generation: InitialGeneration) -> int:
+        object_uri = f"gs://{_CONFIGURATION_BUCKET}/{generation.object_name}"
+        metadata = self._json(
+            "GENERATION_OBJECT_READBACK_INVALID",
+            self._run_common(
+                "GENERATION_OBJECT_READBACK_FAILED",
+                "storage",
+                "objects",
+                "describe",
+                object_uri,
+                "--format=json",
+            ).stdout,
+        )
+        if not isinstance(metadata, dict):
+            raise DeploymentProviderError("GENERATION_OBJECT_READBACK_INVALID")
+        try:
+            object_generation = int(metadata["generation"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise DeploymentProviderError("GENERATION_OBJECT_READBACK_INVALID") from error
+        if object_generation < 1:
+            raise DeploymentProviderError("GENERATION_OBJECT_READBACK_INVALID")
+        contents = self._run_common(
+            "GENERATION_OBJECT_CONTENT_READBACK_FAILED",
+            "storage",
+            "cat",
+            f"{object_uri}#{object_generation}",
+        ).stdout
+        if contents != generation.contents:
+            raise DeploymentProviderError("GENERATION_OBJECT_CONTENT_MISMATCH")
+        return object_generation
+
+    def active_signing_key_version(self) -> str:
+        values = self._json(
+            "SIGNING_KEY_VERSION_READBACK_INVALID",
+            self._run_common(
+                "SIGNING_KEY_VERSION_READBACK_FAILED",
+                "kms",
+                "keys",
+                "versions",
+                "list",
+                f"--key={_SIGNING_KEY}",
+                f"--keyring={_SIGNING_KEY_RING}",
+                f"--location={_REGION}",
+                "--filter=state:ENABLED",
+                "--format=json",
+            ).stdout,
+        )
+        if not isinstance(values, list):
+            raise DeploymentProviderError("SIGNING_KEY_VERSION_READBACK_INVALID")
+        names = sorted(
+            value.get("name")
+            for value in values
+            if isinstance(value, dict) and isinstance(value.get("name"), str)
+        )
+        if len(names) != 1 or _VERSION_REFERENCE.fullmatch(names[0]) is None:
+            raise DeploymentProviderError("SIGNING_KEY_VERSION_READBACK_INVALID")
+        return names[0]
+
+    def oauth_secret_version(self) -> str:
+        values = self._json(
+            "OAUTH_SECRET_VERSION_READBACK_INVALID",
+            self._run_common(
+                "OAUTH_SECRET_VERSION_READBACK_FAILED",
+                "secrets",
+                "versions",
+                "list",
+                _OAUTH_SECRET,
+                "--filter=state:ENABLED",
+                "--format=json",
+            ).stdout,
+        )
+        if not isinstance(values, list):
+            raise DeploymentProviderError("OAUTH_SECRET_VERSION_READBACK_INVALID")
+        names = sorted(
+            value.get("name")
+            for value in values
+            if isinstance(value, dict) and isinstance(value.get("name"), str)
+        )
+        prefix = f"projects/{_PROJECT_ID}/secrets/{_OAUTH_SECRET}/versions/"
+        if (
+            len(names) != 1
+            or not names[0].startswith(prefix)
+            or not names[0].removeprefix(prefix).isdigit()
+            or names[0].endswith("/0")
+        ):
+            raise DeploymentProviderError("OAUTH_SECRET_VERSION_READBACK_INVALID")
+        return names[0]
+
+    def certificate_readback(self) -> CertificateReadback:
+        value = self._json(
+            "CERTIFICATE_READBACK_INVALID",
+            self._run_common(
+                "CERTIFICATE_READBACK_FAILED",
+                "compute",
+                "ssl-certificates",
+                "describe",
+                _CERTIFICATE,
+                "--global",
+                "--format=json",
+            ).stdout,
+        )
+        if not isinstance(value, dict):
+            raise DeploymentProviderError("CERTIFICATE_READBACK_INVALID")
+        managed = value.get("managed")
+        if not isinstance(managed, dict):
+            raise DeploymentProviderError("CERTIFICATE_READBACK_INVALID")
+        domains = managed.get("domains")
+        status = managed.get("status")
+        reference = value.get("selfLink")
+        if domains != ["apps-staging.comfforts.com"] or not isinstance(reference, str):
+            raise DeploymentProviderError("CERTIFICATE_READBACK_INVALID")
+        return CertificateReadback(reference=reference, ready=status == "ACTIVE")
+
+
+__all__ = (
+    "CertificateReadback",
+    "ClosedDeploymentGcloudRunner",
+    "DeploymentProviderError",
+    "DeploymentProviderRunner",
+    "GcloudDeploymentProvider",
+)

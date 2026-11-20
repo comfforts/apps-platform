@@ -68,11 +68,11 @@ def _deployment_stages() -> list[dict[str, object]]:
         {
             "stage_id": "bootstrap",
             "actions": ["create", "read"],
-            "resource_types": ["backend-bucket", "operation-identity"],
+            "resource_types": ["backend-bucket"],
             "consumes": [
                 {"stage_id": "preflight", "output_name": "preflight-attestation"}
             ],
-            "produces": ["backend-reference", "identity-reference"],
+            "produces": ["backend-reference"],
             "manual_checkpoint": "none",
             "readback": "provider-verified",
         },
@@ -92,7 +92,6 @@ def _deployment_stages() -> list[dict[str, object]]:
             ],
             "consumes": [
                 {"stage_id": "bootstrap", "output_name": "backend-reference"},
-                {"stage_id": "bootstrap", "output_name": "identity-reference"},
             ],
             "produces": ["foundation-reference", "oauth-secret-container"],
             "manual_checkpoint": "none",

@@ -170,7 +170,6 @@ class FakeCommands:
         outputs = {
             "bootstrap": (
                 ("backend-reference", "verified-backend"),
-                ("identity-reference", "verified-identities"),
             ),
             "foundation": (
                 ("foundation-reference", "verified-foundation"),
@@ -390,7 +389,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor = DeploymentExecutor(root, terminal, commands)
 
             result = executor.execute(
-                _context("bootstrap", ("backend-reference", "identity-reference"))
+                _context("bootstrap", ("backend-reference",))
             )
 
         self.assertEqual(result.outcome, "succeeded")
@@ -470,7 +469,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor = DeploymentExecutor(root, FakeTerminal([]), commands)
 
             result = executor.execute(
-                _context("bootstrap", ("backend-reference", "identity-reference"))
+                _context("bootstrap", ("backend-reference",))
             )
 
         self.assertEqual(result.outcome, "failed")
@@ -485,7 +484,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor = DeploymentExecutor(root, FakeTerminal([]), commands)
             context = _context(
                 "bootstrap",
-                ("backend-reference", "identity-reference"),
+                ("backend-reference",),
             )
             context = StageContext(
                 environment="production",

@@ -100,6 +100,7 @@ class LiveRuntimeTest(unittest.TestCase):
             "ARG PYTHON_RUNTIME_IMAGE",
         ):
             self.assertLess(dockerfile.index(argument), first_from)
+        self.assertEqual(dockerfile.count("@sha256:"), 3)
         self.assertIn("uv sync --frozen --no-dev --no-editable", dockerfile)
         self.assertIn("COPY contracts ./contracts", dockerfile)
         self.assertIn("COPY edge ./edge", dockerfile)

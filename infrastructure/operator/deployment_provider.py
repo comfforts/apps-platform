@@ -57,6 +57,9 @@ _CERTIFICATE = "app-platform-edge-certificate"
 _IMAGE_PACKAGE = (
     f"{_REGION}-docker.pkg.dev/{_PROJECT_ID}/app-platform-images/shared-edge"
 )
+_FIXTURE_IMAGE_PACKAGE = (
+    f"{_REGION}-docker.pkg.dev/{_PROJECT_ID}/app-platform-images/fixture"
+)
 _SOURCE_REVISION = re.compile(r"[0-9a-f]{40}")
 _VERSION_REFERENCE = re.compile(
     r"projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
@@ -329,10 +332,15 @@ class GcloudDeploymentProvider:
             raise DeploymentProviderError("GENERATION_OBJECT_CONTENT_MISMATCH")
         return object_generation
 
-    def read_shared_edge_image(self, source_revision: str) -> str | None:
+    def _read_image(
+        self,
+        package: str,
+        source_revision: str,
+        invalid_code: str,
+    ) -> str | None:
         if _SOURCE_REVISION.fullmatch(source_revision) is None:
             raise ValueError("source revision must be exact")
-        tagged_image = f"{_IMAGE_PACKAGE}:source-{source_revision}"
+        tagged_image = f"{package}:source-{source_revision}"
         result = self._try(
             "artifacts",
             "docker",
@@ -346,8 +354,22 @@ class GcloudDeploymentProvider:
             return None
         digest = result.stdout.decode("ascii", errors="strict").strip()
         if re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
-            raise DeploymentProviderError("EDGE_IMAGE_READBACK_INVALID")
-        return f"{_IMAGE_PACKAGE}@{digest}"
+            raise DeploymentProviderError(invalid_code)
+        return f"{package}@{digest}"
+
+    def read_shared_edge_image(self, source_revision: str) -> str | None:
+        return self._read_image(
+            _IMAGE_PACKAGE,
+            source_revision,
+            "EDGE_IMAGE_READBACK_INVALID",
+        )
+
+    def read_fixture_image(self, source_revision: str) -> str | None:
+        return self._read_image(
+            _FIXTURE_IMAGE_PACKAGE,
+            source_revision,
+            "FIXTURE_IMAGE_READBACK_INVALID",
+        )
 
     def publish_shared_edge_image(self, source_revision: str) -> str:
         existing = self.read_shared_edge_image(source_revision)
@@ -376,6 +398,38 @@ class GcloudDeploymentProvider:
         observed = self.read_shared_edge_image(source_revision)
         if observed is None:
             raise DeploymentProviderError("EDGE_IMAGE_READBACK_MISSING")
+        return observed
+
+    def publish_fixture_image(self, source_revision: str) -> str:
+        existing = self.read_fixture_image(source_revision)
+        if existing is not None:
+            return existing
+        config = (
+            self._working_root
+            / "infrastructure/images/fixture/cloudbuild.yaml"
+        ).resolve()
+        if (
+            self._working_root not in config.parents
+            or not config.is_file()
+            or config.is_symlink()
+        ):
+            raise DeploymentProviderError("FIXTURE_IMAGE_BUILD_CONFIG_INVALID")
+        tagged_image = f"{_FIXTURE_IMAGE_PACKAGE}:source-{source_revision}"
+        self._run_common(
+            "FIXTURE_IMAGE_BUILD_FAILED",
+            "builds",
+            "submit",
+            str(self._working_root),
+            f"--config={config}",
+            (
+                f"--substitutions=_IMAGE={tagged_image},"
+                f"_SOURCE_REVISION={source_revision}"
+            ),
+            timeout_seconds=900,
+        )
+        observed = self.read_fixture_image(source_revision)
+        if observed is None:
+            raise DeploymentProviderError("FIXTURE_IMAGE_READBACK_MISSING")
         return observed
 
     def active_signing_key_version(self) -> str:

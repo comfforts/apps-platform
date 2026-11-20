@@ -111,6 +111,23 @@ class FixtureDeployResult:
     blockers: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class FixtureApplicationStatus:
+    application_id: str
+    lifecycle: str
+    target_exists: bool
+    target_ready: bool
+
+
+@dataclass(frozen=True, slots=True)
+class FixtureStatusResult:
+    outcome: str
+    registration_generation: int | None
+    registration_generation_digest: str | None
+    applications: tuple[FixtureApplicationStatus, ...]
+    blockers: tuple[str, ...] = ()
+
+
 class FixtureCommandError(RuntimeError):
     """One safe blocker returned by a Fixture Application command boundary."""
 
@@ -134,6 +151,8 @@ class FixtureCommands(Protocol):
         self,
         request: FixtureRegistrationRequest,
     ) -> FixtureRegistrationReadback: ...
+
+    def status(self, environment: str) -> FixtureStatusResult: ...
 
 
 class FixtureSuiteLifecycle:
@@ -294,10 +313,33 @@ class FixtureSuiteLifecycle:
             registration_generation_digest=registration.generation_digest,
         )
 
+    def status(self, environment: str) -> FixtureStatusResult:
+        """Delegate the strictly read-only suite reconciliation."""
+
+        if environment != "staging":
+            return FixtureStatusResult(
+                "blocked",
+                None,
+                None,
+                (),
+                ("FIXTURE_ENVIRONMENT_UNAVAILABLE",),
+            )
+        try:
+            return self._commands.status(environment)
+        except FixtureCommandError as error:
+            return FixtureStatusResult(
+                "blocked",
+                None,
+                None,
+                (),
+                (str(error) or "FIXTURE_STATUS_FAILED",),
+            )
+
 
 __all__ = (
     "FixtureApplicationDeployRequest",
     "FixtureApplicationDeployment",
+    "FixtureApplicationStatus",
     "FixtureBundleRequest",
     "FixtureCommandError",
     "FixtureCommands",
@@ -309,4 +351,5 @@ __all__ = (
     "FixtureRegistrationReadback",
     "FixtureRegistrationRequest",
     "FixtureSuiteLifecycle",
+    "FixtureStatusResult",
 )

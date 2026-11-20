@@ -198,6 +198,15 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertNotIn("COPY . ", dockerfile)
         self.assertNotIn("latest", dockerfile.lower())
 
+        cloudbuild = (
+            PROJECT_ROOT / "infrastructure/images/fixture/cloudbuild.yaml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("gcr.io/cloud-builders/docker@sha256:", cloudbuild)
+        self.assertIn("UV_BUILD_IMAGE=ghcr.io/astral-sh/uv@sha256:", cloudbuild)
+        self.assertIn("PYTHON_RUNTIME_IMAGE=python@sha256:", cloudbuild)
+        self.assertIn("org.opencontainers.image.revision=${_SOURCE_REVISION}", cloudbuild)
+        self.assertNotIn("latest", cloudbuild.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

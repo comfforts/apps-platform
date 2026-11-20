@@ -22,6 +22,8 @@ from infrastructure.operator.integration import (
 )
 from infrastructure.operator.local import (
     LocalFilesystem,
+    build_local_fixture_operator,
+    build_local_fixture_status_operator,
     build_local_integration,
     build_local_operator,
 )
@@ -47,6 +49,8 @@ def _parser() -> argparse.ArgumentParser:
             "retire",
             "status",
             "destroy",
+            "fixture-deploy",
+            "fixture-status",
         ),
         help="platform lifecycle operation",
     )
@@ -102,6 +106,14 @@ def _default_destruction_factory(
 ) -> DestructionLifecycle:
     del state_directory
     raise RuntimeError("W9_DESTRUCTION_AUTHORITY_REQUIRED")
+
+
+def _default_fixture_factory(state_directory: Path):  # type: ignore[no-untyped-def]
+    return build_local_fixture_operator(PROJECT_ROOT, state_directory)
+
+
+def _default_fixture_status_factory(state_directory: Path):  # type: ignore[no-untyped-def]
+    return build_local_fixture_status_operator(PROJECT_ROOT, state_directory)
 
 
 def _required(arguments: argparse.Namespace, name: str) -> object:
@@ -175,6 +187,8 @@ def main(
     destruction_factory: Callable[
         [Path], DestructionLifecycle
     ] = _default_destruction_factory,
+    fixture_factory: Callable[[Path], object] = _default_fixture_factory,
+    fixture_status_factory: Callable[[Path], object] = _default_fixture_status_factory,
 ) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.operation in {"prepare", "deploy", "status"}:
@@ -182,6 +196,30 @@ def main(
     elif arguments.operation in {"detach", "outputs", "register", "retire"}:
         try:
             integration = integration_factory(arguments.state_directory)
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+    elif arguments.operation == "fixture-deploy":
+        try:
+            fixture = fixture_factory(arguments.state_directory)
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+    elif arguments.operation == "fixture-status":
+        try:
+            fixture = fixture_status_factory(arguments.state_directory)
         except RuntimeError as error:
             _print(
                 {
@@ -229,6 +267,47 @@ def main(
             }
         )
         return 0 if result.outcome in {"prepared", "unchanged"} else 2
+
+    if arguments.operation == "fixture-deploy":
+        result = fixture.deploy(arguments.environment)
+        _print(
+            {
+                "application_ids": list(result.application_ids),
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "image_reference": result.image_reference,
+                "outcome": result.outcome,
+                "registration_generation": result.registration_generation,
+                "registration_generation_digest": (
+                    result.registration_generation_digest
+                ),
+            }
+        )
+        return 0 if result.outcome == "deployed" else 2
+
+    if arguments.operation == "fixture-status":
+        result = fixture.status(arguments.environment)
+        _print(
+            {
+                "applications": [
+                    {
+                        "application_id": item.application_id,
+                        "lifecycle": item.lifecycle,
+                        "target_exists": item.target_exists,
+                        "target_ready": item.target_ready,
+                    }
+                    for item in result.applications
+                ],
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "outcome": result.outcome,
+                "registration_generation": result.registration_generation,
+                "registration_generation_digest": (
+                    result.registration_generation_digest
+                ),
+            }
+        )
+        return 0 if result.outcome == "read" else 2
 
     if arguments.operation == "deploy":
         specification_digest = arguments.specification_digest

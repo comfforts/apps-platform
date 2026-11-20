@@ -109,6 +109,15 @@ class RegistrationIntent:
 
 
 @dataclass(frozen=True, slots=True)
+class RegistrationEntry:
+    """One validated application handoff selected for atomic suite registration."""
+
+    integration_bundle: dict[str, Any]
+    attachment_bundle: dict[str, Any]
+    intent: RegistrationIntent
+
+
+@dataclass(frozen=True, slots=True)
 class RegistrationGenerationProposal:
     """One immutable whole-generation publication input."""
 
@@ -163,6 +172,8 @@ class RegistrationGenerationControl(Protocol):
 class IntegrationTerminal(Protocol):
     def write(self, message: str) -> None: ...
 
+    def confirm(self, prompt: str) -> bool: ...
+
     def confirm_exact(self, prompt: str, expected: str) -> bool: ...
 
 
@@ -184,6 +195,24 @@ class LifecycleChangeRequest:
     application_id: str
     expected_platform_source_revision: str
     expected_generation_digest: str
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationApplicationStatus:
+    application_id: str
+    lifecycle: str
+    resource_reference: str
+    target_exists: bool
+    target_ready: bool
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationStatusResult:
+    outcome: str
+    generation: int | None
+    generation_digest: str | None
+    applications: tuple[RegistrationApplicationStatus, ...]
+    blockers: tuple[str, ...] = ()
 
 
 class ApplicationIntegrationLifecycle:
@@ -534,9 +563,71 @@ class ApplicationIntegrationLifecycle:
             content_digest=cls._canonical_digest(compilation.compiled_configuration),
         )
 
+    @classmethod
+    def _compile_complete_generation(
+        cls,
+        environment: str,
+        source_revision: str,
+        current: RegistrationGenerationProposal | None,
+        replacements: tuple[dict[str, Any], ...],
+        change_summary: str,
+    ) -> RegistrationGenerationProposal | None:
+        previous = current.registration_set if current is not None else None
+        replacement_ids = {item["application_id"] for item in replacements}
+        registrations = (
+            [
+                copy.deepcopy(item)
+                for item in previous["registrations"]
+                if item["application_id"] not in replacement_ids
+            ]
+            if previous is not None
+            else []
+        )
+        registrations.extend(copy.deepcopy(item) for item in replacements)
+        registrations.sort(key=lambda item: item["application_id"])
+        registration_set = {
+            "contract_version": 1,
+            "generation": (
+                int(previous["generation"]) + 1 if previous is not None else 1
+            ),
+            "previous_generation_digest": (
+                current.generation_digest if current is not None else None
+            ),
+            "proposal": {
+                "source_revision": source_revision,
+                "change_summary": change_summary,
+            },
+            "registrations": registrations,
+        }
+        compilation = compile_registration_set(
+            previous,
+            registration_set,
+            {
+                "contract_version": 1,
+                "enabled_attachment_adapter_kinds": ["gcp-cloud-run-v1"],
+            },
+        )
+        if (
+            compilation.violations
+            or compilation.compiled_configuration is None
+            or compilation.ownership_manifest is None
+            or compilation.generation_digest is None
+        ):
+            return None
+        return RegistrationGenerationProposal(
+            environment=environment,
+            registration_set=registration_set,
+            compiled_configuration=compilation.compiled_configuration,
+            ownership_manifest=compilation.ownership_manifest,
+            generation_digest=compilation.generation_digest,
+            content_digest=cls._canonical_digest(compilation.compiled_configuration),
+        )
+
     def _publish_and_activate(
         self,
         proposal: RegistrationGenerationProposal,
+        *,
+        reviewed_confirmation: bool = False,
     ) -> RegistrationLifecycleResult:
         assert self._generation_control is not None
         assert self._terminal is not None
@@ -553,18 +644,24 @@ class ApplicationIntegrationLifecycle:
             return self._registration_blocked("GENERATION_READBACK_MISMATCH")
 
         generation = int(proposal.registration_set["generation"])
-        expected = (
-            f"ACTIVATE {proposal.environment} GENERATION {generation} "
-            f"{proposal.generation_digest}"
-        )
         self._terminal.write(
             f"GENERATION {generation} {proposal.generation_digest}"
         )
         try:
-            confirmed = self._terminal.confirm_exact(
-                f"Type {expected!r} to activate the exact whole generation: ",
-                expected,
-            )
+            if reviewed_confirmation:
+                confirmed = self._terminal.confirm(
+                    "Activate the reviewed complete Fixture Application generation "
+                    f"{generation} {proposal.generation_digest}? [y/N] "
+                )
+            else:
+                expected = (
+                    f"ACTIVATE {proposal.environment} GENERATION {generation} "
+                    f"{proposal.generation_digest}"
+                )
+                confirmed = self._terminal.confirm_exact(
+                    f"Type {expected!r} to activate the exact whole generation: ",
+                    expected,
+                )
         except OperatorInterrupted:
             return self._registration_blocked(
                 "GENERATION_ACTIVATION_INTERRUPTED",
@@ -605,6 +702,254 @@ class ApplicationIntegrationLifecycle:
             outcome="activated",
             generation=generation,
             generation_digest=proposal.generation_digest,
+        )
+
+    def register_complete(
+        self,
+        entries: tuple[RegistrationEntry, ...],
+    ) -> RegistrationLifecycleResult:
+        """Validate and activate one complete multi-application generation."""
+
+        if not entries:
+            return self._registration_blocked("REGISTRATION_SET_EMPTY")
+        if self._generation_control is None:
+            return self._registration_blocked("GENERATION_CONTROL_UNAVAILABLE")
+        if self._terminal is None:
+            return self._registration_blocked("INTEGRATION_TERMINAL_UNAVAILABLE")
+
+        environments = {
+            str(entry.integration_bundle.get("environment")) for entry in entries
+        }
+        source_revisions = {
+            str(entry.integration_bundle.get("platform_source_revision"))
+            for entry in entries
+        }
+        application_ids = [
+            str(entry.integration_bundle.get("application_id")) for entry in entries
+        ]
+        if (
+            len(environments) != 1
+            or len(source_revisions) != 1
+            or len(application_ids) != len(set(application_ids))
+        ):
+            return self._registration_blocked("REGISTRATION_SET_MISMATCH")
+
+        environment = next(iter(environments))
+        current = self._generation_control.current(environment)
+        if current is not None and current.environment != environment:
+            return self._registration_blocked("GENERATION_ENVIRONMENT_MISMATCH")
+        current_by_id = {
+            str(item["application_id"]): item
+            for item in (
+                current.registration_set["registrations"] if current is not None else []
+            )
+        }
+        staged_registrations: list[dict[str, Any]] = []
+        unchanged = current is not None
+        for entry in entries:
+            validated = self.validate_attachment(
+                entry.integration_bundle,
+                entry.attachment_bundle,
+            )
+            if validated.outcome != "validated":
+                return self._registration_blocked(*validated.blockers)
+            access_mode = entry.integration_bundle.get("access_mode")
+            if not self._registration_intent_valid(access_mode, entry.intent):
+                return self._registration_blocked("REGISTRATION_INTENT_INVALID")
+            application_id = str(entry.integration_bundle["application_id"])
+            previous = current_by_id.get(application_id)
+            if previous is not None and previous.get("lifecycle") == "retired":
+                return self._registration_blocked("APPLICATION_RETIRED")
+            desired_active = self._application_registration(
+                entry.integration_bundle,
+                entry.attachment_bundle,
+                entry.intent,
+                "active",
+                int(previous["registration_revision"]) if previous is not None else 1,
+            )
+            if previous is None or {
+                key: value
+                for key, value in previous.items()
+                if key != "registration_revision"
+            } != {
+                key: value
+                for key, value in desired_active.items()
+                if key != "registration_revision"
+            }:
+                unchanged = False
+            staged_registrations.append(
+                self._application_registration(
+                    entry.integration_bundle,
+                    entry.attachment_bundle,
+                    entry.intent,
+                    "staged",
+                    (
+                        int(previous["registration_revision"]) + 1
+                        if previous is not None
+                        else 1
+                    ),
+                )
+            )
+
+        if unchanged:
+            assert current is not None
+            return RegistrationLifecycleResult(
+                outcome="unchanged",
+                generation=int(current.registration_set["generation"]),
+                generation_digest=current.generation_digest,
+            )
+
+        staged_proposal = self._compile_complete_generation(
+            environment,
+            next(iter(source_revisions)),
+            current,
+            tuple(staged_registrations),
+            "Stage complete Fixture Application suite",
+        )
+        if staged_proposal is None:
+            return self._registration_blocked("REGISTRATION_COMPILATION_FAILED")
+        try:
+            staged_publication = self._generation_control.publish(staged_proposal)
+        except Exception:
+            return self._registration_blocked("GENERATION_PUBLICATION_FAILED")
+        if (
+            not staged_publication.readback_matches
+            or staged_publication.generation_digest
+            != staged_proposal.generation_digest
+            or staged_publication.content_digest != staged_proposal.content_digest
+            or not staged_publication.publication_reference
+        ):
+            return self._registration_blocked("GENERATION_READBACK_MISMATCH")
+
+        active_registrations = tuple(
+            {
+                **copy.deepcopy(registration),
+                "lifecycle": "active",
+                "registration_revision": int(registration["registration_revision"]) + 1,
+            }
+            for registration in staged_registrations
+        )
+        active_proposal = self._compile_complete_generation(
+            environment,
+            next(iter(source_revisions)),
+            staged_proposal,
+            active_registrations,
+            "Activate complete Fixture Application suite",
+        )
+        if active_proposal is None:
+            return self._registration_blocked("REGISTRATION_COMPILATION_FAILED")
+        return self._publish_and_activate(
+            active_proposal,
+            reviewed_confirmation=True,
+        )
+
+    def status_applications(
+        self,
+        environment: str,
+        application_ids: tuple[str, ...],
+    ) -> RegistrationStatusResult:
+        """Read registration and target posture without mutating either owner."""
+
+        if self._generation_control is None or self._attachment_reader is None:
+            return RegistrationStatusResult(
+                "blocked",
+                None,
+                None,
+                (),
+                ("FIXTURE_STATUS_UNAVAILABLE",),
+            )
+        try:
+            platform = self._platform_reader.read_platform(environment)
+            current = self._generation_control.current(environment)
+        except Exception:
+            return RegistrationStatusResult(
+                "blocked",
+                None,
+                None,
+                (),
+                ("FIXTURE_STATUS_READBACK_FAILED",),
+            )
+        if (
+            platform.environment != environment
+            or platform.lifecycle_state != "deployed"
+            or current is None
+            or current.environment != environment
+        ):
+            return RegistrationStatusResult(
+                "blocked",
+                None,
+                None,
+                (),
+                ("FIXTURE_STATUS_PLATFORM_MISMATCH",),
+            )
+        registrations = {
+            str(item["application_id"]): item
+            for item in current.registration_set["registrations"]
+        }
+        statuses: list[RegistrationApplicationStatus] = []
+        for application_id in application_ids:
+            registration = registrations.get(application_id)
+            if registration is None:
+                return RegistrationStatusResult(
+                    "blocked",
+                    int(current.registration_set["generation"]),
+                    current.generation_digest,
+                    tuple(statuses),
+                    ("FIXTURE_REGISTRATION_MISSING",),
+                )
+            attachments = registration.get("attachments")
+            if not isinstance(attachments, list) or len(attachments) != 1:
+                return RegistrationStatusResult(
+                    "blocked",
+                    int(current.registration_set["generation"]),
+                    current.generation_digest,
+                    tuple(statuses),
+                    ("FIXTURE_REGISTRATION_INVALID",),
+                )
+            resource_reference = attachments[0].get("resource_reference")
+            if not isinstance(resource_reference, str):
+                return RegistrationStatusResult(
+                    "blocked",
+                    int(current.registration_set["generation"]),
+                    current.generation_digest,
+                    tuple(statuses),
+                    ("FIXTURE_REGISTRATION_INVALID",),
+                )
+            try:
+                target = self._attachment_reader.read_target(
+                    environment,
+                    resource_reference,
+                )
+            except Exception:
+                return RegistrationStatusResult(
+                    "blocked",
+                    int(current.registration_set["generation"]),
+                    current.generation_digest,
+                    tuple(statuses),
+                    ("FIXTURE_TARGET_READBACK_FAILED",),
+                )
+            if target.owner_application_id != application_id:
+                return RegistrationStatusResult(
+                    "blocked",
+                    int(current.registration_set["generation"]),
+                    current.generation_digest,
+                    tuple(statuses),
+                    ("FIXTURE_TARGET_OWNER_MISMATCH",),
+                )
+            statuses.append(
+                RegistrationApplicationStatus(
+                    application_id,
+                    str(registration["lifecycle"]),
+                    resource_reference,
+                    target.exists,
+                    target.ready,
+                )
+            )
+        return RegistrationStatusResult(
+            "read",
+            int(current.registration_set["generation"]),
+            current.generation_digest,
+            tuple(statuses),
         )
 
     def register(
@@ -817,6 +1162,9 @@ __all__ = (
     "PlatformIntegrationState",
     "RegistrationGenerationControl",
     "RegistrationGenerationProposal",
+    "RegistrationEntry",
+    "RegistrationApplicationStatus",
+    "RegistrationStatusResult",
     "RegistrationIntent",
     "RegistrationLifecycleResult",
 )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 import unittest
 
 from contracts.lifecycle import lifecycle_digest
@@ -10,10 +11,23 @@ from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationDeployment,
     FixtureCommandError,
     FixtureDeployRequest,
+    FixtureDeployResult,
     FixtureImageReadback,
     FixtureRegistrationReadback,
     FixtureSuiteLifecycle,
 )
+from infrastructure.operator.integration import (
+    AttachmentValidationResult,
+    IntegrationBundleResult,
+    RegistrationLifecycleResult,
+)
+from infrastructure.operator.local_fixture_lifecycle import (
+    LocalFixtureLifecycleCommands,
+)
+from infrastructure.operator import StageExecution
+from infrastructure.operator import GitSnapshot
+from infrastructure.operator.integration import PlatformIntegrationState
+from infrastructure.operator.local_fixture_lifecycle import LocalFixtureOperator
 
 
 SOURCE_REVISION = "a" * 40
@@ -231,6 +245,106 @@ class FixtureDeploymentLifecycleTest(unittest.TestCase):
         self.assertEqual(resumed.outcome, "deployed")
         self.assertEqual(commands.calls[-1], "register")
 
+
+@dataclass
+class FakeIntegrationLifecycle:
+    entries: tuple[object, ...] = ()
+
+    def outputs(self, request):  # type: ignore[no-untyped-def]
+        bundle = _bundle(
+            request.application_id,
+            request.access_mode,
+            request.route_intent,
+        )
+        return IntegrationBundleResult(
+            "generated",
+            bundle,
+            lifecycle_digest(bundle, "platform-integration-bundle"),
+        )
+
+    def validate_attachment(self, bundle, attachment):  # type: ignore[no-untyped-def]
+        del bundle
+        return AttachmentValidationResult("validated", attachment)
+
+    def register_complete(self, entries):  # type: ignore[no-untyped-def]
+        self.entries = entries
+        return RegistrationLifecycleResult("activated", 8, GENERATION_DIGEST)
+
+
+@dataclass
+class FakeImageProvider:
+    references: list[str] = field(default_factory=list)
+
+    def publish_fixture_image(self, source_revision: str) -> str:
+        self.references.append(source_revision)
+        return IMAGE_REFERENCE
+
+    def read_fixture_image(self, source_revision: str) -> str | None:
+        if source_revision not in self.references:
+            return None
+        return IMAGE_REFERENCE
+
+
+@dataclass
+class FakeFixtureExecutor:
+    contexts: list[object] = field(default_factory=list)
+
+    def execute(self, context):  # type: ignore[no-untyped-def]
+        self.contexts.append(context)
+        bundle = json.loads(dict(context.inputs)["platform-integration-bundle"])
+        application_id = str(bundle["application_id"])
+        identity = bundle["identity"]
+        assert isinstance(identity, dict)
+        reference = {
+            "reference_kind": "attachment",
+            "state_owner": "application",
+            "owner_id": application_id,
+            "application_id": application_id,
+            "attachment_id": "primary",
+            "adapter_kind": "gcp-cloud-run-v1",
+            "resource_reference": (
+                "urn:comfforts:app-platform:gcp:cloud-run:455651441682:"
+                f"us-west1:{application_id}"
+            ),
+            "audience": identity["audience"],
+        }
+        return StageExecution(
+            "succeeded",
+            (("attachment-reference", json.dumps(reference, sort_keys=True)),),
+            "sha256:" + ("6" * 64),
+        )
+
+
+class LocalFixtureLifecycleCompositionTest(unittest.TestCase):
+    def test_deep_composition_completes_bundle_image_plan_attachment_and_registration(self) -> None:
+        integration = FakeIntegrationLifecycle()
+        image = FakeImageProvider()
+        executor = FakeFixtureExecutor()
+        commands = LocalFixtureLifecycleCommands(
+            integration,  # type: ignore[arg-type]
+            image,
+            executor,
+        )
+
+        result = FixtureSuiteLifecycle(commands).deploy(_request())
+
+        self.assertEqual(result.outcome, "deployed")
+        self.assertEqual(image.references, [SOURCE_REVISION])
+        self.assertEqual(
+            [context.stage["stage_id"] for context in executor.contexts],
+            [
+                "fixture-public",
+                "fixture-authenticated",
+                "fixture-restricted",
+            ],
+        )
+        self.assertEqual(len(integration.entries), 3)
+        restricted = integration.entries[2]
+        self.assertEqual(
+            restricted.intent.restricted_members,
+            (("https://accounts.google.com", "synthetic-subject"),),
+        )
+
     def test_wrong_attachment_owner_fails_before_generation_activation(self) -> None:
         class WrongOwnerCommands(FakeFixtureCommands):
             def deploy_application(self, request):  # type: ignore[no-untyped-def]
@@ -252,6 +366,58 @@ class FixtureDeploymentLifecycleTest(unittest.TestCase):
         self.assertEqual(result.outcome, "blocked")
         self.assertEqual(result.blockers, ("ATTACHMENT_BUNDLE_INVALID",))
         self.assertNotIn("register", commands.calls)
+
+
+class LocalFixtureOperatorTest(unittest.TestCase):
+    def test_discovers_exact_clean_main_and_current_platform_binding(self) -> None:
+        class Git:
+            def inspect(self):  # type: ignore[no-untyped-def]
+                return GitSnapshot(
+                    repository="comfforts/apps-platform",
+                    revision=SOURCE_REVISION,
+                    branch="main",
+                    clean=True,
+                    main_revision=SOURCE_REVISION,
+                    origin_main_revision=SOURCE_REVISION,
+                )
+
+        class Platform:
+            def read_platform(self, environment):  # type: ignore[no-untyped-def]
+                return PlatformIntegrationState(
+                    environment=environment,
+                    lifecycle_state="deployed",
+                    profile_digest=PROFILE_DIGEST,
+                    platform_source_revision=PLATFORM_REVISION,
+                    specification_digest=SPECIFICATION_DIGEST,
+                    journal_digest=JOURNAL_DIGEST,
+                    generation=7,
+                    hostname="apps-staging.comfforts.com",
+                    oauth_client_id=(
+                        "1234567890-appsplatform.apps.googleusercontent.com"
+                    ),
+                    edge_caller_reference=EDGE_CALLER,
+                    qualification_status="unqualified",
+                )
+
+        class Lifecycle:
+            request = None
+
+            def deploy(self, request):  # type: ignore[no-untyped-def]
+                self.request = request
+                return FixtureDeployResult("deployed", IMAGE_REFERENCE, (), 8, GENERATION_DIGEST)
+
+        lifecycle = Lifecycle()
+        operator = LocalFixtureOperator(Git(), Platform(), lifecycle)
+
+        result = operator.deploy("staging")
+
+        self.assertEqual(result.outcome, "deployed")
+        self.assertEqual(lifecycle.request.fixture_source_revision, SOURCE_REVISION)
+        self.assertEqual(
+            lifecycle.request.expected_platform_source_revision,
+            PLATFORM_REVISION,
+        )
+        self.assertEqual(lifecycle.request.expected_platform_generation, 7)
 
 
 if __name__ == "__main__":

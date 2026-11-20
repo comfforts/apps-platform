@@ -386,6 +386,9 @@ class TerraformCliAdapter:
             "bootstrap": {"bootstrap_phase_output"},
             "platform-foundation": {"foundation_phase_output"},
             "shared-edge": {"shared_edge_phase_output"},
+            "fixture-public": {"attachment_reference"},
+            "fixture-authenticated": {"attachment_reference"},
+            "fixture-restricted": {"attachment_reference"},
         }
         if output_name not in allowed.get(request.phase, set()):
             raise ValueError("Terraform output is outside the approved phase")

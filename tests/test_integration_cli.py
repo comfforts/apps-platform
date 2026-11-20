@@ -18,6 +18,11 @@ from infrastructure.operator.integration import (
     RegistrationIntent,
     RegistrationLifecycleResult,
 )
+from infrastructure.operator.fixture_lifecycle import FixtureDeployResult
+from infrastructure.operator.fixture_lifecycle import (
+    FixtureApplicationStatus,
+    FixtureStatusResult,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -90,6 +95,43 @@ class FakeIntegrationLifecycle:
         )
 
 
+class FakeFixtureOperator:
+    def __init__(self) -> None:
+        self.environments: list[str] = []
+
+    def deploy(self, environment: str) -> FixtureDeployResult:
+        self.environments.append(environment)
+        return FixtureDeployResult(
+            outcome="deployed",
+            image_reference=(
+                "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                "app-platform-images/fixture@sha256:" + ("1" * 64)
+            ),
+            application_ids=(
+                "fixture-public",
+                "fixture-authenticated",
+                "fixture-restricted",
+            ),
+            registration_generation=8,
+            registration_generation_digest=GENERATION_DIGEST,
+        )
+
+    def status(self, environment: str) -> FixtureStatusResult:
+        self.environments.append(environment)
+        return FixtureStatusResult(
+            "read",
+            8,
+            GENERATION_DIGEST,
+            (
+                FixtureApplicationStatus("fixture-public", "active", True, True),
+                FixtureApplicationStatus(
+                    "fixture-authenticated", "active", True, True
+                ),
+                FixtureApplicationStatus("fixture-restricted", "active", True, True),
+            ),
+        )
+
+
 def _run(
     arguments: list[str],
     lifecycle: FakeIntegrationLifecycle,
@@ -104,6 +146,47 @@ def _run(
 
 
 class IntegrationCliTest(unittest.TestCase):
+    def test_fixture_deploy_is_one_argument_free_application_lifecycle(self) -> None:
+        fixture = FakeFixtureOperator()
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            code = main(
+                ["fixture-deploy", "--environment", "staging"],
+                fixture_factory=lambda _: fixture,
+            )
+
+        result = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(fixture.environments, ["staging"])
+        self.assertEqual(result["outcome"], "deployed")
+        self.assertEqual(
+            result["application_ids"],
+            [
+                "fixture-public",
+                "fixture-authenticated",
+                "fixture-restricted",
+            ],
+        )
+
+    def test_fixture_status_returns_only_read_only_coarse_posture(self) -> None:
+        fixture = FakeFixtureOperator()
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            code = main(
+                ["fixture-status", "--environment", "staging"],
+                fixture_status_factory=lambda _: fixture,
+            )
+
+        result = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(result["outcome"], "read")
+        self.assertTrue(all(item["target_ready"] for item in result["applications"]))
+        serialized = json.dumps(result)
+        self.assertNotIn("restricted_members", serialized)
+        self.assertNotIn("terraform", serialized.lower())
+
     def test_outputs_writes_one_canonical_create_only_bundle(self) -> None:
         lifecycle = FakeIntegrationLifecycle()
         with tempfile.TemporaryDirectory() as directory:

@@ -19,6 +19,7 @@ from infrastructure.operator.integration import (
     OperatorInterrupted,
     PlatformIntegrationState,
     RegistrationGenerationProposal,
+    RegistrationEntry,
     RegistrationIntent,
 )
 
@@ -71,6 +72,7 @@ class FakeTerminal:
     ) -> None:
         self.confirmations = list(confirmations or [True] * 16)
         self.prompts: list[tuple[str, str]] = []
+        self.review_prompts: list[str] = []
         self.messages: list[str] = []
 
     def write(self, message: str) -> None:
@@ -78,6 +80,13 @@ class FakeTerminal:
 
     def confirm_exact(self, prompt: str, expected: str) -> bool:
         self.prompts.append((prompt, expected))
+        result = self.confirmations.pop(0)
+        if isinstance(result, BaseException):
+            raise result
+        return result
+
+    def confirm(self, prompt: str) -> bool:
+        self.review_prompts.append(prompt)
         result = self.confirmations.pop(0)
         if isinstance(result, BaseException):
             raise result
@@ -287,6 +296,77 @@ class RegistrationLifecycleTest(unittest.TestCase):
                 proposal.content_digest,
                 _canonical_digest(proposal.compiled_configuration),
             )
+
+    def test_fixture_suite_activates_one_complete_generation_with_one_review(self) -> None:
+        entries = []
+        for application_id, access_mode in (
+            ("fixture-public", "public"),
+            ("fixture-authenticated", "authenticated"),
+            ("fixture-restricted", "restricted"),
+        ):
+            bundle = self._bundle(application_id, access_mode)
+            attachment = self._attachment(bundle)
+            members = (
+                (("https://accounts.google.com", "synthetic-subject"),)
+                if access_mode == "restricted"
+                else ()
+            )
+            entries.append(
+                RegistrationEntry(
+                    bundle,
+                    attachment,
+                    self._intent(restricted_members=members),
+                )
+            )
+
+        result = self.lifecycle.register_complete(tuple(entries))
+
+        self.assertEqual(result.outcome, "activated")
+        self.assertEqual(len(self.generations.publications), 2)
+        staged, active = self.generations.publications
+        self.assertTrue(
+            all(
+                item["lifecycle"] == "staged"
+                for item in staged.registration_set["registrations"]
+            )
+        )
+        registration_set = active.registration_set
+        self.assertEqual(
+            [item["application_id"] for item in registration_set["registrations"]],
+            [
+                "fixture-authenticated",
+                "fixture-public",
+                "fixture-restricted",
+            ],
+        )
+        self.assertTrue(
+            all(item["lifecycle"] == "active" for item in registration_set["registrations"])
+        )
+        self.assertEqual(
+            active.registration_set["previous_generation_digest"],
+            staged.generation_digest,
+        )
+        self.assertEqual(self.generations.activations, [active.generation_digest])
+        self.assertEqual(len(self.terminal.review_prompts), 1)
+        self.assertEqual(self.terminal.prompts, [])
+
+        status = self.lifecycle.status_applications(
+            "staging",
+            (
+                "fixture-public",
+                "fixture-authenticated",
+                "fixture-restricted",
+            ),
+        )
+        self.assertEqual(status.outcome, "read")
+        self.assertEqual(status.generation_digest, result.generation_digest)
+        self.assertTrue(all(item.target_ready for item in status.applications))
+
+        publications = len(self.generations.publications)
+        repeated = self.lifecycle.register_complete(tuple(entries))
+        self.assertEqual(repeated.outcome, "unchanged")
+        self.assertEqual(len(self.generations.publications), publications)
+        self.assertEqual(len(self.terminal.review_prompts), 1)
 
     def test_public_and_restricted_admission_are_compiled_without_bundle_members(self) -> None:
         public_bundle = self._bundle("fixture-public", "public")

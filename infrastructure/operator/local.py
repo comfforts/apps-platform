@@ -576,6 +576,7 @@ def build_local_integration(
     from infrastructure.operator.local_integration import (
         LocalPlatformIntegrationReader,
     )
+    from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 
     resolved_project = project_root.resolve()
     filesystem = LocalFilesystem(resolved_project, state_root)
@@ -587,4 +588,156 @@ def build_local_integration(
         attachment_reader=provider,
         generation_control=generations if provider is not None else None,
         terminal=ConsoleTerminal(),
+    )
+
+
+def build_local_fixture_operator(project_root: Path, state_root: Path):
+    """Construct the complete fixture operator only from the verified human session."""
+
+    from infrastructure.operator.commands import (
+        ClosedSubprocessRunner,
+        TerraformCliAdapter,
+    )
+    from infrastructure.operator.deployment import DeploymentExecutor
+    from infrastructure.operator.deployment_provider import (
+        ClosedDeploymentGcloudRunner,
+        GcloudDeploymentProvider,
+    )
+    from infrastructure.operator.fixture_lifecycle import FixtureSuiteLifecycle
+    from infrastructure.operator.integration import ApplicationIntegrationLifecycle
+    from infrastructure.operator.local_fixture_deployment import (
+        FixtureConfigurationRenderer,
+        LocalFixtureDeploymentCommands,
+    )
+    from infrastructure.operator.local_fixture_lifecycle import (
+        LocalFixtureLifecycleCommands,
+        LocalFixtureOperator,
+    )
+    from infrastructure.operator.local_generation import (
+        LocalRegistrationGenerationControl,
+    )
+    from infrastructure.operator.local_integration import (
+        LocalPlatformIntegrationReader,
+    )
+
+    resolved_project = project_root.resolve()
+    resolved_state = state_root.resolve()
+    executable_name = shutil.which("gcloud")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
+    if executable_name is None:
+        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+    gcloud = Path(executable_name).resolve()
+    gcp = ProfileGcp(gcloud, configuration)
+    if (
+        not gcloud.is_file()
+        or not configuration.is_dir()
+        or configuration.is_symlink()
+        or not gcp.application_default_ready()
+        or not TERRAFORM.is_file()
+        or not OFFLINE_CLI_CONFIG.is_file()
+    ):
+        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+    resolved_state.mkdir(mode=0o700, parents=True, exist_ok=True)
+    resolved_state.chmod(0o700)
+    working_root = resolved_state / "work/fixtures"
+    working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    working_root.chmod(0o700)
+
+    terraform = TerraformCliAdapter(
+        TERRAFORM,
+        OFFLINE_CLI_CONFIG,
+        working_root,
+        ClosedSubprocessRunner((TERRAFORM,), working_root),
+        operator_environment=(
+            ("CLOUDSDK_CONFIG", str(configuration)),
+            ("HOME", str(Path.home().resolve())),
+        ),
+    )
+    image_provider = GcloudDeploymentProvider(
+        executable=gcloud,
+        cloud_sdk_configuration=configuration,
+        working_root=resolved_project,
+        runner=ClosedDeploymentGcloudRunner(
+            gcloud,
+            resolved_project,
+            configuration,
+        ),
+    )
+    generation_provider = _local_generation_provider(resolved_project, resolved_state)
+    if generation_provider is None:
+        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+    filesystem = LocalFilesystem(resolved_project, resolved_state)
+    generations = LocalRegistrationGenerationControl(
+        filesystem,
+        generation_provider,
+    )
+    platform = LocalPlatformIntegrationReader(
+        filesystem,
+        build_local_operator(resolved_project, resolved_state),
+        generations,
+    )
+    terminal = ConsoleTerminal()
+    integration = ApplicationIntegrationLifecycle(
+        platform,
+        attachment_reader=generation_provider,
+        generation_control=generations,
+        terminal=terminal,
+    )
+    fixture_terraform_commands = LocalFixtureDeploymentCommands(
+        FixtureConfigurationRenderer(resolved_project, working_root),
+        terraform,
+    )
+    executor = DeploymentExecutor(
+        working_root,
+        terminal,
+        fixture_terraform_commands,  # type: ignore[arg-type]
+    )
+    lifecycle = FixtureSuiteLifecycle(
+        LocalFixtureLifecycleCommands(
+            integration,
+            image_provider,
+            executor,
+            LocalApplicationHandoffs(filesystem),
+        )
+    )
+    return LocalFixtureOperator(LocalGit(resolved_project), platform, lifecycle)
+
+
+def build_local_fixture_status_operator(project_root: Path, state_root: Path):
+    """Construct fixture status without arming Terraform or image mutation."""
+
+    from infrastructure.operator.integration import ApplicationIntegrationLifecycle
+    from infrastructure.operator.local_fixture_lifecycle import (
+        LocalFixtureStatusOperator,
+    )
+    from infrastructure.operator.local_generation import (
+        LocalRegistrationGenerationControl,
+    )
+    from infrastructure.operator.local_integration import (
+        LocalPlatformIntegrationReader,
+    )
+
+    resolved_project = project_root.resolve()
+    resolved_state = state_root.resolve()
+    provider = _local_generation_provider(resolved_project, resolved_state)
+    if provider is None:
+        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+    filesystem = LocalFilesystem(resolved_project, resolved_state)
+    generations = LocalRegistrationGenerationControl(filesystem, provider)
+    platform = LocalPlatformIntegrationReader(
+        filesystem,
+        build_local_operator(resolved_project, resolved_state),
+        generations,
+    )
+    return LocalFixtureStatusOperator(
+        ApplicationIntegrationLifecycle(
+            platform,
+            attachment_reader=provider,
+            generation_control=generations,
+        )
     )

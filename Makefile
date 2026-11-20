@@ -12,7 +12,7 @@ INTEGRATION_BUNDLE ?=
 ATTACHMENT_BUNDLE ?=
 REGISTRATION_INTENT ?=
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-prepare platform-deploy platform-status platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-prepare platform-deploy platform-status platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-deploy fixture-status
 
 check: governance-check contract-check fixture-check runtime-check terraform-check operator-check ## Run every implemented deterministic platform check.
 
@@ -63,3 +63,9 @@ platform-qualify: ## Evaluate and record the exact current platform and fixture 
 
 platform-destroy: ## Compile, confirm, and resume exact safe platform destruction.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator destroy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"
+
+fixture-deploy: terraform-setup ## Build, deploy, validate, and register all three staging fixtures.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"
+
+fixture-status: ## Reconcile fixture registrations and provider targets without mutation.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-status --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"

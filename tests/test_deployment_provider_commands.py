@@ -207,6 +207,41 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
             builds[0].argv,
         )
 
+    def test_fixture_build_is_source_bound_and_returns_only_digest_reference(self) -> None:
+        generation = initial_generation("d" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / "infrastructure/images/fixture/cloudbuild.yaml"
+            config.parent.mkdir(parents=True)
+            config.write_text("steps: []\n", encoding="utf-8")
+            fake = FakeGcloud(generation.contents)
+            provider = self._provider(directory, fake)
+
+            reference = provider.publish_fixture_image("f" * 40)
+            resumed = provider.publish_fixture_image("f" * 40)
+
+        self.assertEqual(reference, resumed)
+        self.assertEqual(
+            reference,
+            "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+            "app-platform-images/fixture@sha256:" + ("d" * 64),
+        )
+        builds = [
+            request
+            for request in fake.requests
+            if request.argv[1:3] == ("builds", "submit")
+        ]
+        self.assertEqual(len(builds), 1)
+        self.assertEqual(builds[0].timeout_seconds, 900)
+        self.assertIn(
+            "--substitutions=_IMAGE=us-west1-docker.pkg.dev/"
+            "comfforts-platform-non-prod/app-platform-images/fixture:source-"
+            + ("f" * 40)
+            + ",_SOURCE_REVISION="
+            + ("f" * 40),
+            builds[0].argv,
+        )
+
     def test_closed_runner_rejects_session_switch_and_unapproved_commands(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

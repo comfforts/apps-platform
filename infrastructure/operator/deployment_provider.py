@@ -30,6 +30,7 @@ _ALLOWED_COMMANDS = {
     ("services", "describe"),
     ("services", "enable"),
     ("storage", "cat"),
+    ("storage", "buckets", "describe"),
     ("storage", "cp"),
     ("storage", "objects", "describe"),
 }
@@ -48,6 +49,7 @@ _BOOTSTRAP_SERVICES = (
 _PROJECT_ID = "comfforts-platform-non-prod"
 _REGION = "us-west1"
 _CONFIGURATION_BUCKET = "comfforts-ap-stg-455651441682-configuration"
+_BOOTSTRAP_BUCKET = "comfforts-ap-stg-455651441682-platform-state"
 _OAUTH_SECRET = "app-platform-edge-oauth"
 _SIGNING_KEY_RING = "app-platform"
 _SIGNING_KEY = "edge-signing"
@@ -266,6 +268,21 @@ class GcloudDeploymentProvider:
             )
             if result.stdout.strip() != b"ENABLED":
                 return False
+        return True
+
+    def bootstrap_backend_ready(self) -> bool:
+        result = self._try(
+            "storage",
+            "buckets",
+            "describe",
+            f"gs://{_BOOTSTRAP_BUCKET}",
+            "--format=value(name)",
+            *self._common(),
+        )
+        if result.returncode != 0:
+            return False
+        if result.stdout.strip() != _BOOTSTRAP_BUCKET.encode("ascii"):
+            raise DeploymentProviderError("BOOTSTRAP_BACKEND_READBACK_INVALID")
         return True
 
     def publish_initial_generation(self, generation: InitialGeneration) -> int:

@@ -270,6 +270,55 @@ class OperatorCommandTest(unittest.TestCase):
         )
         self.assertEqual(observed, output)
 
+    def test_existing_bootstrap_initializes_the_exact_remote_lineage(self) -> None:
+        plan_json = {
+            "format_version": "1.2",
+            "terraform_version": "1.17.2",
+            "resource_changes": [],
+        }
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(0, b"", b""),
+                CommandResult(0, json.dumps(plan_json).encode(), b""),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "bootstrap"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root, "bootstrap")
+            self._private_file(
+                request.backend_path,
+                b'terraform { backend "gcs" {} }\n',
+            )
+            values = self._private_file(workspace / "values.json", b"{}")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            adapter.create_plan(
+                request,
+                root,
+                values,
+                bootstrap_remote=True,
+            )
+
+        init = runner.requests[0]
+        self.assertNotIn("-backend=false", init.argv)
+        self.assertIn(
+            "-backend-config=bucket="
+            "comfforts-ap-stg-455651441682-platform-state",
+            init.argv,
+        )
+        self.assertIn("-backend-config=prefix=bootstrap", init.argv)
+
     def test_closed_runner_rejects_shells_unapproved_executables_and_ambient_environment(
         self,
     ) -> None:

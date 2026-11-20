@@ -8,7 +8,11 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from infrastructure.backend import PhasePlanRequest
+from infrastructure.backend import (
+    PhasePlanRequest,
+    backend_declarations,
+    render_backend_declaration,
+)
 from infrastructure.operator import StageContext
 from infrastructure.operator.deployment import (
     ExactAction,
@@ -58,22 +62,26 @@ def _context(
 
 
 def _request(root: Path, phase: str) -> PhasePlanRequest:
+    declaration = next(
+        item for item in backend_declarations("staging") if item.phase == phase
+    )
+    rendered = render_backend_declaration(
+        declaration,
+        root,
+        f"{phase}/backend.tf",
+    )
     return PhasePlanRequest(
         environment="staging",
         source_revision=SOURCE,
         phase=phase,
-        terraform_root={
-            "bootstrap": "infrastructure/terraform/bootstrap",
-            "platform-foundation": "infrastructure/terraform/platform",
-            "shared-edge": "infrastructure/terraform/platform",
-        }[phase],
-        state_owner="platform",
-        owner_id="app-platform",
-        project_id="comfforts-platform-non-prod",
-        backend_path=root / phase / "backend.tf",
-        backend_digest="sha256:" + "c" * 64,
-        backend_bucket="comfforts-ap-stg-455651441682-platform-state",
-        backend_prefix="bootstrap" if phase == "bootstrap" else "platform",
+        terraform_root=declaration.terraform_root,
+        state_owner=declaration.state_owner,
+        owner_id=declaration.owner_id,
+        project_id=declaration.project_id,
+        backend_path=rendered.path,
+        backend_digest=rendered.digest,
+        backend_bucket=declaration.bucket,
+        backend_prefix=declaration.prefix,
     )
 
 
@@ -87,7 +95,14 @@ class FakeTerraform:
         request: PhasePlanRequest,
         terraform_root: Path,
         variable_file: Path,
+        *,
+        bootstrap_remote: bool = False,
     ) -> TerraformPlanArtifact:
+        if request.phase == "bootstrap":
+            self.assertEqualForFake(
+                request.backend_path.exists(),
+                bootstrap_remote,
+            )
         self.assert_private(variable_file)
         plan = terraform_root / "saved.tfplan"
         plan.write_bytes(b"saved plan")
@@ -110,6 +125,11 @@ class FakeTerraform:
                 "changes": [],
             },
         )
+
+    @staticmethod
+    def assertEqualForFake(observed: object, expected: object) -> None:
+        if observed != expected:
+            raise AssertionError(f"{observed!r} != {expected!r}")
 
     @staticmethod
     def assert_private(path: Path) -> None:
@@ -202,12 +222,16 @@ class FakeProvider:
     image: str | None = None
     generation: int | None = None
     certificate_ready: bool = True
+    backend: bool = False
 
     def enable_bootstrap_services(self) -> None:
         self.services = True
 
     def bootstrap_services_ready(self) -> bool:
         return self.services
+
+    def bootstrap_backend_ready(self) -> bool:
+        return self.backend
 
     def publish_initial_generation(self, generation: InitialGeneration) -> int:
         del generation
@@ -327,6 +351,21 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
         self.assertEqual(terraform.applied, ["bootstrap"])
         self.assertEqual(terraform.migrated, 1)
         self.assertEqual(result.outputs[0][0], "backend-reference")
+
+    def test_existing_bootstrap_uses_remote_state_without_migration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, provider, _, work = self._commands(directory)
+            provider.backend = True
+            context = _context("bootstrap", ("backend-reference",))
+            request = _request(work, "bootstrap")
+            artifact = commands.create_terraform_plan(context, request)
+            commands.apply_terraform_plan(
+                request,
+                ExactTerraformPlan(artifact.saved_plan_path, "sha256:x", "sha256:y", {}),
+            )
+
+        self.assertEqual(terraform.applied, ["bootstrap"])
+        self.assertEqual(terraform.migrated, 0)
 
     def test_foundation_and_edge_readbacks_feed_later_stages(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

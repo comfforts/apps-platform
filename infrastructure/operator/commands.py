@@ -248,12 +248,14 @@ class TerraformCliAdapter:
         request: PhasePlanRequest,
         terraform_root: Path,
         variable_file: Path,
+        *,
+        bootstrap_remote: bool = False,
     ) -> TerraformPlanArtifact:
         root = self._bounded(terraform_root, file_required=False)
         if not root.is_dir():
             raise ValueError("Terraform root is not a directory")
         variables = self._bounded(variable_file, file_required=True)
-        if request.phase != "bootstrap":
+        if request.phase != "bootstrap" or bootstrap_remote:
             backend = self._bounded(request.backend_path, file_required=True)
             if backend.parent != root:
                 raise ValueError("backend declaration is outside the Terraform root")
@@ -269,7 +271,7 @@ class TerraformCliAdapter:
 
         plan_environment = self._environment()
         init_arguments = ["init", "-input=false", "-lockfile=readonly"]
-        if request.phase == "bootstrap":
+        if request.phase == "bootstrap" and not bootstrap_remote:
             init_arguments.append("-backend=false")
         else:
             init_arguments.extend(

@@ -28,6 +28,7 @@ class FakeGcloud:
     generation_contents: bytes
     requests: list[ProviderCommandRequest] = field(default_factory=list)
     image_built: bool = False
+    bootstrap_backend: bool = False
 
     def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
         self.requests.append(request)
@@ -40,6 +41,14 @@ class FakeGcloud:
             if request.stdin != self.generation_contents:
                 return ProviderCommandResult(1, b"", b"wrong secret contents")
             return ProviderCommandResult(0, b"", b"")
+        if arguments[:3] == ("storage", "buckets", "describe"):
+            if not self.bootstrap_backend:
+                return ProviderCommandResult(1, b"", b"not found")
+            return ProviderCommandResult(
+                0,
+                b"comfforts-ap-stg-455651441682-platform-state\n",
+                b"",
+            )
         if arguments[:3] == ("storage", "objects", "describe"):
             return ProviderCommandResult(0, b'{"generation":"42"}', b"")
         if arguments[:2] == ("storage", "cat"):
@@ -124,6 +133,19 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
         self.assertFalse(
             any(value.startswith("--impersonate-service-account=") for value in mutation.argv)
         )
+
+    def test_bootstrap_backend_readback_distinguishes_first_run_and_recovery(self) -> None:
+        generation = initial_generation("f" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(generation.contents)
+            provider = self._provider(directory, fake)
+
+            first_run = provider.bootstrap_backend_ready()
+            fake.bootstrap_backend = True
+            recovery = provider.bootstrap_backend_ready()
+
+        self.assertFalse(first_run)
+        self.assertTrue(recovery)
 
     def test_initial_generation_is_create_only_and_content_verified(self) -> None:
         generation = initial_generation("b" * 40)

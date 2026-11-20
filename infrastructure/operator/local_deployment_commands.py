@@ -9,7 +9,11 @@ from pathlib import Path
 import re
 from typing import Protocol
 
-from infrastructure.backend import PhasePlanRequest
+from infrastructure.backend import (
+    PhasePlanRequest,
+    backend_declarations,
+    render_backend_declaration,
+)
 from infrastructure.operator._interfaces import StageContext
 from infrastructure.operator.deployment import (
     ActionProposal,
@@ -49,6 +53,8 @@ class DeploymentTerraform(Protocol):
         request: PhasePlanRequest,
         terraform_root: Path,
         variable_file: Path,
+        *,
+        bootstrap_remote: bool = False,
     ) -> TerraformPlanArtifact: ...
 
     def apply_plan(
@@ -76,6 +82,8 @@ class DeploymentProvider(Protocol):
     def enable_bootstrap_services(self) -> None: ...
 
     def bootstrap_services_ready(self) -> bool: ...
+
+    def bootstrap_backend_ready(self) -> bool: ...
 
     def publish_initial_generation(self, generation: InitialGeneration) -> int: ...
 
@@ -120,6 +128,7 @@ def _dict(value: object, code: str) -> dict[str, object]:
 class _RenderedPlan:
     request: PhasePlanRequest
     rendered: RenderedTerraformInput
+    initial_bootstrap: bool = False
 
 
 class LocalDeploymentCommands:
@@ -160,7 +169,20 @@ class LocalDeploymentCommands:
     ) -> TerraformPlanArtifact:
         try:
             rendered = self._renderer.render(context, request)
-            plan = _RenderedPlan(request, rendered)
+            bootstrap_remote = False
+            initial_bootstrap = False
+            if request.phase == "bootstrap":
+                bootstrap_remote = self._provider.bootstrap_backend_ready()
+                initial_bootstrap = not bootstrap_remote
+                if initial_bootstrap:
+                    contents = request.backend_path.read_bytes()
+                    digest = "sha256:" + hashlib.sha256(contents).hexdigest()
+                    if digest != request.backend_digest:
+                        raise DeploymentCommandError(
+                            "TERRAFORM_BACKEND_BINDING_MISMATCH"
+                        )
+                    request.backend_path.unlink()
+            plan = _RenderedPlan(request, rendered, initial_bootstrap)
             stage_id = self._stage_id(context)
             self._plans_by_stage[stage_id] = plan
             self._plans_by_request[id(request)] = plan
@@ -168,6 +190,7 @@ class LocalDeploymentCommands:
                 request,
                 rendered.terraform_root,
                 rendered.variable_file,
+                bootstrap_remote=bootstrap_remote,
             )
         except DeploymentCommandError:
             raise
@@ -180,13 +203,31 @@ class LocalDeploymentCommands:
         plan: ExactTerraformPlan,
     ) -> None:
         try:
-            rendered = self._plans_by_request[id(request)].rendered
+            rendered_plan = self._plans_by_request[id(request)]
+            rendered = rendered_plan.rendered
             self._terraform.apply_plan(
                 request,
                 rendered.terraform_root,
                 plan.saved_plan_path,
             )
-            if request.phase == "bootstrap":
+            if rendered_plan.initial_bootstrap:
+                declaration = next(
+                    item
+                    for item in backend_declarations(request.environment)
+                    if item.phase == "bootstrap"
+                )
+                restored = render_backend_declaration(
+                    declaration,
+                    rendered.terraform_root.parent,
+                    "bootstrap/backend.tf",
+                )
+                if (
+                    restored.path.resolve() != request.backend_path.resolve()
+                    or restored.digest != request.backend_digest
+                ):
+                    raise DeploymentCommandError(
+                        "TERRAFORM_BACKEND_BINDING_MISMATCH"
+                    )
                 self._terraform.migrate_bootstrap_state(
                     request,
                     rendered.terraform_root,

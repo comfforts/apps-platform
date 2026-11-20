@@ -108,6 +108,8 @@ class DeploymentCommandError(RuntimeError):
 
 
 class DeploymentTerminal(Protocol):
+    def ask(self, prompt: str) -> str: ...
+
     def confirm(self, prompt: str) -> bool: ...
 
     def confirm_exact(self, prompt: str, expected: str) -> bool: ...
@@ -161,6 +163,7 @@ class DeploymentCommands(Protocol):
         self,
         context: StageContext,
         attempt: int,
+        supplied_inputs: tuple[tuple[str, str], ...],
     ) -> CheckpointVerification: ...
 
 
@@ -401,6 +404,18 @@ class DeploymentExecutor:
         self._terminal.pause(
             f"Complete checkpoint {checkpoint.checkpoint!r}, then Press Enter to verify: "
         )
+        supplied_inputs: tuple[tuple[str, str], ...] = ()
+        if stage_id == "oauth-configuration":
+            client_id = self._terminal.ask(
+                "Paste the OAuth client ID (never the client secret): "
+            ).strip()
+            if not client_id:
+                return StageExecution(
+                    outcome="failed",
+                    plan_digest=digest,
+                    blockers=("OAUTH_CLIENT_ID_REQUIRED",),
+                )
+            supplied_inputs = (("oauth-client-id", client_id),)
 
         max_attempts, interval = _POLLING.get(stage_id, (1, 0))
         latest_blockers: tuple[str, ...] = ()
@@ -409,6 +424,7 @@ class DeploymentExecutor:
                 verification = self._commands.verify_manual_checkpoint(
                     context,
                     attempt,
+                    supplied_inputs,
                 )
             except DeploymentCommandError as error:
                 return StageExecution(

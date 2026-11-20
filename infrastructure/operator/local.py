@@ -341,6 +341,9 @@ class PinnedTerraform:
 
 @dataclass(frozen=True, slots=True)
 class ConsoleTerminal:
+    def ask(self, prompt: str) -> str:
+        return input(prompt)
+
     def confirm(self, prompt: str) -> bool:
         return input(prompt).strip().lower() in {"y", "yes"}
 

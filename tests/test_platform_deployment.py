@@ -74,6 +74,14 @@ class FakeTerminal:
     confirmations: list[tuple[str, str]] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
     pauses: list[str] = field(default_factory=list)
+    answers: list[str] = field(
+        default_factory=lambda: ["verified-client-id.apps.googleusercontent.com"]
+    )
+    questions: list[str] = field(default_factory=list)
+
+    def ask(self, prompt: str) -> str:
+        self.questions.append(prompt)
+        return self.answers.pop(0)
 
     def confirm(self, prompt: str) -> bool:
         self.confirmations.append((prompt, "yes"))
@@ -113,7 +121,9 @@ class FakeCommands:
     executed_actions: list[object] = field(default_factory=list)
     action_readbacks: list[StageContext] = field(default_factory=list)
     manual_preparations: list[StageContext] = field(default_factory=list)
-    manual_verifications: list[tuple[StageContext, int]] = field(default_factory=list)
+    manual_verifications: list[
+        tuple[StageContext, int, tuple[tuple[str, str], ...]]
+    ] = field(default_factory=list)
     checkpoint_outcomes: list[str] = field(default_factory=lambda: ["succeeded"])
     terraform_readiness: list[bool] = field(default_factory=list)
 
@@ -288,8 +298,9 @@ class FakeCommands:
         self,
         context: StageContext,
         attempt: int,
+        supplied_inputs: tuple[tuple[str, str], ...],
     ) -> CheckpointVerification:
-        self.manual_verifications.append((context, attempt))
+        self.manual_verifications.append((context, attempt, supplied_inputs))
         outcome = (
             self.checkpoint_outcomes.pop(0)
             if self.checkpoint_outcomes
@@ -307,10 +318,11 @@ class FakeCommands:
             )
         stage_id = str(context.stage["stage_id"])
         if stage_id == "oauth-configuration":
+            supplied = dict(supplied_inputs)
             return CheckpointVerification(
                 outcome="succeeded",
                 outputs=(
-                    ("oauth-client-id", "verified-client-id.apps.googleusercontent.com"),
+                    ("oauth-client-id", supplied["oauth-client-id"]),
                     ("oauth-secret-version", "projects/example/secrets/oauth-client/versions/1"),
                 ),
                 acknowledgement="operator-attested",
@@ -604,6 +616,14 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertIn("Comfforts Apps Staging", transcript)
         self.assertIn("Secret Manager directly", transcript)
         self.assertNotIn("client_secret", transcript)
+        self.assertEqual(
+            terminal.questions,
+            ["Paste the OAuth client ID (never the client secret): "],
+        )
+        self.assertEqual(
+            commands.manual_verifications[0][2],
+            (("oauth-client-id", "verified-client-id.apps.googleusercontent.com"),),
+        )
         self.assertEqual(len(commands.manual_verifications), 1)
 
     def test_dns_checkpoint_polls_authoritative_and_recursive_readback_with_a_bound(self) -> None:
@@ -637,7 +657,7 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(result.manual_acknowledgement, "provider-verified")
         self.assertEqual(waiter.delays, [10, 10])
         self.assertEqual(
-            [attempt for _, attempt in commands.manual_verifications],
+            [attempt for _, attempt, _ in commands.manual_verifications],
             [1, 2, 3],
         )
         transcript = "\n".join(terminal.messages)

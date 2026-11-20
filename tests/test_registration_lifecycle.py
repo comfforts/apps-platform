@@ -250,7 +250,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
             restricted_members=restricted_members,
         )
 
-    def test_new_application_stages_then_activates_two_complete_generations(self) -> None:
+    def test_new_application_activates_one_complete_generation(self) -> None:
         bundle = self._bundle("fixture-authenticated", "authenticated")
         attachment = self._attachment(bundle)
 
@@ -258,27 +258,19 @@ class RegistrationLifecycleTest(unittest.TestCase):
 
         self.assertEqual(result.outcome, "activated")
         self.assertEqual(result.blockers, ())
-        self.assertEqual(len(self.generations.publications), 2)
-        staged, active = self.generations.publications
-        self.assertEqual(staged.registration_set["generation"], 1)
-        self.assertEqual(
-            staged.registration_set["registrations"][0]["lifecycle"],
-            "staged",
-        )
-        self.assertEqual(active.registration_set["generation"], 2)
+        self.assertEqual(len(self.generations.publications), 1)
+        active = self.generations.publications[0]
+        self.assertEqual(active.registration_set["generation"], 1)
         self.assertEqual(
             active.registration_set["registrations"][0]["lifecycle"],
             "active",
         )
-        self.assertEqual(
-            active.registration_set["previous_generation_digest"],
-            staged.generation_digest,
-        )
+        self.assertIsNone(active.registration_set["previous_generation_digest"])
         self.assertEqual(
             [proposal.generation_digest for proposal in self.generations.publications],
             self.generations.activations,
         )
-        self.assertEqual(len(self.terminal.prompts), 2)
+        self.assertEqual(len(self.terminal.prompts), 1)
         for proposal, (_, expected) in zip(
             self.generations.publications,
             self.terminal.prompts,
@@ -322,14 +314,8 @@ class RegistrationLifecycleTest(unittest.TestCase):
         result = self.lifecycle.register_complete(tuple(entries))
 
         self.assertEqual(result.outcome, "activated")
-        self.assertEqual(len(self.generations.publications), 2)
-        staged, active = self.generations.publications
-        self.assertTrue(
-            all(
-                item["lifecycle"] == "staged"
-                for item in staged.registration_set["registrations"]
-            )
-        )
+        self.assertEqual(len(self.generations.publications), 1)
+        active = self.generations.publications[0]
         registration_set = active.registration_set
         self.assertEqual(
             [item["application_id"] for item in registration_set["registrations"]],
@@ -342,10 +328,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
         self.assertTrue(
             all(item["lifecycle"] == "active" for item in registration_set["registrations"])
         )
-        self.assertEqual(
-            active.registration_set["previous_generation_digest"],
-            staged.generation_digest,
-        )
+        self.assertIsNone(active.registration_set["previous_generation_digest"])
         self.assertEqual(self.generations.activations, [active.generation_digest])
         self.assertEqual(len(self.terminal.review_prompts), 1)
         self.assertEqual(self.terminal.prompts, [])
@@ -436,10 +419,10 @@ class RegistrationLifecycleTest(unittest.TestCase):
         result = self.lifecycle.register(bundle, replacement, self._intent())
 
         self.assertEqual(result.outcome, "activated")
-        self.assertEqual(len(self.generations.publications), 3)
+        self.assertEqual(len(self.generations.publications), 2)
         successor = self.generations.publications[-1]
-        self.assertEqual(successor.registration_set["generation"], 3)
-        self.assertEqual(original["generation"], 2)
+        self.assertEqual(successor.registration_set["generation"], 2)
+        self.assertEqual(original["generation"], 1)
         self.assertNotEqual(
             original["registrations"][0]["attachments"][0]["resource_reference"],
             successor.registration_set["registrations"][0]["attachments"][0][
@@ -499,8 +482,8 @@ class RegistrationLifecycleTest(unittest.TestCase):
             ("GENERATION_ACTIVATION_INTERRUPTED",),
         )
         self.assertEqual(resumed.outcome, "activated")
-        self.assertEqual(len(self.generations.history), 2)
-        self.assertEqual(len(self.generations.publications), 3)
+        self.assertEqual(len(self.generations.history), 1)
+        self.assertEqual(len(self.generations.publications), 2)
         self.assertEqual(
             self.generations.publications[0].generation_digest,
             self.generations.publications[1].generation_digest,

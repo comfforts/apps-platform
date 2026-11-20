@@ -50,19 +50,24 @@ The implementation plan governs delivery but cannot change a field meaning defin
 design or these reviewed schemas. A contract change updates every consumer, vector, test, and
 authority reference in the same reviewed slice.
 
-An Integration Draft is never a contract source. Finance Assistant paths, provider details, state,
-identity configuration, and migration intent do not specialize these generic interfaces.
+An external application's paths, provider details, state, identity configuration, and migration
+intent are never platform contract sources and do not specialize these generic interfaces.
 
 ## Versioning
 
 Each instance carries contract_version with the integer value 1. The filename suffix and schema URN
 use v1 for the same major version.
 
-Version 1 is strict. Removing a field, adding a required field, adding a property that an existing
-closed-object consumer would reject, changing a field meaning, narrowing an accepted value,
-changing canonicalization, changing digest semantics, or adding an enum value requires a new major
-schema and contract_version. Documentation corrections that do not change machine behavior may
-retain Version 1.
+Before the first Live deployment and Application Adoption, an owner-approved incompatible
+correction may revise Version 1 in place only when every repository consumer, vector, test, and
+authority reference changes atomically and no released external consumer exists. This repository
+is still in that pre-Live, pre-Adoption condition.
+
+After the first Live deployment or Application Adoption, Version 1 is strict. Removing a field,
+adding a required field, adding a property that an existing closed-object consumer would reject,
+changing a field meaning, narrowing an accepted value, changing canonicalization, changing digest
+semantics, or adding an enum value requires a new major schema and contract_version. Documentation
+corrections that do not change machine behavior may retain Version 1.
 
 Registration generation and registration_revision are data revisions, not contract versions:
 

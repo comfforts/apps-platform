@@ -766,12 +766,12 @@ def _new_application_violations(value: dict[str, Any]) -> list[Violation]:
                     "a new application must begin at registration revision 1",
                 )
             )
-        if registration["lifecycle"] != "staged":
+        if registration["lifecycle"] != "active":
             violations.append(
                 Violation(
                     "LIFECYCLE_TRANSITION_INVALID",
                     f"/registrations/{index}/lifecycle",
-                    "a new application must enter staged",
+                    "a new application must enter active",
                 )
             )
     return violations
@@ -1001,12 +1001,12 @@ def _registration_update_violations(
                         "a new application must begin at registration revision 1",
                     )
                 )
-            if registration["lifecycle"] != "staged":
+            if registration["lifecycle"] != "active":
                 violations.append(
                     Violation(
                         "LIFECYCLE_TRANSITION_INVALID",
                         f"/registrations/{index}/lifecycle",
-                        "a new application must enter staged",
+                        "a new application must enter active",
                     )
                 )
             continue
@@ -1038,7 +1038,6 @@ def _lifecycle_transition_violations(
     previous: dict[str, Any], proposed: dict[str, Any]
 ) -> list[Violation]:
     allowed = {
-        "staged": {"staged", "active", "retired"},
         "active": {"active", "suspended", "retired"},
         "suspended": {"suspended", "active", "retired"},
         "retired": {"retired"},

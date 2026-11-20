@@ -244,8 +244,8 @@ class ContractSchemaTest(unittest.TestCase):
                     "config = load_json_document(config_path).value",
                     "result = compile_registration_set(None, proposed, config)",
                     "assert result.violations == ()",
-                    "expected = 'sha256:' + 'bdf0608ec2111ad74e6042edb2be550'",
-                    "expected += 'f47a8f4a15ca5ac7b3a6d09951df75008'",
+                    "expected = 'sha256:' + '68037a002b4334ab1ad0a0a2d983a9'",
+                    "expected += 'c60835327ec8c5ecea812a207e4d83dc29'",
                     "assert result.generation_digest == expected",
                 )
             )
@@ -291,8 +291,7 @@ class ContractVectorManifestTest(unittest.TestCase):
                 if case["expected"] == "accept"
             ],
             [
-                "initial-staged",
-                "activate-application",
+                "initial-active",
                 "activate-multiple-admission-modes",
                 "retire-application",
                 "replace-attachment-reference",
@@ -302,7 +301,7 @@ class ContractVectorManifestTest(unittest.TestCase):
         )
         case_ids = [case["case_id"] for case in manifest["cases"]]
         self.assertEqual(len(case_ids), len(set(case_ids)))
-        self.assertEqual(len(case_ids), 34)
+        self.assertEqual(len(case_ids), 33)
         for case in manifest["cases"]:
             self.assertEqual(case["evidence_class"], "C")
             self.assertIn(case["expected"], {"accept", "reject"})
@@ -381,7 +380,7 @@ class ContractVectorManifestTest(unittest.TestCase):
         self.assertEqual(vector_bytes_before, vector_bytes_after)
 
     def test_release_and_replacement_vectors_preserve_declared_boundaries(self) -> None:
-        active = _load_vector("valid/active-registration-set.v1.json")
+        active = _load_vector("valid/initial-registration-set.v1.json")
         content_release = _load_vector(
             "valid/content-release-unchanged-registration-set.v1.json"
         )
@@ -407,8 +406,8 @@ class ContractVectorManifestTest(unittest.TestCase):
 
 class RegistrationCompilerTest(unittest.TestCase):
     def test_compilation_is_repeatable_and_does_not_mutate_inputs(self) -> None:
-        previous = _load_vector("valid/initial-registration-set.v1.json")
-        proposed = _load_vector("valid/active-registration-set.v1.json")
+        previous = None
+        proposed = _load_vector("valid/initial-registration-set.v1.json")
         platform_configuration = _load_vector("valid/platform-configuration.v1.json")
         inputs_before = copy.deepcopy((previous, proposed, platform_configuration))
 
@@ -419,7 +418,7 @@ class RegistrationCompilerTest(unittest.TestCase):
         self.assertEqual((previous, proposed, platform_configuration), inputs_before)
 
     def test_compilation_ignores_nonsemantic_object_key_order(self) -> None:
-        previous = _load_vector("valid/multi-staged-registration-set.v1.json")
+        previous = None
         proposed = _load_vector("valid/multi-active-registration-set.v1.json")
         platform_configuration = _load_vector("valid/platform-configuration.v1.json")
 
@@ -427,14 +426,14 @@ class RegistrationCompilerTest(unittest.TestCase):
             previous, proposed, platform_configuration
         )
         permuted = compile_registration_set(
-            _reverse_object_order(previous),
+            previous,
             _reverse_object_order(proposed),
             _reverse_object_order(platform_configuration),
         )
 
         self.assertEqual(canonical, permuted)
 
-    def test_initial_staged_registration_compiles_without_exposure(self) -> None:
+    def test_initial_active_registration_compiles_as_complete_generation(self) -> None:
         proposed = _load_vector("valid/initial-registration-set.v1.json")
         platform_configuration = _load_vector("valid/platform-configuration.v1.json")
 
@@ -452,7 +451,7 @@ class RegistrationCompilerTest(unittest.TestCase):
         )
         self.assertEqual(
             result.generation_digest,
-            "sha256:bdf0608ec2111ad74e6042edb2be550f47a8f4a15ca5ac7b3a6d09951df75008",
+            "sha256:68037a002b4334ab1ad0a0a2d983a9c60835327ec8c5ecea812a207e4d83dc29",
         )
 
     def test_application_feature_entitlement_field_fails_closed(self) -> None:
@@ -644,24 +643,6 @@ class RegistrationCompilerTest(unittest.TestCase):
             [("OWNER_CONFLICT", "/registrations/0/attachments/0/resource_reference")],
         )
 
-    def test_new_application_cannot_enter_directly_as_active(self) -> None:
-        proposed = copy.deepcopy(
-            _load_vector("valid/initial-registration-set.v1.json")
-        )
-        proposed["registrations"][0]["lifecycle"] = "active"
-
-        result = compile_registration_set(
-            None,
-            proposed,
-            _load_vector("valid/platform-configuration.v1.json"),
-        )
-
-        self.assertIsNone(result.compiled_configuration)
-        self.assertEqual(
-            [(violation.code, violation.path) for violation in result.violations],
-            [("LIFECYCLE_TRANSITION_INVALID", "/registrations/0/lifecycle")],
-        )
-
     def test_initial_application_begins_at_registration_revision_one(self) -> None:
         proposed = copy.deepcopy(
             _load_vector("valid/initial-registration-set.v1.json")
@@ -699,17 +680,17 @@ class RegistrationCompilerTest(unittest.TestCase):
         )
 
     def test_suspension_and_reactivation_are_whole_generation_transitions(self) -> None:
-        active = _load_vector("valid/active-registration-set.v1.json")
+        active = _load_vector("valid/initial-registration-set.v1.json")
         suspended = copy.deepcopy(active)
-        suspended["generation"] = 3
+        suspended["generation"] = 2
         suspended["previous_generation_digest"] = (
-            "sha256:dbbf3a48ddfa7457bb5260bf4060958f31c2485317a255d51b7adca86c9f9224"
+            "sha256:68037a002b4334ab1ad0a0a2d983a9c60835327ec8c5ecea812a207e4d83dc29"
         )
         suspended["proposal"] = {
             "source_revision": "3333333",
             "change_summary": "Suspend alpha",
         }
-        suspended["registrations"][0]["registration_revision"] = 3
+        suspended["registrations"][0]["registration_revision"] = 2
         suspended["registrations"][0]["lifecycle"] = "suspended"
 
         suspended_result = compile_registration_set(
@@ -725,7 +706,7 @@ class RegistrationCompilerTest(unittest.TestCase):
             suspended_result.compiled_configuration["admission_policies"], []
         )
         reactivated = copy.deepcopy(suspended)
-        reactivated["generation"] = 4
+        reactivated["generation"] = 3
         reactivated["previous_generation_digest"] = (
             suspended_result.generation_digest
         )
@@ -733,7 +714,7 @@ class RegistrationCompilerTest(unittest.TestCase):
             "source_revision": "4444444",
             "change_summary": "Reactivate alpha",
         }
-        reactivated["registrations"][0]["registration_revision"] = 4
+        reactivated["registrations"][0]["registration_revision"] = 3
         reactivated["registrations"][0]["lifecycle"] = "active"
 
         reactivated_result = compile_registration_set(
@@ -744,32 +725,6 @@ class RegistrationCompilerTest(unittest.TestCase):
 
         self.assertEqual(reactivated_result.violations, ())
         self.assertEqual(len(reactivated_result.compiled_configuration["routes"]), 1)
-
-    def test_active_registration_cannot_transition_backward_to_staged(self) -> None:
-        active = _load_vector("valid/active-registration-set.v1.json")
-        proposed = copy.deepcopy(active)
-        proposed["generation"] = 3
-        proposed["previous_generation_digest"] = (
-            "sha256:dbbf3a48ddfa7457bb5260bf4060958f31c2485317a255d51b7adca86c9f9224"
-        )
-        proposed["proposal"] = {
-            "source_revision": "3333333",
-            "change_summary": "Attempt backward lifecycle transition",
-        }
-        proposed["registrations"][0]["registration_revision"] = 3
-        proposed["registrations"][0]["lifecycle"] = "staged"
-
-        result = compile_registration_set(
-            active,
-            proposed,
-            _load_vector("valid/platform-configuration.v1.json"),
-        )
-
-        self.assertIsNone(result.compiled_configuration)
-        self.assertEqual(
-            [(violation.code, violation.path) for violation in result.violations],
-            [("LIFECYCLE_TRANSITION_INVALID", "/registrations/0/lifecycle")],
-        )
 
     def test_attachment_adapter_must_be_enabled_by_platform_configuration(self) -> None:
         proposed = copy.deepcopy(
@@ -971,7 +926,7 @@ class RegistrationCompilerTest(unittest.TestCase):
         proposed = copy.deepcopy(previous)
         proposed["generation"] = 2
         proposed["previous_generation_digest"] = (
-            "sha256:bdf0608ec2111ad74e6042edb2be550f47a8f4a15ca5ac7b3a6d09951df75008"
+            "sha256:68037a002b4334ab1ad0a0a2d983a9c60835327ec8c5ecea812a207e4d83dc29"
         )
         proposed["proposal"] = {
             "source_revision": "2222222",
@@ -991,16 +946,16 @@ class RegistrationCompilerTest(unittest.TestCase):
             [("LIFECYCLE_TRANSITION_INVALID", "/registrations")],
         )
 
-    def test_later_generation_adds_new_application_as_staged(self) -> None:
+    def test_later_generation_adds_new_active_application_atomically(self) -> None:
         previous = _load_vector("valid/initial-registration-set.v1.json")
         proposed = copy.deepcopy(previous)
         proposed["generation"] = 2
         proposed["previous_generation_digest"] = (
-            "sha256:bdf0608ec2111ad74e6042edb2be550f47a8f4a15ca5ac7b3a6d09951df75008"
+            "sha256:68037a002b4334ab1ad0a0a2d983a9c60835327ec8c5ecea812a207e4d83dc29"
         )
         proposed["proposal"] = {
             "source_revision": "2222222",
-            "change_summary": "Incorrectly activate beta on entry",
+            "change_summary": "Add beta as an active application",
         }
         second = copy.deepcopy(proposed["registrations"][0])
         second["application_id"] = "beta-app"
@@ -1019,10 +974,10 @@ class RegistrationCompilerTest(unittest.TestCase):
             _load_vector("valid/platform-configuration.v1.json"),
         )
 
-        self.assertIsNone(result.compiled_configuration)
+        self.assertEqual(result.violations, ())
         self.assertEqual(
-            [(violation.code, violation.path) for violation in result.violations],
-            [("LIFECYCLE_TRANSITION_INVALID", "/registrations/1/lifecycle")],
+            [route["application_id"] for route in result.compiled_configuration["routes"]],
+            ["alpha-app", "beta-app"],
         )
 
     def test_later_generation_adds_new_application_at_revision_one(self) -> None:
@@ -1030,7 +985,7 @@ class RegistrationCompilerTest(unittest.TestCase):
         proposed = copy.deepcopy(previous)
         proposed["generation"] = 2
         proposed["previous_generation_digest"] = (
-            "sha256:bdf0608ec2111ad74e6042edb2be550f47a8f4a15ca5ac7b3a6d09951df75008"
+            "sha256:68037a002b4334ab1ad0a0a2d983a9c60835327ec8c5ecea812a207e4d83dc29"
         )
         proposed["proposal"] = {
             "source_revision": "2222222",
@@ -1064,13 +1019,13 @@ class RegistrationCompilerTest(unittest.TestCase):
         proposed = copy.deepcopy(previous)
         proposed["generation"] = 2
         proposed["previous_generation_digest"] = (
-            "sha256:bdf0608ec2111ad74e6042edb2be550f47a8f4a15ca5ac7b3a6d09951df75008"
+            "sha256:68037a002b4334ab1ad0a0a2d983a9c60835327ec8c5ecea812a207e4d83dc29"
         )
         proposed["proposal"] = {
             "source_revision": "2222222",
             "change_summary": "Activate alpha",
         }
-        proposed["registrations"][0]["lifecycle"] = "active"
+        proposed["registrations"][0]["catalogue"]["title"] = "Alpha updated"
 
         result = compile_registration_set(
             previous,
@@ -1087,15 +1042,15 @@ class RegistrationCompilerTest(unittest.TestCase):
     def test_retired_registration_is_a_terminal_tombstone(self) -> None:
         previous = _load_vector("valid/retired-registration-set.v1.json")
         proposed = copy.deepcopy(previous)
-        proposed["generation"] = 4
+        proposed["generation"] = 3
         proposed["previous_generation_digest"] = (
-            "sha256:1f0c716cb37cba205260f90913c68aea29c7ed4d86a79b9e9b934da772547eb2"
+            "sha256:0a3be6df032aa8f05b93bee989822c8600aaea882bb106d36caa6d9b5832e127"
         )
         proposed["proposal"] = {
             "source_revision": "4444444",
             "change_summary": "Attempt to reactivate alpha",
         }
-        proposed["registrations"][0]["registration_revision"] = 4
+        proposed["registrations"][0]["registration_revision"] = 3
         proposed["registrations"][0]["lifecycle"] = "active"
 
         result = compile_registration_set(
@@ -1113,15 +1068,15 @@ class RegistrationCompilerTest(unittest.TestCase):
     def test_retired_tombstone_values_are_immutable(self) -> None:
         previous = _load_vector("valid/retired-registration-set.v1.json")
         proposed = copy.deepcopy(previous)
-        proposed["generation"] = 4
+        proposed["generation"] = 3
         proposed["previous_generation_digest"] = (
-            "sha256:1f0c716cb37cba205260f90913c68aea29c7ed4d86a79b9e9b934da772547eb2"
+            "sha256:0a3be6df032aa8f05b93bee989822c8600aaea882bb106d36caa6d9b5832e127"
         )
         proposed["proposal"] = {
             "source_revision": "4444444",
             "change_summary": "Attempt to rewrite retired metadata",
         }
-        proposed["registrations"][0]["registration_revision"] = 4
+        proposed["registrations"][0]["registration_revision"] = 3
         proposed["registrations"][0]["catalogue"]["title"] = "Rewritten"
 
         result = compile_registration_set(

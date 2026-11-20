@@ -20,7 +20,7 @@
       "admission": {
         "mode": "authenticated"
       },
-      "lifecycle": "staged",
+      "lifecycle": "active",
       "attachments": [
         {
           "contract_version": 1,
@@ -49,7 +49,7 @@
       "admission": {
         "mode": "authenticated"
       },
-      "lifecycle": "staged",
+      "lifecycle": "active",
       "attachments": [
         {
           "contract_version": 1,

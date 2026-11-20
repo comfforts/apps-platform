@@ -59,7 +59,7 @@ def proposal(
 
 @dataclass
 class FakeProvider:
-    staged: list[tuple[RegistrationGenerationProposal, bytes]] = field(
+    published: list[tuple[RegistrationGenerationProposal, bytes]] = field(
         default_factory=list
     )
     activations: list[tuple[str, str, str, str]] = field(default_factory=list)
@@ -71,10 +71,10 @@ class FakeProvider:
         value: RegistrationGenerationProposal,
         compiled_configuration: bytes,
     ) -> ProviderGenerationPublication:
-        self.staged.append((value, compiled_configuration))
+        self.published.append((value, compiled_configuration))
         return ProviderGenerationPublication(
             created=True,
-            object_generation=len(self.staged),
+            object_generation=len(self.published),
             revision_name=f"app-platform-edge-g{value.registration_set['generation']}",
             readback_matches=self.stage_matches,
         )
@@ -124,9 +124,9 @@ class LocalGenerationControlTest(unittest.TestCase):
         self.assertFalse(second.created)
         self.assertTrue(first.readback_matches)
         self.assertEqual(first.publication_reference, second.publication_reference)
-        self.assertEqual(len(provider.staged), 1)
+        self.assertEqual(len(provider.published), 1)
         self.assertEqual(
-            provider.staged[0][1],
+            provider.published[0][1],
             b'{"contract_version":1,"generation":1,"routes":[]}',
         )
 

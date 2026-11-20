@@ -236,18 +236,15 @@ class ReferenceEdgeTest(unittest.TestCase):
             "urn:comfforts:app-platform:fixture:beta-app:web": self.beta,
             "urn:comfforts:app-platform:fixture:gamma-app:web": self.gamma,
         }
-        self.staged_registrations = self._registrations("staged", 1)
+        self.initial_registrations = self._registrations("active", 1)
         self.edge = ReferenceEdge(self.attachments)
-        staged = self.edge.activate(
-            _registration_set(1, None, self.staged_registrations)
-        )
-        self.assertTrue(staged.accepted)
-        self.assertIsNotNone(staged.generation_digest)
-        active_registrations = self._registrations("active", 2)
-        active_registrations[0]["lifecycle"] = "staged"
-        active_registrations[0]["registration_revision"] = 1
+        active_registrations = [
+            registration
+            for registration in self.initial_registrations
+            if registration["application_id"] != "gamma-app"
+        ]
         active = self.edge.activate(
-            _registration_set(2, staged.generation_digest, active_registrations)
+            _registration_set(1, None, active_registrations)
         )
         self.assertTrue(active.accepted)
         self.active_digest = active.generation_digest
@@ -354,7 +351,7 @@ class ReferenceEdgeTest(unittest.TestCase):
         self.assertFalse(self.gamma.requests)
 
     def test_activation_rejects_wrong_or_unavailable_fixture_binding_atomically(self) -> None:
-        wrong_reference = _registration_set(1, None, self.staged_registrations)
+        wrong_reference = _registration_set(1, None, self.initial_registrations)
         wrong_reference["registrations"][0]["attachments"][0][
             "resource_reference"
         ] = "urn:comfforts:app-platform:fixture:gamma-app:other"
@@ -364,17 +361,16 @@ class ReferenceEdgeTest(unittest.TestCase):
         self.assertEqual(rejected.issues[0].code, "ATTACHMENT_INVALID")
         self.assertEqual(empty_edge.handle(Request("GET", "/")).status, 503)
 
-        proposed = self._registrations("active", 2)
-        proposed[0]["lifecycle"] = "staged"
+        proposed = self._registrations("active", 1)
         proposed[0]["registration_revision"] = 1
         beta = next(item for item in proposed if item["application_id"] == "beta-app")
-        beta["registration_revision"] = 3
+        beta["registration_revision"] = 2
         beta["attachments"][0]["attachment_id"] = "replacement"
         beta["attachments"][0]["resource_reference"] = (
             "urn:comfforts:app-platform:fixture:beta-app:replacement"
         )
         failed = self.edge.activate(
-            _registration_set(3, self.active_digest, proposed)
+            _registration_set(2, self.active_digest, proposed)
         )
 
         self.assertFalse(failed.accepted)
@@ -456,7 +452,7 @@ class ReferenceEdgeTest(unittest.TestCase):
         )
 
     def test_activation_and_requests_do_not_mutate_caller_inputs(self) -> None:
-        registration_set = _registration_set(1, None, self.staged_registrations)
+        registration_set = _registration_set(1, None, self.initial_registrations)
         before_registration = copy.deepcopy(registration_set)
         request = Request("GET", "/alpha", headers=(("X-Test", "value"),))
 
@@ -588,16 +584,8 @@ class FixtureIdentityTest(unittest.TestCase):
             identity_adapter=identity_adapter,
             identity_signer=signer,
         )
-        staged = self.edge.activate(
-            _registration_set(1, None, self._registrations("staged", 1))
-        )
-        self.assertTrue(staged.accepted)
         active = self.edge.activate(
-            _registration_set(
-                2,
-                staged.generation_digest,
-                self._registrations("active", 2),
-            )
+            _registration_set(1, None, self._registrations("active", 1))
         )
         self.assertTrue(active.accepted)
 
@@ -774,16 +762,8 @@ class FixtureIdentityTest(unittest.TestCase):
 
     def test_protected_route_fails_closed_without_identity_dependencies(self) -> None:
         edge = ReferenceEdge(self.attachment_map)
-        staged = edge.activate(
-            _registration_set(1, None, self._registrations("staged", 1))
-        )
-        self.assertTrue(staged.accepted)
         active = edge.activate(
-            _registration_set(
-                2,
-                staged.generation_digest,
-                self._registrations("active", 2),
-            )
+            _registration_set(1, None, self._registrations("active", 1))
         )
         self.assertTrue(active.accepted)
 
@@ -1098,7 +1078,7 @@ class FixtureLifecycleTest(unittest.TestCase):
         self.manifest = manifest_document.value
         self.assertEqual(
             [entry["generation"] for entry in self.manifest["generations"]],
-            list(range(1, 8)),
+            list(range(1, 7)),
         )
         self.registration_sets: list[dict[str, Any]] = []
         for entry in self.manifest["generations"]:
@@ -1179,18 +1159,6 @@ class FixtureLifecycleTest(unittest.TestCase):
         )
 
         generation_1_digest = self._activate(1)
-        self.assertEqual(self._catalogue().links, [])
-        self.assertEqual(
-            self.edge.handle(Request("GET", "/public")).status,
-            404,
-        )
-        self.assertEqual(
-            self._snapshots()["fixture-public"].handled_requests,
-            0,
-        )
-
-        generation_2_digest = self._activate(2)
-        self.assertNotEqual(generation_1_digest, generation_2_digest)
         self.assertEqual(self._catalogue().links, ["/public", "/restricted"])
         initial_public = self.edge.handle(Request("GET", "/public"))
         initial_authenticated = self.edge.handle(
@@ -1212,7 +1180,7 @@ class FixtureLifecycleTest(unittest.TestCase):
             before_release["fixture-public"].handled_requests + 1,
         )
 
-        stale_update = copy.deepcopy(self.registration_sets[2])
+        stale_update = copy.deepcopy(self.registration_sets[1])
         stale_update["previous_generation_digest"] = "sha256:" + ("0" * 64)
         rejected_stale = self.edge.activate(stale_update)
         self.assertFalse(rejected_stale.accepted)
@@ -1222,12 +1190,13 @@ class FixtureLifecycleTest(unittest.TestCase):
             b"public fixture release 2\n",
         )
 
-        self._activate(3)
+        generation_2_digest = self._activate(2)
+        self.assertNotEqual(generation_1_digest, generation_2_digest)
         updated_catalogue = self._catalogue()
         self.assertIn("Public Fixture Updated", "".join(updated_catalogue.text))
 
         before_suspension = self._snapshots()
-        self._activate(4)
+        self._activate(3)
         self.assertEqual(self._snapshots(), before_suspension)
         self.assertNotIn("/public", self._catalogue().links)
         suspended = self.edge.handle(Request("GET", "/public"))
@@ -1245,14 +1214,14 @@ class FixtureLifecycleTest(unittest.TestCase):
         self.assertEqual(restricted.status, 200)
 
         before_reactivation = self._snapshots()
-        self._activate(5)
+        self._activate(4)
         self.assertEqual(self._snapshots(), before_reactivation)
         self.assertEqual(
             self.edge.handle(Request("GET", "/public")).body,
             b"public fixture release 2\n",
         )
 
-        unavailable_replacement = copy.deepcopy(self.registration_sets[5])
+        unavailable_replacement = copy.deepcopy(self.registration_sets[4])
         public_registration = next(
             item
             for item in unavailable_replacement["registrations"]
@@ -1278,7 +1247,7 @@ class FixtureLifecycleTest(unittest.TestCase):
             b"public fixture release 2\n",
         )
 
-        generation_6_digest = self._activate(6)
+        generation_5_digest = self._activate(5)
         replaced = self.edge.handle(Request("GET", "/public"))
         self.assertEqual(replaced.body, b"public fixture v2\n")
         self.assertTrue(self.public_v1.requests)
@@ -1310,7 +1279,7 @@ class FixtureLifecycleTest(unittest.TestCase):
         )
         self.assertEqual(authenticated_before_retirement.status, 200)
         before_retirement = self._snapshots()
-        generation_7_digest = self._activate(7)
+        generation_6_digest = self._activate(6)
         self.assertEqual(self._snapshots(), before_retirement)
         retired = self.edge.handle(
             Request(
@@ -1328,9 +1297,9 @@ class FixtureLifecycleTest(unittest.TestCase):
             before_retirement["fixture-authenticated"],
         )
 
-        invalid_reactivation = copy.deepcopy(self.registration_sets[6])
-        invalid_reactivation["generation"] = 8
-        invalid_reactivation["previous_generation_digest"] = generation_7_digest
+        invalid_reactivation = copy.deepcopy(self.registration_sets[5])
+        invalid_reactivation["generation"] = 7
+        invalid_reactivation["previous_generation_digest"] = generation_6_digest
         invalid_reactivation["proposal"]["change_summary"] = (
             "Attempt to reactivate a retired fixture"
         )
@@ -1339,7 +1308,7 @@ class FixtureLifecycleTest(unittest.TestCase):
             for item in invalid_reactivation["registrations"]
             if item["application_id"] == "fixture-authenticated"
         )
-        authenticated_registration["registration_revision"] = 4
+        authenticated_registration["registration_revision"] = 3
         authenticated_registration["lifecycle"] = "active"
         rejected_reactivation = self.edge.activate(invalid_reactivation)
         self.assertFalse(rejected_reactivation.accepted)
@@ -1359,11 +1328,11 @@ class FixtureLifecycleTest(unittest.TestCase):
         )
 
         state_before_rollback = self._snapshots()
-        rollback_replacement = self.edge.rollback(generation_6_digest)
+        rollback_replacement = self.edge.rollback(generation_5_digest)
         self.assertTrue(rollback_replacement.accepted)
         self.assertEqual(
             rollback_replacement.generation_digest,
-            generation_6_digest,
+            generation_5_digest,
         )
         self.assertEqual(self._snapshots(), state_before_rollback)
         self.assertEqual(
@@ -1379,13 +1348,13 @@ class FixtureLifecycleTest(unittest.TestCase):
         )
         self.assertEqual(restored_authenticated.status, 200)
 
-        generation_5_digest = self.manifest["generations"][4]["expected_digest"]
+        generation_4_digest = self.manifest["generations"][3]["expected_digest"]
         state_before_old_target = self._snapshots()
-        rollback_old_target = self.edge.rollback(generation_5_digest)
+        rollback_old_target = self.edge.rollback(generation_4_digest)
         self.assertTrue(rollback_old_target.accepted)
         self.assertEqual(
             rollback_old_target.generation_digest,
-            generation_5_digest,
+            generation_4_digest,
         )
         self.assertEqual(self._snapshots(), state_before_old_target)
         self.assertEqual(
@@ -1393,7 +1362,7 @@ class FixtureLifecycleTest(unittest.TestCase):
             b"public fixture release 2\n",
         )
 
-        conflicting_generation = copy.deepcopy(self.registration_sets[5])
+        conflicting_generation = copy.deepcopy(self.registration_sets[4])
         conflicting_public = next(
             item
             for item in conflicting_generation["registrations"]

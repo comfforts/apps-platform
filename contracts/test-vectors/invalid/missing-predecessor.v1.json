@@ -1,6 +1,6 @@
 {
   "contract_version": 1,
-  "generation": 3,
+  "generation": 2,
   "previous_generation_digest": null,
   "proposal": {
     "source_revision": "ccccccc",
@@ -10,7 +10,7 @@
     {
       "contract_version": 1,
       "application_id": "alpha-app",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/alpha",
       "catalogue": {
         "visibility": "listed",

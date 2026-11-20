@@ -4,7 +4,7 @@
   "previous_generation_digest": null,
   "proposal": {
     "source_revision": "f78c4a73f1507afc6de52cbaadc3c7d6d8b042aa633155ac2e3a4ec37b997d2c",
-    "change_summary": "Stage the three independent deterministic Fixture Applications"
+    "change_summary": "Register the three independent deterministic Fixture Applications"
   },
   "registrations": [
     {
@@ -20,7 +20,7 @@
       "admission": {
         "mode": "authenticated"
       },
-      "lifecycle": "staged",
+      "lifecycle": "active",
       "attachments": [
         {
           "contract_version": 1,
@@ -49,7 +49,7 @@
       "admission": {
         "mode": "public"
       },
-      "lifecycle": "staged",
+      "lifecycle": "active",
       "attachments": [
         {
           "contract_version": 1,
@@ -96,7 +96,7 @@
           }
         ]
       },
-      "lifecycle": "staged",
+      "lifecycle": "active",
       "attachments": [
         {
           "contract_version": 1,

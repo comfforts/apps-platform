@@ -67,16 +67,16 @@ AsgiSend = Callable[[AsgiMessage], Awaitable[None]]
 AsgiApplication = Callable[[AsgiScope, AsgiReceive, AsgiSend], Awaitable[None]]
 
 GENERATION_BUCKET = "qualification-config"
-GENERATION_OBJECT = "compiled/generation-2.json"
+GENERATION_OBJECT = "compiled/generation-1.json"
 GENERATION_OBJECT_GENERATION = 7
 SOURCE_REVISION = "0123456789abcdef0123456789abcdef01234567"
 GENERATION_CONTENT_DIGEST = (
-    "sha256:697e0ef7d5c03490afe2e82f990fa306"
-    "ad5a19b37b575de1b70634bc966f930e"
+    "sha256:93d1f37e0675f9636ec1933bffbefe9d"
+    "ae7c776ad66dbdcc70361e464b791283"
 )
 GENERATION_DIGEST = (
-    "sha256:dbbf3a48ddfa7457bb5260bf4060958f"
-    "31c2485317a255d51b7adca86c9f9224"
+    "sha256:68037a002b4334ab1ad0a0a2d983a9c"
+    "60835327ec8c5ecea812a207e4d83dc29"
 )
 
 
@@ -166,7 +166,7 @@ class ResponseHeaders(dict[bytes, bytes]):
 
 def valid_generation_payload() -> bytes:
     return (
-        PROJECT_ROOT / "contracts/test-vectors/valid/compiled-active.v1.json"
+        PROJECT_ROOT / "contracts/test-vectors/valid/compiled-initial.v1.json"
     ).read_bytes()
 
 
@@ -2491,11 +2491,10 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
     ) -> None:
         document = compiled_generation()
         expected = {
-            "staged": (404, b"not found\n"),
             "suspended": (503, b"temporarily unavailable\n"),
             "retired": (410, b"permanently removed\n"),
         }
-        for lifecycle in ("staged", "suspended", "retired"):
+        for lifecycle in ("suspended", "retired"):
             application_id = f"{lifecycle}-app"
             route_prefix = f"/{lifecycle}"
             state = copy.deepcopy(document["application_states"][0])
@@ -2544,7 +2543,7 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         )
         self.assertEqual(catalogue_status, 200)
         self.assertIn(b'href="/alpha"', catalogue_body)
-        for lifecycle in ("staged", "suspended", "retired"):
+        for lifecycle in ("suspended", "retired"):
             with self.subTest(lifecycle=lifecycle):
                 route_prefix = f"/{lifecycle}"
                 self.assertNotIn(route_prefix.encode("ascii"), catalogue_body)

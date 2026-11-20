@@ -1,4 +1,4 @@
-"""AP-M9-W6 exact staged deployment through deterministic command fakes."""
+"""AP-M9-W6 exact multi-stage deployment through deterministic command fakes."""
 
 from __future__ import annotations
 

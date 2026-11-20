@@ -133,8 +133,8 @@ class CompletionEventTest(unittest.IsolatedAsyncioTestCase):
             application,
             source_revision=SOURCE_REVISION,
             generation_digest=(
-                "sha256:dbbf3a48ddfa7457bb5260bf4060958f"
-                "31c2485317a255d51b7adca86c9f9224"
+                "sha256:68037a002b4334ab1ad0a0a2d983a9c"
+                "60835327ec8c5ecea812a207e4d83dc29"
             ),
             correlation_ids=FixedCorrelationIds(["request-correlation-0001"]),
             sink=sink,
@@ -317,7 +317,7 @@ class RuntimeStatusTest(unittest.TestCase):
             },
         )
         self.assertEqual(document["source_revision"], SOURCE_REVISION)
-        self.assertEqual(document["generation"]["number"], 2)
+        self.assertEqual(document["generation"]["number"], 1)
         self.assertEqual(
             document["generation"]["digest"],
             compiled_generation()["generation_digest"],

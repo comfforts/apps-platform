@@ -20,7 +20,7 @@
       "admission": {
         "mode": "owner-only"
       },
-      "lifecycle": "staged",
+      "lifecycle": "active",
       "attachments": [
         {
           "contract_version": 1,

@@ -748,7 +748,7 @@ class ApplicationIntegrationLifecycle:
                 current.registration_set["registrations"] if current is not None else []
             )
         }
-        staged_registrations: list[dict[str, Any]] = []
+        active_registrations: list[dict[str, Any]] = []
         unchanged = current is not None
         for entry in entries:
             validated = self.validate_attachment(
@@ -781,12 +781,12 @@ class ApplicationIntegrationLifecycle:
                 if key != "registration_revision"
             }:
                 unchanged = False
-            staged_registrations.append(
+            active_registrations.append(
                 self._application_registration(
                     entry.integration_bundle,
                     entry.attachment_bundle,
                     entry.intent,
-                    "staged",
+                    "active",
                     (
                         int(previous["registration_revision"]) + 1
                         if previous is not None
@@ -803,41 +803,11 @@ class ApplicationIntegrationLifecycle:
                 generation_digest=current.generation_digest,
             )
 
-        staged_proposal = self._compile_complete_generation(
-            environment,
-            next(iter(source_revisions)),
-            current,
-            tuple(staged_registrations),
-            "Stage complete Fixture Application suite",
-        )
-        if staged_proposal is None:
-            return self._registration_blocked("REGISTRATION_COMPILATION_FAILED")
-        try:
-            staged_publication = self._generation_control.publish(staged_proposal)
-        except Exception:
-            return self._registration_blocked("GENERATION_PUBLICATION_FAILED")
-        if (
-            not staged_publication.readback_matches
-            or staged_publication.generation_digest
-            != staged_proposal.generation_digest
-            or staged_publication.content_digest != staged_proposal.content_digest
-            or not staged_publication.publication_reference
-        ):
-            return self._registration_blocked("GENERATION_READBACK_MISMATCH")
-
-        active_registrations = tuple(
-            {
-                **copy.deepcopy(registration),
-                "lifecycle": "active",
-                "registration_revision": int(registration["registration_revision"]) + 1,
-            }
-            for registration in staged_registrations
-        )
         active_proposal = self._compile_complete_generation(
             environment,
             next(iter(source_revisions)),
-            staged_proposal,
-            active_registrations,
+            current,
+            tuple(active_registrations),
             "Activate complete Fixture Application suite",
         )
         if active_proposal is None:
@@ -998,12 +968,11 @@ class ApplicationIntegrationLifecycle:
         if current_registration is not None and current_registration["lifecycle"] == "retired":
             return self._registration_blocked("APPLICATION_RETIRED")
 
-        first_lifecycle = "staged" if current_registration is None else "active"
         desired = self._application_registration(
             integration_bundle,
             attachment_bundle,
             intent,
-            first_lifecycle,
+            "active",
             (
                 int(current_registration["registration_revision"])
                 if current_registration is not None
@@ -1042,25 +1011,7 @@ class ApplicationIntegrationLifecycle:
         if proposal is None:
             return self._registration_blocked("REGISTRATION_COMPILATION_FAILED")
         result = self._publish_and_activate(proposal)
-        if result.outcome != "activated" or first_lifecycle == "active":
-            return result
-
-        active = copy.deepcopy(desired)
-        active["lifecycle"] = "active"
-        active["registration_revision"] = int(desired["registration_revision"]) + 1
-        active_proposal = self._compile_generation(
-            environment,
-            source_revision,
-            proposal,
-            active,
-            f"Activate {application_id}",
-        )
-        if active_proposal is None:
-            return self._registration_blocked(
-                "REGISTRATION_COMPILATION_FAILED",
-                proposal=proposal,
-            )
-        return self._publish_and_activate(active_proposal)
+        return result
 
     def _transition(
         self,

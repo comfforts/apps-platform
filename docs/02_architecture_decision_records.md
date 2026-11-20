@@ -219,11 +219,11 @@ Fixture behavior and data must be deterministic and synthetic. Fixture qualifica
 no Finance Assistant code, production application data, paid provider, application credential, or
 write access to a real application's state.
 
-An Integration Draft may describe how a real application could consume the qualified platform
-interfaces, but it is not an application change and is not platform acceptance evidence. Application
-Adoption occurs only when the Application Owner incorporates the proposal through that application's
-own requirements, decisions, contracts, implementation, tests, state migration, cutover, rollback,
-and release approval. A cutover must leave each resource with one active state owner.
+An external application migration proposal may describe how a real application could consume the
+qualified platform interfaces, but it is not an application change and is not platform acceptance
+evidence. Application Adoption occurs only through the Application Owner's requirements, decisions,
+contracts, implementation, tests, state migration, cutover, rollback, and release approval. A
+cutover must leave each resource with one active state owner.
 
 The fixture topology, implementation language, synthetic identities, entitlement model, and
 qualification evidence schema remain system-design and evaluation decisions.
@@ -577,8 +577,8 @@ touching existing Finance Assistant records.
 
 Complete Registration Sets remain reviewed Git inputs. The deterministic compiler validates the
 declared predecessor and produces one canonical generation digest before Terraform planning. A
-content-addressed, immutable compiled configuration object is staged in a platform-owned GCS
-configuration bucket under that digest. The object is restricted platform configuration: it may
+content-addressed, immutable compiled configuration object is published as an inactive candidate in
+a platform-owned GCS configuration bucket under that digest. The object is restricted platform configuration: it may
 contain the issuer-and-subject membership required by a restricted Admission Mode, but it contains
 no secret, credential, signed assertion, request payload, or application data and is never a public
 catalogue or evidence artifact.
@@ -903,8 +903,17 @@ interactive interface.
 ### Consequences
 
 - The operator can complete one deployment without switching between local lifecycle invocations.
+- `platform-preflight` provides an optional readiness-only diagnostic over the same source,
+  profile, tool, authentication, project, ownership, and discovery checks. It reports blockers but
+  creates no specification, digest, approval, journal, plan, local deployment state, or external
+  mutation.
 - `platform-deploy` performs preparation, review, approval, and deployment in one process;
-  `platform-prepare` remains an optional read-only preview.
+  `platform-prepare` remains an optional read-only preview. When that preview has already stored a
+  current approved specification, deploy discovers and reuses it after freshness validation
+  without requiring a copied digest; absent, stale, or unapproved intent returns to preparation.
+- Automatic selection never trusts a pointer alone: canonical readback, exact source/profile/
+  environment/approval binding, current session/project/tool/provider discovery, and journal
+  compatibility must pass. Malformed retained state and current blockers stop without replacement.
 - Deliberate invocation plus the in-process review gates authorizes an ordinary staging execution;
   repository merge alone never starts one.
 - Source binding is enforced by the lifecycle and retained evidence rather than by a remote runner
@@ -947,10 +956,18 @@ Registration validates the returned bundle, target metadata, owner, ingress, cal
 audience, and current platform-bundle digest before activation. Neither bundle grants state access
 or transfers resource ownership.
 
+The repository-owned fixture operator may persist an exact canonical bundle pair in ignored private
+operator state after deploying and reading back one fixture but before registration. It exposes the
+two paths and digests for inspection. A later end-to-end fixture deployment may reuse the pair only
+after revalidating its complete source, platform-generation, image, digest, relationship, and live
+target bindings; otherwise it regenerates the handoff through the normal lifecycle.
+
 ### Consequences
 
 - Applications can deploy and destroy independently using an explicit platform contract.
 - Bundle digests expose stale handoffs without coupling either owner to another backend.
+- Optional fixture inspection does not activate a route, weaken registration validation, or make a
+  prepared bundle an authority record.
 - Application Adoption remains application-owned and cannot be inferred from bundle generation.
 
 ## ADR-013 · Isolate environments and distinguish detachment from permanent retirement

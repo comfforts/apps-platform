@@ -4,7 +4,7 @@ Status: historical record at source revision `7b6678a7f0b3036d427517dad6bc3bec87
 superseded by AP-M9; no active instruction or action authority
 
 This file preserves the prior manifest-driven procedure for review history. Do not follow it as an
-operator runbook. The current design is [AP-M9 environment lifecycle](environment_lifecycle.md).
+operator runbook. The current procedure is [Environment lifecycle](environment_lifecycle.md).
 AP-M8-W3 through AP-M8-W12 never began, and no real operator manifest was accepted.
 
 This runbook is subordinate to the App Platform requirements, accepted ADRs, system design,
@@ -621,5 +621,5 @@ document review, or expired bundle cannot create a pass.
 The truthful passing handoff names the exact deployed revision and calls it **deployed and not
 Live-qualified**. It may propose AP-M9 only after the AP-M8 implementation/evidence reconciliation
 pull request merges. It does not start AP-M9, invoke a runtime, declare rollback or recovery proven,
-activate Finance Assistant or an Integration Draft, authorize a real application, or claim
+activate Finance Assistant or an external application migration, authorize a real application, or claim
 Application Adoption.

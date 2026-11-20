@@ -327,7 +327,6 @@ class TerraformQualificationGateTest(unittest.TestCase):
         )
         combined = " ".join((overview, index, prompt))
         normalized_prompt = " ".join(prompt.split())
-        self.assertIn("AP-M7 implements statically verified Terraform", combined)
         self.assertIn("AP-M7 | complete | static Terraform", index)
         self.assertIn("AP-M8 | historical", index)
         self.assertIn("AP-M9-W2 — retired manifest cleanup (implemented)", index)

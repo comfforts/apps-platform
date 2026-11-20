@@ -1,6 +1,6 @@
 # App Platform repository layout
 
-Version 2.2 | Status: canonical dedicated repository; AP-M9-W8 qualification and destruction mechanics
+Version 2.3 | Status: canonical dedicated repository; AP-M9-W9 fixture lifecycle mechanics
 implemented; no backend, provider, DNS, deployment, or Live operation performed
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
@@ -24,7 +24,7 @@ permission to create a resource or perform an external action.
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
-| `infrastructure/operator/` | deep Python preparation, exact staged deployment, application integration, approval, journal, status, resume, injected adapters, and thin CLI |
+| `infrastructure/operator/` | deep Python preflight, preparation, exact multi-stage deployment, application integration, approval, journal, status, resume, injected adapters, and thin CLI |
 | `infrastructure/backend/` | AP-M9-W5 backend rendering, lineage, operation authority, plan policy, and fake command integration |
 | `infrastructure/terraform/bootstrap/` | state-bucket owner root with closed bootstrap phase output |
 | `infrastructure/terraform/platform/` | phased foundation and Shared Edge configuration on one Platform State lineage |
@@ -82,12 +82,14 @@ verified-session qualification and exact retained-resource destruction adapters;
 performed a provider request, image build, generation activation, rollback, qualification, or destruction.
 
 AP-M9-W9 adds the executable Fixture Application owner lifecycle over the existing image and three
-independent Terraform roots. It introduces shallow `fixture-deploy`, `fixture-status`, and
-`fixture-destroy` targets over the deep operator module, automatic platform/attachment bundle
-handoff, provider posture readback, complete-generation registration, and deterministic fake
-coverage, plus live qualification and safe platform-destruction adapter completion. Repository
-implementation performs no external operation; AP-M9-W10 is the first staging
-invocation from merged code.
+independent Terraform roots. It introduces shallow `fixture-handoff`, `fixture-deploy`,
+`fixture-status`, and `fixture-destroy` targets over the deep operator module, optional private
+pre-registration bundle inspection and exact reuse, automatic platform/attachment bundle handoff
+for one selected fixture, provider posture readback, registration generations that preserve other
+applications, suite-wide or selected status, automatic prepared-specification reuse, and a
+non-publishing `platform-preflight` readiness target with deterministic fake coverage, plus live
+qualification and safe platform-destruction adapter completion. Repository implementation performs
+no external operation; AP-M9-W10 is the first staging invocation from merged code.
 
 ## AP-M9 capability locations
 
@@ -118,8 +120,8 @@ policy stay testable without credentials or network access.
   `terraform_remote_state` as an integration contract.
 - Exchange only versioned, non-secret Platform Integration Bundles and Application Attachment
   Bundles across the platform/application boundary.
-- Keep inactive application-adoption inputs under `integrations/ai_finance_assistant/` outside the
-  authority chain until Finance adopts them through its own release authority.
+- Keep application-specific migration plans and adoption authority in the consuming application's
+  repository.
 - Update a public contract and all repository consumers in the same bounded slice.
 - Do not create a reserved path merely because this document names it.
 

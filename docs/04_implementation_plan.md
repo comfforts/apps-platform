@@ -1,6 +1,6 @@
 # App Platform implementation plan
 
-Version 0.15 | Status: AP-M9-W1 through AP-M9-W9 implemented;
+Version 0.16 | Status: AP-M9-W1 through AP-M9-W9 implemented;
 AP-M8-W1/W2 preserved historically; AP-M8-W3 through W12 superseded without execution; every
 external operator action remains pending
 
@@ -188,13 +188,11 @@ Deliverables update only:
 - `docs/README.md`;
 - `docs/repository_layout.md`;
 - `prompts/README.md` and `prompts/starting_prompt.md`;
-- `tests/test_governance.py`; and
-- the existing Finance Integration Draft checks only if required to preserve its inactive status.
+- `tests/test_governance.py`.
 
 The updates place the new authorities in the reading order, record contract implementation without
-claiming runtime behavior, preserve the inactive Finance package, and route the next task to item 4
-planning only after AP-M3 merges. They must not add a fixture implementation plan or evaluation
-authority.
+claiming runtime behavior, and route the next task to item 4 planning only after AP-M3 merges. They
+must not add a fixture implementation plan or evaluation authority.
 
 ## Ordered delivery
 
@@ -350,8 +348,8 @@ AP-M4 excludes:
 | Owner decisions | Recorded in design | Use the three fixtures, exact limits, synthetic assertion profile, and Git-reviewed registration model |
 
 Changing a Version 1 field, a requirement, an accepted ADR, or the Fixture evidence boundary stops
-the affected package for owner review. An Integration Draft, a real application, or live provider
-behavior cannot substitute for a missing AP-M4 dependency.
+the affected package for owner review. An external application migration proposal, a real
+application, or live provider behavior cannot substitute for a missing AP-M4 dependency.
 
 ### Work packages
 
@@ -664,7 +662,7 @@ Deliverables update only:
 - focused authority checks in `tests/test_governance.py`.
 
 This package selects content-addressed configurations, immutable edge revisions, the one active
-generation pointer, staged activation, explicit DNS/TLS sequencing, cross-layer readback, a
+generation pointer, candidate publication and atomic activation, explicit DNS/TLS sequencing, cross-layer readback, a
 15-minute post-approval rollback objective, and a 24-hour minimum retention window. It performs no
 activation, rollback, DNS lookup, or provider operation.
 
@@ -829,7 +827,7 @@ source, compiles an unreviewed set, or changes the current provider pointer.
 #### AP-M6-W4 · Catalogue and registered routing
 
 Implement escaped root-catalogue rendering, explicit platform-reserved paths, exact longest-prefix
-selection within the already compiled non-overlapping route set, mount rewriting, staged/suspended/
+selection within the already compiled non-overlapping route set, mount rewriting, suspended and
 retired exclusion, and closed unknown or malformed behavior. Framework routing contains no copy of
 registration-derived application routes.
 
@@ -912,8 +910,7 @@ AP-M6 is accepted only when all of the following are true:
    extraction-safe, and mandatory-skip-free in an already synchronized locked environment.
 9. The branch contains no Terraform, state, plan, credential, secret value, cloud call, repository
    setting change, DNS or identity mutation, deployment, or generated Live evidence.
-10. Finance Assistant and all existing applications and Integration Drafts remain unchanged and
-    inactive.
+10. Finance Assistant and all existing applications remain unchanged and inactive.
 
 Near-complete runtime behavior, an untested production adapter, a fake-only hypothetical seam, an
 implicit framework default, a provider lookup during tests, or a Live claim fails AP-M6.
@@ -1189,7 +1186,7 @@ AP-M7 is accepted only when all of the following are true:
    external network, provider APIs, repository mutation, or mandatory skips after explicit setup.
 9. The branch contains no state, saved plan, credential, secret value, authenticated artifact,
    executable cloud workflow, provider result, deployment, DNS change, or Live evidence.
-10. Finance Assistant and every Integration Draft remain unchanged and inactive.
+10. Finance Assistant and every real application remain unchanged and inactive.
 
 An unlocked provider, implicit registry access, reusable module with state ownership, cross-state
 read, synthetic value accepted as deployable, default-apply Terraform test, workflow capable of
@@ -1235,7 +1232,7 @@ denial, identity custody, multi-instance effects, rollback, recovery, and cost r
 | AP-M7-W10, AP-M7-W11 | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 | AP-TM-001 through AP-TM-014 |
 
 `AP-PR-006`, `AP-PR-009`, and `AP-TM-014` are negative constraints in AP-M7: infrastructure cannot
-grant a Feature Entitlement, activate an Integration Draft, or claim Application Adoption.
+grant a Feature Entitlement, perform an application migration, or claim Application Adoption.
 
 ## Historical AP-M8 · Manifest-driven qualification deployment — superseded
 
@@ -1284,7 +1281,7 @@ AP-M8 includes, only after the required package approvals:
 - one-time backend bootstrap, temporary-state migration, state-lineage and recovery verification,
   and independent backend initialization for Platform State and each Fixture Application State;
 - repository support for production composition, synthetic network fixtures, pinned images, a
-  provider-backed qualification Registration Set, staged Platform deployment, and separately
+  provider-backed qualification Registration Set, multi-stage Platform deployment, and separately
   scoped plan, apply, publication, DNS, rollback, force-unlock, and destroy workflows without
   granting one operation another's authority;
 - authenticated advisory and exact-main plans, explicit environment approval, source and plan
@@ -1564,8 +1561,8 @@ AP-M8 is accepted only when all of the following are true:
    retaining prohibited operational data.
 10. No result is called AP-M9 Live qualification, availability, cost proof, recovery proof,
     rollback proof, or Application Adoption.
-11. Finance Assistant, every Integration Draft, all existing hostnames, and every real application
-    remain unchanged and inactive.
+11. Finance Assistant, all existing hostnames, and every real application remain unchanged and
+    inactive.
 
 ### Security and privacy boundary
 
@@ -1604,7 +1601,8 @@ Application Adoption work even if all resources exist and read back correctly.
 | AP-M8-W11, AP-M8-W12 | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 | AP-TM-001 through AP-TM-014 |
 
 `AP-PR-006`, `AP-PR-009`, and `AP-TM-014` are negative constraints throughout AP-M8: deployment
-cannot grant a Feature Entitlement, activate an Integration Draft, or become Application Adoption.
+cannot grant a Feature Entitlement, perform an application migration, or become Application
+Adoption.
 
 ## AP-M9 · Operator-driven environment lifecycle
 
@@ -1642,7 +1640,7 @@ The normal operator interface is:
 ```text
 platform-prepare  platform-deploy  platform-status  platform-outputs
 platform-register platform-detach  platform-retire platform-qualify platform-destroy
-fixture-deploy    fixture-status   fixture-destroy
+fixture-handoff  fixture-deploy   fixture-status   fixture-destroy
 ```
 
 The local wizard remains active through OAuth and Squarespace work and continues after Enter.
@@ -1726,7 +1724,7 @@ or DNS action occurred in the repository slice.
 
 #### AP-M9-W6 · Interactive platform deployment
 
-Implemented the staged deployment engine: preflight; backend bootstrap; foundation; image
+Implemented the multi-stage deployment engine: preflight; backend bootstrap; foundation; image
 publication; OAuth branding/client/Secret Manager checkpoint; Shared Edge/load balancer/address;
 Squarespace DNS checkpoint; DNS propagation and TLS readiness; readback; stop-on-discrepancy; and
 resume. The same process displays exact manual values and waits for Enter. Every Terraform stage
@@ -1771,21 +1769,40 @@ destruction defaults without invoking them.
 #### AP-M9-W9 · Fixture Application deployment lifecycle — implemented
 
 Implemented one interactive fixture operator over the existing image, bundle, Terraform, provider,
-and registration seams. `fixture-deploy` builds and publishes one immutable source-bound fixture
-image, generates the public, authenticated, and restricted integration bundles, plans and applies
-the three roots sequentially in independent Application State lineages, reads back target and IAM
-posture, emits exact attachment bundles, and activates one complete Registration Generation.
-`fixture-status` is read-only. `fixture-destroy` detaches first, requires fixture-specific typed
+and registration seams. Each `fixture-deploy` invocation requires a fixture application identifier,
+builds or reuses one immutable source-bound fixture image, generates only that fixture's integration
+bundle, plans and applies only its independent Application State root, reads back target and IAM
+posture, emits its exact attachment bundle, and activates a complete Registration Generation while
+preserving other registrations. `fixture-status` is read-only and supports suite-wide or selected
+readback. `fixture-destroy` detaches first, requires fixture-specific typed
 confirmation, destroys only selected fixture Application State, and supports deterministic
 redeployment/reactivation. Every mutation uses the verified human session, fresh exact plans,
 policy, confirmation, readback, private journals, and safe resume. Deterministic fakes cover the
-complete journey. W9 also completes browser-mediated live qualification and staged platform
+complete journey. W9 also completes browser-mediated live qualification and multi-stage platform
 destruction through traffic disable, external-DNS removal, Shared Edge removal, protection unlock,
 destructible-foundation removal, and retained-inventory readback. W9 also binds `accepted` or
 `candidate` source authority into specifications, status, bundles, and qualification evidence. A
 candidate must be a clean pushed non-main revision containing current `origin/main`, can operate
 only on staging, publishes separate candidate evidence, and cannot authorize production or accepted
 qualification. This repository package performed no authenticated command or external operation.
+
+The optional `fixture-handoff` target extends the same W9 lifecycle without changing
+`fixture-deploy`: it deploys or reconciles one selected fixture, persists the canonical integration
+and attachment bundle pair in ignored private state, prints their paths and digests for inspection,
+and stops before registration. The ordinary deploy path reuses an exact prepared pair only after
+full source, generation, digest, image, relationship, and provider-posture revalidation.
+
+W9 also removes digest copy-and-paste from the optional platform-preparation flow. Default
+`platform-deploy` reads and revalidates the current approved specification and reuses it when its
+source, profile, environment, session, project, ownership, tool, provider, approval, and journal
+bindings remain exact. Absent, stale, or unapproved intent falls back to normal preparation;
+malformed retained state and current blockers stop without evidence replacement. Explicit digest
+selection remains supported as a non-default pin.
+
+W9 also adds `platform-preflight` as the non-publishing readiness path. It runs the same source,
+profile, tool, authentication, project, ownership, and discovery checks used before preparation,
+reports exact blockers, and stops before specification generation, digest publication, approval,
+executor construction, private lifecycle-state writes, or external mutation.
 
 #### AP-M9-W10 · Staging deployment and qualification
 
@@ -1909,7 +1926,7 @@ AP-M5 is accepted only when all of the following are true:
    state, saved plan, credential, secret, cloud call, DNS change, identity change, deployment, or
    generated Live evidence.
 8. Finance Assistant and every existing application resource, state, hostname, identity, access
-   rule, deployment, and integration package remain unchanged and inactive.
+   rule, deployment, and migration remain unchanged and outside the slice.
 9. Status and handoff text call AP-M5 planning authority only and leave Contract, Fixture, Live,
    and Adoption evidence classes unchanged.
 
@@ -1929,7 +1946,7 @@ The pull-request handoff records:
 - confirmation that no `infrastructure/`, runtime, live registration, state, saved plan, credential,
   provider call, repository mutation, DNS action, deployment, or authenticated artifact was added;
   and
-- confirmation that Finance Assistant and every Integration Draft remain unchanged and inactive.
+- confirmation that Finance Assistant and every real application remain unchanged and inactive.
 
 This is planning evidence for review, not a new evidence class and not Live evidence. Console output
 from the deterministic gate is sufficient; generated reports and screenshots are not committed.

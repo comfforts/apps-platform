@@ -69,7 +69,7 @@ resources or accepted operator input.
 
 This package intentionally exposes no prompt, approval, execution, resume, provider, Terraform,
 DNS, credential, or mutation behavior. The separate deep operator module consumes these documents:
-W4 for preparation/status, W6 for staged deployment, and W7 for least-data output generation,
+W4 for preparation/status, W6 for multi-stage deployment, and W7 for least-data output generation,
 attachment validation, and immutable whole-generation application lifecycle. The W7 provider and
 generation-control seams remain injected and locally unarmed; live provider behavior remains later
 work.

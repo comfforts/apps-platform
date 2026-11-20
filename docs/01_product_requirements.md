@@ -1,6 +1,6 @@
 # App Platform product requirements
 
-Version 0.3 | Status: requirements authority through the AP-M9 operator lifecycle; operational
+Version 0.4 | Status: requirements authority through the AP-M9 operator lifecycle; operational
 qualification remains unavailable
 
 This document defines what Comfforts App Platform must provide and the ownership boundaries it must
@@ -29,7 +29,7 @@ procedure completes.
 - **Platform Operator:** performs reviewed lifecycle and qualification procedures within the access
   granted by the Platform Owner.
 - **Application Owner:** controls a Registered Application's runtime, data, providers, feature
-  authorization, and adoption of an Integration Draft.
+  authorization, and Application Adoption.
 - **Visitor:** reaches the catalogue or an application route and may be anonymous, authenticated, or
   admitted under a more restrictive application policy.
 
@@ -103,10 +103,10 @@ staging qualification.
 
 ### AP-PR-009 · Explicit application adoption
 
-An Integration Draft must remain inactive until its consuming application adopts it through that
-application's own requirements, decisions, contracts, tests, and release process. Platform
-qualification must not depend on Finance Assistant migration, and platform documentation must not
-silently change Finance Assistant behavior or ownership.
+A real application may adopt the platform only through that application's own requirements,
+decisions, contracts, tests, migration, and release process. Platform qualification must not depend
+on a real-application migration, and platform documentation must not silently change another
+application's behavior or ownership.
 
 ### AP-PR-010 · Operator-controlled environment lifecycle
 
@@ -143,6 +143,12 @@ attachment. The Application Owner retains deployment authority and returns a ver
 Attachment Bundle identifying the application-owned target and the exact Platform Integration
 Bundle it consumed. The platform must validate the bundle and provider posture before a complete
 Registration Generation may route traffic to the attachment.
+
+The operator must be able to inspect the exact canonical Platform Integration Bundle and
+Application Attachment Bundle before registration. A repository-owned Fixture Application may
+reuse that prepared pair only while its environment, application, source authority, application
+source, platform source and generation, bundle digests, immutable image, and provider posture still
+match; inspection never authorizes registration by itself.
 
 An integration bundle must never contain an OAuth client secret, credential payload, Terraform
 state, application provider key, or a platform secret reference that the application is not
@@ -212,9 +218,15 @@ the operator restart the lifecycle. Generated execution records must be machine-
 than hand-authored. An interrupted operation must report its last accepted stage and provide a safe
 resume path. The normal deploy command must perform read-only preparation, specification review,
 approval, deployment, and manual checkpoints in one invocation; a separate prepare command is an
-optional dry run, not a mandatory operator round trip. Ordinary reviewed plan applications use one
-clear `y/N` confirmation after the plan is shown. Typed phrases are reserved for destruction,
-purge, ownership transfer, and similarly irreversible actions.
+optional dry run, not a mandatory operator round trip. When that dry run has already produced a
+current approved specification, the normal deploy command must locate and reuse it automatically
+after read-only freshness validation; the operator must not copy its digest between commands.
+Absent, stale, or unapproved intent must return to normal preparation, while malformed retained
+state or a current prerequisite blocker must fail closed. A separate optional preflight command
+must expose those readiness blockers without generating a specification or digest, asking for
+approval, writing lifecycle state, or mutating an external system. Ordinary reviewed plan
+applications use one clear `y/N` confirmation after the plan is shown. Typed phrases are reserved
+for destruction, purge, ownership transfer, and similarly irreversible actions.
 
 ### AP-QR-008 · Environment isolation
 

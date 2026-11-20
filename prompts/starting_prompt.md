@@ -30,10 +30,14 @@ Perform the staging journey from exact merged source:
    Review each displayed specification/action/plan, use its `y/N` gates, complete Google OAuth and
    Squarespace DNS work only at the displayed checkpoint, and press Enter for immediate readback.
    Enter the OAuth client secret only in Secret Manager, never in the terminal.
-4. Run `make fixture-deploy ENVIRONMENT=staging`. It must build one immutable source-bound image,
-   deploy the public/authenticated/restricted applications sequentially in three independent
-   Application State lineages, read back their posture, and activate one complete Registration
-   Generation without operator-authored manifests or bundle fields.
+4. Run `make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=<id>` separately for
+   `fixture-public`, `fixture-authenticated`, and `fixture-restricted`. Each invocation must build or
+   reuse the immutable source-bound image, operate only on the selected one of three independent
+   Application State lineages, read back its posture, and activate a complete Registration
+   Generation that preserves the other registrations without operator-authored manifests or bundle
+   fields. The optional `fixture-handoff` command may be run first for any selected fixture when the
+   operator wants to inspect its canonical integration and attachment bundles before registration;
+   it is not required for the normal W10 journey.
 5. Run `make fixture-status ENVIRONMENT=staging`, `make platform-status ENVIRONMENT=staging`, and
    `make platform-qualify ENVIRONMENT=staging`. Complete browser checkpoints without exporting
    cookies, sessions, assertions, identity claims, screenshots, or application payloads.
@@ -50,10 +54,8 @@ Perform the staging journey from exact merged source:
    raw outputs, state, plans, browser state, and checkpoint artifacts outside Git.
 
 Stop on the first discrepancy. Resume only through the existing private journal and identical
-immutable bindings. Do not mutate Finance Assistant, `apps.comfforts.com`, production, the inactive
-Finance integration package at `integrations/ai_finance_assistant/README.md`, or any real
-application. Read that package only if the owner separately scopes a compatibility review; it
-remains a non-authoritative input, cannot define generic platform behavior, and cannot define this
-operation. Do not claim Application Adoption,
+immutable bindings. Do not mutate `apps.comfforts.com`, production, or any real application.
+Application-specific migration and adoption remain under the consuming application's authority and
+cannot define this operation. Do not claim Application Adoption,
 production readiness, or production ownership transfer. AP-M9-W11 owns read-only production
 readiness after W10 is accepted.

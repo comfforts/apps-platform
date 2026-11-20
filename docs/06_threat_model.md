@@ -1,6 +1,6 @@
 # App Platform threat model
 
-Version 1.11 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
+Version 1.12 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
 implemented AP-M9-W8 repository lifecycle controls; no provider operation or live
 infrastructure is deployed
 
@@ -95,8 +95,8 @@ content and must not be rendered, logged, or published wholesale.
 - Source control and continuous integration are part of the future configuration control plane.
   Repository write access is privileged but does not by itself authorize live mutation.
 
-Finance Assistant is not a trusted platform test harness. Its Integration Draft is untrusted input
-to a future adoption review and grants no platform or Finance authority.
+No real application is a trusted platform test harness. External application migration material
+grants no platform authority and remains under the consuming application's authority.
 
 ## Trust zones and flows
 
@@ -485,16 +485,17 @@ without another target. The selected DNS, certificate, activation, and owner-con
 sequence is not implemented or qualified. Provider availability and disaster recovery beyond the
 15-minute post-approval rollback objective remain outside the demo commitment.
 
-### AP-TM-014 · Integration Draft or fixture mistaken for Application Adoption
+### AP-TM-014 · External migration proposal or fixture mistaken for Application Adoption
 
 **Scenario:** A draft integration, synthetic fixture result, or platform qualification is treated as
 permission to migrate a real application, broaden admission, transfer resources, or supersede the
 application's requirements and security decisions.
 
-**Required controls:** Integration Drafts remain outside both authority chains until adopted.
-Fixtures use synthetic state and cannot depend on a real application. Adoption names compatible
-contract revisions, application-owned authority changes, state-owner transitions, cutover,
-rollback, and product-specific evidence. One project cannot approve another project's change.
+**Required controls:** External migration proposals remain under the consuming application's
+authority. Fixtures use synthetic state and cannot depend on a real application. Adoption names
+compatible contract revisions, application-owned authority changes, state-owner transitions,
+cutover, rollback, and product-specific evidence. One project cannot approve another project's
+change.
 
 **Evidence:** `C` preserves authority labels and dependency checks. `F` proves only generic platform
 behavior. `A` is mandatory for every real application and retains its prior historical evidence.
@@ -590,7 +591,7 @@ without claiming implementation:
   or fallback to a local or stored credential.
 - **AP-TM-014:** The pool, provider, environments, workflows, and identities bind only the canonical
   App Platform repository and non-production qualification project. They grant no Finance
-  Assistant, production, real-application, Integration Draft, or Application Adoption authority.
+  Assistant, production, real-application migration, or Application Adoption authority.
 
 The initial federation setup remains a separately approved short-lived owner operation because no
 federated path exists yet. Its credential cannot enter Git or retained evidence, and the created
@@ -636,7 +637,7 @@ AP-M8-W1 defines these AP-M8-W5 controls without creating a backend or state:
   migration acceptance is a recovery incident.
 - **AP-TM-014:** Backend names, identities, prefixes, state, and evidence belong only to the
   non-production App Platform and synthetic Fixture Applications. No Finance, real-application,
-  Integration Draft, or Adoption state can enter the bootstrap or be inferred from it.
+  migration, or Adoption state can enter the bootstrap or be inferred from it.
 
 The initial owner credential may create only the four reviewed buckets and their exact controls.
 API enablement, billing mutation, project-wide storage roles, and non-backend resources require
@@ -696,7 +697,7 @@ generation, resource, record, or DNS entry:
   AP-M9 and requires a new approval even to reverse only the new record.
 - **AP-TM-014:** Images, Registration Sets, roots, identities, objects, state, hostname, and records
   remain confined to the App Platform qualification project and synthetic Fixture Applications.
-  No Finance, production, real-application, Integration Draft, or Adoption input can enter the
+  No Finance, production, real-application migration, or Adoption input can enter the
   sequence.
 
 The initial candidate has no predecessor and may receive 100 percent of its Cloud Run service's
@@ -746,7 +747,7 @@ creating evidence:
   reconstructed, or called a limitation. Recovery and rollback stay unexecuted.
 - **AP-TM-014:** The bundle names only the canonical repository, non-production qualification
   project/hostname, and three synthetic fixtures. Finance, production, real applications,
-  Integration Drafts, cross-project behavior, and Adoption remain unavailable and unchanged.
+  external migrations, cross-project behavior, and Adoption remain unavailable and unchanged.
 
 The proposed historical bundle was append-only under one private
 `ap-eval-m8/<source-revision>/<evaluation-id>/` prefix. Per-operation create-only permissions do not
@@ -776,7 +777,11 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
 - **AP-TM-007:** One canonical specification, exact-source check, stage-output graph, append-only
   Execution Journal, exact plan digest, state lock, provider readback, and resume cursor reject stale,
   concurrent, reordered, repeated, or partial lifecycle changes. A journal cannot authorize a
-  mutation absent from its parent specification.
+  mutation absent from its parent specification. Automatic current-specification selection requires
+  canonical readback plus exact source, profile, environment, approval, and compatible-journal
+  bindings before reuse; malformed retained state is never regenerated over silently. Inspectable
+  fixture bundle pairs are canonical, digest-bound private artifacts; an edit, partial write, stale
+  generation, or relationship mismatch is never accepted as a registration input.
 - **AP-TM-008 and AP-TM-009:** Environment, Platform State, Fixture Application State, and real
   Application State remain distinct. Bundles are reference exchange, not backend access. Detach,
   retire, application destruction, platform destruction, and environment destruction cannot cross
@@ -792,7 +797,13 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   `origin/main`, is staging-only, records separate evidence, and cannot authorize production or
   overwrite accepted qualification. A profile or journal edit, alternate or unpushed source, stale
   candidate base, wrong project, provider default, console mutation, or unexpected drift stops
-  before continuation.
+  before continuation. Default deploy revalidates the active human session, project, pinned tools,
+  ownership, and readable provider facts before automatically reusing current approved intent;
+  current blockers stop rather than being hidden by regeneration. Standalone preflight exposes the
+  same blocker set but cannot create or approve intent, initialize an executor, write lifecycle
+  state, plan, or mutate. Prepared fixture handoff reuse additionally requires the exact source
+  authority, application and platform revisions, active generation, image, bundle digests, and live
+  target posture; source equality alone is insufficient.
 - **AP-TM-012:** Preparation inventories every billable resource and destruction names every target.
   Existing limits, budgets, retention, scale-to-zero, and approved-service controls remain. A
   budget event never authorizes automated destruction.

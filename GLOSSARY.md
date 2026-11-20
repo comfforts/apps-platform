@@ -25,6 +25,15 @@ The canonical, digest-bound proposal produced by preparation for one environment
 fixes scope, stage order, allowed mutations, declared stage-output dependencies, checkpoints,
 readback, and failure behavior before deployment or destruction begins.
 
+## Platform Preflight
+
+A read-only readiness check for one named Platform Environment and source authority. It verifies
+the current source, environment profile, pinned toolchain, operator authentication, provider
+project, ownership boundary, and other discoverable prerequisites, then reports `ready` or exact
+blockers. It creates no Deployment Specification, digest, approval, journal, plan, or external
+mutation. Platform Preflight is optional because `platform-deploy` performs the same readiness
+checks before preparing or reusing approved intent.
+
 ## Execution Journal
 
 A machine-generated, append-only record of one lifecycle execution, including stage inputs,
@@ -140,6 +149,13 @@ A versioned, non-secret handoff generated under Application Owner authority afte
 deployment. It binds an application-owned target and owner to the exact Platform Integration
 Bundle it consumed; validation does not transfer target ownership to Platform State.
 
+## Fixture Handoff Preparation
+
+An optional private, inspectable pair of canonical Platform Integration and Application Attachment
+Bundles produced after one Fixture Application is deployed and read back but before it is
+registered. It does not activate routing and may be reused only while every recorded source,
+generation, digest, image, relationship, and provider binding remains exact.
+
 ## Detached Application
 
 A non-routable Registered Application whose identifier and route remain reserved while its
@@ -209,14 +225,9 @@ A deterministic, non-production Registered Application used to qualify platform 
 real application migration. Its runtime and state remain application-owned test assets, not Platform
 State.
 
-## Integration Draft
-
-A non-authoritative migration input prepared for another application. It becomes active only when
-that application adopts it through its own documentation, contracts, tests, and release process.
-
 ## Application Adoption
 
-The consuming Application Owner's explicit acceptance of an Integration Draft through that
+The consuming Application Owner's explicit acceptance of the platform contracts through that
 application's own authorities, implementation, migration, evidence, and release process.
 
 ## Qualification

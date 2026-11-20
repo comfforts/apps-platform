@@ -1,6 +1,6 @@
 # App Platform documentation
 
-Version 1.25 | Status: AP-M9-W9 fixture deployment lifecycle and candidate verification implemented;
+Version 1.26 | Status: AP-M9-W9 fixture deployment lifecycle and candidate verification implemented;
 AP-M9-W10 staging operation is next; no platform environment is deployed or qualified
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
@@ -25,8 +25,9 @@ Read these documents completely, in order, before modifying the platform:
 9. [Contract index](../contracts/README.md) — public machine interfaces.
 10. [Repository layout](repository_layout.md) — capability placement and transition rules.
 11. [Runbook index](runbooks/README.md) — subordinate operator procedures.
-12. [AP-M9 environment lifecycle](runbooks/environment_lifecycle.md) — current human-operated
-    lifecycle design, implemented local commands, and unavailable external actions.
+12. [Environment lifecycle runbook](runbooks/environment_lifecycle.md) — operator procedure for
+    staging and production preparation, deployment, inspection, qualification, recovery, and
+    destruction.
 13. [Repository extraction runbook](runbooks/repository_extraction.md) and
     [handoff](repository_extraction_handoff.md) — completed canonical repository transition
     procedure and evidence.
@@ -71,7 +72,7 @@ small reviewable commits, merge it, and only then begin the next package.
 5. **AP-M9-W5 — deployable Terraform (implemented):** phased bootstrap, foundation, and Shared
    Edge configuration; exact backend declarations; canonical plan
    policy; closed outputs; mocked plans; and deterministic command fakes.
-6. **AP-M9-W6 — interactive platform deployment (implemented):** staged exact-plan execution,
+6. **AP-M9-W6 — interactive platform deployment (implemented):** multi-stage exact-plan execution,
    reviewed action confirmation, human OAuth and external-DNS checkpoints, bounded DNS/TLS
    polling, readback, stop-on-discrepancy, transcript redaction, and interruption-safe resume.
 7. **AP-M9-W7 — platform-side application lifecycle (implemented):** least-data bundle generation, exact target
@@ -82,10 +83,13 @@ small reviewable commits, merge it, and only then begin the next package.
    resumable environment destruction that never targets Application State, and guarded real
    shared-platform deployment adapters. It does not deploy a Fixture Application.
 9. **AP-M9-W9 — fixture application deployment lifecycle (implemented):** immutable fixture image,
-   interactive fixture deploy/status/destroy commands, three independent Application State
-   lineages, automatic bundle handoff and registration, provider readback, live-qualification and
-   safe-destruction adapters, safe resume, deterministic fake coverage, and staging-only Candidate
-   Source admission. The repository package performed no external operation.
+   interactive fixture handoff/deploy/status/destroy commands, three independent Application State
+   lineages, optional pre-registration bundle inspection and exact reuse, automatic bundle handoff
+   and registration, automatic freshness-validated reuse of a current approved platform
+   specification without digest copy-and-paste, a readiness-only preflight that publishes no
+   specification or lifecycle state, provider readback, live-qualification and safe-destruction
+   adapters, safe resume, deterministic fake coverage, and staging-only Candidate Source admission.
+   The repository package performed no external operation.
 10. **AP-M9-W10 — accepted staging operation:** from merged W9 code, deploy and qualify
     `apps-staging.comfforts.com` with the three synthetic applications. The deliberate command
     invocation and same-process confirmations authorize ordinary staging creation and update;
@@ -113,20 +117,12 @@ Use these status meanings:
 - **Implemented:** repository behavior exists and passes deterministic checks; no live action is
   implied.
 - **Qualified:** the named evaluation gate has revision-scoped evidence.
-- **Integration draft:** a non-authoritative input awaiting adoption by its consuming application.
 - **Historical evidence:** an immutable record that provides no current action authority.
 
 The App Platform owns only shared platform boundaries. Application data, stores, providers,
 secrets, principals, entitlements, runtime deployment, and Application State remain application
 owned. Finance Assistant and `apps.comfforts.com` remain unchanged until their own adoption and
 ownership-transfer authorities are approved.
-
-## Inactive integration inputs
-
-[`integrations/ai_finance_assistant/README.md`](../integrations/ai_finance_assistant/README.md) is
-discoverable compatibility material, not part of the platform authority chain. Read it only for an
-explicitly scoped compatibility or adoption task. It cannot define generic platform behavior or
-activate an application adoption.
 
 ## Evidence and secret boundary
 

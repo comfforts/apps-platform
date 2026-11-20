@@ -1,6 +1,6 @@
 # App Platform evaluation strategy
 
-Version 0.16 | Status: AP-M9-W9 fixture lifecycle and live-adapter repository controls implemented; historical AP-EVAL-M8
+Version 0.17 | Status: AP-M9-W9 fixture lifecycle and live-adapter repository controls implemented; historical AP-EVAL-M8
 and standalone AP-EVAL-M9 proposals superseded without execution; no AP-M9 provider or Live result
 exists
 
@@ -70,7 +70,7 @@ Verify that:
 - all `AP-PR-*`, `AP-QR-*`, `ADR-*`, `AP-M3-*`, `AP-EVAL-M3-*`, and `AP-TM-*` identifiers are unique
   within their authority and every referenced identifier exists;
 - public terms use the canonical glossary definitions;
-- Integration Drafts remain outside the authority chain; and
+- external application migrations remain outside the platform authority chain; and
 - status text distinguishes documented, implemented, deployed, and qualified behavior.
 
 Expected evidence: deterministic governance tests over committed Markdown and machine-contract
@@ -108,8 +108,8 @@ For every valid vector, verify that the compiler:
   identity, network state, or containing-repository files.
 
 Valid vectors must include public, authenticated, and restricted registrations; listed and
-unlisted catalogue behavior; multiple applications; multiple attachment mounts; staged and active
-states; a content-only application update; a stable attachment reference across an application
+unlisted catalogue behavior; multiple applications; multiple attachment mounts; active,
+suspended, and retired states; a content-only application update; a stable attachment reference across an application
 release; and an approved attachment replacement generation.
 
 ### AP-EVAL-M3-04 · Fail-closed route, catalogue, and attachment validation
@@ -155,7 +155,8 @@ wrong-audience rejection, replay handling, and direct-origin denial require Fixt
 
 Verify that:
 
-- a new application begins staged;
+- a new application is present only after one complete active candidate generation is atomically
+  activated;
 - only the transitions authorized by the system design are accepted;
 - retired registrations are immutable tombstones and retain their identifiers and prefixes;
 - a stale or missing predecessor digest is rejected;
@@ -209,7 +210,7 @@ Verify that the AP-M3 change:
   record, identity configuration, credential, or runtime;
 - leaves Finance Assistant requirements, code, infrastructure, state, deployment, and access model
   unchanged;
-- keeps every Finance integration document labelled inactive and non-authoritative;
+- keeps application-specific migration outside App Platform authority;
 - records AP-M3 as contract implementation only after the complete gate passes; and
 - directs the next task to propose delivery item 4 planning after AP-M3 merges, without treating the
   current branch or pull request as that merge.
@@ -351,7 +352,7 @@ Verify that:
   requirements, decisions, design sections, and threats;
 - AP-M3 Contract evidence remains distinct and continues to pass;
 - the documented fixture limits and identity profile match executable constants and tests;
-- no Integration Draft or Finance artifact is loaded as fixture input; and
+- no external application migration or Finance artifact is loaded as fixture input; and
 - status text distinguishes designed, implemented, Fixture-qualified, Live-qualified, and adopted.
 
 Expected evidence: deterministic governance tests and the complete gate. Documentation presence
@@ -382,8 +383,8 @@ Verify through `handle(request) -> response` that:
 - exact prefixes and segment-bounded subpaths route to only their registered fixture;
 - longest segment-bounded mount selection and all three Version 1 forwarding modes behave as
   compiled;
-- near-prefixes, reserved paths, malformed paths, encoded separators, dot segments, staged,
-  suspended, retired, and unmatched paths return closed responses; and
+- near-prefixes, reserved paths, malformed paths, encoded separators, dot segments, suspended,
+  retired, and unmatched paths return closed responses; and
 - an unavailable attachment fails only the selected fixture and never falls through to another.
 
 This gate supplies Fixture evidence for AP-TM-001, AP-TM-002, AP-TM-003, AP-TM-009, and AP-TM-013.
@@ -519,7 +520,7 @@ unbounded operation, or unexpected artifact fails the gate.
 | AP-TM-011 | Reviewed repository inputs and deterministic default checks; no live control plane |
 | AP-TM-012 | Exact in-process size and count limits; no traffic or cost claim |
 | AP-TM-013 | Deterministic logical dependency failure without insecure fallback |
-| AP-TM-014 | Generic fixtures only; no Integration Draft or Application Adoption behavior |
+| AP-TM-014 | Generic fixtures only; no external application migration or Application Adoption behavior |
 
 ### Pass, fail, and skip semantics
 
@@ -745,7 +746,7 @@ Verify that the AP-M5 branch:
 - contains no Terraform file, workflow with cloud authority, state, plan, credential, secret,
   provider command, DNS lookup, browser state, deployment, or generated Live evidence;
 - leaves default verification free of network, credentials, cloud accounts, and mutation;
-- leaves Finance Assistant and every Integration Draft unchanged and inactive;
+- leaves Finance Assistant and every real application unchanged and inactive;
 - records only planning authority after all nine AP-EVAL-M5 gates pass; and
 - directs the next task to AP-M6 proposal only after this pull request merges.
 
@@ -860,7 +861,7 @@ or cancel target work with deterministic closed results and no prohibited diagno
 
 Verify exact object and content digest binding, Version 1 validation, one-generation startup,
 escaped catalogue output, catalogue visibility, reserved paths, canonical prefix and mount
-rewriting, query preservation, and staged/suspended/retired/unknown/malformed closure. Provider
+rewriting, query preservation, and suspended/retired/unknown/malformed closure. Provider
 storage failure, digest mismatch, partial configuration, stale generation, or runtime reload attempt
 cannot produce a mixed or alternate route set.
 
@@ -920,7 +921,7 @@ Status and readback cannot activate, reload, roll back, mutate, discover, or exp
 Verify that default checks reject external addresses and provider transports, use no environment
 credential, metadata server, browser, OAuth client, KMS key, Firestore database, GCS object, Cloud
 Run service, Terraform, DNS, repository setting, or live registration, and create no authenticated
-artifact. Finance Assistant and every Integration Draft remain unchanged and inactive.
+artifact. Finance Assistant and every real application remain unchanged and inactive.
 
 The repository and status documents call AP-M6 locally implemented only after all gates pass and
 retain deployed, Live, and Adoption claims as unavailable.
@@ -1381,7 +1382,7 @@ Assistant and existing hostnames/resources were unchanged.
 | AP-TM-011 | Protected source, pins, manifests, workflow subjects, immutable publication, operation chain, and exact finalizer pass |
 | AP-TM-012 | Selected limits, labels, retention, approved-service inventory, and budget configuration read back without an availability or hard-spend claim |
 | AP-TM-013 | Partial failure, blocked-stage, no-automatic-follow-on, and discrepancy reporting are complete; rollback/recovery remain unexecuted |
-| AP-TM-014 | Only synthetic qualification fixtures exist; Finance, production, real applications, Integration Drafts, and Adoption remain unchanged |
+| AP-TM-014 | Only synthetic qualification fixtures exist; Finance, production, real applications, external migrations, and Adoption remain unchanged |
 
 #### Pass, fail, and skip semantics
 
@@ -1595,10 +1596,17 @@ mutable references, non-canonical bytes, stale digests, and incomplete stage-out
 With deterministic adapters, exercise first deployment, update, no-change, drift, conflict,
 interruption, and resume. Prove preparation is read-only, asks only unresolved decisions, emits one
 complete specification and digest, keeps approval separate from completeness, and never repeats a
-closed stage. Verify the default deploy invocation performs preparation, review, approval, and
-deployment without a mandatory second command; standalone prepare remains a dry run. Verify
-terminal transcripts for `y/N` plan review, typed irreversible boundaries, Enter checkpoints,
-bounded polling, cancellation, truthful waiting/failure states, and no secret prompt or output.
+closed stage. Exercise standalone preflight with ready and multi-blocker outcomes and prove it
+creates no specification, digest, approval prompt, journal, plan, private lifecycle state, executor,
+or external mutation. Verify the default deploy invocation performs preparation, review, approval, and
+deployment without a mandatory second command; standalone prepare remains a dry run. After an
+approved standalone preparation, invoke default deploy without a digest and prove it reuses the
+exact current specification without regeneration, a copied digest, or another approval while all
+bindings remain valid. Change source or profile binding and prove deploy returns to preparation;
+introduce a discovery blocker or malformed retained specification and prove it stops without
+replacement. Verify explicit current-digest selection remains compatible. Verify terminal
+transcripts for `y/N` plan review, typed irreversible boundaries, Enter checkpoints, bounded
+polling, cancellation, truthful waiting/failure states, and no secret prompt or output.
 
 #### AP-EVAL-M9-04 · State, Terraform, operator session, plans, and ownership
 
@@ -1620,11 +1628,20 @@ active across manual checkpoints, never received the OAuth secret, and stopped o
 #### AP-EVAL-M9-06 · Application bundles, attachments, and registration lifecycle
 
 Generate public, authenticated, and restricted fixture bundles; verify least-data projections and
-absence of the OAuth client secret; deploy each fixture through separate Application State; validate
-its returned attachment bundle and provider/IAM posture; and activate one complete Registration
-Generation. Exercise attachment replacement, stale bundle rejection, detach, redeploy/reactivate,
+absence of the OAuth client secret; deploy each selected fixture through its separate Application
+State invocation; validate its returned attachment bundle and provider/IAM posture; and activate a
+complete Registration Generation preserving prior registrations after each selection, culminating
+in a generation containing all three fixtures. Exercise attachment replacement, stale bundle
+rejection, detach, redeploy/reactivate,
 terminal retirement, route reservation, `503` detached behavior, `410` retired behavior, closed
 unknown routes, and proof that no platform action destroys Application State.
+
+For one selected fixture, stop after attachment generation and verify the operator receives exact
+mode-`0600` canonical integration- and attachment-bundle paths and digests without a registration
+transition. Then run the ordinary fixture deployment and prove it reuses that pair without another
+Application State apply only when every source, authority, platform-generation, digest, image,
+relationship, and provider-posture binding remains current. Change each binding class and verify
+reuse is refused and the normal reconciliation path runs instead.
 
 #### AP-EVAL-M9-07 · Live routing, identity, isolation, and limits
 

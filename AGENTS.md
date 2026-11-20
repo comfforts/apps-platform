@@ -1,99 +1,89 @@
-# App Platform engineering instructions
+# Repository engineering instructions
 
-These instructions govern work in the dedicated App Platform repository. The security,
-source-control, secret-handling, and destructive-action guardrails in this file apply to every
-change in the repository.
+This file contains durable working rules for this repository. Product behavior, architecture,
+active delivery sequence, evidence gates, and operator procedures belong in the project
+documentation. [docs/README.md](docs/README.md) is the canonical router to that authority.
 
-## Before modifying the platform
+## Before modifying the repository
 
 1. Read [docs/README.md](docs/README.md) completely and follow its task-specific reading order.
-2. Read [product requirements](docs/01_product_requirements.md) and
-   [accepted architecture decisions](docs/02_architecture_decision_records.md). Map every planned
-   behavior to their identifiers and constraints.
-3. Read [GLOSSARY.md](GLOSSARY.md) for canonical platform terms and
-   [docs/repository_layout.md](docs/repository_layout.md) before placing files.
-4. Before changing platform interfaces or planning their consumers, read the
-   [system design](docs/03_system_design.md), [threat model](docs/06_threat_model.md), and
-   [contract index](contracts/README.md). Use the plan and evaluation authority for the active
-   milestone; when either is absent, propose it and wait for approval before implementation.
-5. Inspect `git status` and preserve unrelated changes.
-6. State the platform slice and every `AP-PR-*`, `AP-QR-*`, `ADR-*`, plan, and evaluation identifier
-   that owns the change. Treat an absent downstream authority as unresolved rather than inferred.
-7. Trace every claimed operator journey to an executable target and deterministic test. Static
-   configuration, contracts, local fixtures, or reserved interfaces do not make an external
-   operation ready.
-8. Stop for direction when an authority is absent or the requested work would change an active
-   application, cloud resource, DNS record, credential, or Terraform state outside the approved
-   slice.
+   Read every document it marks as required for the task before editing.
+2. Inspect the working tree and current branch. Preserve unrelated changes and do not overwrite
+   work whose ownership is unclear.
+3. State the active slice and every requirement, decision, plan, evaluation, and threat identifier
+   required by the documentation for that slice. Treat absent authority as unresolved rather than
+   inferred.
+4. Map each planned behavior and file placement to its governing documentation before editing. A
+   branch name, discussion history, historical record, example, or prompt is not a substitute for
+   active authority.
+5. Trace every claimed operator or user journey to an executable entry point and deterministic
+   tests. Documentation, reserved interfaces, static configuration, and local fakes support only
+   the claims assigned to them by the active evaluation authority.
+6. Stop for direction when authority is absent, the requested change expands the approved slice,
+   or completing it would change an external system, credential, protected state, or separately
+   owned resource outside the documented authority.
 
-## Authority boundary
+## Authority routing
 
-- App Platform documentation is authoritative only for this project.
-- Parent Finance Assistant specifications do not define platform behavior.
-- Application integration drafts are inactive inputs until the consuming application adopts them
-  through its own requirements and release process.
-- Version 1 schemas and the reference compiler provide Contract evidence; the deterministic
-  in-process harness provides Fixture evidence. Provider runtime, Terraform, deployment, Live, and
-  Adoption claims require their later authorities and evidence gates.
-- AP-M5 selects infrastructure and Live-qualification planning boundaries only. It authorizes no
-  provider runtime, Terraform configuration, workflow mutation, credential, cloud action, DNS
-  change, deployment, or Live claim.
-- AP-M6 authorizes only repository implementation of the networked Shared Edge and production
-  adapter logic tested through deterministic fakes and process-local loopback. It authorizes no
-  Terraform, external network, credential lookup, provider call, cloud or repository mutation,
-  deployment, Live claim, or Application Adoption.
-- AP-M7 authorizes only reviewed Terraform configuration, non-executable workflow templates, and
-  credential-free static verification under its named work packages and AP-EVAL-M7. It authorizes
-  no backend initialization, authenticated plan or apply, credential or federation configuration,
-  provider call, repository-setting change, cloud or DNS mutation, deployment, Live claim, or
-  Application Adoption.
-- AP-M8-W1/W2 are historical merged work. AP-M8-W3 through AP-M8-W12 are superseded and must not
-  be resumed. AP-M9-W2 removed the historical manifest implementation from the active tree.
-- AP-M9-W1 established the operator-lifecycle authority, and AP-M9-W2 removed the retired manifest
-  path. Each later AP-M9 package requires its predecessor to be merged and owner approval to
-  implement that package. Until the relevant package
-  is implemented and invoked, AP-M9 authorizes no repository-setting change, federation or IAM
-  binding, credential use, backend operation, authenticated plan or apply, provider call, OAuth
-  client, image publication, DNS or traffic change, deployment, destructive action, Live claim, or
-  Application Adoption.
-- For an ordinary owner-invoked staging creation or update, the named command invocation plus its
-  same-process specification and plan confirmations is the operation authorization. Do not request
-  a duplicate out-of-band approval. Require fresh separate approval for destruction, purge,
-  ownership transfer, production cutover, scope expansion, or another explicitly named irreversible
-  boundary.
-- Keep platform implementation, contracts, tests, prompts, and evidence inside this dedicated
-  canonical repository. Extraction does not make Finance Assistant authority applicable here. The
-  completed source-repository cleanup does not transfer Finance Assistant requirements, behavior,
-  infrastructure, state, or application-adoption authority into this project.
+- Use the precedence, status meanings, completed/next sequence, and task-specific reading branches
+  in `docs/README.md`. Do not recreate them in this file.
+- Use the product requirements and accepted architecture decisions reached through that router as
+  the source of truth for behavior. Use the active design, contracts, plan, evaluation strategy,
+  threat model, layout, and runbooks for their documented responsibilities.
+- Treat historical material as evidence, not current instruction, unless the documentation router
+  explicitly activates it. Treat prompts as bounded entry points subordinate to the authority they
+  cite.
+- Keep claims truthful: repository implementation, merge, deployment, qualification, and adoption
+  are distinct states unless the active evaluation authority says otherwise.
+- Keep each project-specific rule in its authoritative project document. Update that source and
+  its consumers together instead of copying milestone or product rules into `AGENTS.md`.
+
+## Safety and scope
+
+- Preserve repository, security, secret-handling, source-control, and destructive-action
+  guardrails throughout a change. Use the smallest exact target and a recoverable operation when
+  one is available.
+- Keep credentials, secret values, protected state, saved plans, authenticated browser state, and
+  unredacted external payloads out of Git and review artifacts.
+- Use only the external-operation entry points and approval boundaries defined by the active
+  authority. An approved implementation slice does not implicitly authorize an external mutation.
+- Keep repository-owned implementation, contracts, tests, documentation, prompts, and permitted
+  evidence inside this repository. Do not import authority from another project.
+- Update a public contract and all repository consumers in the same bounded slice. Record
+  unimplemented behavior as planned rather than operational.
 
 ## Branch and review workflow
 
-- Start each approved slice from an updated, clean `main` on a dedicated semantically named branch.
+- Start each new approved slice from an updated, clean `main` on a dedicated semantically named
+  branch.
 - Name branches `<type>/<short-scope>` using the primary change: `docs/` for documentation or
   governance-only work, `feat/` for product behavior, `fix/` for defect correction, `evidence/`
   for qualification evidence, and `chore/` for small maintenance. Use an owner-specified branch
   name when provided; never substitute an author or tool name such as `codex/` for the change type.
 - Keep one bounded slice per pull request. Merge it before starting the next documented slice.
+- Plan each slice for approximately five to eight coherent commits. Treat that range as a scope
+  signal, not a reason to split one atomic cross-cutting change artificially.
+- Before creating a ninth substantive commit, stop and reassess the slice with the owner. Report
+  completed and remaining work, and propose a follow-up slice when the remainder adds a lifecycle,
+  authority boundary, contract family, or independently reviewable outcome. Newly discovered work
+  does not enter the current slice merely because it was found during implementation.
 - Use small coherent commits that remain independently reviewable. When the owner requests
   commit-by-commit review, leave each change uncommitted until approval.
-- Keep later-slice implementation out of the current branch even when its directories or interfaces
-  are already reserved.
-- Run `make check` before handoff and report the actual result. A merged pull request records
-  repository progress; it does not by itself qualify runtime or cloud behavior.
-- Follow the completed/next sequence in [docs/README.md](docs/README.md); do not infer a new sequence
-  from branch names or discussion history.
-- Treat the AP-M9 `platform-*` interface as planned until its named work package implements it.
-  Never substitute the historical AP-M8 manifest procedure for a missing AP-M9 capability.
-- Do not place a first external operation in the same work package that must still implement a
-  required operator target. Merge and verify the repository capability before invoking it from
-  clean `main`.
+- During unmerged development, use amendments or fixup commits and consolidate them before pull-
+  request handoff when that makes the history clearer. Preserve owner-approved commit-by-commit
+  checkpoints, and never rewrite published history without owner approval.
+- Keep later-slice implementation out of the current branch even when its directories or
+  interfaces are already reserved.
+- Follow the completed/next sequence in `docs/README.md`; do not infer a new sequence from branch
+  names or discussion history.
 
-## Verification
+## Verification and handoff
 
-- Run `make check` from the dedicated repository root.
-- Keep `check` credential-free, deterministic, and non-mutating. Cloud plans, applies, DNS changes,
-  identity changes, and live qualification require separate explicit operator targets.
-- Store no credentials, Terraform state, saved plans, authenticated browser state, or unredacted
-  external payloads in Git.
-- Update each public contract and all of its consumers together. Record unimplemented behavior as
-  planned rather than operational.
+- Run focused deterministic tests while editing, then run `make check` from the dedicated
+  repository root before handoff and report the actual result.
+- Keep `make check` credential-free, deterministic, and non-mutating. Use separately documented
+  operator entry points for authenticated plans, applies, DNS, identity, deployment,
+  qualification, destruction, or other external operations.
+- Report the evaluated revision, relevant commands, failures, errors, warnings, skips, and known
+  limitations required by the active evaluation authority. A pull-request merge records repository
+  progress; it does not by itself prove an external or runtime result.

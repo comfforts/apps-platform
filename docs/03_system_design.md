@@ -273,8 +273,8 @@ matches `^/[a-z0-9][a-z0-9_-]*$`. The root `/`, `/_platform` and its descendants
 Registration authors must supply the canonical form. The compiler rejects uppercase characters,
 trailing slashes, empty segments, dot segments, percent encoding, encoded separators, query or
 fragment syntax, control characters, and Unicode lookalikes instead of silently rewriting them.
-Two registrations may not hold the same canonical prefix, including staged, suspended, or retired
-tombstones. A retired prefix is not silently reassigned to another application.
+Two registrations may not hold the same canonical prefix, including suspended registrations and
+retired tombstones. A retired prefix is not silently reassigned to another application.
 
 A request belongs to an application only when its path equals the registered prefix or begins with
 that prefix followed by `/`. Textual prefix matches such as `/app2` for `/app` are forbidden.
@@ -294,7 +294,7 @@ selection are outside the contract. Query data is forwarded as request data and 
 in route selection.
 
 The root catalogue, reserved platform paths, and application routes are disjoint. Unknown,
-malformed, staged, suspended, or retired paths fail closed and never fall through to another
+malformed, suspended, or retired paths fail closed and never fall through to another
 application or expose an attachment reference.
 
 ## Catalogue
@@ -394,16 +394,17 @@ identity.
 
 ## Lifecycle and atomic change
 
-Version 1 defines four lifecycle states:
+Version 1 defines three lifecycle states:
 
-- `staged`: contract-valid but absent from catalogue and routing;
 - `active`: eligible for the declared catalogue visibility, routing, and admission behavior;
 - `suspended`: retained for review but absent from catalogue and routing;
 - `retired`: terminal tombstone, absent from catalogue and routing.
 
-A new application first enters `staged`. Valid transitions are `staged -> active`,
-`staged -> retired`, `active -> suspended`, `active -> retired`, `suspended -> active`, and
-`suspended -> retired`. Content may be revised while staged, active, or suspended through a new
+A new application enters `active` only through atomic activation of a complete immutable candidate
+generation. Candidate publication is not an Application Lifecycle state: before activation a new
+application is absent, while an existing application remains represented by the current active
+generation. Valid transitions are `active -> suspended`, `active -> retired`, `suspended -> active`,
+and `suspended -> retired`. Content may be revised while active or suspended through a new
 Registration Generation. Retired registrations cannot change or reactivate, and their application
 identifiers and route prefixes remain reserved.
 
@@ -759,8 +760,8 @@ AP-M9 presents one deep Python lifecycle module through thin Make targets. Its e
 limited to these operator operations:
 
 ```text
-prepare  deploy  status  outputs  register  detach  retire  qualify  destroy
-                           fixture-deploy  fixture-status  fixture-destroy
+preflight  prepare  deploy  status  outputs  register  detach  retire  qualify  destroy
+                 fixture-handoff  fixture-deploy  fixture-status  fixture-destroy
 ```
 
 The module owns preflight, discovery, canonical specification generation, stage ordering, exact
@@ -784,6 +785,21 @@ allow-lists, declared stage-output bindings, manual checkpoints, readback, failu
 destructive boundary. An address or client identifier produced by a named later stage is a bound
 output, not a missing input. Approval is a separate owner decision over the complete specification
 digest.
+
+Preflight executes the preparation-readiness portion only. It loads and validates the named
+profile, checks the selected source authority, and invokes the bounded GitHub, GCP, Terraform, and
+DNS discovery adapters. Its result contains only `ready` or `blocked` plus blocker codes. It does
+not invoke specification generation, canonical state writes, approval, executor construction,
+planning, or mutation. Preparation consumes the same readiness logic and then continues into
+specification generation and approval.
+
+Before default deployment prepares new intent, it reads the private current-specification pointer
+and canonical specification and revalidates the current source, profile, environment, human
+session, project, ownership, pinned tools, readable provider facts, approval binding, and journal
+compatibility. An exact current approval is selected automatically; the operator does not relay its
+digest. Absence, drift, or missing approval falls back to normal preparation. Malformed retained
+state or a current blocker fails closed without rewriting the evidence. Supplying an explicit
+current digest remains an optional pin, not the ordinary interface.
 
 Source authority is an explicit specification input derived from Git readback, never a free-form
 operator value. `accepted` requires the exact clean current protected-main revision. `candidate`
@@ -840,14 +856,23 @@ Registration validates the bundle, provider target, owner, ingress, caller grant
 current platform state before activating a complete Registration Generation.
 
 The repository-owned Fixture Application operator acts only as the Application Owner for the three
-synthetic fixtures. One interactive `fixture-deploy` invocation builds one immutable fixture image,
-generates the three application-scoped platform bundles, plans and applies the public,
-authenticated, and restricted roots sequentially in separate Application State lineages, emits
-their attachment bundles, and registers one complete generation after provider readback.
-`fixture-status` is read-only. `fixture-destroy` requires the fixture-specific destructive
-confirmation, operates only on the selected fixture Application State, and never destroys Platform
-State. These commands are the executable staging-fixture boundary; Terraform roots and loopback
-servers alone are not deployment capability.
+synthetic fixtures. One interactive `fixture-deploy` invocation requires a fixture application
+identifier, builds or reuses the immutable fixture image, generates that application's platform
+bundle, plans and applies only its independent Application State root, emits its attachment bundle,
+and activates a complete generation that preserves the other registrations after provider
+readback. The operator invokes it separately for every fixture needed by qualification.
+The optional `fixture-handoff` entry point executes the same selected-fixture path only through
+provider-validated attachment generation, publishes both canonical bundles to mode-`0600` files in
+ignored operator state, returns their paths and digests, and stops before registration. It is an
+Application State mutation, not read-only preparation. `fixture-deploy` first rereads that prepared
+pair and reuses it only when the environment, fixture, source authority, fixture and platform
+revisions, active generation, image, bundle relationship and digests, and provider posture all
+remain exact. A stale pair is not registered; normal generation and reconciliation run again.
+`fixture-status` is read-only and reports all fixtures by default or one optional selection.
+`fixture-destroy` requires the fixture-specific destructive confirmation, operates only on the
+selected fixture Application State, and never destroys Platform State. These commands are the
+executable staging-fixture boundary; Terraform roots and loopback servers alone are not deployment
+capability.
 
 Detachment is the reversible suspended state. The edge removes the application from the catalogue
 and target routing, reserves its identifier and route, invokes no target, and returns a generic
@@ -874,7 +899,7 @@ resource has not completed an explicit ownership transfer.
 AP-M9-W1 defines this design, AP-M9-W2 removed the retired manifest implementation, AP-M9-W3
 implemented the profile and lifecycle contracts, AP-M9-W4 implemented credential-free local
 preparation/status plus resumable fake execution, AP-M9-W5 implemented the repository-only
-Terraform lifecycle described below, and AP-M9-W6 implemented the unarmed staged deployment engine,
+Terraform lifecycle described below, and AP-M9-W6 implemented the unarmed multi-stage deployment engine,
 closed command boundary, exact confirmations, manual checkpoints, readback, and resume. AP-M9-W7
 implemented least-data application outputs, exact attachment/target validation, immutable complete-
 generation activation, reversible detachment/reactivation, terminal retirement, and distinct
@@ -1023,7 +1048,7 @@ values only.
 - An unavailable attachment fails for that application only; the edge does not retry against a
   different application.
 - Missing or invalid identity fails protected admission and application-side verification.
-- Staged, suspended, and retired registrations produce no live route or catalogue entry.
+- Suspended and retired registrations produce no live route or catalogue entry.
 - Provider-console or hand-written route changes are drift and cannot become the reviewed baseline.
 - Rollback selects a previously reviewed whole generation; it never rolls back or deletes
   Application State.
@@ -1365,7 +1390,7 @@ text field for HTML and constructs each link only from the canonical registered 
 does not accept templates, raw markup, arbitrary links, attachment references, or operator data.
 Deterministic tests inspect the parsed links and literal text; they do not require a browser.
 
-Unknown, malformed, reserved, staged, suspended, and retired paths return a closed platform
+Unknown, malformed, reserved, suspended, and retired paths return a closed platform
 response and never invoke an attachment. Authentication failures are distinct from restricted
 membership denial, but neither response reveals membership, attachment, or application-state
 details. An unavailable or oversized fixture response fails only the selected application and is
@@ -1426,8 +1451,8 @@ availability, performance, persistence, Application Adoption, or any Finance Ass
 This section is design authority only. No Fixture (`F`) evidence exists until a later approved item
 4 plan, implementation, and evaluation record exercise these claims.
 
-Finance Assistant code, data, infrastructure, identity, state, and migration are never fixture
-dependencies. Its Integration Draft remains an inactive compatibility input.
+Real-application code, data, infrastructure, identity, state, and migration are never fixture
+dependencies. Application migration remains under the consuming application's authority.
 
 ## Configurability and extraction
 

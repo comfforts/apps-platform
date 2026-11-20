@@ -331,6 +331,8 @@ class ProfileGcp:
 
 @dataclass(frozen=True, slots=True)
 class ProfileDns:
+    executable: Path | None = None
+
     def inspect(self, profile: dict[str, object]) -> DiscoverySnapshot:
         return DiscoverySnapshot(
             "dns",
@@ -338,6 +340,9 @@ class ProfileDns:
                 ("provider_class", str(profile["dns_provider_class"])),
                 ("hostname", str(profile["hostname"])),
             ),
+            ()
+            if self.executable is not None and self.executable.is_file()
+            else ("DNS_TOOL_UNAVAILABLE",),
         )
 
 
@@ -531,11 +536,14 @@ def build_local_operator(
     project_root: Path,
     state_root: Path,
     source_authority: str = "accepted",
+    *,
+    arm_executor: bool = True,
 ) -> LifecycleOperator:
     """Construct the local operator around the active human Cloud SDK session."""
 
     resolved_project = project_root.resolve()
     executable_name = shutil.which("gcloud")
+    dig_name = shutil.which("dig")
     configured = os.environ.get("CLOUDSDK_CONFIG")
     cloud_sdk_configuration = (
         Path(configured).expanduser()
@@ -553,15 +561,21 @@ def build_local_operator(
             github=LocalGitHub(resolved_project),
             gcp=gcp,
             terraform=PinnedTerraform(),
-            dns=ProfileDns(),
+            dns=ProfileDns(
+                Path(dig_name).resolve() if dig_name else None
+            ),
             terminal=terminal,
             filesystem=LocalFilesystem(resolved_project, state_root),
             clock=SystemClock(),
-            executor=_local_deployment_executor(
-                resolved_project,
-                state_root,
-                gcp,
-                terminal,
+            executor=(
+                _local_deployment_executor(
+                    resolved_project,
+                    state_root,
+                    gcp,
+                    terminal,
+                )
+                if arm_executor
+                else None
             ),
         ),
         source_authority=source_authority,
@@ -668,6 +682,10 @@ def build_local_fixture_operator(
         LocalFixtureLifecycleCommands,
         LocalFixtureOperator,
     )
+    from infrastructure.operator.local_fixture_preparations import (
+        LocalFixturePreparations,
+    )
+    from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
     from infrastructure.operator.local_generation import (
         LocalRegistrationGenerationControl,
     )
@@ -769,6 +787,7 @@ def build_local_fixture_operator(
             (session.operator_issuer, session.operator_subject),
             LocalApplicationHandoffs(filesystem),
             terminal,
+            LocalFixturePreparations(filesystem),
         )
     )
     return LocalFixtureOperator(

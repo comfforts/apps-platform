@@ -20,6 +20,7 @@ from infrastructure.operator._interfaces import (
     GitSnapshot,
     OperatorInterrupted,
     OperatorAdapters,
+    PreflightResult,
     PrepareResult,
     StageContext,
     StageExecution,
@@ -279,6 +280,68 @@ class LifecycleOperator:
         ):
             return ["DISCOVERY_CONFLICT"]
         return []
+
+    def _discoveries(
+        self,
+        profile: dict[str, Any],
+    ) -> tuple[DiscoverySnapshot, ...]:
+        return (
+            self._adapters.github.inspect(profile),
+            self._adapters.gcp.inspect(profile),
+            self._adapters.terraform.inspect(),
+            self._adapters.dns.inspect(profile),
+        )
+
+    def _freshness_blockers(
+        self,
+        environment: str,
+        profile: dict[str, Any],
+        git: GitSnapshot,
+        discoveries: tuple[DiscoverySnapshot, ...],
+    ) -> tuple[str, ...]:
+        blockers = self._source_blockers(git, environment)
+        blockers.extend(
+            blocker for discovery in discoveries for blocker in discovery.blockers
+        )
+        blockers.extend(self._discovery_conflicts(profile, discoveries))
+        return tuple(sorted(set(blockers)))
+
+    def _readiness(
+        self,
+        environment: str,
+    ) -> tuple[
+        dict[str, Any],
+        str,
+        GitSnapshot | None,
+        tuple[DiscoverySnapshot, ...],
+        tuple[str, ...],
+    ]:
+        profile, profile_digest = self._load_profile(environment)
+        profile_blockers = tuple(profile.get("blockers", ()))
+        if profile.get("lifecycle_state") != "enabled":
+            return profile, profile_digest, None, (), profile_blockers
+
+        git = self._adapters.git.inspect()
+        discoveries = self._discoveries(profile)
+        blockers = self._freshness_blockers(
+            environment,
+            profile,
+            git,
+            discoveries,
+        )
+        return profile, profile_digest, git, discoveries, blockers
+
+    def _report_verified_session(
+        self,
+        discoveries: tuple[DiscoverySnapshot, ...],
+    ) -> None:
+        gcp_facts = dict(discoveries[1].facts)
+        active_account = gcp_facts.get("active_account")
+        active_project = gcp_facts.get("project_id")
+        if active_account and active_project:
+            self._adapters.terminal.write(
+                f"Verified operator session {active_account} for {active_project}."
+            )
 
     def _specification(
         self,
@@ -983,41 +1046,118 @@ class LifecycleOperator:
             self.status(environment),
         )
 
-    def prepare(self, environment: str) -> PrepareResult:
-        """Read source and bounded discoveries, then request exact digest approval."""
+    def current_approved_specification(
+        self,
+        environment: str,
+    ) -> PrepareResult | None:
+        """Return the current approved specification when its inputs remain valid.
+
+        Absence, source/profile drift, or a missing approval asks the caller to perform
+        normal preparation. Invalid retained state and current discovery blockers fail
+        closed without replacing the operator's evidence.
+        """
 
         profile, profile_digest = self._load_profile(environment)
-        profile_blockers = tuple(profile.get("blockers", ()))
         if profile.get("lifecycle_state") != "enabled":
+            return None
+
+        try:
+            digest = self._current_specification_digest(environment)
+            if digest is None:
+                return None
+            specification = self._load_specification(environment, digest)
+        except ValueError:
             return PrepareResult(
-                "blocked", False, False, None, None, profile_blockers
+                "blocked",
+                False,
+                False,
+                None,
+                None,
+                ("SPECIFICATION_READBACK_FAILED",),
             )
 
         git = self._adapters.git.inspect()
-        discoveries = (
-            self._adapters.github.inspect(profile),
-            self._adapters.gcp.inspect(profile),
-            self._adapters.terraform.inspect(),
-            self._adapters.dns.inspect(profile),
+        discoveries = self._discoveries(profile)
+        blockers = self._freshness_blockers(
+            environment,
+            profile,
+            git,
+            discoveries,
         )
-        blockers = self._source_blockers(git, environment)
-        blockers.extend(
-            blocker for discovery in discoveries for blocker in discovery.blockers
-        )
-        blockers.extend(self._discovery_conflicts(profile, discoveries))
-        ordered_blockers = tuple(sorted(set(blockers)))
-        if ordered_blockers:
+        if blockers:
             return PrepareResult(
-                "blocked", False, False, None, None, ordered_blockers
+                "blocked", False, False, None, digest, blockers
             )
 
-        gcp_facts = dict(discoveries[1].facts)
-        active_account = gcp_facts.get("active_account")
-        active_project = gcp_facts.get("project_id")
-        if active_account and active_project:
-            self._adapters.terminal.write(
-                f"Verified operator session {active_account} for {active_project}."
+        source = specification["source"]
+        assert isinstance(source, dict)
+        source_revision = str(source["revision"])
+        if (
+            specification.get("environment") != environment
+            or specification.get("profile_digest") != profile_digest
+            or source.get("authority") != self._source_authority
+            or source.get("repository") != "comfforts/apps-platform"
+            or source_revision != git.revision
+        ):
+            return None
+        if not self._approved(
+            environment,
+            digest,
+            profile_digest=profile_digest,
+            source_revision=source_revision,
+        ):
+            return None
+        try:
+            has_conflict = self._has_conflicting_journal(environment, digest)
+        except ValueError:
+            return PrepareResult(
+                "blocked",
+                False,
+                False,
+                None,
+                digest,
+                ("JOURNAL_READBACK_FAILED",),
             )
+        if has_conflict:
+            return PrepareResult(
+                "blocked",
+                False,
+                False,
+                None,
+                digest,
+                ("ACTIVE_JOURNAL_CONFLICT",),
+            )
+
+        self._adapters.terminal.write(
+            f"Reusing current approved specification {digest} for {environment}."
+        )
+        return PrepareResult(
+            "unchanged", True, True, specification, digest, ()
+        )
+
+    def preflight(self, environment: str) -> PreflightResult:
+        """Check preparation readiness without writing or approving lifecycle state."""
+
+        _, _, git, discoveries, blockers = self._readiness(environment)
+        if blockers:
+            return PreflightResult("blocked", False, blockers)
+        assert git is not None
+        self._report_verified_session(discoveries)
+        self._adapters.terminal.write(f"Preflight ready for {environment}.")
+        return PreflightResult("ready", True, ())
+
+    def prepare(self, environment: str) -> PrepareResult:
+        """Read source and bounded discoveries, then request exact digest approval."""
+
+        profile, profile_digest, git, discoveries, blockers = self._readiness(
+            environment
+        )
+        if blockers:
+            return PrepareResult(
+                "blocked", False, False, None, None, blockers
+            )
+        assert git is not None
+        self._report_verified_session(discoveries)
 
         specification = self._specification(
             environment,

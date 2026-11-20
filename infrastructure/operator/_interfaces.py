@@ -44,6 +44,15 @@ class PrepareResult:
 
 
 @dataclass(frozen=True, slots=True)
+class PreflightResult:
+    """Read-only readiness result that creates no lifecycle state."""
+
+    outcome: str
+    ready: bool
+    blockers: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class StageExecution:
     """One deterministic adapter result for a specification stage."""
 

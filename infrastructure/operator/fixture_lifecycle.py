@@ -7,6 +7,7 @@ import re
 from typing import Any, Protocol
 
 from contracts.lifecycle import (
+    lifecycle_digest,
     validate_lifecycle_document,
     validate_lifecycle_relationships,
 )
@@ -37,14 +38,17 @@ _FIXTURES = (
     ),
     FixtureDefinition("fixture-restricted", "restricted", "/fixture-restricted"),
 )
+_FIXTURE_BY_ID = {item.application_id: item for item in _FIXTURES}
 
 
 @dataclass(frozen=True, slots=True)
 class FixtureDeployRequest:
     environment: str
+    application_id: str
     fixture_source_revision: str
     expected_platform_source_revision: str
     expected_platform_generation: int
+    source_authority: str = "accepted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +91,30 @@ class FixtureApplicationDeployment:
 
 
 @dataclass(frozen=True, slots=True)
+class FixturePreparation:
+    image: FixtureImageReadback
+    integration_bundle: dict[str, Any]
+    deployment: FixtureApplicationDeployment
+    integration_bundle_digest: str
+    attachment_bundle_digest: str
+    integration_bundle_path: str | None = None
+    attachment_bundle_path: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FixtureHandoffResult:
+    outcome: str
+    application_id: str
+    image_reference: str | None
+    integration_bundle_digest: str | None
+    integration_bundle_path: str | None
+    attachment_bundle_digest: str | None
+    attachment_bundle_path: str | None
+    preparation_reused: bool = False
+    blockers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class FixtureRegistrationRequest:
     environment: str
     integration_bundles: tuple[dict[str, Any], ...]
@@ -109,6 +137,11 @@ class FixtureDeployResult:
     registration_generation: int | None
     registration_generation_digest: str | None
     blockers: tuple[str, ...] = ()
+    preparation_reused: bool = False
+    integration_bundle_digest: str | None = None
+    integration_bundle_path: str | None = None
+    attachment_bundle_digest: str | None = None
+    attachment_bundle_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,12 +203,27 @@ class FixtureCommands(Protocol):
         request: FixtureApplicationDeployRequest,
     ) -> FixtureApplicationDeployment: ...
 
+    def prepared_handoff(
+        self,
+        request: FixtureDeployRequest,
+    ) -> FixturePreparation | None: ...
+
+    def record_prepared_handoff(
+        self,
+        request: FixtureDeployRequest,
+        preparation: FixturePreparation,
+    ) -> FixturePreparation: ...
+
     def register(
         self,
         request: FixtureRegistrationRequest,
     ) -> FixtureRegistrationReadback: ...
 
-    def status(self, environment: str) -> FixtureStatusResult: ...
+    def status(
+        self,
+        environment: str,
+        application_id: str | None = None,
+    ) -> FixtureStatusResult: ...
 
     def destroy_application(
         self,
@@ -184,7 +232,7 @@ class FixtureCommands(Protocol):
 
 
 class FixtureSuiteLifecycle:
-    """Deploy all three synthetic applications as one fail-closed suite."""
+    """Operate one selected fixture while preserving suite-wide qualification."""
 
     def __init__(self, commands: FixtureCommands) -> None:
         self._commands = commands
@@ -201,6 +249,39 @@ class FixtureSuiteLifecycle:
         )
 
     @staticmethod
+    def _handoff_blocked(
+        request: FixtureDeployRequest,
+        *blockers: str,
+    ) -> FixtureHandoffResult:
+        return FixtureHandoffResult(
+            outcome="blocked",
+            application_id=request.application_id,
+            image_reference=None,
+            integration_bundle_digest=None,
+            integration_bundle_path=None,
+            attachment_bundle_digest=None,
+            attachment_bundle_path=None,
+            blockers=tuple(sorted(set(blockers))),
+        )
+
+    @staticmethod
+    def _definition(
+        request: FixtureDeployRequest,
+    ) -> tuple[FixtureDefinition | None, str | None]:
+        if request.environment != "staging":
+            return None, "FIXTURE_ENVIRONMENT_UNAVAILABLE"
+        definition = _FIXTURE_BY_ID.get(request.application_id)
+        if (
+            definition is None
+            or _REVISION.fullmatch(request.fixture_source_revision) is None
+            or _REVISION.fullmatch(request.expected_platform_source_revision) is None
+            or request.expected_platform_generation < 1
+            or request.source_authority not in {"accepted", "candidate"}
+        ):
+            return None, "FIXTURE_REQUEST_INVALID"
+        return definition, None
+
+    @staticmethod
     def _bundle_matches(
         bundle: dict[str, Any],
         definition: FixtureDefinition,
@@ -214,6 +295,8 @@ class FixtureSuiteLifecycle:
             and bundle.get("route_intent") == definition.route_intent
             and bundle.get("platform_source_revision")
             == request.expected_platform_source_revision
+            and bundle.get("platform_source_authority")
+            == request.source_authority
             and bundle.get("generation") == request.expected_platform_generation
         )
 
@@ -247,38 +330,81 @@ class FixtureSuiteLifecycle:
             return False, "FIXTURE_DEPLOYMENT_READBACK_MISMATCH"
         return True, ""
 
-    def deploy(self, request: FixtureDeployRequest) -> FixtureDeployResult:
-        """Reconcile the complete fixture suite in deterministic dependency order."""
-
-        if request.environment != "staging":
-            return self._blocked("FIXTURE_ENVIRONMENT_UNAVAILABLE")
-        if (
-            _REVISION.fullmatch(request.fixture_source_revision) is None
-            or _REVISION.fullmatch(request.expected_platform_source_revision) is None
-            or request.expected_platform_generation < 1
+    @classmethod
+    def _preparation_matches(
+        cls,
+        preparation: FixturePreparation,
+        definition: FixtureDefinition,
+        request: FixtureDeployRequest,
+    ) -> tuple[bool, str]:
+        if not cls._bundle_matches(
+            preparation.integration_bundle,
+            definition,
+            request,
         ):
-            return self._blocked("FIXTURE_REQUEST_INVALID")
+            return False, "INTEGRATION_BUNDLE_MISMATCH"
+        if (
+            _IMAGE_REFERENCE.fullmatch(preparation.image.reference) is None
+            or preparation.image.source_revision != request.fixture_source_revision
+        ):
+            return False, "FIXTURE_IMAGE_SOURCE_MISMATCH"
+        matched, blocker = cls._deployment_matches(
+            preparation.deployment,
+            definition,
+            preparation.image,
+            preparation.integration_bundle,
+            request,
+        )
+        if not matched:
+            return False, blocker
+        if (
+            preparation.integration_bundle_digest
+            != lifecycle_digest(
+                preparation.integration_bundle,
+                "platform-integration-bundle",
+            )
+            or preparation.attachment_bundle_digest
+            != lifecycle_digest(
+                preparation.deployment.attachment_bundle,
+                "application-attachment-bundle",
+            )
+        ):
+            return False, "FIXTURE_PREPARATION_DIGEST_MISMATCH"
+        return True, ""
 
-        bundles: list[dict[str, Any]] = []
+    def _prepare(
+        self,
+        request: FixtureDeployRequest,
+        definition: FixtureDefinition,
+    ) -> tuple[FixturePreparation | None, bool, tuple[str, ...]]:
         try:
-            for definition in _FIXTURES:
-                bundle = self._commands.integration_bundle(
-                    FixtureBundleRequest(
-                        environment=request.environment,
-                        application_id=definition.application_id,
-                        access_mode=definition.access_mode,
-                        route_intent=definition.route_intent,
-                        expected_platform_source_revision=(
-                            request.expected_platform_source_revision
-                        ),
-                        expected_platform_generation=(
-                            request.expected_platform_generation
-                        ),
-                    )
+            prepared = self._commands.prepared_handoff(request)
+            if prepared is not None:
+                matched, blocker = self._preparation_matches(
+                    prepared,
+                    definition,
+                    request,
                 )
-                if not self._bundle_matches(bundle, definition, request):
-                    return self._blocked("INTEGRATION_BUNDLE_MISMATCH")
-                bundles.append(bundle)
+                if not matched:
+                    return None, False, (blocker,)
+                return prepared, True, ()
+
+            bundle = self._commands.integration_bundle(
+                FixtureBundleRequest(
+                    environment=request.environment,
+                    application_id=definition.application_id,
+                    access_mode=definition.access_mode,
+                    route_intent=definition.route_intent,
+                    expected_platform_source_revision=(
+                        request.expected_platform_source_revision
+                    ),
+                    expected_platform_generation=(
+                        request.expected_platform_generation
+                    ),
+                )
+            )
+            if not self._bundle_matches(bundle, definition, request):
+                return None, False, ("INTEGRATION_BUNDLE_MISMATCH",)
 
             image = self._commands.build_image(
                 FixtureImageRequest(
@@ -287,44 +413,111 @@ class FixtureSuiteLifecycle:
                 )
             )
             if _IMAGE_REFERENCE.fullmatch(image.reference) is None:
-                return self._blocked("FIXTURE_IMAGE_NOT_IMMUTABLE")
+                return None, False, ("FIXTURE_IMAGE_NOT_IMMUTABLE",)
             if image.source_revision != request.fixture_source_revision:
-                return self._blocked("FIXTURE_IMAGE_SOURCE_MISMATCH")
+                return None, False, ("FIXTURE_IMAGE_SOURCE_MISMATCH",)
 
-            deployments: list[FixtureApplicationDeployment] = []
-            for definition, bundle in zip(_FIXTURES, bundles, strict=True):
-                deployment = self._commands.deploy_application(
-                    FixtureApplicationDeployRequest(
-                        environment=request.environment,
-                        application_id=definition.application_id,
-                        access_mode=definition.access_mode,
-                        source_revision=request.fixture_source_revision,
-                        image=image,
-                        integration_bundle=bundle,
-                    )
+            deployment = self._commands.deploy_application(
+                FixtureApplicationDeployRequest(
+                    environment=request.environment,
+                    application_id=definition.application_id,
+                    access_mode=definition.access_mode,
+                    source_revision=request.fixture_source_revision,
+                    image=image,
+                    integration_bundle=bundle,
                 )
-                matched, blocker = self._deployment_matches(
-                    deployment,
-                    definition,
-                    image,
+            )
+            matched, blocker = self._deployment_matches(
+                deployment,
+                definition,
+                image,
+                bundle,
+                request,
+            )
+            if not matched:
+                return None, False, (blocker,)
+
+            generated = FixturePreparation(
+                image=image,
+                integration_bundle=bundle,
+                deployment=deployment,
+                integration_bundle_digest=lifecycle_digest(
                     bundle,
-                    request,
+                    "platform-integration-bundle",
+                ),
+                attachment_bundle_digest=lifecycle_digest(
+                    deployment.attachment_bundle,
+                    "application-attachment-bundle",
+                ),
+            )
+            prepared = self._commands.record_prepared_handoff(
+                request,
+                generated,
+            )
+            matched, blocker = self._preparation_matches(
+                prepared,
+                definition,
+                request,
+            )
+            if (
+                not matched
+                or prepared.image != generated.image
+                or prepared.integration_bundle != generated.integration_bundle
+                or prepared.deployment != generated.deployment
+            ):
+                return None, False, (
+                    blocker or "FIXTURE_PREPARATION_READBACK_MISMATCH",
                 )
-                if not matched:
-                    return self._blocked(blocker)
-                deployments.append(deployment)
+            return prepared, False, ()
+        except FixtureCommandError as error:
+            return None, False, (str(error) or "FIXTURE_COMMAND_FAILED",)
+        except ValueError:
+            return None, False, ("FIXTURE_PREPARATION_INVALID",)
 
+    def handoff(self, request: FixtureDeployRequest) -> FixtureHandoffResult:
+        """Deploy one fixture and expose its bundle pair without registration."""
+
+        definition, blocker = self._definition(request)
+        if definition is None:
+            return self._handoff_blocked(
+                request,
+                blocker or "FIXTURE_REQUEST_INVALID",
+            )
+        preparation, reused, blockers = self._prepare(request, definition)
+        if preparation is None:
+            return self._handoff_blocked(request, *blockers)
+        return FixtureHandoffResult(
+            outcome="prepared",
+            application_id=request.application_id,
+            image_reference=preparation.image.reference,
+            integration_bundle_digest=preparation.integration_bundle_digest,
+            integration_bundle_path=preparation.integration_bundle_path,
+            attachment_bundle_digest=preparation.attachment_bundle_digest,
+            attachment_bundle_path=preparation.attachment_bundle_path,
+            preparation_reused=reused,
+        )
+
+    def deploy(self, request: FixtureDeployRequest) -> FixtureDeployResult:
+        """Deploy and register exactly one selected Fixture Application."""
+
+        definition, blocker = self._definition(request)
+        if definition is None:
+            return self._blocked(blocker or "FIXTURE_REQUEST_INVALID")
+        preparation, reused, blockers = self._prepare(request, definition)
+        if preparation is None:
+            return self._blocked(*blockers)
+        try:
             registration = self._commands.register(
                 FixtureRegistrationRequest(
                     environment=request.environment,
-                    integration_bundles=tuple(bundles),
-                    deployments=tuple(deployments),
+                    integration_bundles=(preparation.integration_bundle,),
+                    deployments=(preparation.deployment,),
                 )
             )
         except FixtureCommandError as error:
             return self._blocked(str(error) or "FIXTURE_COMMAND_FAILED")
 
-        application_ids = tuple(item.application_id for item in deployments)
+        application_ids = (preparation.deployment.application_id,)
         if (
             not registration.active
             or registration.generation < 1
@@ -335,14 +528,23 @@ class FixtureSuiteLifecycle:
             return self._blocked("FIXTURE_REGISTRATION_READBACK_MISMATCH")
         return FixtureDeployResult(
             outcome="deployed",
-            image_reference=image.reference,
+            image_reference=preparation.image.reference,
             application_ids=application_ids,
             registration_generation=registration.generation,
             registration_generation_digest=registration.generation_digest,
+            preparation_reused=reused,
+            integration_bundle_digest=preparation.integration_bundle_digest,
+            integration_bundle_path=preparation.integration_bundle_path,
+            attachment_bundle_digest=preparation.attachment_bundle_digest,
+            attachment_bundle_path=preparation.attachment_bundle_path,
         )
 
-    def status(self, environment: str) -> FixtureStatusResult:
-        """Delegate the strictly read-only suite reconciliation."""
+    def status(
+        self,
+        environment: str,
+        application_id: str | None = None,
+    ) -> FixtureStatusResult:
+        """Read one selected fixture or the complete qualification suite."""
 
         if environment != "staging":
             return FixtureStatusResult(
@@ -352,8 +554,16 @@ class FixtureSuiteLifecycle:
                 (),
                 ("FIXTURE_ENVIRONMENT_UNAVAILABLE",),
             )
+        if application_id is not None and application_id not in _FIXTURE_BY_ID:
+            return FixtureStatusResult(
+                "blocked",
+                None,
+                None,
+                (),
+                ("FIXTURE_REQUEST_INVALID",),
+            )
         try:
-            return self._commands.status(environment)
+            return self._commands.status(environment, application_id)
         except FixtureCommandError as error:
             return FixtureStatusResult(
                 "blocked",
@@ -418,6 +628,8 @@ __all__ = (
     "FixtureDestroyResult",
     "FixtureImageReadback",
     "FixtureImageRequest",
+    "FixtureHandoffResult",
+    "FixturePreparation",
     "FixtureRegistrationReadback",
     "FixtureRegistrationRequest",
     "FixtureSuiteLifecycle",

@@ -14,6 +14,7 @@ operator must already have an active `gcloud` login, user Application Default Cr
 staging project selected:
 
 ```bash
+make platform-preflight ENVIRONMENT=staging
 make platform-prepare ENVIRONMENT=staging
 make platform-status ENVIRONMENT=staging
 make platform-deploy ENVIRONMENT=staging
@@ -41,7 +42,24 @@ make platform-retire \
   GENERATION_DIGEST=sha256:<64-lowercase-hex>
 make platform-qualify ENVIRONMENT=staging
 make platform-destroy ENVIRONMENT=staging
+make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
+make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-public
+make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
+make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-restricted
+make fixture-status ENVIRONMENT=staging
+make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
+make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 ```
+
+Fixture deploy and destroy always require one fixture application identifier and operate only that
+fixture's Application State. Fixture status is suite-wide by default and accepts the same optional
+identifier when a single-fixture readback is more useful.
+
+`fixture-handoff` is an optional mutating inspection stop. It deploys or reconciles the selected
+fixture and prints the canonical Platform Integration Bundle and Application Attachment Bundle
+paths and digests, but does not register the fixture. A following `fixture-deploy` revalidates and
+reuses that exact pair when every source, generation, image, digest, relationship, and provider
+binding is unchanged; otherwise the normal end-to-end path regenerates it.
 
 Accepted Source is the default and requires exact clean current `main`. To verify a pull request
 against real staging provider behavior before merge, first push the clean branch and add
@@ -51,12 +69,19 @@ digest-bound in the specification, status, bundles, and evidence; qualification 
 separate `qualification/candidates/` path and never replaces accepted evidence. After merge, rerun
 the journey from main with the default Accepted Source.
 
-Standalone preparation is read-only and remains an optional dry run; when Cloud SDK is available it
-also verifies the active human account, user Application Default Credentials, provider project,
-billing reference, and immutable Google subject without retaining either token. The normal deploy
-command verifies local source/repository/tool facts plus that operator session, builds the complete Deployment
-Specification, writes canonical bytes, asks for approval, and continues in the same process. Status
-is read-only. Production remains blocked by
+Standalone preflight is the readiness-only command. It verifies source, profile, tools, active
+human account, user Application Default Credentials, provider project, ownership, and readable
+provider prerequisites without retaining a token or writing a specification, digest, approval,
+journal, plan, or deployment working state. It returns only readiness and blocker codes.
+
+Standalone preparation repeats those checks and remains an optional specification dry run. It
+writes, displays, and approves the complete private specification without an external mutation.
+The normal deploy command first revalidates and automatically reuses the current approved specification when its
+source, profile, environment, session, project, ownership, tools, and readable provider facts remain
+valid. It does not require the operator to copy the digest. When current approved intent is absent,
+stale, or unapproved, deploy builds the complete Deployment Specification, writes canonical bytes,
+asks for approval, and continues in the same process. Malformed retained state and current blockers
+fail closed. Status is read-only. Production remains blocked by
 `OWNERSHIP_TRANSFER_REQUIRED`.
 
 Deploy accepts only the exact current, approved specification. It journals preflight, reviewed
@@ -95,9 +120,10 @@ interpolation, mutable scope, and raw-output persistence.
 
 ## Private local state
 
-Generated specifications, approval bindings, immutable journal revisions, current pointers, and
-create-only application-scoped integration bundles use the ignored `.platform-operator/` directory
-by default. Directories use mode `0700` and files use mode `0600`. Registration intent is a strict
+Generated specifications, approval bindings, immutable journal revisions, current pointers,
+create-only application-scoped integration bundles, and inspectable fixture preparation pairs use
+the ignored `.platform-operator/` directory by default. Directories use mode `0700` and files use
+mode `0600`. Registration intent is a strict
 private operator input; restricted members are never echoed in terminal results. Documents contain
 no credential, secret payload, Terraform state, saved plan, raw provider response, or browser
 state. Private plans and raw command results never become journal content.

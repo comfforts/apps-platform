@@ -21,6 +21,7 @@ from infrastructure.operator.integration import (
 from infrastructure.operator.fixture_lifecycle import (
     FixtureDeployResult,
     FixtureDestroyResult,
+    FixtureHandoffResult,
 )
 from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationStatus,
@@ -101,37 +102,63 @@ class FakeIntegrationLifecycle:
 class FakeFixtureOperator:
     def __init__(self) -> None:
         self.environments: list[str] = []
+        self.application_ids: list[str | None] = []
 
-    def deploy(self, environment: str) -> FixtureDeployResult:
+    def deploy(self, environment: str, application_id: str) -> FixtureDeployResult:
         self.environments.append(environment)
+        self.application_ids.append(application_id)
         return FixtureDeployResult(
             outcome="deployed",
             image_reference=(
                 "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
                 "app-platform-images/fixture@sha256:" + ("1" * 64)
             ),
-            application_ids=(
-                "fixture-public",
-                "fixture-authenticated",
-                "fixture-restricted",
-            ),
+            application_ids=(application_id,),
             registration_generation=8,
             registration_generation_digest=GENERATION_DIGEST,
         )
 
-    def status(self, environment: str) -> FixtureStatusResult:
+    def handoff(
+        self,
+        environment: str,
+        application_id: str,
+    ) -> FixtureHandoffResult:
         self.environments.append(environment)
+        self.application_ids.append(application_id)
+        return FixtureHandoffResult(
+            outcome="prepared",
+            application_id=application_id,
+            image_reference=(
+                "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                "app-platform-images/fixture@sha256:" + ("1" * 64)
+            ),
+            integration_bundle_digest="sha256:" + ("2" * 64),
+            integration_bundle_path="/private/platform-integration-bundle.v1.json",
+            attachment_bundle_digest="sha256:" + ("3" * 64),
+            attachment_bundle_path="/private/application-attachment-bundle.v1.json",
+        )
+
+    def status(
+        self,
+        environment: str,
+        application_id: str | None = None,
+    ) -> FixtureStatusResult:
+        self.environments.append(environment)
+        self.application_ids.append(application_id)
+        applications = (
+            FixtureApplicationStatus(application_id, "active", True, True),
+        ) if application_id is not None else (
+            FixtureApplicationStatus("fixture-public", "active", True, True),
+            FixtureApplicationStatus(
+                "fixture-authenticated", "active", True, True
+            ),
+            FixtureApplicationStatus("fixture-restricted", "active", True, True),
+        )
         return FixtureStatusResult(
             "read",
             8,
             GENERATION_DIGEST,
-            (
-                FixtureApplicationStatus("fixture-public", "active", True, True),
-                FixtureApplicationStatus(
-                    "fixture-authenticated", "active", True, True
-                ),
-                FixtureApplicationStatus("fixture-restricted", "active", True, True),
-            ),
+            applications,
         )
 
     def destroy(self, environment: str, application_id: str) -> FixtureDestroyResult:
@@ -158,28 +185,79 @@ def _run(
 
 
 class IntegrationCliTest(unittest.TestCase):
-    def test_fixture_deploy_is_one_argument_free_application_lifecycle(self) -> None:
+    def test_fixture_handoff_emits_inspectable_paths_without_registration(self) -> None:
         fixture = FakeFixtureOperator()
         output = io.StringIO()
 
         with redirect_stdout(output):
             code = main(
-                ["fixture-deploy", "--environment", "staging"],
+                [
+                    "fixture-handoff",
+                    "--environment",
+                    "staging",
+                    "--application-id",
+                    "fixture-authenticated",
+                ],
+                fixture_factory=lambda _path, _authority: fixture,
+            )
+
+        result = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(result["outcome"], "prepared")
+        self.assertEqual(
+            result["integration_bundle_path"],
+            "/private/platform-integration-bundle.v1.json",
+        )
+        self.assertEqual(
+            result["attachment_bundle_path"],
+            "/private/application-attachment-bundle.v1.json",
+        )
+        self.assertEqual(fixture.application_ids, ["fixture-authenticated"])
+
+    def test_fixture_deploy_requires_and_selects_one_application(self) -> None:
+        fixture = FakeFixtureOperator()
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            code = main(
+                [
+                    "fixture-deploy",
+                    "--environment",
+                    "staging",
+                    "--application-id",
+                    "fixture-authenticated",
+                ],
                 fixture_factory=lambda _path, _authority: fixture,
             )
 
         result = json.loads(output.getvalue())
         self.assertEqual(code, 0)
         self.assertEqual(fixture.environments, ["staging"])
+        self.assertEqual(fixture.application_ids, ["fixture-authenticated"])
         self.assertEqual(result["outcome"], "deployed")
         self.assertEqual(
             result["application_ids"],
-            [
-                "fixture-public",
-                "fixture-authenticated",
-                "fixture-restricted",
-            ],
+            ["fixture-authenticated"],
         )
+
+    def test_fixture_deploy_rejects_an_omitted_application(self) -> None:
+        fixture = FakeFixtureOperator()
+
+        for application_option in ([], ["--application-id", ""]):
+            with self.subTest(application_option=application_option):
+                with self.assertRaisesRegex(
+                    SystemExit,
+                    "fixture-deploy requires --application-id",
+                ):
+                    main(
+                        [
+                            "fixture-deploy",
+                            "--environment",
+                            "staging",
+                            *application_option,
+                        ],
+                        fixture_factory=lambda _path, _authority: fixture,
+                    )
 
     def test_fixture_status_returns_only_read_only_coarse_posture(self) -> None:
         fixture = FakeFixtureOperator()
@@ -198,6 +276,30 @@ class IntegrationCliTest(unittest.TestCase):
         serialized = json.dumps(result)
         self.assertNotIn("restricted_members", serialized)
         self.assertNotIn("terraform", serialized.lower())
+
+    def test_fixture_status_optionally_selects_one_application(self) -> None:
+        fixture = FakeFixtureOperator()
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            code = main(
+                [
+                    "fixture-status",
+                    "--environment",
+                    "staging",
+                    "--application-id",
+                    "fixture-public",
+                ],
+                fixture_status_factory=lambda _path, _authority: fixture,
+            )
+
+        result = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(fixture.application_ids, ["fixture-public"])
+        self.assertEqual(
+            [item["application_id"] for item in result["applications"]],
+            ["fixture-public"],
+        )
 
     def test_fixture_destroy_selects_one_application_and_emits_coarse_result(self) -> None:
         fixture = FakeFixtureOperator()

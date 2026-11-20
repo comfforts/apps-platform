@@ -45,12 +45,14 @@ def _parser() -> argparse.ArgumentParser:
             "deploy",
             "detach",
             "outputs",
+            "preflight",
             "prepare",
             "qualify",
             "register",
             "retire",
             "status",
             "destroy",
+            "fixture-handoff",
             "fixture-deploy",
             "fixture-status",
             "fixture-destroy",
@@ -76,7 +78,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--specification-digest",
-        help="exact approved deployment specification digest",
+        help=(
+            "optional explicit current approved deployment specification digest; "
+            "default deploy discovers and reuses one automatically"
+        ),
     )
     parser.add_argument("--application-id")
     parser.add_argument(
@@ -98,6 +103,18 @@ def _default_factory(
     source_authority: str,
 ) -> LifecycleOperator:
     return build_local_operator(PROJECT_ROOT, state_directory, source_authority)
+
+
+def _default_preflight_factory(
+    state_directory: Path,
+    source_authority: str,
+) -> LifecycleOperator:
+    return build_local_operator(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+        arm_executor=False,
+    )
 
 
 def _default_integration_factory(
@@ -145,7 +162,7 @@ def _default_fixture_status_factory(  # type: ignore[no-untyped-def]
 
 def _required(arguments: argparse.Namespace, name: str) -> object:
     value = getattr(arguments, name)
-    if value is None:
+    if value is None or (isinstance(value, str) and not value.strip()):
         option = name.replace("_", "-")
         raise SystemExit(f"{arguments.operation} requires --{option}")
     return value
@@ -205,6 +222,9 @@ def main(
     argv: Sequence[str] | None = None,
     *,
     operator_factory: Callable[[Path, str], LifecycleOperator] = _default_factory,
+    preflight_factory: Callable[
+        [Path, str], LifecycleOperator
+    ] = _default_preflight_factory,
     integration_factory: Callable[
         [Path, str], ApplicationIntegrationLifecycle
     ] = _default_integration_factory,
@@ -218,8 +238,19 @@ def main(
     fixture_status_factory: Callable[[Path, str], object] = _default_fixture_status_factory,
 ) -> int:
     arguments = _parser().parse_args(argv)
-    if arguments.operation in {"prepare", "deploy", "status"}:
-        operator = operator_factory(
+    selected_fixture = (
+        str(_required(arguments, "application_id"))
+        if arguments.operation
+        in {"fixture-handoff", "fixture-deploy", "fixture-destroy"}
+        else None
+    )
+    if arguments.operation in {"preflight", "prepare", "deploy", "status"}:
+        selected_operator_factory = (
+            preflight_factory
+            if arguments.operation == "preflight"
+            else operator_factory
+        )
+        operator = selected_operator_factory(
             arguments.state_directory,
             arguments.source_authority,
         )
@@ -238,7 +269,11 @@ def main(
                 }
             )
             return 2
-    elif arguments.operation in {"fixture-deploy", "fixture-destroy"}:
+    elif arguments.operation in {
+        "fixture-handoff",
+        "fixture-deploy",
+        "fixture-destroy",
+    }:
         try:
             fixture = fixture_factory(
                 arguments.state_directory,
@@ -299,6 +334,19 @@ def main(
             )
             return 2
 
+    if arguments.operation == "preflight":
+        result = operator.preflight(arguments.environment)
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "outcome": result.outcome,
+                "ready": result.ready,
+                "source_authority": arguments.source_authority,
+            }
+        )
+        return 0 if result.ready else 2
+
     if arguments.operation == "prepare":
         result = operator.prepare(arguments.environment)
         _print(
@@ -315,7 +363,10 @@ def main(
         return 0 if result.outcome in {"prepared", "unchanged"} else 2
 
     if arguments.operation == "fixture-deploy":
-        result = fixture.deploy(arguments.environment)
+        result = fixture.deploy(
+            arguments.environment,
+            selected_fixture,
+        )
         _print(
             {
                 "application_ids": list(result.application_ids),
@@ -328,12 +379,42 @@ def main(
                 "registration_generation_digest": (
                     result.registration_generation_digest
                 ),
+                "preparation_reused": result.preparation_reused,
+                "integration_bundle_digest": result.integration_bundle_digest,
+                "integration_bundle_path": result.integration_bundle_path,
+                "attachment_bundle_digest": result.attachment_bundle_digest,
+                "attachment_bundle_path": result.attachment_bundle_path,
             }
         )
         return 0 if result.outcome == "deployed" else 2
 
+    if arguments.operation == "fixture-handoff":
+        result = fixture.handoff(
+            arguments.environment,
+            selected_fixture,
+        )
+        _print(
+            {
+                "application_id": result.application_id,
+                "attachment_bundle_digest": result.attachment_bundle_digest,
+                "attachment_bundle_path": result.attachment_bundle_path,
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "image_reference": result.image_reference,
+                "integration_bundle_digest": result.integration_bundle_digest,
+                "integration_bundle_path": result.integration_bundle_path,
+                "outcome": result.outcome,
+                "preparation_reused": result.preparation_reused,
+                "source_authority": arguments.source_authority,
+            }
+        )
+        return 0 if result.outcome == "prepared" else 2
+
     if arguments.operation == "fixture-status":
-        result = fixture.status(arguments.environment)
+        result = fixture.status(
+            arguments.environment,
+            arguments.application_id,
+        )
         _print(
             {
                 "applications": [
@@ -360,7 +441,7 @@ def main(
     if arguments.operation == "fixture-destroy":
         result = fixture.destroy(
             arguments.environment,
-            str(_required(arguments, "application_id")),
+            selected_fixture,
         )
         _print(
             {
@@ -380,7 +461,11 @@ def main(
     if arguments.operation == "deploy":
         specification_digest = arguments.specification_digest
         if specification_digest is None:
-            prepared = operator.prepare(arguments.environment)
+            prepared = operator.current_approved_specification(
+                arguments.environment
+            )
+            if prepared is None:
+                prepared = operator.prepare(arguments.environment)
             specification_digest = prepared.specification_digest
             if (
                 prepared.outcome not in {"prepared", "unchanged"}

@@ -4,17 +4,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+from pathlib import Path
+import tempfile
 import unittest
 
 from contracts.lifecycle import lifecycle_digest
 from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationDeployment,
+    FixtureApplicationStatus,
     FixtureCommandError,
     FixtureDeployRequest,
     FixtureDeployResult,
     FixtureDestroyRequest,
     FixtureImageReadback,
+    FixturePreparation,
     FixtureRegistrationReadback,
+    FixtureStatusResult,
     FixtureSuiteLifecycle,
 )
 from infrastructure.operator.integration import (
@@ -30,7 +35,11 @@ from infrastructure.operator.local_fixture_lifecycle import (
 from infrastructure.operator import StageExecution
 from infrastructure.operator import GitSnapshot
 from infrastructure.operator.integration import PlatformIntegrationState
+from infrastructure.operator.local import LocalFilesystem
 from infrastructure.operator.local_fixture_lifecycle import LocalFixtureOperator
+from infrastructure.operator.local_fixture_preparations import (
+    LocalFixturePreparations,
+)
 
 
 SOURCE_REVISION = "a" * 40
@@ -129,6 +138,12 @@ class FakeFixtureCommands:
     fail_application: str | None = None
     image_reference: str = IMAGE_REFERENCE
     image_source_revision: str = SOURCE_REVISION
+    preparation: FixturePreparation | None = None
+
+    def prepared_handoff(self, request):  # type: ignore[no-untyped-def]
+        del request
+        self.calls.append("prepared")
+        return self.preparation
 
     def integration_bundle(self, request):  # type: ignore[no-untyped-def]
         self.calls.append(f"bundle:{request.application_id}")
@@ -155,6 +170,24 @@ class FakeFixtureCommands:
             attachment_bundle=_attachment(request.integration_bundle),
         )
 
+    def record_prepared_handoff(
+        self,
+        request,
+        preparation,
+    ):  # type: ignore[no-untyped-def]
+        del request
+        self.calls.append("record")
+        self.preparation = FixturePreparation(
+            image=preparation.image,
+            integration_bundle=preparation.integration_bundle,
+            deployment=preparation.deployment,
+            integration_bundle_digest=preparation.integration_bundle_digest,
+            attachment_bundle_digest=preparation.attachment_bundle_digest,
+            integration_bundle_path="/private/platform-integration-bundle.v1.json",
+            attachment_bundle_path="/private/application-attachment-bundle.v1.json",
+        )
+        return self.preparation
+
     def register(self, request):  # type: ignore[no-untyped-def]
         self.calls.append("register")
         return FixtureRegistrationReadback(
@@ -166,10 +199,35 @@ class FakeFixtureCommands:
             ),
         )
 
+    def status(self, environment, application_id=None):  # type: ignore[no-untyped-def]
+        del environment
+        self.calls.append(f"status:{application_id or 'all'}")
+        application_ids = (
+            (application_id,)
+            if application_id is not None
+            else (
+                "fixture-public",
+                "fixture-authenticated",
+                "fixture-restricted",
+            )
+        )
+        return FixtureStatusResult(
+            "read",
+            8,
+            GENERATION_DIGEST,
+            tuple(
+                FixtureApplicationStatus(item, "active", True, True)
+                for item in application_ids
+            ),
+        )
 
-def _request() -> FixtureDeployRequest:
+
+def _request(
+    application_id: str = "fixture-authenticated",
+) -> FixtureDeployRequest:
     return FixtureDeployRequest(
         environment="staging",
+        application_id=application_id,
         fixture_source_revision=SOURCE_REVISION,
         expected_platform_source_revision=PLATFORM_REVISION,
         expected_platform_generation=7,
@@ -177,7 +235,7 @@ def _request() -> FixtureDeployRequest:
 
 
 class FixtureDeploymentLifecycleTest(unittest.TestCase):
-    def test_complete_journey_uses_one_image_three_independent_apps_and_one_generation(self) -> None:
+    def test_complete_journey_deploys_only_the_selected_fixture(self) -> None:
         commands = FakeFixtureCommands()
 
         result = FixtureSuiteLifecycle(commands).deploy(_request())
@@ -189,25 +247,44 @@ class FixtureDeploymentLifecycleTest(unittest.TestCase):
         self.assertEqual(result.registration_generation_digest, GENERATION_DIGEST)
         self.assertEqual(
             result.application_ids,
-            (
-                "fixture-public",
-                "fixture-authenticated",
-                "fixture-restricted",
-            ),
+            ("fixture-authenticated",),
         )
         self.assertEqual(
             commands.calls,
             [
-                "bundle:fixture-public",
+                "prepared",
                 "bundle:fixture-authenticated",
-                "bundle:fixture-restricted",
                 "image",
-                "deploy:fixture-public",
                 "deploy:fixture-authenticated",
-                "deploy:fixture-restricted",
+                "record",
                 "register",
             ],
         )
+
+    def test_handoff_stops_before_registration_and_deploy_reuses_it(self) -> None:
+        commands = FakeFixtureCommands()
+        lifecycle = FixtureSuiteLifecycle(commands)
+
+        handoff = lifecycle.handoff(_request())
+
+        self.assertEqual(handoff.outcome, "prepared")
+        self.assertFalse(handoff.preparation_reused)
+        self.assertEqual(
+            handoff.integration_bundle_path,
+            "/private/platform-integration-bundle.v1.json",
+        )
+        self.assertEqual(
+            handoff.attachment_bundle_path,
+            "/private/application-attachment-bundle.v1.json",
+        )
+        self.assertNotIn("register", commands.calls)
+
+        commands.calls.clear()
+        deployed = lifecycle.deploy(_request())
+
+        self.assertEqual(deployed.outcome, "deployed")
+        self.assertTrue(deployed.preparation_reused)
+        self.assertEqual(commands.calls, ["prepared", "register"])
 
     def test_mutable_or_source_mismatched_image_stops_before_application_state(self) -> None:
         cases = (
@@ -229,7 +306,7 @@ class FixtureDeploymentLifecycleTest(unittest.TestCase):
                     any(call.startswith("deploy:") for call in commands.calls)
                 )
 
-    def test_partial_failure_stops_dependents_and_safe_retry_reconciles_all(self) -> None:
+    def test_selected_failure_stops_registration_and_safe_retry_reconciles_it(self) -> None:
         commands = FakeFixtureCommands(fail_application="fixture-authenticated")
         lifecycle = FixtureSuiteLifecycle(commands)
 
@@ -237,9 +314,7 @@ class FixtureDeploymentLifecycleTest(unittest.TestCase):
 
         self.assertEqual(failed.outcome, "blocked")
         self.assertEqual(failed.blockers, ("FIXTURE_PLAN_REFUSED",))
-        self.assertIn("deploy:fixture-public", commands.calls)
         self.assertIn("deploy:fixture-authenticated", commands.calls)
-        self.assertNotIn("deploy:fixture-restricted", commands.calls)
         self.assertNotIn("register", commands.calls)
 
         commands.fail_application = None
@@ -249,10 +324,31 @@ class FixtureDeploymentLifecycleTest(unittest.TestCase):
         self.assertEqual(resumed.outcome, "deployed")
         self.assertEqual(commands.calls[-1], "register")
 
+    def test_status_reads_all_fixtures_or_one_selected_fixture(self) -> None:
+        commands = FakeFixtureCommands()
+        lifecycle = FixtureSuiteLifecycle(commands)
+
+        complete = lifecycle.status("staging")
+        selected = lifecycle.status("staging", "fixture-restricted")
+
+        self.assertEqual(len(complete.applications), 3)
+        self.assertEqual(
+            tuple(item.application_id for item in selected.applications),
+            ("fixture-restricted",),
+        )
+        self.assertEqual(
+            commands.calls,
+            ["status:all", "status:fixture-restricted"],
+        )
+
+        unknown = lifecycle.status("staging", "fixture-unknown")
+        self.assertEqual(unknown.outcome, "blocked")
+        self.assertEqual(unknown.blockers, ("FIXTURE_REQUEST_INVALID",))
+
 
 @dataclass
 class FakeIntegrationLifecycle:
-    entries: tuple[object, ...] = ()
+    registrations: list[tuple[object, object, object]] = field(default_factory=list)
 
     def outputs(self, request):  # type: ignore[no-untyped-def]
         bundle = _bundle(
@@ -270,8 +366,8 @@ class FakeIntegrationLifecycle:
         del bundle
         return AttachmentValidationResult("validated", attachment)
 
-    def register_complete(self, entries):  # type: ignore[no-untyped-def]
-        self.entries = entries
+    def register(self, bundle, attachment, intent):  # type: ignore[no-untyped-def]
+        self.registrations.append((bundle, attachment, intent))
         return RegistrationLifecycleResult("activated", 8, GENERATION_DIGEST)
 
 
@@ -320,7 +416,7 @@ class FakeFixtureExecutor:
 
 
 class LocalFixtureLifecycleCompositionTest(unittest.TestCase):
-    def test_deep_composition_completes_bundle_image_plan_attachment_and_registration(self) -> None:
+    def test_deep_composition_completes_only_the_selected_fixture(self) -> None:
         integration = FakeIntegrationLifecycle()
         image = FakeImageProvider()
         executor = FakeFixtureExecutor()
@@ -331,26 +427,51 @@ class LocalFixtureLifecycleCompositionTest(unittest.TestCase):
             ("https://accounts.google.com", "123456789012345678901"),
         )
 
-        result = FixtureSuiteLifecycle(commands).deploy(_request())
+        result = FixtureSuiteLifecycle(commands).deploy(_request("fixture-restricted"))
 
         self.assertEqual(result.outcome, "deployed")
         self.assertEqual(image.references, [SOURCE_REVISION])
         self.assertEqual(
             [context.stage["stage_id"] for context in executor.contexts],
-            [
-                "fixture-public",
-                "fixture-authenticated",
-                "fixture-restricted",
-            ],
+            ["fixture-restricted"],
         )
-        self.assertEqual(len(integration.entries), 3)
-        restricted = integration.entries[2]
-        authenticated = integration.entries[1]
-        self.assertEqual(authenticated.intent.catalogue_visibility, "unlisted")
+        self.assertEqual(len(integration.registrations), 1)
+        restricted_intent = integration.registrations[0][2]
         self.assertEqual(
-            restricted.intent.restricted_members,
+            restricted_intent.restricted_members,
             (("https://accounts.google.com", "123456789012345678901"),),
         )
+
+    def test_persisted_handoff_is_reused_without_redeploying_application_state(self) -> None:
+        integration = FakeIntegrationLifecycle()
+        image = FakeImageProvider()
+        executor = FakeFixtureExecutor()
+        with tempfile.TemporaryDirectory() as directory:
+            preparations = LocalFixturePreparations(
+                LocalFilesystem(
+                    Path(__file__).resolve().parents[1],
+                    Path(directory) / "operator",
+                )
+            )
+            commands = LocalFixtureLifecycleCommands(
+                integration,  # type: ignore[arg-type]
+                image,
+                executor,
+                ("https://accounts.google.com", "123456789012345678901"),
+                preparations=preparations,
+            )
+            lifecycle = FixtureSuiteLifecycle(commands)
+
+            handoff = lifecycle.handoff(_request())
+            deployed = lifecycle.deploy(_request())
+
+        self.assertEqual(handoff.outcome, "prepared")
+        self.assertFalse(handoff.preparation_reused)
+        self.assertEqual(deployed.outcome, "deployed")
+        self.assertTrue(deployed.preparation_reused)
+        self.assertEqual(len(executor.contexts), 1)
+        self.assertEqual(image.references, [SOURCE_REVISION])
+        self.assertEqual(len(integration.registrations), 1)
 
     def test_wrong_attachment_owner_fails_before_generation_activation(self) -> None:
         class WrongOwnerCommands(FakeFixtureCommands):
@@ -416,9 +537,10 @@ class LocalFixtureOperatorTest(unittest.TestCase):
         lifecycle = Lifecycle()
         operator = LocalFixtureOperator(Git(), Platform(), lifecycle)
 
-        result = operator.deploy("staging")
+        result = operator.deploy("staging", "fixture-public")
 
         self.assertEqual(result.outcome, "deployed")
+        self.assertEqual(lifecycle.request.application_id, "fixture-public")
         self.assertEqual(lifecycle.request.fixture_source_revision, SOURCE_REVISION)
         self.assertEqual(
             lifecycle.request.expected_platform_source_revision,

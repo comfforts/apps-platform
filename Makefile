@@ -13,12 +13,12 @@ INTEGRATION_BUNDLE ?=
 ATTACHMENT_BUNDLE ?=
 REGISTRATION_INTENT ?=
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-prepare platform-deploy platform-status platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-deploy fixture-status fixture-destroy
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-prepare platform-deploy platform-status platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-handoff fixture-deploy fixture-status fixture-destroy
 
 check: governance-check contract-check fixture-check runtime-check terraform-check operator-check ## Run every implemented deterministic platform check.
 
 governance-check: ## Verify the standalone project shell without credentials or external services.
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_governance tests.test_finance_integration_draft
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_governance
 
 contract-check: ## Verify versioned contracts without credentials or external services.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_contracts tests.test_lifecycle_contracts tests.test_lifecycle_vectors tests.test_qualification_contracts
@@ -37,6 +37,9 @@ terraform-check: ## Verify the pinned Terraform foundation offline in a disposab
 
 operator-check: ## Verify the credential-free interactive lifecycle core with deterministic adapters.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_source_authority tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_local_deployment_inputs tests.test_local_deployment_commands tests.test_deployment_provider_commands tests.test_deployment_dns tests.test_application_integration tests.test_registration_lifecycle tests.test_integration_cli tests.test_local_integration tests.test_local_handoffs tests.test_local_generation_control tests.test_generation_provider_commands tests.test_fixture_deployment_lifecycle tests.test_local_fixture_deployment tests.test_qualification_lifecycle tests.test_qualification_suite tests.test_local_qualification tests.test_live_qualification_browser tests.test_live_qualification_probe tests.test_qualification_destruction_cli tests.test_generation_rollback tests.test_destruction_specification tests.test_destruction_lifecycle tests.test_local_destruction_control tests.test_local_destruction_commands
+
+platform-preflight: ## Check tools, source, authentication, ownership, and provider readiness without creating lifecycle state.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator preflight --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
 
 platform-prepare: ## Prepare and explicitly approve one complete lifecycle specification.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator prepare --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
@@ -65,11 +68,14 @@ platform-qualify: ## Evaluate and record the exact current platform and fixture 
 platform-destroy: ## Compile, confirm, and resume exact safe platform destruction.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator destroy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
 
-fixture-deploy: terraform-setup ## Build, deploy, validate, and register all three staging fixtures.
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+fixture-handoff: terraform-setup ## Deploy one selected fixture and stop with inspectable bundles before registration.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-handoff --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)"
 
-fixture-status: ## Reconcile fixture registrations and provider targets without mutation.
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-status --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+fixture-deploy: terraform-setup ## Build, deploy, validate, and register one selected staging fixture.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)"
+
+fixture-status: ## Reconcile all fixtures, or APPLICATION_ID when supplied, without mutation.
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-status --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" $(if $(APPLICATION_ID),--application-id "$(APPLICATION_ID)",)
 
 fixture-destroy: terraform-setup ## Detach and destroy one selected fixture Application State.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-destroy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)"

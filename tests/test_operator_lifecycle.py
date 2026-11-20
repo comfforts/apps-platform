@@ -25,6 +25,7 @@ from infrastructure.operator import (
 )
 from infrastructure.operator.local import (
     LocalFilesystem,
+    ProfileDns,
     ProfileGcp,
     build_local_operator,
 )
@@ -127,6 +128,16 @@ class FakeExecutor:
 
 
 class OperatorLifecycleTest(unittest.TestCase):
+    def test_local_dns_discovery_reports_missing_required_tool(self) -> None:
+        result = ProfileDns().inspect(
+            {
+                "dns_provider_class": "squarespace-v1",
+                "hostname": "apps-staging.comfforts.com",
+            }
+        )
+
+        self.assertEqual(result.blockers, ("DNS_TOOL_UNAVAILABLE",))
+
     def test_local_gcp_discovery_verifies_active_human_session_and_project(self) -> None:
         profile = {
             "project_id": "comfforts-platform-non-prod",
@@ -279,6 +290,19 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertEqual(state_mode, 0o700)
         self.assertEqual(working_mode, 0o700)
 
+    def test_local_preflight_factory_does_not_arm_executor_or_create_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "preflight-state"
+
+            operator = build_local_operator(
+                PROJECT_ROOT,
+                state,
+                arm_executor=False,
+            )
+
+            self.assertIsNone(operator._adapters.executor)
+            self.assertFalse(state.exists())
+
     def test_executor_receives_one_exact_immutable_stage_context(self) -> None:
         @dataclass
         class ContextExecutor:
@@ -396,6 +420,45 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertIn(result.specification_digest, terminal.prompts[0])
             self.assertNotIn("secret", terminal.prompts[0].lower())
 
+    def test_preflight_reports_readiness_without_state_digest_or_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_root = Path(directory) / "not-created"
+            terminal = FakeTerminal([])
+            operator, _ = self._operator(
+                state_root,
+                terminal=terminal,
+            )
+
+            result = operator.preflight("staging")
+
+            self.assertEqual(result.outcome, "ready")
+            self.assertTrue(result.ready)
+            self.assertEqual(result.blockers, ())
+            self.assertEqual(terminal.prompts, [])
+            self.assertFalse(state_root.exists())
+            self.assertIn("Preflight ready for staging.", terminal.messages)
+
+    def test_preflight_reports_all_current_readiness_blockers_without_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_root = Path(directory) / "not-created"
+            operator, terminal = self._operator(
+                state_root,
+                git=FakeGit(clean=False),
+                terraform=FakeTerraform(("PINNED_TOOL_UNAVAILABLE",)),
+                terminal=FakeTerminal([]),
+            )
+
+            result = operator.preflight("staging")
+
+            self.assertEqual(result.outcome, "blocked")
+            self.assertFalse(result.ready)
+            self.assertEqual(
+                result.blockers,
+                ("PINNED_TOOL_UNAVAILABLE", "SOURCE_NOT_CLEAN"),
+            )
+            self.assertEqual(terminal.prompts, [])
+            self.assertFalse(state_root.exists())
+
     def test_no_change_reuses_the_exact_approved_specification_without_reprompting(
         self,
     ) -> None:
@@ -410,6 +473,171 @@ class OperatorLifecycleTest(unittest.TestCase):
             self.assertEqual(second.specification_digest, first.specification_digest)
             self.assertTrue(second.approved)
             self.assertEqual(len(terminal.prompts), 1)
+
+    def test_deploy_without_digest_reuses_current_approved_specification(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            terminal = FakeTerminal([True])
+            operator, _ = self._operator(
+                Path(directory),
+                terminal=terminal,
+                executor=FakeExecutor(),
+            )
+            prepared = operator.prepare("staging")
+
+            deploy_stdout = io.StringIO()
+            with (
+                mock.patch.object(
+                    operator,
+                    "prepare",
+                    side_effect=AssertionError("preparation must not be repeated"),
+                ),
+                mock.patch("sys.stdout", deploy_stdout),
+            ):
+                deploy_code = operator_main(
+                    ["deploy", "--environment", "staging"],
+                    operator_factory=lambda _path, _authority: operator,
+                )
+
+            deployed = json.loads(deploy_stdout.getvalue().splitlines()[-1])
+            self.assertEqual(deploy_code, 0)
+            self.assertEqual(deployed["outcome"], "succeeded")
+            self.assertEqual(
+                deployed["specification_digest"],
+                prepared.specification_digest,
+            )
+            self.assertEqual(len(terminal.prompts), 1)
+            self.assertTrue(
+                any(
+                    message.startswith("Reusing current approved specification ")
+                    for message in terminal.messages
+                )
+            )
+
+    def test_deploy_without_digest_prepares_again_after_source_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            git = FakeGit()
+            terminal = FakeTerminal([True, True])
+            operator, _ = self._operator(
+                Path(directory),
+                git=git,
+                terminal=terminal,
+                executor=FakeExecutor(),
+            )
+            first = operator.prepare("staging")
+            git.revision = "b" * 40
+
+            deploy_stdout = io.StringIO()
+            with (
+                mock.patch.object(
+                    operator,
+                    "prepare",
+                    wraps=operator.prepare,
+                ) as prepare,
+                mock.patch("sys.stdout", deploy_stdout),
+            ):
+                deploy_code = operator_main(
+                    ["deploy", "--environment", "staging"],
+                    operator_factory=lambda _path, _authority: operator,
+                )
+
+            deployed = json.loads(deploy_stdout.getvalue().splitlines()[-1])
+            self.assertEqual(deploy_code, 0)
+            self.assertEqual(prepare.call_count, 1)
+            self.assertNotEqual(
+                deployed["specification_digest"],
+                first.specification_digest,
+            )
+            self.assertEqual(len(terminal.prompts), 2)
+
+    def test_deploy_without_digest_fails_closed_on_current_discovery_blocker(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            gcp = FakeDiscovery(
+                "gcp",
+                (
+                    ("project_id", "comfforts-platform-non-prod"),
+                    ("project_number", "455651441682"),
+                    ("region", "us-west1"),
+                ),
+            )
+            operator, _ = self._operator(
+                Path(directory),
+                gcp=gcp,
+                executor=FakeExecutor(),
+            )
+            prepared = operator.prepare("staging")
+            gcp.blockers = ("OPERATOR_PROJECT_MISMATCH",)
+
+            deploy_stdout = io.StringIO()
+            with (
+                mock.patch.object(
+                    operator,
+                    "prepare",
+                    side_effect=AssertionError("blocked reuse must not regenerate intent"),
+                ),
+                mock.patch("sys.stdout", deploy_stdout),
+            ):
+                deploy_code = operator_main(
+                    ["deploy", "--environment", "staging"],
+                    operator_factory=lambda _path, _authority: operator,
+                )
+
+            deployed = json.loads(deploy_stdout.getvalue().splitlines()[-1])
+            self.assertEqual(deploy_code, 2)
+            self.assertEqual(deployed["outcome"], "blocked")
+            self.assertEqual(
+                deployed["specification_digest"],
+                prepared.specification_digest,
+            )
+            self.assertIn("OPERATOR_PROJECT_MISMATCH", deployed["blockers"])
+
+    def test_deploy_without_digest_fails_closed_on_tampered_current_specification(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state_root = Path(directory)
+            operator, _ = self._operator(
+                state_root,
+                executor=FakeExecutor(),
+            )
+            operator.prepare("staging")
+            specification_path = next(
+                state_root.rglob("specifications/*.v1.json")
+            )
+            specification = json.loads(
+                specification_path.read_text(encoding="utf-8")
+            )
+            specification["failure_behavior"] = "continue"
+            specification_path.write_text(
+                json.dumps(specification, sort_keys=True, separators=(",", ":"))
+                + "\n",
+                encoding="utf-8",
+            )
+
+            deploy_stdout = io.StringIO()
+            with (
+                mock.patch.object(
+                    operator,
+                    "prepare",
+                    side_effect=AssertionError("tampered intent must not be replaced"),
+                ),
+                mock.patch("sys.stdout", deploy_stdout),
+            ):
+                deploy_code = operator_main(
+                    ["deploy", "--environment", "staging"],
+                    operator_factory=lambda _path, _authority: operator,
+                )
+
+            deployed = json.loads(deploy_stdout.getvalue().splitlines()[-1])
+            self.assertEqual(deploy_code, 2)
+            self.assertEqual(deployed["outcome"], "blocked")
+            self.assertEqual(
+                deployed["blockers"],
+                ["SPECIFICATION_READBACK_FAILED"],
+            )
 
     def test_approval_is_separate_from_completeness_and_cancellation_is_truthful(
         self,
@@ -651,6 +879,14 @@ class OperatorLifecycleTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             operator, _ = self._operator(Path(directory), executor=FakeExecutor())
 
+            preflight_stdout = io.StringIO()
+            with mock.patch("sys.stdout", preflight_stdout):
+                preflight_code = operator_main(
+                    ["preflight", "--environment", "staging"],
+                    preflight_factory=lambda _path, _authority: operator,
+                )
+            preflight = json.loads(preflight_stdout.getvalue().splitlines()[-1])
+
             prepare_stdout = io.StringIO()
             with mock.patch("sys.stdout", prepare_stdout):
                 prepare_code = operator_main(
@@ -681,6 +917,18 @@ class OperatorLifecycleTest(unittest.TestCase):
                 )
             status = json.loads(status_stdout.getvalue())
 
+            self.assertEqual(preflight_code, 0)
+            self.assertEqual(
+                preflight,
+                {
+                    "blockers": [],
+                    "environment": "staging",
+                    "outcome": "ready",
+                    "ready": True,
+                    "source_authority": "accepted",
+                },
+            )
+            self.assertNotIn("specification_digest", preflight)
             self.assertEqual(prepare_code, 0)
             self.assertEqual(prepared["outcome"], "prepared")
             self.assertTrue(prepared["approved"])
@@ -710,9 +958,11 @@ class OperatorLifecycleTest(unittest.TestCase):
         gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
 
         self.assertIn("platform-prepare:", makefile)
+        self.assertIn("platform-preflight:", makefile)
         self.assertIn("platform-deploy:", makefile)
         self.assertIn("platform-status:", makefile)
         self.assertIn("-m infrastructure.operator prepare", makefile)
+        self.assertIn("-m infrastructure.operator preflight", makefile)
         self.assertIn("-m infrastructure.operator deploy", makefile)
         self.assertIn("-m infrastructure.operator status", makefile)
         self.assertIn("$(if $(SPECIFICATION_DIGEST)", makefile)

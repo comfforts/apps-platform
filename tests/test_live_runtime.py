@@ -34,7 +34,7 @@ def _environment() -> dict[str, str]:
         ),
         "APP_PLATFORM_GENERATION_DIGEST": "sha256:" + "2" * 64,
         "APP_PLATFORM_ISSUER": "https://apps-staging.comfforts.com/_platform",
-        "APP_PLATFORM_OAUTH_CLIENT_ID": "client.apps.googleusercontent.com",
+        "APP_PLATFORM_IDENTITY_CLIENT_ID": "client.apps.googleusercontent.com",
         "APP_PLATFORM_OAUTH_CLIENT_SECRET_VERSION": (
             "projects/comfforts-platform-non-prod/secrets/"
             "app-platform-edge-oauth/versions/3"

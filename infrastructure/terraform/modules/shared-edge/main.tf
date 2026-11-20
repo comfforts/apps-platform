@@ -109,7 +109,7 @@ resource "google_cloud_run_v2_service" "edge" {
       }
 
       env {
-        name  = "APP_PLATFORM_OAUTH_CLIENT_ID"
+        name  = "APP_PLATFORM_IDENTITY_CLIENT_ID"
         value = var.edge_configuration.oauth.client_id
       }
 

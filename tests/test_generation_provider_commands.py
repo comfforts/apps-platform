@@ -115,7 +115,7 @@ class FakeGcloud:
             "APP_PLATFORM_GENERATION_DIGEST": digest,
             "APP_PLATFORM_REGISTRATION_GENERATION": "7",
             "APP_PLATFORM_SOURCE_REVISION": SOURCE_REVISION,
-            "APP_PLATFORM_OAUTH_CLIENT_ID": "client.apps.googleusercontent.com",
+            "APP_PLATFORM_IDENTITY_CLIENT_ID": "client.apps.googleusercontent.com",
             "APP_PLATFORM_SIGNING_KEY_VERSION": (
                 f"projects/{PROJECT_ID}/locations/{REGION}/keyRings/platform/"
                 "cryptoKeys/edge/cryptoKeyVersions/1"

@@ -574,7 +574,7 @@ class GcloudGenerationProvider(GenerationProvider):
         required = {
             "APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST",
             "APP_PLATFORM_GENERATION_DIGEST",
-            "APP_PLATFORM_OAUTH_CLIENT_ID",
+            "APP_PLATFORM_IDENTITY_CLIENT_ID",
             "APP_PLATFORM_SIGNING_KEY_VERSION",
         }
         if not required <= set(values):
@@ -588,7 +588,7 @@ class GcloudGenerationProvider(GenerationProvider):
             raise GenerationProviderError("GENERATION_REVISION_INVARIANT_MISMATCH")
         components = (
             ComponentRevision("oauth-client", self._component_digest(
-                values["APP_PLATFORM_OAUTH_CLIENT_ID"]
+                values["APP_PLATFORM_IDENTITY_CLIENT_ID"]
             )),
             ComponentRevision(
                 "registration-configuration",

@@ -61,7 +61,7 @@ _REQUIRED_ENVIRONMENT = (
     "APP_PLATFORM_EDGE_CALLER_PRINCIPAL",
     "APP_PLATFORM_GENERATION_DIGEST",
     "APP_PLATFORM_ISSUER",
-    "APP_PLATFORM_OAUTH_CLIENT_ID",
+    "APP_PLATFORM_IDENTITY_CLIENT_ID",
     "APP_PLATFORM_OAUTH_CLIENT_SECRET_VERSION",
     "APP_PLATFORM_OPERATOR_ISSUER",
     "APP_PLATFORM_OPERATOR_SUBJECT",
@@ -154,7 +154,7 @@ class LiveRuntimeSettings:
                 "APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST"
             ],
             generation_digest=environment["APP_PLATFORM_GENERATION_DIGEST"],
-            oauth_client_id=environment["APP_PLATFORM_OAUTH_CLIENT_ID"],
+            oauth_client_id=environment["APP_PLATFORM_IDENTITY_CLIENT_ID"],
             oauth_client_secret_version=secret_version,
             signing_key_version=signing_key_version,
             edge_caller_principal=edge_caller,

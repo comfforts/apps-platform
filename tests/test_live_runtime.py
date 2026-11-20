@@ -83,7 +83,13 @@ class LiveRuntimeTest(unittest.TestCase):
         dockerfile = (
             PROJECT_ROOT / "infrastructure/images/shared-edge/Dockerfile"
         ).read_text(encoding="utf-8")
+        build = (
+            PROJECT_ROOT / "infrastructure/images/shared-edge/cloudbuild.yaml"
+        ).read_text(encoding="utf-8")
 
+        self.assertIn("ARG UV_IMAGE", dockerfile)
+        self.assertIn("ARG PYTHON_BUILD_IMAGE", dockerfile)
+        self.assertIn("COPY --from=uv /uv /uvx /bin/", dockerfile)
         self.assertIn("uv sync --frozen --no-dev --no-editable", dockerfile)
         self.assertIn("COPY contracts ./contracts", dockerfile)
         self.assertIn("COPY edge ./edge", dockerfile)
@@ -94,6 +100,10 @@ class LiveRuntimeTest(unittest.TestCase):
         )
         self.assertNotIn("COPY . ", dockerfile)
         self.assertNotIn(".platform-operator", dockerfile)
+        self.assertEqual(build.count("@sha256:"), 4)
+        self.assertNotIn(":latest", build)
+        self.assertIn("--tag=${_IMAGE}", build)
+        self.assertIn("source-revision-required", build)
 
     def test_settings_bind_exact_revision_generation_project_and_operator(self) -> None:
         settings = LiveRuntimeSettings.from_environment(_environment())

@@ -97,6 +97,7 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
     condition = (
       module.platform_controls.policy_summary.artifacts.repository_id == "synthetic-images" &&
       module.platform_controls.policy_summary.artifacts.repository_format == "DOCKER" &&
+      module.platform_controls.policy_summary.artifacts.immutable_tags &&
       module.platform_controls.policy_summary.artifacts.region == "us-west1" &&
       module.platform_controls.policy_summary.artifacts.cleanup_dry_run &&
       module.platform_controls.policy_summary.artifacts.retained_roles == ["active", "rollback", "candidate"] &&

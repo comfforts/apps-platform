@@ -164,6 +164,10 @@ resource "google_artifact_registry_repository" "qualification_images" {
   cleanup_policy_dry_run = true
   deletion_policy        = "PREVENT"
 
+  docker_config {
+    immutable_tags = true
+  }
+
   cleanup_policies {
     id     = "retain-generation-roles"
     action = "KEEP"

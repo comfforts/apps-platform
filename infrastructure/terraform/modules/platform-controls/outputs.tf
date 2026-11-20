@@ -113,6 +113,7 @@ output "policy_summary" {
     artifacts = {
       repository_id                    = var.controls_configuration.artifact_repository_id
       repository_format                = "DOCKER"
+      immutable_tags                   = true
       region                           = var.controls_configuration.region
       cleanup_dry_run                  = true
       retained_roles                   = ["active", "rollback", "candidate"]

@@ -7,6 +7,7 @@ import base64
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -22,7 +23,11 @@ from infrastructure.operator import (
     StageContext,
     StageExecution,
 )
-from infrastructure.operator.local import LocalFilesystem, ProfileGcp
+from infrastructure.operator.local import (
+    LocalFilesystem,
+    ProfileGcp,
+    build_local_operator,
+)
 from infrastructure.operator.cli import main as operator_main
 from infrastructure.operator import local as local_adapters
 
@@ -219,6 +224,48 @@ class OperatorLifecycleTest(unittest.TestCase):
         )
         self.assertEqual(session.operator_subject, "123456789012345678901")
         self.assertNotIn(token, repr(session))
+
+    def test_local_factory_arms_executor_only_for_complete_human_session(self) -> None:
+        from infrastructure.operator.local_deployment import OperatorSessionFacts
+
+        session = OperatorSessionFacts(
+            active_account="operator@example.com",
+            billing_account_reference="billingAccounts/ABCDEF-123456-789ABC",
+            operator_issuer="https://accounts.google.com",
+            operator_subject="123456789012345678901",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            configuration = base / "gcloud"
+            configuration.mkdir(mode=0o700)
+            state = base / "state"
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {"CLOUDSDK_CONFIG": str(configuration)},
+                ),
+                mock.patch.object(
+                    local_adapters.shutil,
+                    "which",
+                    side_effect=lambda name: "/usr/bin/true"
+                    if name in {"gcloud", "dig"}
+                    else None,
+                ),
+                mock.patch.object(
+                    ProfileGcp,
+                    "operator_session",
+                    return_value=session,
+                ),
+            ):
+                operator = build_local_operator(PROJECT_ROOT, state)
+
+            executor = operator._adapters.executor
+            state_mode = state.stat().st_mode & 0o777
+            working_mode = (state / "work/deployment").stat().st_mode & 0o777
+
+        self.assertIsNotNone(executor)
+        self.assertEqual(state_mode, 0o700)
+        self.assertEqual(working_mode, 0o700)
 
     def test_executor_receives_one_exact_immutable_stage_context(self) -> None:
         @dataclass

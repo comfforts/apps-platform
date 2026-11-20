@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 from typing import TYPE_CHECKING
 
 from infrastructure.operator._core import LifecycleOperator
@@ -24,6 +25,7 @@ from infrastructure.tools.terraform_setup import (
     GOOGLE_PROVIDER_VERSION,
     MANIFEST,
     MIRROR_ROOT,
+    OFFLINE_CLI_CONFIG,
     TERRAFORM,
     TERRAFORM_VERSION,
 )
@@ -363,6 +365,112 @@ class SystemClock:
         return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+@dataclass(frozen=True, slots=True)
+class SystemWaiter:
+    def wait(self, seconds: int) -> None:
+        time.sleep(seconds)
+
+
+def _local_deployment_executor(
+    project_root: Path,
+    state_root: Path,
+    gcp: ProfileGcp,
+    terminal: ConsoleTerminal,
+):
+    """Arm real staging commands only when every local human-session seam exists."""
+
+    from infrastructure.operator.commands import (
+        ClosedSubprocessRunner,
+        TerraformCliAdapter,
+    )
+    from infrastructure.operator.deployment import DeploymentExecutor
+    from infrastructure.operator.deployment_dns import ClosedDigRunner, DigDnsReadback
+    from infrastructure.operator.deployment_provider import (
+        ClosedDeploymentGcloudRunner,
+        GcloudDeploymentProvider,
+    )
+    from infrastructure.operator.local_deployment import DeploymentConfigurationRenderer
+    from infrastructure.operator.local_deployment_commands import LocalDeploymentCommands
+
+    gcloud = gcp.executable
+    configuration = gcp.cloud_sdk_configuration
+    dig_name = shutil.which("dig")
+    session = gcp.operator_session(
+        {
+            "project_id": "comfforts-platform-non-prod",
+            "project_number": "455651441682",
+            "region": "us-west1",
+        }
+    )
+    if (
+        gcloud is None
+        or configuration is None
+        or dig_name is None
+        or session is None
+        or not gcloud.is_file()
+        or not configuration.is_dir()
+        or configuration.is_symlink()
+        or not TERRAFORM.is_file()
+        or not OFFLINE_CLI_CONFIG.is_file()
+    ):
+        return None
+    try:
+        resolved_state = state_root.resolve()
+        if state_root.is_symlink():
+            return None
+        resolved_state.mkdir(mode=0o700, parents=True, exist_ok=True)
+        resolved_state.chmod(0o700)
+        working_root = resolved_state / "work/deployment"
+        working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        working_root.chmod(0o700)
+        terraform_runner = ClosedSubprocessRunner((TERRAFORM,), working_root)
+        terraform = TerraformCliAdapter(
+            TERRAFORM,
+            OFFLINE_CLI_CONFIG,
+            working_root,
+            terraform_runner,
+            operator_environment=(
+                ("CLOUDSDK_CONFIG", str(configuration)),
+                ("HOME", str(Path.home().resolve())),
+            ),
+        )
+        provider = GcloudDeploymentProvider(
+            executable=gcloud,
+            cloud_sdk_configuration=configuration,
+            working_root=project_root,
+            runner=ClosedDeploymentGcloudRunner(
+                gcloud,
+                project_root,
+                configuration,
+            ),
+        )
+        dig = Path(dig_name).resolve()
+        dns = DigDnsReadback(
+            dig,
+            project_root,
+            ClosedDigRunner(dig, project_root),
+        )
+        commands = LocalDeploymentCommands(
+            DeploymentConfigurationRenderer(
+                project_root,
+                working_root,
+                session,
+            ),
+            terraform,
+            provider,
+            dns,
+            session,
+        )
+        return DeploymentExecutor(
+            working_root,
+            terminal,
+            commands,
+            waiter=SystemWaiter(),
+        )
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
 def build_local_operator(project_root: Path, state_root: Path) -> LifecycleOperator:
     """Construct the local operator around the active human Cloud SDK session."""
 
@@ -374,19 +482,27 @@ def build_local_operator(project_root: Path, state_root: Path) -> LifecycleOpera
         if configured
         else Path.home() / ".config" / "gcloud"
     ).resolve()
+    gcp = ProfileGcp(
+        Path(executable_name).resolve() if executable_name else None,
+        cloud_sdk_configuration,
+    )
+    terminal = ConsoleTerminal()
     return LifecycleOperator(
         OperatorAdapters(
             git=LocalGit(resolved_project),
             github=LocalGitHub(resolved_project),
-            gcp=ProfileGcp(
-                Path(executable_name).resolve() if executable_name else None,
-                cloud_sdk_configuration,
-            ),
+            gcp=gcp,
             terraform=PinnedTerraform(),
             dns=ProfileDns(),
-            terminal=ConsoleTerminal(),
+            terminal=terminal,
             filesystem=LocalFilesystem(resolved_project, state_root),
             clock=SystemClock(),
+            executor=_local_deployment_executor(
+                resolved_project,
+                state_root,
+                gcp,
+                terminal,
+            ),
         )
     )
 

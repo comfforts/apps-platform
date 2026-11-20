@@ -10,8 +10,8 @@ templates. AP-M8-W1/W2 implemented a manifest-driven qualification-deployment pr
 manifest was accepted and no AP-M8-W3 through W12 operation began. AP-M9 supersedes that unexecuted
 path with the operator-driven environment lifecycle below. AP-M9-W1 through W8 establish active
 governance, remove the retired interface, implement lifecycle contracts and the credential-free
-operator core, implement the repository-only Terraform lifecycle, and implement the unarmed
-interactive deployment engine plus closed command boundary, then implement the application
+operator core, implement the repository-only Terraform lifecycle, and implement the interactive
+deployment engine plus closed command boundary, then implement the application
 integration and registration lifecycle, then qualification and safe destruction behind guarded
 boundaries. No repository package by itself authorizes
 backend initialization, authenticated plan or apply, cloud
@@ -1733,8 +1733,9 @@ for reviewed plans, and reserves typed phrases for irreversible actions. The clo
 subprocess boundary uses absolute executables, argv, bounded paths, and the verified human session
 without shell interpolation. Deterministic command fakes and transcript tests cover success, no-change,
 cancellation, manual checkpoint, bounded polling, partial failure, discrepancy, interruption, and
-resume. The default local construction remains unarmed pending the W8 external-action safety gate;
-the pull request executed no real operation.
+resume. W8's external-action safety completion wires the default local deployment construction only
+when the pinned toolchain, verified human Cloud SDK session, user Application Default Credentials,
+and exact staging project all agree. The pull requests executed no real operation.
 
 #### AP-M9-W7 · Application integration lifecycle
 
@@ -1743,8 +1744,8 @@ bundle/current-platform/target-posture validation, complete-generation compilati
 publication, exact typed activation, detachment, replacement attachment/reactivation, and terminal
 retirement. Detached and retired routes remain reserved and return distinct generic `503` and `410`
 responses; unknown routes remain closed. Interruption resumes only an identical immutable
-publication. Provider readback, generation control, and terminal effects remain injected and the
-default local construction is unarmed pending W8. No operation read, mutated, or destroyed
+publication. Provider readback, generation control, and terminal effects remain injected. No
+operation read, mutated, or destroyed
 Application State, and no external action occurred.
 
 #### AP-M9-W8 · Qualification and safe destruction
@@ -1757,8 +1758,11 @@ typed confirmation, post-confirmation reread, ordered stop-on-failure execution,
 create-only resume state. Destruction refuses active attachments or ownership/inventory mismatch,
 never targets Application State, and retains backends, recovery material, and evidence absent
 separate purge authority. Guarded shell-free Cloud SDK generation, traffic, attachment, and
-readback adapters are deterministic-test covered but were not invoked. The live qualification and
-destruction defaults require new W9 authority.
+readback adapters are deterministic-test covered but were not invoked. W8 also completes the real
+staging deployment adapter: exact first-run/recovery bootstrap, provider-service enablement,
+digest-pinned and source-allow-listed image build, create-only initial generation, OAuth metadata,
+authoritative/recursive DNS, TLS, and final readback. The live qualification and destruction
+defaults require new W9 authority.
 
 #### AP-M9-W9 · Staging deployment and qualification
 

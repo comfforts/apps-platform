@@ -1670,9 +1670,10 @@ destruction. Those remain production-cutover, later migration, or Application Ad
 This definition originated in AP-M9-W1. AP-M9-W2 removed the retired manifest path, W3 implemented
 the lifecycle contracts, W4 implemented credential-free preparation/status and deterministic fake
 journal execution, W5 implemented repository-only Terraform lifecycle policy and mocked plans, and
-W6 implemented the unarmed interactive deployment engine plus closed command boundary. W7
+W6 implemented the interactive deployment engine plus closed command boundary. W7
 implemented application handoff and registration lifecycle controls, and W8 implemented
-qualification and safe-destruction controls behind guarded boundaries. They create no identity,
+qualification and safe-destruction controls behind guarded boundaries and wired the real staging
+deployment adapters only for a verified human session. The repository work itself created no identity,
 credential, Terraform state or saved plan, provider
 resource, OAuth client, secret, DNS record, certificate, application asset, Live evidence bundle,
 deployment, destruction, or passing operational result.

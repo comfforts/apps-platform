@@ -40,7 +40,7 @@ operator-check: ## Verify the credential-free interactive lifecycle core with de
 platform-prepare: ## Prepare and explicitly approve one complete lifecycle specification.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator prepare --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)"
 
-platform-deploy: ## Prepare, approve, and execute one exact deployment in the same interactive process.
+platform-deploy: terraform-setup ## Prepare, approve, and execute one exact deployment in the same interactive process.
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" $(if $(SPECIFICATION_DIGEST),--specification-digest "$(SPECIFICATION_DIGEST)",)
 
 platform-status: ## Report local desired and execution state without changing it.

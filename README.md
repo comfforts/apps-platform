@@ -42,8 +42,8 @@ comparison and rollback behavior.
   `platform-deploy`. W7 implements least-data outputs, attachment validation, immutable
   whole-generation registration, detach/reactivate, and terminal retirement. W8 implements
   revision-bound qualification, closed evidence, reviewed rollback, safe Platform Environment
-  destruction, and the production Shared Edge composition and non-root image entry point. W9 is
-  the first real staging operation and is next.
+  destruction, the production Shared Edge composition and non-root image entry point, and the
+  guarded real staging deployment adapters. W9 is the first real staging operation and is next.
 
 No GCP resource, state backend, OAuth client, DNS record, certificate, Shared Edge deployment,
 application registration, or Live evidence is created merely by the repository implementation.
@@ -71,8 +71,9 @@ make platform-qualify ENVIRONMENT=staging
 make platform-destroy ENVIRONMENT=staging
 ```
 
-Deploy requires clean current `main`, the committed Environment Profile, the pinned local
-toolchain, the expected active human account, and the exact provider project. In one invocation it
+Deploy requires clean current `main`, the committed Environment Profile, the expected active human
+account and provider project, and user Application Default Credentials. Its Make target verifies or
+installs the checksum-bound local Terraform toolchain first. In one invocation it
 performs read-only preparation, writes and displays one canonical specification in the ignored
 private `.platform-operator/` directory, requests approval, and journals each closed stage. The
 standalone prepare command is an optional dry run. Fresh private plans use one `y/N` confirmation;
@@ -90,12 +91,13 @@ W8 adds strict revision-bound qualification evidence, the closed ten-check quali
 failure injection, whole-generation rollback, and a separate destructive specification with
 create-only resumable progress. It also adds shell-free Cloud SDK construction for immutable
 generation publication, exact traffic activation, provider attachment posture, and qualification
-readback. Read-only integration uses closed local state; provider operations are conditionally
-armed only by an ignored mode-private Cloud SDK configuration. `platform-qualify` and
+readback. Read-only integration uses closed local state. Staging deployment is conditionally armed
+only by the pinned toolchain, `gcloud`, `dig`, a real Cloud SDK configuration, and a verified human
+session; Cloud Build receives only an explicit source allow-list. `platform-qualify` and
 `platform-destroy` retain explicit `W9_*_AUTHORITY_REQUIRED` live gates until W9 supplies and
 approves the exact live probe or destructive executor. `make check` invokes none of them.
 
-W6 keeps the deployment wizard active across Google OAuth and Squarespace DNS work and continues
+The deployment wizard stays active across Google OAuth and Squarespace DNS work and continues
 when the operator presses Enter. It never requests an OAuth secret in the terminal. The pull
 request itself performs no authentication, backend initialization, plan, apply, image publication,
 provider readback, DNS lookup/change, or deployment; AP-M9-W9 remains the first real operation.

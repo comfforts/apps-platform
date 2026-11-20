@@ -9,7 +9,9 @@ fakes and the non-fake command boundary exercise the same orchestration interfac
 
 ## Implemented commands
 
-After `make terraform-setup` has populated the checksum-bound local toolchain:
+The deploy target populates or verifies the checksum-bound local toolchain automatically. The
+operator must already have an active `gcloud` login, user Application Default Credentials, and the
+staging project selected:
 
 ```bash
 make platform-prepare ENVIRONMENT=staging
@@ -42,8 +44,9 @@ make platform-destroy ENVIRONMENT=staging
 ```
 
 Standalone preparation is read-only and remains an optional dry run; when Cloud SDK is available it
-also verifies the active human account and provider project. The normal deploy command verifies
-local source/repository/tool facts plus that operator session, builds the complete Deployment
+also verifies the active human account, user Application Default Credentials, provider project,
+billing reference, and immutable Google subject without retaining either token. The normal deploy
+command verifies local source/repository/tool facts plus that operator session, builds the complete Deployment
 Specification, writes canonical bytes, asks for approval, and continues in the same process. Status
 is read-only. Production remains blocked by
 `OWNERSHIP_TRANSFER_REQUIRED`.
@@ -72,8 +75,11 @@ application. Interrupted confirmation may resume only the identical publication.
 
 W8 implements exact revision readback, the closed qualification profile, redacted evidence,
 network fixtures, failure injection, reviewed rollback, separate destruction authority, and
-create-only resume state. It constructs shell-free Cloud SDK generation, traffic, attachment, and
-readback adapters through the verified active human session. The qualification
+create-only resume state. It constructs shell-free Cloud SDK deployment, generation, traffic,
+attachment, and readback adapters through the verified active human session. Deployment covers
+first-run or recovered backend bootstrap, immutable source-bound image publication, initial
+generation publication, OAuth metadata, DNS propagation, and TLS readiness. The Cloud Build upload
+uses a repository-root allow-list and cannot include private operator state. The qualification
 and destruction live defaults retain explicit W9 authority gates; no partial external work occurs.
 Repository tests use deterministic fakes and process-local loopback only. Non-fake command adapters
 are not invoked by `make check` and reject path escape, ambient credential variables, shell

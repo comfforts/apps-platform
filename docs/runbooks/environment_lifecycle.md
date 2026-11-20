@@ -1,7 +1,7 @@
 # AP-M9 environment lifecycle runbook
 
-Status: AP-M9-W8 qualification and safe-destruction mechanics implemented; external actions remain
-unavailable until their later operator gates
+Status: AP-M9-W8 lifecycle and guarded staging deployment mechanics implemented; no external action
+has run, and AP-M9-W9 remains the first-operation gate
 
 This runbook describes the intended human experience. It is subordinate to AP-PR-010 through
 AP-PR-012, AP-QR-007 through AP-QR-009, ADR-010 through ADR-013, AP-M9-W1 through AP-M9-W10, and
@@ -13,7 +13,8 @@ manual checkpoints, readback, and resume. W7 implements
 least-data bundle generation, exact attachment validation, immutable whole-generation activation,
 reversible detachment/reactivation, and terminal retirement behind injected boundaries.
 W8 implements exact-revision qualification, redacted evidence, network fixtures, failure injection,
-reviewed rollback, and separate safe-destruction authority with resumable progress.
+reviewed rollback, separate safe-destruction authority with resumable progress, and the real staging
+deployment adapters behind verified-human-session gates.
 
 ## Environment flow
 
@@ -70,18 +71,23 @@ destroys those assets.
 
 After W8 merges, `make platform-prepare ENVIRONMENT=staging` may be used from clean current `main`
 to create and explicitly approve one complete specification in the ignored private
-`.platform-operator/` directory. It performs only local Git, profile, repository-identity, and
-pinned-tool discovery. `make platform-status ENVIRONMENT=staging` reads the local status without
-changing it. Production preparation reports `OWNERSHIP_TRANSFER_REQUIRED`.
+`.platform-operator/` directory. It performs read-only Git, profile, repository-identity,
+pinned-tool, active-account, project, billing-reference, Google-subject, and user-ADC discovery.
+Tokens are discarded in memory and never enter the specification or journal. `make platform-status
+ENVIRONMENT=staging` reads the local status without changing provider state. Production preparation
+reports `OWNERSHIP_TRANSFER_REQUIRED`.
 
-Neither preparation nor status authenticates, queries a provider, initializes a backend, creates a
-Terraform plan, or mutates a repository, cloud resource, OAuth client, secret, DNS record,
-certificate, or application. W6 adds
+Preparation may use the already authenticated Cloud SDK for bounded read-only session discovery;
+neither preparation nor status initializes a backend, creates a Terraform plan, or mutates a
+repository, cloud resource, OAuth client, secret, DNS record, certificate, or application. W6 adds
 `make platform-deploy ENVIRONMENT=staging SPECIFICATION_DIGEST=sha256:<digest>` as the exact
 interactive entry point. The non-fake Terraform subprocess boundary
 is implemented and closed to shell interpolation, ambient credentials, path escape, target/replace,
 state push, import, force-unlock, and lock bypass; repository tests invoke only deterministic
-recording fakes.
+recording fakes. W8 wires that boundary to the local deploy command only when `gcloud`, `dig`, the
+pinned Terraform mirror, the exact staging project, an active human account, and user Application
+Default Credentials are all ready. `platform-deploy` still requires the separate W9 owner approval
+before its first real invocation.
 
 W7 adds `platform-outputs`, `platform-register`, `platform-detach`, and `platform-retire`. Outputs
 writes canonical create-only bundles beneath `.platform-operator/`. Register accepts an exact

@@ -79,7 +79,8 @@ small reviewable commits, merge it, and only then begin the next package.
    detachment/reactivation, terminal retirement, and distinct reserved-route responses.
 8. **AP-M9-W8 — qualification and safe destruction (implemented):** revision-bound qualification,
    redacted evidence, synthetic network fixtures, failure injection, reviewed generation rollback,
-   and resumable environment destruction that never targets Application State.
+   resumable environment destruction that never targets Application State, and guarded real
+   staging deployment adapters ready for the separately approved first operation.
 9. **AP-M9-W9 — staging operation:** deploy and qualify `apps-staging.comfforts.com` with synthetic
    applications under new explicit owner approvals.
 10. **AP-M9-W10 — production readiness:** prove the production handoff and stop with

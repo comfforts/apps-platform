@@ -821,8 +821,10 @@ generation publication, exact activation confirmation, detached/retired route is
 interruption-safe retry. AP-M9-W8 implements revision binding, evidence allow-listing and
 prohibited-data scans, network fixtures, failure injection, reviewed rollback, active-attachment
 destruction refusal, exact scope confirmation, post-confirmation reread, ordered stop-on-failure
-destruction, retained recovery/evidence boundaries, and create-only resume state. Non-fake command
-adapters remain uninvoked; W9 live qualification and destruction authority remains closed.
+destruction, retained recovery/evidence boundaries, and create-only resume state. The non-fake
+deployment adapters are wired behind pinned-tool, exact-project, active-account, user-ADC,
+digest-bound plan, confirmation, source-upload allow-list, and readback gates, but remain uninvoked;
+W9 live qualification and destruction authority remains closed.
 No current result proves an identity, backend, provider, OAuth, DNS,
 deployment, or Live control operational.
 

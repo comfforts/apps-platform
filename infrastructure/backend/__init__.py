@@ -22,11 +22,16 @@ from infrastructure.backend._plans import (
     evaluate_plan,
     plan_policy,
 )
+from infrastructure.backend._permissions import (
+    OperationRoleBinding,
+    operation_role_bindings,
+)
 
 __all__ = (
     "BackendDeclaration",
     "EnvironmentUnavailableError",
     "OperationAuthority",
+    "OperationRoleBinding",
     "PhasePlanRequest",
     "PhasePlanResult",
     "PlanPolicy",
@@ -37,6 +42,7 @@ __all__ = (
     "backend_declarations",
     "evaluate_plan",
     "operation_authorities",
+    "operation_role_bindings",
     "plan_policy",
     "prepare_phase_plan",
     "render_backend_declaration",

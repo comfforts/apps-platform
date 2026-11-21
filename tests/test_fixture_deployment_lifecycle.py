@@ -50,7 +50,7 @@ IMAGE_REFERENCE = (
 )
 PROFILE_DIGEST = "sha256:" + ("2" * 64)
 SPECIFICATION_DIGEST = "sha256:" + ("3" * 64)
-JOURNAL_DIGEST = "sha256:" + ("4" * 64)
+PROGRESS_DIGEST = "sha256:" + ("4" * 64)
 GENERATION_DIGEST = "sha256:" + ("5" * 64)
 EDGE_CALLER = (
     "serviceAccount:app-platform-edge-caller@"
@@ -73,7 +73,7 @@ def _bundle(application_id: str, access_mode: str, route_intent: str) -> dict[st
         "platform_source_authority": "accepted",
         "platform_source_revision": PLATFORM_REVISION,
         "specification_digest": SPECIFICATION_DIGEST,
-        "journal_digest": JOURNAL_DIGEST,
+        "deployment_progress_digest": PROGRESS_DIGEST,
         "endpoints": {
             "external_origin": origin,
             "issuer": f"{origin}/_platform" if protected else None,
@@ -517,7 +517,7 @@ class LocalFixtureOperatorTest(unittest.TestCase):
                     profile_digest=PROFILE_DIGEST,
                     platform_source_revision=PLATFORM_REVISION,
                     specification_digest=SPECIFICATION_DIGEST,
-                    journal_digest=JOURNAL_DIGEST,
+                    progress_digest=PROGRESS_DIGEST,
                     generation=7,
                     hostname="apps-staging.comfforts.com",
                     oauth_client_id=(

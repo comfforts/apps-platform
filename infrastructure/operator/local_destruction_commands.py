@@ -15,7 +15,13 @@ from infrastructure.backend import (
     prepare_phase_plan,
     render_backend_declaration,
 )
-from infrastructure.operator._interfaces import StageContext, StageExecution, StatusResult
+from infrastructure.operator._interfaces import (
+    OperatorTerminal,
+    StageContext,
+    StageExecution,
+    StatusResult,
+    Waiter,
+)
 from infrastructure.operator.deployment import TerraformPlanArtifact
 from infrastructure.operator.destruction import (
     DESTRUCTIBLE_PLATFORM_RESOURCES,
@@ -95,18 +101,6 @@ class DestructionDns(Protocol):
     def absent(self): ...  # type: ignore[no-untyped-def]
 
 
-class DestructionTerminal(Protocol):
-    def confirm(self, prompt: str) -> bool: ...
-
-    def pause(self, prompt: str) -> None: ...
-
-    def write(self, message: str) -> None: ...
-
-
-class DestructionWaiter(Protocol):
-    def wait(self, seconds: int) -> None: ...
-
-
 class DestructionStatusReader(Protocol):
     def status(self, environment: str) -> StatusResult: ...
 
@@ -166,59 +160,60 @@ def _phase_request(
     )
 
 
-def _journal(filesystem: LocalFilesystem, environment: str) -> dict[str, Any]:
-    pointer_payload = filesystem.read_state(
-        f"environments/{environment}/current-journal.v1.json"
+def _progress(filesystem: LocalFilesystem, environment: str) -> dict[str, Any]:
+    payload = filesystem.read_state(
+        f"environments/{environment}/current-progress.v1.json"
     )
-    if pointer_payload is None:
-        raise DestructionCommandError("DESTRUCTION_JOURNAL_UNAVAILABLE")
+    if payload is None:
+        raise DestructionCommandError("DESTRUCTION_PROGRESS_UNAVAILABLE")
     try:
-        pointer = json.loads(pointer_payload)
-        digest = pointer["journal_digest"]
-        revision = pointer["journal_revision"]
-        specification = pointer["specification_digest"]
-    except (KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise DestructionCommandError("DESTRUCTION_JOURNAL_INVALID") from error
-    if not isinstance(digest, str) or not isinstance(revision, int) or not isinstance(
-        specification, str
+        progress = json.loads(payload)
+    except (TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise DestructionCommandError("DESTRUCTION_PROGRESS_INVALID") from error
+    if (
+        not isinstance(progress, dict)
+        or progress.get("environment") != environment
+        or progress.get("status") != "succeeded"
+        or not isinstance(progress.get("completed"), list)
     ):
-        raise DestructionCommandError("DESTRUCTION_JOURNAL_INVALID")
-    path = (
-        f"environments/{environment}/journals/{specification[7:]}/"
-        f"{revision:08d}.v1.json"
-    )
-    loaded = load_lifecycle_document(
-        filesystem.state_path(path),
-        "execution-journal",
-    )
-    if loaded.value is None or loaded.violations or loaded.digest != digest:
-        raise DestructionCommandError("DESTRUCTION_JOURNAL_INVALID")
-    return loaded.value
+        raise DestructionCommandError("DESTRUCTION_PROGRESS_INVALID")
+    return progress
+
+
+def _progress_digest(progress: dict[str, Any]) -> str:
+    payload = json.dumps(
+        progress,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
 def deployed_outputs(
     filesystem: LocalFilesystem,
     environment: str,
 ) -> dict[str, str]:
-    """Read only closed non-secret outputs from the current deployment journal."""
+    """Read closed non-secret outputs from the current deployment progress."""
 
-    entries = _journal(filesystem, environment).get("entries")
+    entries = _progress(filesystem, environment).get("completed")
     if not isinstance(entries, list):
-        raise DestructionCommandError("DESTRUCTION_JOURNAL_INVALID")
+        raise DestructionCommandError("DESTRUCTION_PROGRESS_INVALID")
     outputs: dict[str, str] = {}
     for entry in entries:
-        if not isinstance(entry, dict) or entry.get("outcome") != "succeeded":
-            continue
+        if not isinstance(entry, dict):
+            raise DestructionCommandError("DESTRUCTION_PROGRESS_INVALID")
         values = entry.get("outputs")
         if not isinstance(values, list):
-            raise DestructionCommandError("DESTRUCTION_JOURNAL_INVALID")
+            raise DestructionCommandError("DESTRUCTION_PROGRESS_INVALID")
         for item in values:
             if (
                 not isinstance(item, dict)
                 or not isinstance(item.get("name"), str)
                 or not isinstance(item.get("value"), str)
             ):
-                raise DestructionCommandError("DESTRUCTION_JOURNAL_INVALID")
+                raise DestructionCommandError("DESTRUCTION_PROGRESS_INVALID")
             outputs[item["name"]] = item["value"]
     required = {
         "foundation-reference",
@@ -299,7 +294,7 @@ class LocalDestructionStateReader:
             "source_revision": status.get("source_revision"),
             "profile_digest": status.get("profile_digest"),
             "specification_digest": status.get("specification_digest"),
-            "deployment_journal_digest": status.get("journal_digest"),
+            "deployment_progress_digest": status.get("progress_digest"),
             "registration_generation_digest": generation_digest,
             "verdict": "qualified",
         }
@@ -332,7 +327,7 @@ class LocalDestructionStateReader:
             "source_revision",
             "profile_digest",
             "specification_digest",
-            "journal_digest",
+            "progress_digest",
         )
         if any(not isinstance(status.get(name), str) for name in required):
             raise DestructionCommandError("ENVIRONMENT_STATUS_INVALID")
@@ -357,6 +352,9 @@ class LocalDestructionStateReader:
             if provider.active_generation_digest != generation.generation_digest:
                 raise DestructionCommandError("DESTRUCTION_PROVIDER_MISMATCH")
 
+        progress = _progress(self._filesystem, environment)
+        if _progress_digest(progress) != status["progress_digest"]:
+            raise DestructionCommandError("DESTRUCTION_PROGRESS_MISMATCH")
         outputs = deployed_outputs(self._filesystem, environment)
         request = _phase_request(
             environment,
@@ -385,7 +383,7 @@ class LocalDestructionStateReader:
             source_revision=str(status["source_revision"]),
             profile_digest=str(status["profile_digest"]),
             deployed_specification_digest=str(status["specification_digest"]),
-            deployment_journal_digest=str(status["journal_digest"]),
+            deployment_progress_digest=str(status["progress_digest"]),
             registration_generation_digest=generation.generation_digest,
             qualification_evidence_digest=evidence_digest,
             active_application_ids=tuple(sorted(active)),
@@ -440,8 +438,8 @@ class LocalDestructionExecutor:
         terraform: DestructionTerraform,
         provider: DestructionProvider,
         dns: DestructionDns,
-        terminal: DestructionTerminal,
-        waiter: DestructionWaiter,
+        terminal: OperatorTerminal,
+        waiter: Waiter,
     ) -> None:
         self._filesystem = filesystem
         self._working_root = working_root.resolve()

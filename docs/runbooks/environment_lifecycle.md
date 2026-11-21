@@ -9,7 +9,7 @@ state, identity, OAuth client, DNS and TLS resources, application registrations,
 | `staging` | `apps-staging.comfforts.com` | Available for platform and synthetic fixture operation |
 | `production` | `apps.comfforts.com` | Preparation stops while its DNS, traffic configuration, or requested cloud resources remain managed by another system or state |
 
-Always name the environment on the command line. A staging specification, journal, bundle,
+Always name the environment on the command line. A staging specification, progress record, bundle,
 approval, or qualification result cannot be reused for production.
 
 ## Before you start
@@ -32,7 +32,7 @@ Run the local repository gate before an accepted operation:
 make check
 ```
 
-The lifecycle stores private specifications, confirmations, journals, bundles, plans, and command
+The lifecycle stores private specifications, confirmations, progress, bundles, plans, and command
 results beneath `.platform-operator/`. Keep that directory outside Git. Do not paste credentials,
 OAuth secrets, Terraform state, saved plans, browser state, or raw provider responses into the
 repository or an evidence record.
@@ -117,7 +117,7 @@ The command keeps one interactive process open while it:
 6. explains each required Google OAuth or external-DNS action at the point of use;
 7. waits for Enter after the operator completes the displayed manual action;
 8. reads back every result the provider exposes; and
-9. records completed stages in the private execution journal.
+9. atomically records each readback-closed stage in private deployment progress.
 
 During the DNS checkpoint, add the displayed record at the external provider and press Enter. The
 command waits for readable propagation before continuing. During the OAuth checkpoint, enter the
@@ -211,7 +211,7 @@ After platform and fixture deployment, run:
 make platform-qualify ENVIRONMENT=staging
 ```
 
-Qualification checks the exact source, specification, journal, registration generation, provider
+Qualification checks the exact source, specification, final deployment progress, registration generation, provider
 resources, DNS and TLS behavior, catalogue and routing, admission and identity, assertion
 verification, direct-origin denial, isolation, streaming behavior, rollback readiness, and
 redaction. It records only approved, redacted evidence.
@@ -222,7 +222,7 @@ revision, or could not be read back.
 ## Resume an interrupted operation
 
 Rerun the same command with the same environment and source authority. The lifecycle validates its
-private journal and resumes after the last completed stage.
+private progress and resumes after the last completed stage.
 
 Resume is refused when the source, specification, environment, scope, or recorded outputs no longer
 match. In that case, inspect the discrepancy and prepare a new operation. The lifecycle never
@@ -243,7 +243,7 @@ make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 ```
 
-Candidate mode is staging-only. Candidate specifications, journals, bundles, status, and evidence
+Candidate mode is staging-only. Candidate specifications, progress, bundles, status, and evidence
 remain separate from accepted results and cannot qualify production. After merge, repeat deployment
 and qualification from clean current `main` using the default accepted source.
 

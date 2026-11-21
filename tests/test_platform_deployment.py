@@ -215,8 +215,8 @@ class FakeCommands:
     def read_stage(self, context: StageContext) -> StageReadback:
         stage_id = str(context.stage["stage_id"])
         outputs = {
-            "preflight": (("preflight-attestation", "verified-preflight"),),
-            "readback": (("deployment-attestation", "verified-deployment"),),
+            "preflight": (),
+            "readback": (),
         }[stage_id]
         return StageReadback(
             matched=self.stage_readback_matches,
@@ -260,7 +260,7 @@ class FakeCommands:
         if context.stage["stage_id"] == "bootstrap-services":
             return StageReadback(
                 matched=True,
-                outputs=(("bootstrap-services-attestation", "verified-services"),),
+                outputs=(),
             )
         if context.stage["stage_id"] == "generation-publish":
             return StageReadback(
@@ -329,7 +329,7 @@ class FakeCommands:
             )
         return CheckpointVerification(
             outcome="succeeded",
-            outputs=(("dns-attestation", "authoritative-and-recursive-verified"),),
+            outputs=(),
             acknowledgement="provider-verified",
         )
 
@@ -569,10 +569,10 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor, _, commands = self._executor(Path(directory) / "work")
 
             preflight = executor.execute(
-                _context("preflight", ("preflight-attestation",))
+                _context("preflight", ())
             )
             final = executor.execute(
-                _context("readback", ("deployment-attestation",))
+                _context("readback", ())
             )
 
         self.assertEqual(preflight.outcome, "succeeded")
@@ -642,7 +642,7 @@ class PlatformDeploymentTest(unittest.TestCase):
                 commands,
                 waiter=waiter,
             )
-            context = _context("external-dns", ("dns-attestation",))
+            context = _context("external-dns", ())
             context = StageContext(
                 environment=context.environment,
                 source_revision=context.source_revision,
@@ -675,7 +675,7 @@ class PlatformDeploymentTest(unittest.TestCase):
                 commands,
                 waiter=FakeWaiter(),
             )
-            context = _context("external-dns", ("dns-attestation",))
+            context = _context("external-dns", ())
             context = StageContext(
                 environment=context.environment,
                 source_revision=context.source_revision,
@@ -771,9 +771,9 @@ class PlatformDeploymentTest(unittest.TestCase):
             unchanged = operator.execute("staging", prepared.specification_digest)
 
         self.assertEqual(deployed.outcome, "succeeded")
-        assert deployed.journal is not None
+        assert deployed.progress is not None
         self.assertEqual(
-            [entry["stage_id"] for entry in deployed.journal["entries"]],
+            [entry["stage_id"] for entry in deployed.progress["completed"]],
             [
                 "preflight",
                 "bootstrap-services",

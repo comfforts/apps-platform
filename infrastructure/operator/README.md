@@ -72,7 +72,7 @@ the journey from main with the default Accepted Source.
 Standalone preflight is the readiness-only command. It verifies source, profile, tools, active
 human account, user Application Default Credentials, provider project, ownership, and readable
 provider prerequisites without retaining a token or writing a specification, digest, approval,
-journal, plan, or deployment working state. It returns only readiness and blocker codes.
+progress, plan, or deployment working state. It returns only readiness and blocker codes.
 
 Standalone preparation repeats those checks and remains an optional specification dry run. It
 writes, displays, and approves the complete private specification without an external mutation.
@@ -84,7 +84,8 @@ asks for approval, and continues in the same process. Malformed retained state a
 fail closed. Status is read-only. Production remains blocked by
 `OWNERSHIP_TRANSFER_REQUIRED`.
 
-Deploy accepts only the exact current, approved specification. It journals preflight, reviewed
+Deploy accepts only the exact current, approved specification. It follows one fixed readable
+workflow for preflight, reviewed
 bootstrap-service enablement, backend bootstrap, foundation, immutable image and closed initial
 Registration Generation publication, OAuth, Shared Edge, external DNS, TLS, and final readback
 stages. Terraform mutation requires a
@@ -120,13 +121,13 @@ interpolation, mutable scope, and raw-output persistence.
 
 ## Private local state
 
-Generated specifications, approval bindings, immutable journal revisions, current pointers,
+Generated specifications, approval bindings, atomic progress, current pointers,
 create-only application-scoped integration bundles, and inspectable fixture preparation pairs use
 the ignored `.platform-operator/` directory by default. Directories use mode `0700` and files use
 mode `0600`. Registration intent is a strict
 private operator input; restricted members are never echoed in terminal results. Documents contain
 no credential, secret payload, Terraform state, saved plan, raw provider response, or browser
-state. Private plans and raw command results never become journal content.
+state. Private plans and raw command results never become progress content.
 
 An interruption leaves the current stage open and resumes after the last closed stage. A closed
 mutation is never repeated. Waiting, cancellation, command failure, policy refusal, mismatched

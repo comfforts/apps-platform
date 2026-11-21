@@ -10,7 +10,7 @@ from typing import Any, Protocol
 from contracts.lifecycle import validate_lifecycle_document
 from infrastructure.operator._interfaces import StageContext, StageExecution
 from infrastructure.operator._interfaces import GitAdapter
-from infrastructure.operator._interfaces import OperatorInterrupted
+from infrastructure.operator._interfaces import OperatorInterrupted, OperatorTerminal
 from infrastructure.operator.deployment_provider import DeploymentProviderError
 from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationDeployment,
@@ -56,10 +56,6 @@ class FixtureImageProvider(Protocol):
 
 class FixtureTerraformExecutor(Protocol):
     def execute(self, context: StageContext) -> StageExecution: ...
-
-
-class FixtureDestructionTerminal(Protocol):
-    def confirm_exact(self, prompt: str, expected: str) -> bool: ...
 
 
 def _canonical(value: object) -> str:
@@ -121,7 +117,7 @@ class LocalFixtureLifecycleCommands:
         terraform_executor: FixtureTerraformExecutor,
         restricted_member: tuple[str, str],
         handoffs: LocalApplicationHandoffs | None = None,
-        terminal: FixtureDestructionTerminal | None = None,
+        terminal: OperatorTerminal | None = None,
         preparations: LocalFixturePreparations | None = None,
     ) -> None:
         if (

@@ -39,7 +39,7 @@ class FakePlatformReader:
             profile_digest="sha256:" + ("1" * 64),
             platform_source_revision=SOURCE_REVISION,
             specification_digest="sha256:" + ("2" * 64),
-            journal_digest="sha256:" + ("3" * 64),
+            progress_digest="sha256:" + ("3" * 64),
             generation=4,
             hostname="apps-staging.comfforts.com",
             oauth_client_id="1234567890-appsplatform.apps.googleusercontent.com",

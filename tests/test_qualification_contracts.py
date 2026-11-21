@@ -49,7 +49,7 @@ def qualification_evidence() -> dict[str, object]:
         "source_revision": SOURCE_REVISION,
         "profile_digest": _digest("1"),
         "specification_digest": _digest("2"),
-        "deployment_journal_digest": _digest("3"),
+        "deployment_progress_digest": _digest("3"),
         "registration_generation_digest": _digest("4"),
         "component_revisions": [
             {"name": "registration-compiler", "digest": _digest("5")},

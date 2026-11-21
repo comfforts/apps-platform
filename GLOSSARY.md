@@ -22,24 +22,25 @@ maintained deployment manifest.
 ## Deployment Specification
 
 The canonical, digest-bound proposal produced by preparation for one environment and operation. It
-fixes scope, stage order, allowed mutations, declared stage-output dependencies, checkpoints,
-readback, and failure behavior before deployment or destruction begins.
+fixes the environment, source authority and revision, profile, operation, and reviewed workflow
+before deployment or destruction begins. The executable workflow and its resource policy remain
+reviewed code rather than a second data-driven stage language.
 
 ## Platform Preflight
 
 A read-only readiness check for one named Platform Environment and source authority. It verifies
 the current source, environment profile, pinned toolchain, operator authentication, provider
 project, ownership boundary, and other discoverable prerequisites, then reports `ready` or exact
-blockers. It creates no Deployment Specification, digest, approval, journal, plan, or external
+blockers. It creates no Deployment Specification, digest, approval, progress, plan, or external
 mutation. Platform Preflight is optional because `platform-deploy` performs the same readiness
 checks before preparing or reusing approved intent.
 
-## Execution Journal
+## Deployment Progress
 
-A machine-generated, append-only record of one lifecycle execution, including stage inputs,
-digests, outcomes, declared outputs, manual acknowledgements, and resume position. It is not
-hand-authored authority and contains no credential, secret payload, Terraform state, or raw
-provider response.
+A private, atomically replaced record of completed readback-closed stages, their non-secret
+outputs, the current stage, blockers, and the resume position for one approved deployment. It is
+not a public contract or hand-authored authority and contains no credential, secret payload,
+Terraform state, saved plan, or raw provider response.
 
 ## Terraform Phase
 

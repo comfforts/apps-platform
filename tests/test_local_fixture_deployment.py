@@ -56,7 +56,7 @@ def _bundle(application_id: str, access_mode: str) -> dict[str, object]:
         "platform_source_authority": "accepted",
         "platform_source_revision": "b" * 40,
         "specification_digest": "sha256:" + ("2" * 64),
-        "journal_digest": "sha256:" + ("3" * 64),
+        "deployment_progress_digest": "sha256:" + ("3" * 64),
         "endpoints": {
             "external_origin": origin,
             "issuer": f"{origin}/_platform" if protected else None,

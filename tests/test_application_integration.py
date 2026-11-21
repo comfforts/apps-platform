@@ -21,7 +21,7 @@ from infrastructure.operator.integration import (
 SOURCE_REVISION = "a" * 40
 PROFILE_DIGEST = "sha256:" + ("1" * 64)
 SPECIFICATION_DIGEST = "sha256:" + ("2" * 64)
-JOURNAL_DIGEST = "sha256:" + ("3" * 64)
+PROGRESS_DIGEST = "sha256:" + ("3" * 64)
 EDGE_CALLER = (
     "serviceAccount:app-platform-edge-caller@"
     "comfforts-platform-non-prod.iam.gserviceaccount.com"
@@ -60,7 +60,7 @@ def _state() -> PlatformIntegrationState:
         profile_digest=PROFILE_DIGEST,
         platform_source_revision=SOURCE_REVISION,
         specification_digest=SPECIFICATION_DIGEST,
-        journal_digest=JOURNAL_DIGEST,
+        progress_digest=PROGRESS_DIGEST,
         generation=7,
         hostname="apps-staging.comfforts.com",
         oauth_client_id=OAUTH_CLIENT_ID,

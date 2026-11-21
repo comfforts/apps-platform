@@ -774,20 +774,21 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   Shared Edge. Integration bundles expose platform login/assertion values rather than shared
   signing or OAuth authority. Application targets retain direct-origin denial, independent assertion
   verification, principals, data isolation, and Feature Entitlements.
-- **AP-TM-007:** One canonical specification, exact-source check, stage-output graph, append-only
-  Execution Journal, exact plan digest, state lock, provider readback, and resume cursor reject stale,
-  concurrent, reordered, repeated, or partial lifecycle changes. A journal cannot authorize a
-  mutation absent from its parent specification. Automatic current-specification selection requires
-  canonical readback plus exact source, profile, environment, approval, and compatible-journal
-  bindings before reuse; malformed retained state is never regenerated over silently. Inspectable
-  fixture bundle pairs are canonical, digest-bound private artifacts; an edit, partial write, stale
-  generation, or relationship mismatch is never accepted as a registration input.
+- **AP-TM-007:** One canonical operation fingerprint, exact-source check, fixed reviewed stage
+  order, exact plan digest, state lock, provider readback, and one atomically replaced progress
+  cursor reject stale, concurrent, repeated, or partial lifecycle changes. Progress records no
+  authority beyond the approved operation and executable policy. Automatic current-specification
+  selection requires canonical readback plus exact source, profile, environment, approval, and
+  compatible active progress before reuse; malformed retained state is never regenerated over
+  silently. Inspectable fixture bundle pairs are canonical, digest-bound private artifacts; an edit,
+  partial write, stale generation, or relationship mismatch is never accepted as a registration
+  input.
 - **AP-TM-008 and AP-TM-009:** Environment, Platform State, Fixture Application State, and real
   Application State remain distinct. Bundles are reference exchange, not backend access. Detach,
   retire, application destruction, platform destruction, and environment destruction cannot cross
   an owner.
 - **AP-TM-010:** Terminal prompts never accept a secret payload. OAuth secrets enter Secret Manager
-  directly. Profiles, specifications, journals, bundles, status, logs, and evidence exclude
+  directly. Profiles, specifications, progress, bundles, status, logs, and evidence exclude
   credentials, secret values, state, plans, raw provider responses, browser state, identity claims,
   restricted membership, and application data.
 - **AP-TM-011:** The lifecycle binds explicit source authority, clean reviewed source, pinned tools
@@ -795,7 +796,7 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   account and provider project, an exact plan, and readback. Accepted Source must be exact current
   protected main. Candidate Source must be a clean pushed matching branch containing current
   `origin/main`, is staging-only, records separate evidence, and cannot authorize production or
-  overwrite accepted qualification. A profile or journal edit, alternate or unpushed source, stale
+  overwrite accepted qualification. A profile or progress edit, alternate or unpushed source, stale
   candidate base, wrong project, provider default, console mutation, or unexpected drift stops
   before continuation. Default deploy revalidates the active human session, project, pinned tools,
   ownership, and readable provider facts before automatically reusing current approved intent;
@@ -831,7 +832,7 @@ transfer, production cutover, and scope expansion.
 
 AP-M9-W1 defines controls and evaluation authority, AP-M9-W2 removed the retired manifest attack
 surface, AP-M9-W3 implemented the closed lifecycle contracts, AP-M9-W4 implements local
-source/tool discovery, exact digest approval, append-only journal revisions, truthful status,
+source/tool discovery, exact operation approval, atomic progress, truthful status,
 redaction, and interruption-safe fake execution through injected adapters, AP-M9-W5 implements
 exact backend, phase, output, and plan-policy declarations through mocked
 providers and command fakes, and AP-M9-W6 implements fresh private-plan binding, exact typed
@@ -858,7 +859,7 @@ pass:
 
 | Decision | Required before |
 | --- | --- |
-| Exact staging profile, profile schema, Deployment Specification, journal, and bundle contracts | AP-M9-W3 acceptance |
+| Exact staging profile and cross-owner bundle contracts | AP-M9-W3 acceptance |
 | Interactive discovery, prompt, digest, resume, and fake-adapter behavior | AP-M9-W4 acceptance |
 | Exact OAuth branding constraints, client reference, redirect registration, and Secret Manager target | AP-M9 staging preparation before OAuth console action |
 | Exact managed zone, absent record, allocated address, TTL, and external-DNS acknowledgement | AP-M9 staging deployment before DNS mutation |

@@ -764,11 +764,12 @@ preflight  prepare  deploy  status  outputs  register  detach  retire  qualify  
                  fixture-handoff  fixture-deploy  fixture-status  fixture-destroy
 ```
 
-The module owns preflight, discovery, canonical specification generation, stage ordering, exact
-Terraform planning, interactive checkpoints, provider readback, execution journaling, bundle
-generation, qualification, and safe resume. Git, GitHub, GCP, Terraform, DNS, terminal prompts, and
-the clock are injected internal seams with production and deterministic fake adapters. Callers and
-tests cross the lifecycle interface rather than invoking root-specific scripts.
+The module owns preflight, discovery, one small operation specification, a fixed readable stage
+sequence, exact Terraform planning, interactive checkpoints, provider readback, atomic progress,
+bundle generation, qualification, and safe resume. Git, provider commands, Terraform, DNS, the
+operator console, private state, and time are external-effect seams with production and
+deterministic fake implementations. Callers and tests cross the operator interface rather than a
+generic orchestration framework.
 
 Each environment has one small committed Environment Profile containing only stable non-secret
 owner decisions. Staging fixes the approved non-production project, region, hostname, and provider
@@ -780,11 +781,11 @@ responses, and execution outcomes are not operator-maintained profile fields.
 Preparation is read-only. It verifies reviewed source and tools, loads one profile, discovers
 available GitHub and provider metadata, detects ownership conflicts and drift, derives deterministic
 values, asks only for unresolved owner decisions, and emits one canonical Deployment Specification.
-A complete specification fixes the environment, source, intended stages, resource/action
-allow-lists, declared stage-output bindings, manual checkpoints, readback, failure behavior, and
-destructive boundary. An address or client identifier produced by a named later stage is a bound
-output, not a missing input. Approval is a separate owner decision over the complete specification
-digest.
+A complete specification fixes the environment, source authority and revision, profile, operation,
+and reviewed workflow identity. Stage order, resource/action policy, checkpoints, and readback live
+in reviewed executable code rather than a second declarative language. An address or client
+identifier produced later is generated progress, not a missing preparation input. Approval is a
+separate owner decision over the specification digest.
 
 Preflight executes the preparation-readiness portion only. It loads and validates the named
 profile, checks the selected source authority, and invokes the bounded GitHub, GCP, Terraform, and
@@ -795,8 +796,8 @@ specification generation and approval.
 
 Before default deployment prepares new intent, it reads the private current-specification pointer
 and canonical specification and revalidates the current source, profile, environment, human
-session, project, ownership, pinned tools, readable provider facts, approval binding, and journal
-compatibility. An exact current approval is selected automatically; the operator does not relay its
+session, project, ownership, pinned tools, readable provider facts, approval binding, and active
+progress compatibility. An exact current approval is selected automatically; the operator does not relay its
 digest. Absence, drift, or missing approval falls back to normal preparation. Malformed retained
 state or a current blocker fails closed without rewriting the evidence. Supplying an explicit
 current digest remains an optional pin, not the ordinary interface.
@@ -815,8 +816,8 @@ action confirmation occur inside that same process; no separate out-of-band appr
 Repository merge never invokes an operation. Destruction, purge, ownership transfer, production
 cutover, and scope expansion remain separately governed decisions.
 
-Deployment consumes exactly that approved digest and advances one Execution Journal through these
-logical stages:
+Deployment consumes exactly that approved digest, follows this fixed sequence, and atomically
+replaces one private progress record after each successful readback:
 
 1. source, identity, environment, state, ownership, and drift preflight;
 2. reviewed enablement and readback of the two APIs required for state bootstrap;
@@ -1464,12 +1465,14 @@ credential access and no cloud, DNS, identity, or application mutation.
 Extraction to a dedicated repository changes the project root but not contract identifiers,
 compiler behavior, paths relative to that root, or ownership boundaries.
 
-## Explicitly unresolved implementation decisions
+## Historical pre-implementation boundary — superseded
 
-This design intentionally does not implement:
+The original contract-and-fixture design stopped before the following work. This list is preserved
+only as historical scope evidence; the active AP-M9 sections above and the implementation plan
+record which items are now implemented:
 
-- AP-M9 Environment Profiles, lifecycle contracts, operator module, command adapters, execution
-  journal, integration bundles, attachment bundles, or qualification evidence;
+- environment profiles, lifecycle contracts, the operator workflow, provider command seams,
+  deployment progress, integration bundles, attachment bundles, or qualification evidence;
 - the deployable bootstrap/foundation/edge Terraform phases, operation identities, backend objects,
   state migration, provider composition entry point, container definitions, or IAM grants;
 - OAuth client registration values, Firestore session configuration, KMS key versions, secret
@@ -1483,9 +1486,9 @@ AP-M6 now resolves the network framework, dependency policy, and initial header,
 abusive-traffic limits as implementation authority. Local runtime and adapter implementation does
 not make provider resources or Live behavior implemented or qualified.
 
-The implementation plan, evaluation strategy, threat model, versioned schemas, and deterministic
-validation added by this delivery item may constrain later work. They cannot describe an unresolved
-runtime or control as operational.
+The versioned schemas and deterministic validation from that delivery remain part of the current
+design where later authority did not replace them. This historical boundary does not override the
+active status and claim discipline in `docs/README.md`.
 
 ## Design acceptance boundary
 

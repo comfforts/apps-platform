@@ -41,7 +41,7 @@ Perform the staging journey from exact merged source:
 5. Run `make fixture-status ENVIRONMENT=staging`, `make platform-status ENVIRONMENT=staging`, and
    `make platform-qualify ENVIRONMENT=staging`. Complete browser checkpoints without exporting
    cookies, sessions, assertions, identity claims, screenshots, or application payloads.
-6. Report the exact revision, specification/journal/generation/evidence digests, coarse outcomes,
+6. Report the exact revision, operation/progress/generation/evidence digests, coarse outcomes,
    and every failed or unavailable AP-EVAL-M9 gate. Do not call staging qualified unless every
    mandatory check passes for those exact bindings.
 7. Only after separately named owner approval for the destructive rehearsal, detach and destroy
@@ -53,7 +53,7 @@ Perform the staging journey from exact merged source:
    secret-free evidence index on a dedicated evidence branch if requested; keep private evidence,
    raw outputs, state, plans, browser state, and checkpoint artifacts outside Git.
 
-Stop on the first discrepancy. Resume only through the existing private journal and identical
+Stop on the first discrepancy. Resume only through the existing private progress and identical
 immutable bindings. Do not mutate `apps.comfforts.com`, production, or any real application.
 Application-specific migration and adoption remain under the consuming application's authority and
 cannot define this operation. Do not claim Application Adoption,

@@ -1,12 +1,12 @@
-# AP-M9 lifecycle contracts
+# Operator lifecycle and handoff contracts
 
-Version 1 | Status: AP-M9-W3 contracts and AP-M9-W7 application-lifecycle consumers implemented;
-no provider action
+Version 1 | Scope: closed, non-secret environment lifecycle, application handoff, and
+qualification-evidence documents; validation never authorizes mutation
 
-This package owns the closed, non-secret AP-M9 Environment Profile and lifecycle document
-interfaces. It is separate from the exact AP-M3 public-contract registry and the AP-M7
-infrastructure-configuration registry. Loading or validating any document is credential-free,
-non-mutating, and does not authorize an operator action.
+This package defines the documents that connect environment preparation, deployment, status,
+application handoff, and qualification. It is separate from the platform/application registry in
+the parent directory and from the infrastructure-configuration registry. Loading or validating a
+document is credential-free and non-mutating; it does not approve or execute an operator action.
 
 ## Environment profiles
 
@@ -30,46 +30,42 @@ A single final LF is accepted as a repository text-file terminator and is exclud
 bytes and the digest. The digest is lowercase SHA-256 over App Platform Canonical JSON Version 1,
 prefixed with `sha256:`.
 
-## Specification and journal
+## Contract inventory
 
 | Schema | Stable identifier | Interface |
 | --- | --- | --- |
 | `schemas/environment-profile.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:environment-profile:v1` | stable decisions for one isolated environment |
-| `schemas/deployment-specification.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:deployment-specification:v1` | exact source authority and revision, ordered stages, allow-lists, output bindings, checkpoints, readback, stop behavior, and destructive boundary |
-| `schemas/execution-journal.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:execution-journal:v1` | machine-generated, append-only, digest-chained execution progress |
-| `schemas/environment-status.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:environment-status:v1` | truthful environment progress, blockers, and qualification state |
+| `schemas/deployment-specification.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:deployment-specification:v1` | separately confirmed destructive scope, ordered steps, and retained-resource boundary |
 | `schemas/platform-integration-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1` | application-scoped non-secret platform endpoints, identity values, caller, attachment contract, and qualification status |
 | `schemas/application-attachment-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1` | application-owned target posture bound to an exact integration bundle digest |
+| `schemas/qualification-evidence.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:qualification-evidence:v1` | redacted, revision-bound platform and fixture qualification results |
 
-Specification validation requires every consumed output to be declared by an earlier stage,
-unique stage identifiers, explicit action and resource-type allow-lists, stop-on-failure behavior,
-and no destructive scope outside a `destroy` operation. Specification completeness and owner
-approval remain separate: this package represents no approval.
+Destructive-specification validation requires unique ordered steps, explicit action and resource
+allow-lists, declared prior outputs, stop-on-failure behavior, and an exact deletion boundary.
+Completeness and the operator's typed confirmation remain separate; this package grants neither.
+Normal deployment preparation, read-only status, and atomic resume progress are private operator
+state because they do not cross an ownership boundary.
 
-Journal relationship validation binds environment, operation, source revision, and specification
-digest; limits entries and outputs to declared specification stages; requires every succeeded-stage
-output; and proves that a later journal revision preserves every preceding entry and carries the
-exact predecessor digest. A journal records a plan digest, never a saved or raw plan.
+An integration bundle identifies Accepted Source or Candidate Source and contains an OAuth client
+identifier and application audience only for an authenticated access mode. A public bundle omits
+those identity values. No bundle admits an OAuth client secret, application provider key,
+credential payload, Terraform state, saved plan, raw provider response, or platform secret
+reference. Attachment validation preserves application ownership and matches the integration
+bundle's application, environment, adapter, ingress, edge caller, audience, and digest; it does not
+transfer target ownership to Platform State.
 
-Environment Status binds the exact profile, source authority and revision, specification, journal, last closed stage, and
-journal outcome. A disabled production status carries `OWNERSHIP_TRANSFER_REQUIRED` without
-inventing a source, specification, journal, or generated resource.
+Qualification Evidence binds observations to an exact environment, source authority and revision,
+profile, specification, final deployment progress, registration generation, and component and fixture
+revisions. It contains only redacted results permitted by its schema. A valid evidence document
+records what was evaluated; it does not make an unevaluated environment qualified.
 
-An integration bundle identifies Accepted Source or Candidate Source and contains an OAuth client identifier and application audience only for an
-authenticated access mode. A public bundle omits those identity values. No bundle admits an OAuth
-client secret, application provider key, credential payload, Terraform state, saved plan, raw
-provider response, or platform secret reference. Attachment validation preserves application
-ownership and matches the integration bundle's application, environment, adapter, ingress, edge
-caller, audience, and digest; it does not transfer target ownership to Platform State.
-
-`test-vectors/valid/` contains one canonical, fully digest-bound synthetic staging chain covering
-the five lifecycle documents. The vectors are deterministic contract examples only: their source
-revisions, address, plan digest, OAuth identifier, and target reference do not describe deployed
-resources or accepted operator input.
+`test-vectors/valid/` contains canonical synthetic examples for the integration bundle, attachment
+bundle, and qualification evidence. The vectors are deterministic
+contract examples only; their source revisions, addresses, OAuth identifier, and target reference
+do not describe deployed resources or accepted operator input.
 
 This package intentionally exposes no prompt, approval, execution, resume, provider, Terraform,
-DNS, credential, or mutation behavior. The separate deep operator module consumes these documents:
-W4 for preparation/status, W6 for multi-stage deployment, and W7 for least-data output generation,
-attachment validation, and immutable whole-generation application lifecycle. The W7 provider and
-generation-control seams remain injected and locally unarmed; live provider behavior remains later
-work.
+DNS, credential, or mutation behavior. The operator module consumes these documents for
+preparation, deployment, status, non-secret application handoff, attachment validation,
+qualification, and recovery. Provider adapters and generation control remain separate runtime
+responsibilities; schema validation alone is not evidence that any external operation occurred.

@@ -16,6 +16,7 @@ import webbrowser
 import httpx
 from websockets.sync.client import connect as websocket_connect
 
+from infrastructure.operator._interfaces import OperatorTerminal
 from infrastructure.operator.integration import AttachmentTargetReader
 from infrastructure.operator.qualification import (
     QualificationProbeOutcome,
@@ -39,10 +40,6 @@ _EDGE_CALLER = (
 
 class QualificationBrowserLauncher(Protocol):
     def open(self, url: str) -> bool: ...
-
-
-class QualificationTerminal(Protocol):
-    def write(self, message: str) -> None: ...
 
 
 class QualificationCallback(Protocol):
@@ -175,7 +172,7 @@ class LoopbackBrowserQualification:
     def __init__(
         self,
         launcher: QualificationBrowserLauncher,
-        terminal: QualificationTerminal,
+        terminal: OperatorTerminal,
         *,
         login_timeout_seconds: float = 300,
         callback_timeout_seconds: float = 30,
@@ -652,7 +649,6 @@ __all__ = (
     "QualificationLifecycleExercise",
     "QualificationBrowserLauncher",
     "QualificationCallback",
-    "QualificationTerminal",
     "SystemBrowserLauncher",
     "StagingQualificationProbe",
 )

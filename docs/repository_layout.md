@@ -24,7 +24,7 @@ permission to create a resource or perform an external action.
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
-| `infrastructure/operator/` | deep Python preflight, preparation, exact multi-stage deployment, application integration, approval, journal, status, resume, injected adapters, and thin CLI |
+| `infrastructure/operator/` | linear Python preflight, preparation, exact-plan deployment, application integration, atomic progress, status, resume, external-effect adapters, and thin CLI |
 | `infrastructure/backend/` | AP-M9-W5 backend rendering, lineage, operation authority, plan policy, and fake command integration |
 | `infrastructure/terraform/bootstrap/` | state-bucket owner root with closed bootstrap phase output |
 | `infrastructure/terraform/platform/` | phased foundation and Shared Edge configuration on one Platform State lineage |
@@ -41,11 +41,11 @@ delivery record remains under `docs/history/`, and the implementation remains re
 history. It is not a current operator input.
 
 AP-M9-W3 added only deterministic, credential-free repository interfaces. It created no operator
-command, approval, journal, bundle instance, provider resource, state, deployment, or evidence.
+command, approval, progress, bundle instance, provider resource, state, deployment, or evidence.
 
 AP-M9-W4 added credential-free `platform-prepare` and `platform-status`, exact local approval
 binding, private generated operator state under the ignored `.platform-operator/` path, and
-resumable journal orchestration exercised through deterministic fakes. It added no executable
+resumable progress exercised through deterministic fakes. It added no executable
 deploy target, credential, provider request, backend operation, Terraform plan or apply, DNS
 action, platform resource, bundle instance, deployment, or Live evidence.
 
@@ -114,8 +114,8 @@ policy stay testable without credentials or network access.
 
 - Keep platform code, contracts, documents, tests, prompts, and secret-free historical indexes in
   this repository.
-- Keep Terraform state, saved plans, credentials, secret values, provider responses, execution
-  journals containing sensitive data, and private Live evidence outside Git.
+- Keep Terraform state, saved plans, credentials, secret values, provider responses, private
+  deployment progress, and private Live evidence outside Git.
 - Keep Platform State and every Application State in independent lineages. Never use
   `terraform_remote_state` as an integration contract.
 - Exchange only versioned, non-secret Platform Integration Bundles and Application Attachment

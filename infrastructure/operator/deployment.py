@@ -16,7 +16,12 @@ from infrastructure.backend import (
     TerraformPlanCommands,
     prepare_phase_plan,
 )
-from infrastructure.operator._interfaces import StageContext, StageExecution
+from infrastructure.operator._interfaces import (
+    OperatorTerminal,
+    StageContext,
+    StageExecution,
+    Waiter,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,22 +112,6 @@ class DeploymentCommandError(RuntimeError):
     """A safe blocker code returned by the external command boundary."""
 
 
-class DeploymentTerminal(Protocol):
-    def ask(self, prompt: str) -> str: ...
-
-    def confirm(self, prompt: str) -> bool: ...
-
-    def confirm_exact(self, prompt: str, expected: str) -> bool: ...
-
-    def write(self, message: str) -> None: ...
-
-    def pause(self, prompt: str) -> None: ...
-
-
-class WaitAdapter(Protocol):
-    def wait(self, seconds: int) -> None: ...
-
-
 @dataclass(frozen=True, slots=True)
 class _ImmediateWaiter:
     def wait(self, seconds: int) -> None:
@@ -204,10 +193,10 @@ class DeploymentExecutor:
     def __init__(
         self,
         working_root: Path,
-        terminal: DeploymentTerminal,
+        terminal: OperatorTerminal,
         commands: DeploymentCommands,
         *,
-        waiter: WaitAdapter | None = None,
+        waiter: Waiter | None = None,
     ) -> None:
         self._working_root = working_root.resolve()
         self._terminal = terminal
@@ -619,7 +608,6 @@ __all__ = (
     "DeploymentCommandError",
     "DeploymentCommands",
     "DeploymentExecutor",
-    "DeploymentTerminal",
     "ExactAction",
     "ExactTerraformPlan",
     "ManualCheckpoint",
@@ -627,5 +615,4 @@ __all__ = (
     "TerraformPlanArtifact",
     "TerraformReadback",
     "TerraformReadbackRequest",
-    "WaitAdapter",
 )

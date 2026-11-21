@@ -53,7 +53,7 @@ class FakeStateReader:
             source_revision=SOURCE,
             profile_digest=DIGEST,
             deployed_specification_digest=DIGEST,
-            deployment_journal_digest=DIGEST,
+            deployment_progress_digest=DIGEST,
             registration_generation_digest=DIGEST,
             qualification_evidence_digest=DIGEST,
             active_application_ids=(),

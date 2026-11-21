@@ -111,7 +111,7 @@ class QualificationRequest:
     source_revision: str
     profile_digest: str
     specification_digest: str
-    deployment_journal_digest: str
+    deployment_progress_digest: str
     registration_generation_digest: str
     component_revisions: tuple[ComponentRevision, ...]
     fixture_revisions: tuple[FixtureRevision, ...]
@@ -127,7 +127,7 @@ class QualificationReadback:
     source_revision: str
     profile_digest: str
     specification_digest: str
-    deployment_journal_digest: str
+    deployment_progress_digest: str
     registration_generation_digest: str
     component_revisions: tuple[ComponentRevision, ...]
     fixture_revisions: tuple[FixtureRevision, ...]
@@ -343,9 +343,9 @@ class QualificationLifecycle:
                 "QUALIFICATION_SPECIFICATION_MISMATCH",
             ),
             (
-                current.deployment_journal_digest
-                == request.deployment_journal_digest,
-                "QUALIFICATION_JOURNAL_MISMATCH",
+                current.deployment_progress_digest
+                == request.deployment_progress_digest,
+                "QUALIFICATION_PROGRESS_MISMATCH",
             ),
             (
                 current.registration_generation_digest
@@ -444,7 +444,7 @@ class QualificationLifecycle:
             "source_revision": request.source_revision,
             "profile_digest": request.profile_digest,
             "specification_digest": request.specification_digest,
-            "deployment_journal_digest": request.deployment_journal_digest,
+            "deployment_progress_digest": request.deployment_progress_digest,
             "registration_generation_digest": request.registration_generation_digest,
             "component_revisions": [
                 {"name": item.name, "digest": item.digest}
@@ -487,7 +487,7 @@ class QualificationLifecycle:
             source_revision=current.source_revision,
             profile_digest=current.profile_digest,
             specification_digest=current.specification_digest,
-            deployment_journal_digest=current.deployment_journal_digest,
+            deployment_progress_digest=current.deployment_progress_digest,
             registration_generation_digest=(
                 current.registration_generation_digest
             ),

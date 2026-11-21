@@ -12,6 +12,7 @@ from contracts.lifecycle import (
 )
 from infrastructure.operator._interfaces import (
     OperatorInterrupted,
+    OperatorTerminal,
     StageContext,
     StageExecution,
 )
@@ -55,7 +56,7 @@ class DestructionRequest:
     source_revision: str
     profile_digest: str
     deployed_specification_digest: str
-    deployment_journal_digest: str
+    deployment_progress_digest: str
     registration_generation_digest: str
     qualification_evidence_digest: str
     source_authority: str = "accepted"
@@ -70,7 +71,7 @@ class DestructionSnapshot:
     source_revision: str
     profile_digest: str
     deployed_specification_digest: str
-    deployment_journal_digest: str
+    deployment_progress_digest: str
     registration_generation_digest: str
     qualification_evidence_digest: str
     active_application_ids: tuple[str, ...]
@@ -215,9 +216,9 @@ def _blockers(
             "DESTRUCTION_SPECIFICATION_MISMATCH",
         ),
         (
-            snapshot.deployment_journal_digest,
-            request.deployment_journal_digest,
-            "DESTRUCTION_JOURNAL_MISMATCH",
+            snapshot.deployment_progress_digest,
+            request.deployment_progress_digest,
+            "DESTRUCTION_PROGRESS_MISMATCH",
         ),
         (
             snapshot.registration_generation_digest,
@@ -331,12 +332,6 @@ class DestructionControl(Protocol):
     def mark_complete(self, environment: str, digest: str) -> bool: ...
 
 
-class DestructionTerminal(Protocol):
-    def confirm_exact(self, prompt: str, expected: str) -> bool: ...
-
-    def write(self, message: str) -> None: ...
-
-
 class DestructionExecutor(Protocol):
     def execute(self, context: StageContext) -> StageExecution: ...
 
@@ -356,7 +351,7 @@ class DestructionLifecycle:
         self,
         state_reader: DestructionStateReader,
         control: DestructionControl,
-        terminal: DestructionTerminal,
+        terminal: OperatorTerminal,
         executor: DestructionExecutor,
     ) -> None:
         self._state_reader = state_reader
@@ -691,7 +686,7 @@ class DestructionLifecycle:
             deployed_specification_digest=(
                 current.deployed_specification_digest
             ),
-            deployment_journal_digest=current.deployment_journal_digest,
+            deployment_progress_digest=current.deployment_progress_digest,
             registration_generation_digest=(
                 current.registration_generation_digest
             ),
@@ -715,6 +710,5 @@ __all__ = (
     "DestructionSnapshot",
     "DestructionStageClosure",
     "DestructionStateReader",
-    "DestructionTerminal",
     "compile_destruction_specification",
 )

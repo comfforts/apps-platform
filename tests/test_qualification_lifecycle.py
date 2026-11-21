@@ -68,7 +68,7 @@ def request() -> QualificationRequest:
         source_revision=SOURCE_REVISION,
         profile_digest=_digest("1"),
         specification_digest=_digest("2"),
-        deployment_journal_digest=_digest("3"),
+        deployment_progress_digest=_digest("3"),
         registration_generation_digest=_digest("4"),
         component_revisions=COMPONENTS,
         fixture_revisions=FIXTURES,
@@ -83,7 +83,7 @@ def readback() -> QualificationReadback:
         source_revision=expected.source_revision,
         profile_digest=expected.profile_digest,
         specification_digest=expected.specification_digest,
-        deployment_journal_digest=expected.deployment_journal_digest,
+        deployment_progress_digest=expected.deployment_progress_digest,
         registration_generation_digest=expected.registration_generation_digest,
         component_revisions=expected.component_revisions,
         fixture_revisions=expected.fixture_revisions,
@@ -189,9 +189,9 @@ class QualificationLifecycleTest(unittest.TestCase):
                 replace(readback(), specification_digest=_digest("9")),
                 "QUALIFICATION_SPECIFICATION_MISMATCH",
             ),
-            "journal": (
-                replace(readback(), deployment_journal_digest=_digest("9")),
-                "QUALIFICATION_JOURNAL_MISMATCH",
+            "progress": (
+                replace(readback(), deployment_progress_digest=_digest("9")),
+                "QUALIFICATION_PROGRESS_MISMATCH",
             ),
             "generation": (
                 replace(readback(), registration_generation_digest=_digest("9")),

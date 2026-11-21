@@ -84,11 +84,11 @@ class StatusResult:
 
 @dataclass(frozen=True, slots=True)
 class ExecutionResult:
-    """Result of deterministic stage orchestration against an injected executor."""
+    """Result of one fixed deployment workflow and its atomic progress record."""
 
     outcome: str
-    journal: dict[str, Any] | None
-    journal_digest: str | None
+    progress: dict[str, Any] | None
+    progress_digest: str | None
     status: StatusResult
     blockers: tuple[str, ...] = ()
 
@@ -109,10 +109,20 @@ class TerraformAdapter(Protocol):
     def inspect(self) -> DiscoverySnapshot: ...
 
 
-class TerminalAdapter(Protocol):
+class OperatorTerminal(Protocol):
+    def ask(self, prompt: str) -> str: ...
+
     def confirm(self, prompt: str) -> bool: ...
 
+    def confirm_exact(self, prompt: str, expected: str) -> bool: ...
+
     def write(self, message: str) -> None: ...
+
+    def pause(self, prompt: str) -> None: ...
+
+
+class Waiter(Protocol):
+    def wait(self, seconds: int) -> None: ...
 
 
 class FilesystemAdapter(Protocol):
@@ -148,7 +158,7 @@ class OperatorAdapters:
     gcp: DiscoveryAdapter
     terraform: TerraformAdapter
     dns: DiscoveryAdapter
-    terminal: TerminalAdapter
+    terminal: OperatorTerminal
     filesystem: FilesystemAdapter
     clock: ClockAdapter
     executor: StageExecutor | None = None

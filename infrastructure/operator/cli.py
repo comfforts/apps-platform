@@ -490,8 +490,8 @@ def main(
             {
                 "blockers": list(result.blockers),
                 "environment": arguments.environment,
-                "journal_digest": result.journal_digest,
                 "outcome": result.outcome,
+                "progress_digest": result.progress_digest,
                 "source_authority": arguments.source_authority,
                 "specification_digest": specification_digest,
             }

@@ -13,7 +13,7 @@
     "source_revision",
     "profile_digest",
     "specification_digest",
-    "deployment_journal_digest",
+    "deployment_progress_digest",
     "registration_generation_digest",
     "component_revisions",
     "fixture_revisions",
@@ -29,7 +29,7 @@
     "source_revision": {"$ref": "#/$defs/sourceRevision"},
     "profile_digest": {"$ref": "#/$defs/digest"},
     "specification_digest": {"$ref": "#/$defs/digest"},
-    "deployment_journal_digest": {"$ref": "#/$defs/digest"},
+    "deployment_progress_digest": {"$ref": "#/$defs/digest"},
     "registration_generation_digest": {"$ref": "#/$defs/digest"},
     "component_revisions": {
       "type": "array",

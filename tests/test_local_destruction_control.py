@@ -30,7 +30,7 @@ def _specification() -> tuple[dict[str, object], str]:
         source_revision="a" * 40,
         profile_digest=_digest("1"),
         deployed_specification_digest=_digest("2"),
-        deployment_journal_digest=_digest("3"),
+        deployment_progress_digest=_digest("3"),
         registration_generation_digest=_digest("4"),
         qualification_evidence_digest=_digest("5"),
     )
@@ -40,7 +40,7 @@ def _specification() -> tuple[dict[str, object], str]:
         source_revision=request.source_revision,
         profile_digest=request.profile_digest,
         deployed_specification_digest=request.deployed_specification_digest,
-        deployment_journal_digest=request.deployment_journal_digest,
+        deployment_progress_digest=request.deployment_progress_digest,
         registration_generation_digest=request.registration_generation_digest,
         qualification_evidence_digest=request.qualification_evidence_digest,
         active_application_ids=(),

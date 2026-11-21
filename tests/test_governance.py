@@ -42,8 +42,6 @@ class ProjectAuthorityTest(unittest.TestCase):
             "contracts/lifecycle/schemas/application-attachment-bundle.v1.schema.json",
             "contracts/lifecycle/schemas/deployment-specification.v1.schema.json",
             "contracts/lifecycle/schemas/environment-profile.v1.schema.json",
-            "contracts/lifecycle/schemas/environment-status.v1.schema.json",
-            "contracts/lifecycle/schemas/execution-journal.v1.schema.json",
             "contracts/lifecycle/schemas/platform-integration-bundle.v1.schema.json",
             "contracts/validation.py",
             "contracts/test-vectors/manifest.v1.json",

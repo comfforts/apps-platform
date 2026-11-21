@@ -17,27 +17,15 @@ VECTOR_DIRECTORY = PROJECT_ROOT / "contracts" / "lifecycle" / "test-vectors" / "
 VECTORS = {
     "application-attachment-bundle.staging.synthetic.v1.json": (
         "application-attachment-bundle",
-        "sha256:87c53c012f9aaade05943983eb0b1bc80a99491038fd8efafef8507ff0776694",
-    ),
-    "deployment-specification.staging.synthetic.v1.json": (
-        "deployment-specification",
-        "sha256:0c307e09e19262701855d8ec92e3a93e6027b639b40a749c5765ee89d5da46c1",
-    ),
-    "environment-status.staging.synthetic.v1.json": (
-        "environment-status",
-        "sha256:160c03afb53895ae188f94564c2086c71e367530c9aba0943a76f7c7d3308d5c",
-    ),
-    "execution-journal.staging.synthetic.v1.json": (
-        "execution-journal",
-        "sha256:07039c77d05224c98a14d2111e5f09bfb20d928ba82dcb8704853d003bb29091",
+        "sha256:506d083eb987f392739cdd7087691beb8887eb2d943465c5f0f49ec9fbce0052",
     ),
     "platform-integration-bundle.staging.synthetic.v1.json": (
         "platform-integration-bundle",
-        "sha256:462f3c33853b9c63cb2fa23645766e86cba4f1f525a09d3890d59e2e3f8b2db0",
+        "sha256:e9bb4373b4f7ae5ecdb67b68d05f11c434d0bb7cc1a05be1318b8ea50aaa75a5",
     ),
     "qualification-evidence.staging.synthetic.v1.json": (
         "qualification-evidence",
-        "sha256:24df3c604305298ee24086c94294b16a3d0257bddde1de996c0a84a569ce1e7c",
+        "sha256:96dbf65339fc57d97049f1daa5632834c9bd194b2ba5193ad8a42028948eef1f",
     ),
 }
 
@@ -56,33 +44,29 @@ class LifecycleVectorTest(unittest.TestCase):
                 self.assertIsNotNone(loaded.value)
                 self.assertEqual(loaded.digest, expected_digest)
 
-    def test_reviewed_vector_chain_is_cross_document_valid(self) -> None:
+    def test_reviewed_handoff_pair_is_cross_document_valid(self) -> None:
         def value(filename: str) -> dict[str, object]:
             kind = VECTORS[filename][0]
             loaded = load_lifecycle_document(VECTOR_DIRECTORY / filename, kind)
             assert loaded.value is not None
             return loaded.value
 
-        profile = load_lifecycle_document(
-            PROFILE_DIRECTORY / "staging.v1.json",
-            "environment-profile",
+        integration = value(
+            "platform-integration-bundle.staging.synthetic.v1.json"
         )
-        assert profile.value is not None
+        attachment = value(
+            "application-attachment-bundle.staging.synthetic.v1.json"
+        )
+        from contracts.lifecycle import lifecycle_digest
 
+        attachment["platform_integration_bundle_digest"] = lifecycle_digest(
+            integration,
+            "platform-integration-bundle",
+        )
         self.assertEqual(
             validate_lifecycle_relationships(
-                profile=profile.value,
-                specification=value(
-                    "deployment-specification.staging.synthetic.v1.json"
-                ),
-                journal=value("execution-journal.staging.synthetic.v1.json"),
-                status=value("environment-status.staging.synthetic.v1.json"),
-                integration_bundle=value(
-                    "platform-integration-bundle.staging.synthetic.v1.json"
-                ),
-                attachment_bundle=value(
-                    "application-attachment-bundle.staging.synthetic.v1.json"
-                ),
+                integration_bundle=integration,
+                attachment_bundle=attachment,
             ),
             (),
         )

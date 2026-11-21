@@ -39,7 +39,7 @@ class FakeStatus:
         return StatusResult(
             {
                 "environment": environment,
-                "journal_digest": "sha256:" + ("3" * 64),
+                "progress_digest": "sha256:" + ("3" * 64),
                 "lifecycle_state": "deployed",
                 "profile_digest": "sha256:" + ("1" * 64),
                 "source_authority": "accepted",

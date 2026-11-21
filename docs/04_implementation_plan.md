@@ -1644,7 +1644,7 @@ fixture-handoff  fixture-deploy   fixture-status   fixture-destroy
 ```
 
 The local wizard remains active through OAuth and Squarespace work and continues after Enter.
-Rerunning is interruption recovery only. Generated execution facts are journal outputs rather than
+Rerunning is interruption recovery only. Generated execution facts are private progress rather than
 operator-authored manifest fields.
 
 ### Scope and boundaries
@@ -1653,9 +1653,11 @@ AP-M9 includes:
 
 - the governance clean break and removal of the retired manifest path;
 - small non-secret staging and disabled production Environment Profiles;
-- closed Deployment Specification, Execution Journal, status, Platform Integration Bundle, and
-  Application Attachment Bundle contracts;
-- one deep interactive Python lifecycle module with real and deterministic fake adapters;
+- one closed destructive specification plus Platform Integration Bundle, Application Attachment
+  Bundle, and Qualification Evidence contracts; deployment preparation, status, and progress stay
+  private;
+- one focused interactive Python lifecycle with seams only at external effects and deterministic
+  fakes at those boundaries;
 - deployable bootstrap, platform-foundation, and Shared Edge Terraform phases;
 - short-lived local operator authentication with operation-specific service-account
   impersonation, exact plans, typed confirmation, and readback;
@@ -1698,19 +1700,20 @@ removed implementation.
 
 #### AP-M9-W3 · Lifecycle contracts and environment profiles
 
-Implement small closed staging and disabled-production profiles plus versioned contracts for the
-Deployment Specification, Execution Journal, Environment Status, Platform Integration Bundle, and
-Application Attachment Bundle. Canonicalization and digest rules must be deterministic. Profiles
+Implement small closed staging and disabled-production profiles plus versioned contracts for
+destructive scope, Platform Integration Bundles, Application Attachment Bundles, and Qualification
+Evidence. Preparation, status, and resume progress are private operator state rather than
+cross-owner contracts. Canonicalization and digest rules must be deterministic. Profiles
 contain stable owner decisions only; generated or discoverable facts, credentials, secrets, state,
 plans, and provider payloads are prohibited.
 
 #### AP-M9-W4 · Interactive operator core
 
-Implemented the deep Python lifecycle module and thin Make targets for credential-free preparation
-and status. Injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock adapters;
-provided deterministic fakes; validated clean source and tools; discovered non-secret facts;
-compiled and explicitly approved one specification; journaled stages; reported truthful status;
-and resumed interrupted fake journeys. This package performs no authenticated mutation.
+Implemented the Python operator and thin Make targets for credential-free preparation and status.
+The current design keeps seams at Git/provider commands, Terraform, DNS, the console, private
+state, and time; validates clean source and tools; discovers non-secret facts; approves one small
+operation fingerprint; records atomic progress; reports truthful status; and resumes interrupted
+journeys. This package performs no authenticated mutation.
 
 #### AP-M9-W5 · Deployable Terraform lifecycle
 
@@ -1777,7 +1780,7 @@ preserving other registrations. `fixture-status` is read-only and supports suite
 readback. `fixture-destroy` detaches first, requires fixture-specific typed
 confirmation, destroys only selected fixture Application State, and supports deterministic
 redeployment/reactivation. Every mutation uses the verified human session, fresh exact plans,
-policy, confirmation, readback, private journals, and safe resume. Deterministic fakes cover the
+policy, confirmation, readback, private progress, and safe resume. Deterministic fakes cover the
 complete journey. W9 also completes browser-mediated live qualification and multi-stage platform
 destruction through traffic disable, external-DNS removal, Shared Edge removal, protection unlock,
 destructible-foundation removal, and retained-inventory readback. W9 also binds `accepted` or
@@ -1794,7 +1797,7 @@ full source, generation, digest, image, relationship, and provider-posture reval
 
 W9 also removes digest copy-and-paste from the optional platform-preparation flow. Default
 `platform-deploy` reads and revalidates the current approved specification and reuses it when its
-source, profile, environment, session, project, ownership, tool, provider, approval, and journal
+source, profile, environment, session, project, ownership, tool, provider, approval, and progress
 bindings remain exact. Absent, stale, or unapproved intent falls back to normal preparation;
 malformed retained state and current blockers stop without evidence replacement. Explicit digest
 selection remains supported as a non-default pin.
@@ -1803,6 +1806,15 @@ W9 also adds `platform-preflight` as the non-publishing readiness path. It runs 
 profile, tool, authentication, project, ownership, and discovery checks used before preparation,
 reports exact blockers, and stops before specification generation, digest publication, approval,
 executor construction, private lifecycle-state writes, or external mutation.
+
+W9 finally simplifies the repository implementation without changing the operator command
+sequence: it replaces the generic stage graph and append-only journal chain with one fixed readable
+deployment workflow and one atomic private progress record; removes intermediate preflight,
+service, DNS, and deployment attestations; keeps only cross-owner and final-evidence digests;
+consolidates repeated console and waiting seams; and replaces framework-shaped tests with focused
+operator-flow, ownership, exact-plan, readback, bundle, fixture, qualification, and destruction
+coverage. The Finance Assistant wizard remains the interaction reference for a linear human-run
+session, while Apps Platform retains multi-application ownership boundaries and independent state.
 
 #### AP-M9-W10 · Staging deployment and qualification
 

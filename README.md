@@ -173,12 +173,12 @@ prepare -> approve -> deploy -> status -> outputs -> qualify -> destroy
 `platform-deploy` is the normal entry point. In one interactive process it performs read-only
 preparation, displays one complete Deployment Specification, requests approval, creates and shows
 fresh exact Terraform plans, applies only confirmed plans, pauses for Google OAuth and Squarespace
-DNS work, verifies readable results, and records an append-only execution journal.
+DNS work, verifies readable results, and atomically records private resume progress.
 
 `platform-preflight` is the optional readiness-only command. Use it to find missing tools or
 authentication, a wrong project, an ownership conflict, source drift, or another current blocker.
 It reports readiness and blocker codes without creating a specification, digest, approval,
-journal, plan, private deployment working state, or external mutation.
+progress record, plan, private deployment working state, or external mutation.
 It is not a required predecessor to `platform-deploy`.
 
 `platform-prepare` is a separate optional specification-review command. It performs the readiness
@@ -246,7 +246,7 @@ registrations, and evidence. A real staging session additionally requires:
 - access to the Google OAuth and Secret Manager console surfaces used by the wizard; and
 - access to the external Squarespace DNS record for the staging hostname.
 
-Generated specifications, approvals, journals, bundles, plans, and private command results live
+Generated specifications, approvals, progress, bundles, plans, and private command results live
 beneath the ignored `.platform-operator/` directory. Directories use mode `0700` and private files
 use mode `0600`. Do not copy that directory into Git or use it as shared application configuration.
 
@@ -337,7 +337,7 @@ registration. The normal staging journey does not require this optional inspecti
 transfer, and other irreversible operations.
 
 If an operation is interrupted, rerun the same command with the same environment and source
-authority. The lifecycle validates its private journal and resumes after the last closed stage. A
+authority. The lifecycle validates its private progress and resumes after the last closed stage. A
 changed source, specification, environment, or scope requires new preparation and review. It never
 automatically unlocks state, pushes state, imports a resource, broadens scope, or hides a failed
 readback.

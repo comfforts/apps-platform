@@ -63,12 +63,12 @@ small reviewable commits, merge it, and only then begin the next package.
 2. **AP-M9-W2 — retired manifest cleanup (implemented):** remove the operator-manifest schema,
    validator, synthetic example, command, tests, and obsolete active guidance without changing
    AP-M7 assets.
-3. **AP-M9-W3 — lifecycle contracts and profiles (implemented):** small staging/production
-   profiles, deployment specifications, execution journals, status documents, integration bundles,
-   attachment bundles, canonical digests, and cross-document validation.
-4. **AP-M9-W4 — interactive lifecycle core (implemented):** credential-free preparation and
-   status, exact digest approval, append-only journals, redaction, truthful failure state, and
-   resumable deterministic fake execution behind injected adapters.
+3. **AP-M9-W3 — lifecycle contracts and profiles (implemented, then simplified):** small
+   staging/production profiles and the cross-owner integration, attachment, and qualification
+   contracts. Preparation, status, and resume progress are private implementation state.
+4. **AP-M9-W4 — interactive lifecycle core (implemented, then simplified):** credential-free
+   preparation and status, exact operation approval, atomic progress, redaction, truthful failure
+   state, and resumable deterministic execution behind external-effect seams.
 5. **AP-M9-W5 — deployable Terraform (implemented):** phased bootstrap, foundation, and Shared
    Edge configuration; exact backend declarations; canonical plan
    policy; closed outputs; mocked plans; and deterministic command fakes.

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from infrastructure.operator._interfaces import StatusResult
+from infrastructure.operator._interfaces import OperatorTerminal, StatusResult
 from infrastructure.operator.integration import RegistrationGenerationProposal
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 from infrastructure.operator.qualification import (
@@ -17,7 +17,7 @@ from infrastructure.operator.rollback import (
     ReviewedGenerationControl,
     RollbackRequest,
 )
-from infrastructure.operator.integration import IntegrationTerminal, PlatformIntegrationReader
+from infrastructure.operator.integration import PlatformIntegrationReader
 
 
 _REQUIRED_FIXTURES = {
@@ -78,7 +78,7 @@ class LocalQualificationStateReader:
         ):
             raise ValueError("environment is not deployed")
         required_status = (
-            "journal_digest",
+            "progress_digest",
             "profile_digest",
             "source_authority",
             "source_revision",
@@ -135,7 +135,7 @@ class LocalQualificationStateReader:
             source_revision=str(status["source_revision"]),
             profile_digest=str(status["profile_digest"]),
             specification_digest=str(status["specification_digest"]),
-            deployment_journal_digest=str(status["journal_digest"]),
+            deployment_progress_digest=str(status["progress_digest"]),
             registration_generation_digest=proposal.generation_digest,
             component_revisions=tuple(sorted(provider.component_revisions)),
             fixture_revisions=tuple(sorted(fixtures)),
@@ -150,7 +150,7 @@ class LiveGenerationRollbackExercise:
         self,
         platform: PlatformIntegrationReader,
         generations: ReviewedGenerationControl,
-        terminal: IntegrationTerminal,
+        terminal: OperatorTerminal,
     ) -> None:
         self._platform = platform
         self._generations = generations

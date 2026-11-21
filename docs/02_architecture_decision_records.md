@@ -827,12 +827,14 @@ human-operable and does not provide leverage for the operator.
 
 ### Decision
 
-AP-M9 exposes one deep interactive lifecycle module through the prepare, deploy, status, outputs,
+AP-M9 exposes one focused interactive lifecycle through the prepare, deploy, status, outputs,
 register, detach, retire, qualify, and destroy operations. Stable environment decisions live in a
 small Environment Profile. Preparation discovers or derives available non-secret facts and creates
-one canonical Deployment Specification. Deployment creates the exact stage plans and generated
-facts just in time, validates them against that specification, and records them in a machine-
-generated Execution Journal.
+one canonical Deployment Specification containing the environment, source, profile, operation,
+and fixed workflow identity. Deployment creates exact plans and generated facts just in time,
+validates each against reviewed code and provider readback, and atomically replaces one private
+progress record after a stage closes. The specification is not a data-driven stage language and
+the progress record is not a public contract or append-only hash chain.
 
 The normal local wizard remains active across provider-console and external-DNS work. It displays
 the exact manual action, waits for an Enter acknowledgement, verifies every readable fact, and
@@ -846,8 +848,8 @@ implemented and superseded; it is not active deployment authority.
 ### Consequences
 
 - The operator learns one small interface rather than Terraform-root and manifest internals.
-- Generated facts remain digest-bound without becoming operator inputs.
-- Deterministic tests exercise the same lifecycle interface with fake command adapters.
+- Cross-owner facts remain digest-bound without turning every internal action into an attestation.
+- Deterministic tests exercise the same operator commands through external-effect fakes.
 - No AP-M9 repository change alone authorizes credentials or an external mutation.
 
 ## ADR-011 · Bind interactive mutation to one verified operator session and exact plans
@@ -905,15 +907,15 @@ interactive interface.
 - The operator can complete one deployment without switching between local lifecycle invocations.
 - `platform-preflight` provides an optional readiness-only diagnostic over the same source,
   profile, tool, authentication, project, ownership, and discovery checks. It reports blockers but
-  creates no specification, digest, approval, journal, plan, local deployment state, or external
+  creates no specification, digest, approval, progress, plan, local deployment state, or external
   mutation.
 - `platform-deploy` performs preparation, review, approval, and deployment in one process;
   `platform-prepare` remains an optional read-only preview. When that preview has already stored a
   current approved specification, deploy discovers and reuses it after freshness validation
   without requiring a copied digest; absent, stale, or unapproved intent returns to preparation.
 - Automatic selection never trusts a pointer alone: canonical readback, exact source/profile/
-  environment/approval binding, current session/project/tool/provider discovery, and journal
-  compatibility must pass. Malformed retained state and current blockers stop without replacement.
+  environment/approval binding, current session/project/tool/provider discovery, and active-
+  progress compatibility must pass. Malformed retained state and current blockers stop without replacement.
 - Deliberate invocation plus the in-process review gates authorizes an ordinary staging execution;
   repository merge alone never starts one.
 - Source binding is enforced by the lifecycle and retained evidence rather than by a remote runner

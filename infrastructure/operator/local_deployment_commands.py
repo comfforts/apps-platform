@@ -114,10 +114,6 @@ def _canonical(value: object) -> str:
     )
 
 
-def _attestation(value: object) -> str:
-    return "sha256:" + hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
-
-
 def _dict(value: object, code: str) -> dict[str, object]:
     if not isinstance(value, dict):
         raise DeploymentCommandError(code)
@@ -361,15 +357,7 @@ class LocalDeploymentCommands:
     def read_stage(self, context: StageContext) -> StageReadback:
         stage_id = self._stage_id(context)
         if stage_id == "preflight":
-            return StageReadback(
-                True,
-                (("preflight-attestation", _attestation({
-                    "environment": context.environment,
-                    "operator": self._session.active_account,
-                    "source_revision": context.source_revision,
-                    "specification_digest": context.specification_digest,
-                })),),
-            )
+            return StageReadback(True)
         if stage_id == "readback":
             try:
                 certificate = self._provider.certificate_readback()
@@ -377,15 +365,7 @@ class LocalDeploymentCommands:
                 raise self._provider_error(error) from error
             if not certificate.ready:
                 return StageReadback(False, blockers=("CERTIFICATE_READINESS_PENDING",))
-            return StageReadback(
-                True,
-                (("deployment-attestation", _attestation({
-                    "certificate": certificate.reference,
-                    "inputs": list(context.inputs),
-                    "source_revision": context.source_revision,
-                    "specification_digest": context.specification_digest,
-                })),),
-            )
+            return StageReadback(True)
         raise DeploymentCommandError("READBACK_STAGE_UNAVAILABLE")
 
     def prepare_action(self, context: StageContext) -> ActionProposal:
@@ -447,9 +427,7 @@ class LocalDeploymentCommands:
                 ready = self._provider.bootstrap_services_ready()
                 return StageReadback(
                     ready,
-                    (("bootstrap-services-attestation", _attestation(
-                        ["serviceusage.googleapis.com", "storage.googleapis.com"]
-                    )),) if ready else (),
+                    (),
                     () if ready else ("BOOTSTRAP_SERVICES_READBACK_MISMATCH",),
                 )
             if stage_id == "image-publish":
@@ -561,10 +539,9 @@ class LocalDeploymentCommands:
                     "waiting",
                     blockers=("DNS_PROPAGATION_PENDING",),
                 )
-            assert result.attestation is not None
             return CheckpointVerification(
                 "succeeded",
-                (("dns-attestation", result.attestation),),
+                (),
                 "provider-verified",
             )
         raise DeploymentCommandError("MANUAL_CHECKPOINT_UNAVAILABLE")

@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from infrastructure.operator._interfaces import OperatorInterrupted
+from infrastructure.operator._interfaces import OperatorTerminal
 from infrastructure.operator.integration import (
     GenerationActivationReadback,
-    IntegrationTerminal,
     PlatformIntegrationReader,
     RegistrationGenerationProposal,
 )
@@ -60,7 +60,7 @@ class GenerationRollbackLifecycle:
         self,
         platform_reader: PlatformIntegrationReader,
         generation_control: ReviewedGenerationControl,
-        terminal: IntegrationTerminal,
+        terminal: OperatorTerminal,
     ) -> None:
         self._platform_reader = platform_reader
         self._generation_control = generation_control

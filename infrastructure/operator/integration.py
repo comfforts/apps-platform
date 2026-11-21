@@ -14,7 +14,7 @@ from contracts.lifecycle import (
     validate_lifecycle_document,
     validate_lifecycle_relationships,
 )
-from infrastructure.operator._interfaces import OperatorInterrupted
+from infrastructure.operator._interfaces import OperatorInterrupted, OperatorTerminal
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,7 +26,7 @@ class PlatformIntegrationState:
     profile_digest: str
     platform_source_revision: str
     specification_digest: str
-    journal_digest: str
+    progress_digest: str
     generation: int
     hostname: str
     oauth_client_id: str | None
@@ -170,14 +170,6 @@ class RegistrationGenerationControl(Protocol):
     ) -> GenerationActivationReadback: ...
 
 
-class IntegrationTerminal(Protocol):
-    def write(self, message: str) -> None: ...
-
-    def confirm(self, prompt: str) -> bool: ...
-
-    def confirm_exact(self, prompt: str, expected: str) -> bool: ...
-
-
 @dataclass(frozen=True, slots=True)
 class RegistrationLifecycleResult:
     """One complete registration lifecycle outcome."""
@@ -225,7 +217,7 @@ class ApplicationIntegrationLifecycle:
         *,
         attachment_reader: AttachmentTargetReader | None = None,
         generation_control: RegistrationGenerationControl | None = None,
-        terminal: IntegrationTerminal | None = None,
+        terminal: OperatorTerminal | None = None,
     ) -> None:
         self._platform_reader = platform_reader
         self._attachment_reader = attachment_reader
@@ -274,7 +266,7 @@ class ApplicationIntegrationLifecycle:
             "platform_source_revision": state.platform_source_revision,
             "platform_source_authority": state.source_authority,
             "specification_digest": state.specification_digest,
-            "journal_digest": state.journal_digest,
+            "deployment_progress_digest": state.progress_digest,
             "endpoints": {
                 "external_origin": origin,
                 "issuer": f"{origin}/_platform" if protected else None,
@@ -334,7 +326,7 @@ class ApplicationIntegrationLifecycle:
             and bundle.get("platform_source_authority")
             == state.source_authority
             and bundle.get("specification_digest") == state.specification_digest
-            and bundle.get("journal_digest") == state.journal_digest
+            and bundle.get("deployment_progress_digest") == state.progress_digest
             and bundle.get("generation") == state.generation
             and bundle.get("qualification_status") == state.qualification_status
             and isinstance(identity, dict)
@@ -1108,7 +1100,6 @@ __all__ = (
     "AttachmentValidationResult",
     "GenerationActivationReadback",
     "GenerationPublicationReadback",
-    "IntegrationTerminal",
     "IntegrationBundleRequest",
     "IntegrationBundleResult",
     "LifecycleChangeRequest",

@@ -7,6 +7,7 @@ from infrastructure.operator._interfaces import (
     GitSnapshot,
     OperatorInterrupted,
     OperatorAdapters,
+    OperatorTerminal,
     PreflightResult,
     PrepareResult,
     StageContext,
@@ -26,7 +27,6 @@ from infrastructure.operator.destruction import (
     DestructionSnapshot,
     DestructionStageClosure,
     DestructionStateReader,
-    DestructionTerminal,
     compile_destruction_specification,
 )
 from infrastructure.operator.integration import (
@@ -85,7 +85,6 @@ __all__ = (
     "DestructionSnapshot",
     "DestructionStageClosure",
     "DestructionStateReader",
-    "DestructionTerminal",
     "ExecutionResult",
     "GitSnapshot",
     "ApplicationIntegrationLifecycle",
@@ -104,6 +103,7 @@ __all__ = (
     "QUALIFICATION_CHECK_CAPABILITIES",
     "OperatorInterrupted",
     "OperatorAdapters",
+    "OperatorTerminal",
     "PreflightResult",
     "PrepareResult",
     "QualificationCheckObservation",

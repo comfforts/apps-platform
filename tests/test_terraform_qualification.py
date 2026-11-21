@@ -330,8 +330,14 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("AP-M7 | complete | static Terraform", index)
         self.assertIn("AP-M8 | historical", index)
         self.assertIn("AP-M9-W2 — retired manifest cleanup (implemented)", index)
-        self.assertIn("AP-M9-W3 — lifecycle contracts and profiles (implemented)", index)
-        self.assertIn("AP-M9-W4 — interactive lifecycle core (implemented)", index)
+        self.assertIn(
+            "AP-M9-W3 — lifecycle contracts and profiles (implemented, then simplified)",
+            index,
+        )
+        self.assertIn(
+            "AP-M9-W4 — interactive lifecycle core (implemented, then simplified)",
+            index,
+        )
         self.assertIn("AP-M9-W5 — deployable Terraform (implemented)", index)
         self.assertIn("AP-M9-W6 — interactive platform deployment (implemented)", index)
         self.assertIn("AP-M9-W7 — platform-side application lifecycle (implemented)", index)

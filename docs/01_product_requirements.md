@@ -113,9 +113,11 @@ application's behavior or ownership.
 A Platform Operator must be able to prepare, deploy, inspect, qualify, and destroy one explicitly
 selected Platform Environment through a small interactive interface. Preparation must discover or
 derive available non-secret facts, request only genuine owner decisions, and produce one complete
-digest-bound Deployment Specification before mutation. Deployment must execute its approved stages
-in one interactive session, pause at unavoidable provider-console or external-DNS checkpoints, and
-resume safely after interruption without requiring a hand-authored inventory of generated facts.
+digest-bound Deployment Specification before mutation. Complete means the environment, source
+authority and revision, profile, operation, and reviewed fixed workflow are known; generated
+provider values do not have to exist yet. Deployment must execute that workflow in one interactive
+session, pause at unavoidable provider-console or external-DNS checkpoints, and resume safely after
+interruption without requiring a hand-authored inventory of generated facts.
 
 The lifecycle must keep non-production and production configuration, state, identity, DNS, OAuth,
 evidence, and approvals independent. Production preparation must stop when an existing resource has
@@ -214,9 +216,9 @@ without implying success.
 The normal operator interface must be interactive, documented, and compact. It must discover facts
 available from reviewed source and provider readback, derive deterministic values, explain each
 manual action at the point of use, and accept an Enter-to-continue acknowledgement without making
-the operator restart the lifecycle. Generated execution records must be machine-produced rather
-than hand-authored. An interrupted operation must report its last accepted stage and provide a safe
-resume path. The normal deploy command must perform read-only preparation, specification review,
+the operator restart the lifecycle. Private progress must be machine-produced, atomically
+replaced, and never hand-authored. An interrupted operation must report its last accepted stage and
+provide a safe resume path. The normal deploy command must perform read-only preparation, specification review,
 approval, deployment, and manual checkpoints in one invocation; a separate prepare command is an
 optional dry run, not a mandatory operator round trip. When that dry run has already produced a
 current approved specification, the normal deploy command must locate and reuse it automatically
@@ -238,12 +240,13 @@ production.
 
 ### AP-QR-009 · Bounded mutation and readback
 
-Every mutating lifecycle must bind an approved Deployment Specification, exact source revision,
-stage target, exact Terraform plan, and provider readback. A stage may consume a declared output of
-an earlier stage without making the original specification incomplete. Any unapproved resource
-type, owner, environment, destructive action, or scope expansion stops the lifecycle and requires
-new preparation and approval. Manual provider steps must be recorded as operator-attested when no
-readback exists and must never be described as provider-verified.
+Every mutating lifecycle must bind the selected environment, approved Deployment Specification,
+exact source revision, exact Terraform plan or bounded provider action, and provider readback. The
+reviewed fixed workflow defines stage order, resource policy, and how later steps consume generated
+values. Any unapproved resource type, owner, environment, destructive action, or scope expansion
+stops the lifecycle and requires new preparation and approval. Manual provider steps must be
+recorded as operator-attested when no readback exists and must never be described as
+provider-verified.
 
 ## Security, privacy, and rights invariants
 

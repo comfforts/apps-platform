@@ -9,7 +9,7 @@ standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of 
 the operator-driven lifecycle implementation and staging qualification gate. AP-EVAL-M7 continues
 to qualify only committed configuration and inert templates through deterministic static tests with
 mocked providers. AP-M9-W3 supplies lifecycle Contract evidence, W4 supplies deterministic
-repository evidence for preparation, approval, status, redaction, journaling, and fake resume, and
+repository evidence for preparation, approval, status, redaction, atomic progress, and fake resume, and
 W5 supplies deterministic backend, authority, plan-policy, phase-output, mocked-plan, and command-
 fake evidence. W6 supplies exact-plan/action binding, typed confirmation, same-process manual
 checkpoint, bounded-poll, transcript-redaction, stop-on-discrepancy, and resume evidence. W7
@@ -1561,10 +1561,10 @@ Production commands remain read-only throughout AP-M9.
 
 Repository evidence is the exact source revision, command, tool versions, test count, duration,
 failures, errors, warnings, and skips reported by `make check`. Staging evidence is a private,
-revision-scoped, schema-valid bundle generated from the approved Deployment Specification and
-Execution Journal. It records canonical digests, stage outcomes, exact plans through redacted
-summaries, provider/state/ownership comparisons, qualification results, limitations, and the final
-environment status.
+revision-scoped, schema-valid qualification record generated from the approved operation,
+readback-closed progress, bundles, and runtime observations. It records canonical cross-boundary
+digests, exact plans through redacted summaries, provider/state/ownership comparisons,
+qualification results, limitations, and the final environment status.
 
 Evidence never contains a credential, token, OAuth secret, Secret Manager payload, Terraform state,
 saved plan, raw provider response, browser state, screenshot, assertion, session, restricted
@@ -1585,11 +1585,11 @@ prior deterministic gate passes without credential or mutation.
 
 #### AP-EVAL-M9-02 · Environment profiles and lifecycle contracts
 
-Verify closed staging and disabled-production profiles, canonical Deployment Specifications,
-append-only generated Execution Journals, truthful Environment Status, Platform Integration
-Bundles, and Application Attachment Bundles. Reject placeholders, discoverable/generated facts in
-profiles, cross-environment values, unknown fields, secrets, state, plans, raw provider data,
-mutable references, non-canonical bytes, stale digests, and incomplete stage-output bindings.
+Verify closed staging and disabled-production profiles, the small private deployment
+specification, atomic progress, truthful status, Platform Integration Bundles, Application
+Attachment Bundles, and Qualification Evidence. Reject placeholders, discoverable/generated facts
+in profiles, cross-environment values, unknown fields, secrets, state, plans, raw provider data,
+mutable references, non-canonical bytes, and stale cross-owner digests.
 
 #### AP-EVAL-M9-03 · Interactive preparation, approval, status, and resume
 
@@ -1597,7 +1597,7 @@ With deterministic adapters, exercise first deployment, update, no-change, drift
 interruption, and resume. Prove preparation is read-only, asks only unresolved decisions, emits one
 complete specification and digest, keeps approval separate from completeness, and never repeats a
 closed stage. Exercise standalone preflight with ready and multi-blocker outcomes and prove it
-creates no specification, digest, approval prompt, journal, plan, private lifecycle state, executor,
+creates no specification, digest, approval prompt, progress, plan, private lifecycle state, executor,
 or external mutation. Verify the default deploy invocation performs preparation, review, approval, and
 deployment without a mandatory second command; standalone prepare remains a dry run. After an
 approved standalone preparation, invoke default deploy without a digest and prove it reuses the
@@ -1663,7 +1663,7 @@ repeat mandatory qualification before reporting staging ready.
 
 #### AP-EVAL-M9-09 · Evidence privacy, truthful status, drift, and handoff
 
-Verify specification/journal/evidence digests, allowed fields, prohibited-data scans, retention,
+Verify operation/progress/evidence digests, allowed fields, prohibited-data scans, retention,
 owner access, actual failures and blocked stages, provider/state/ownership agreement, drift
 detection, operator-attested versus verified labels, and final source-bound status. A missing,
 malformed, expired, mismatched, skipped, or prohibited record fails rather than being waived or
@@ -1695,7 +1695,7 @@ destruction. Those remain production-cutover, later migration, or Application Ad
 
 This definition originated in AP-M9-W1. AP-M9-W2 removed the retired manifest path, W3 implemented
 the lifecycle contracts, W4 implemented credential-free preparation/status and deterministic fake
-journal execution, W5 implemented repository-only Terraform lifecycle policy and mocked plans, and
+resumable progress, W5 implemented repository-only Terraform lifecycle policy and mocked plans, and
 W6 implemented the interactive deployment engine plus closed command boundary. W7
 implemented application handoff and registration lifecycle controls, and W8 implemented
 qualification and safe-destruction controls behind guarded boundaries and wired the real staging

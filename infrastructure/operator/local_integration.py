@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from typing import Any
 
 from contracts.lifecycle import load_lifecycle_document
@@ -38,58 +39,55 @@ class LocalPlatformIntegrationReader:
         self._status_reader = status_reader
         self._generations = generations
 
-    def _current_journal(self, environment: str) -> dict[str, Any]:
-        pointer_payload = self._filesystem.read_state(
-            f"environments/{environment}/current-journal.v1.json"
+    def _current_progress(self, environment: str) -> dict[str, Any]:
+        payload = self._filesystem.read_state(
+            f"environments/{environment}/current-progress.v1.json"
         )
-        if pointer_payload is None:
-            raise ValueError("current deployment journal is unavailable")
+        if payload is None:
+            raise ValueError("current deployment progress is unavailable")
         try:
-            pointer = json.loads(pointer_payload)
+            progress = json.loads(payload)
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ValueError("current deployment journal pointer is invalid") from error
-        if not isinstance(pointer, dict):
-            raise ValueError("current deployment journal pointer is invalid")
-        digest = pointer.get("journal_digest")
-        revision = pointer.get("journal_revision")
-        specification_digest = pointer.get("specification_digest")
+            raise ValueError("current deployment progress is invalid") from error
         if (
-            not isinstance(digest, str)
-            or not isinstance(revision, int)
-            or not isinstance(specification_digest, str)
+            not isinstance(progress, dict)
+            or progress.get("environment") != environment
+            or progress.get("status") != "succeeded"
+            or not isinstance(progress.get("completed"), list)
         ):
-            raise ValueError("current deployment journal pointer is invalid")
-        path = (
-            f"environments/{environment}/journals/"
-            f"{specification_digest[7:]}/{revision:08d}.v1.json"
-        )
-        loaded = load_lifecycle_document(
-            self._filesystem.state_path(path),
-            "execution-journal",
-        )
-        if loaded.value is None or loaded.violations or loaded.digest != digest:
-            raise ValueError("current deployment journal is invalid")
-        return loaded.value
+            raise ValueError("current deployment progress is invalid")
+        return progress
 
     @staticmethod
-    def _outputs(journal: dict[str, Any]) -> dict[str, str]:
-        entries = journal.get("entries")
+    def _progress_digest(progress: dict[str, Any]) -> str:
+        payload = json.dumps(
+            progress,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+    @staticmethod
+    def _outputs(progress: dict[str, Any]) -> dict[str, str]:
+        entries = progress.get("completed")
         if not isinstance(entries, list):
-            raise ValueError("current deployment journal is invalid")
+            raise ValueError("current deployment progress is invalid")
         outputs: dict[str, str] = {}
         for entry in entries:
-            if not isinstance(entry, dict) or entry.get("outcome") != "succeeded":
-                continue
+            if not isinstance(entry, dict):
+                raise ValueError("current deployment progress is invalid")
             values = entry.get("outputs")
             if not isinstance(values, list):
-                raise ValueError("current deployment journal is invalid")
+                raise ValueError("current deployment progress is invalid")
             for item in values:
                 if (
                     not isinstance(item, dict)
                     or not isinstance(item.get("name"), str)
                     or not isinstance(item.get("value"), str)
                 ):
-                    raise ValueError("current deployment journal is invalid")
+                    raise ValueError("current deployment progress is invalid")
                 outputs[item["name"]] = item["value"]
         return outputs
 
@@ -132,7 +130,7 @@ class LocalPlatformIntegrationReader:
             ("source_revision", status.get("source_revision")),
             ("profile_digest", status.get("profile_digest")),
             ("specification_digest", status.get("specification_digest")),
-            ("deployment_journal_digest", status.get("journal_digest")),
+            ("deployment_progress_digest", status.get("progress_digest")),
             (
                 "registration_generation_digest",
                 generation.generation_digest,
@@ -155,8 +153,10 @@ class LocalPlatformIntegrationReader:
         generation = self._generations.current(environment)
         if generation is None:
             raise ValueError("active registration generation is unavailable")
-        journal = self._current_journal(environment)
-        outputs = self._outputs(journal)
+        progress = self._current_progress(environment)
+        if self._progress_digest(progress) != status.get("progress_digest"):
+            raise ValueError("deployment progress does not match environment status")
+        outputs = self._outputs(progress)
         oauth_client_id = outputs.get("oauth-client-id")
         if not oauth_client_id:
             raise ValueError("OAuth client readback is unavailable")
@@ -168,7 +168,7 @@ class LocalPlatformIntegrationReader:
             "source_authority",
             "source_revision",
             "specification_digest",
-            "journal_digest",
+            "progress_digest",
         )
         if any(not isinstance(status.get(name), str) for name in required):
             raise ValueError("platform integration state is incomplete")
@@ -178,7 +178,7 @@ class LocalPlatformIntegrationReader:
             profile_digest=str(status["profile_digest"]),
             platform_source_revision=str(status["source_revision"]),
             specification_digest=str(status["specification_digest"]),
-            journal_digest=str(status["journal_digest"]),
+            progress_digest=str(status["progress_digest"]),
             generation=generation_number,
             hostname=_STAGING_HOSTNAME,
             oauth_client_id=oauth_client_id,

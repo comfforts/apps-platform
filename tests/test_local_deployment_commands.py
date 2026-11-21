@@ -421,7 +421,7 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             commands, _, provider, _, _ = self._commands(directory)
             cases = (
-                ("bootstrap-services", ("bootstrap-services-attestation",)),
+                ("bootstrap-services", ()),
                 ("image-publish", ("shared-edge-image-digest",)),
                 ("generation-publish", ("registration-generation-reference",)),
             )
@@ -466,7 +466,7 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             commands, _, _, dns, _ = self._commands(directory)
             context = _context(
                 "external-dns",
-                ("dns-attestation",),
+                (),
                 (("shared-edge.reserved-address", "34.120.10.20"),),
             )
             checkpoint = commands.prepare_manual_checkpoint(context)

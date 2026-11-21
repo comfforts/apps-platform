@@ -112,20 +112,6 @@ class DestructionGenerationReader(Protocol):
     ) -> RegistrationGenerationProposal | None: ...
 
 
-def _canonical(value: object) -> bytes:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-
-
-def _attestation(value: object) -> str:
-    return "sha256:" + hashlib.sha256(_canonical(value)).hexdigest()
-
-
 def _phase_request(
     environment: str,
     phase: str,
@@ -456,13 +442,13 @@ class LocalDestructionExecutor:
         return StageExecution("failed", blockers=tuple(sorted(set(blockers))))
 
     @staticmethod
-    def _output(context: StageContext, value: object) -> StageExecution:
+    def _output(context: StageContext, observed_value: str) -> StageExecution:
         produces = context.stage.get("produces")
         if not isinstance(produces, list) or len(produces) != 1:
             return LocalDestructionExecutor._failed("DESTRUCTION_OUTPUT_INVALID")
         return StageExecution(
             "succeeded",
-            ((str(produces[0]), _attestation(value)),),
+            ((str(produces[0]), observed_value),),
         )
 
     @staticmethod
@@ -557,11 +543,7 @@ class LocalDestructionExecutor:
             if stage_id == "destruction-preflight":
                 return self._output(
                     context,
-                    {
-                        "environment": context.environment,
-                        "source_revision": context.source_revision,
-                        "specification_digest": context.specification_digest,
-                    },
+                    context.specification_digest,
                 )
             if stage_id == "traffic-disable":
                 digest, _, _ = self._plan(
@@ -572,11 +554,11 @@ class LocalDestructionExecutor:
                 )
                 if self._provider.shared_edge_ingress(context.environment) != "internal":
                     return self._failed("TRAFFIC_DISABLE_READBACK_MISMATCH")
-                return self._output(context, {"plan_digest": digest, "traffic": "disabled"})
+                return self._output(context, digest)
             if stage_id == "traffic-drain":
                 self._terminal.write("TRAFFIC_DRAIN_SECONDS 30")
                 self._waiter.wait(30)
-                return self._output(context, {"drain_seconds": 30})
+                return self._output(context, "elapsed")
             if stage_id == "external-dns-destroy":
                 outputs = deployed_outputs(self._filesystem, context.environment)
                 self._terminal.write(
@@ -591,7 +573,7 @@ class LocalDestructionExecutor:
                     if readback.ready and readback.attestation is not None:
                         return self._output(
                             context,
-                            {"dns_attestation": readback.attestation},
+                            readback.attestation,
                         )
                     if attempt < 11:
                         self._waiter.wait(10)
@@ -611,7 +593,7 @@ class LocalDestructionExecutor:
                     return self._failed("EDGE_DESTRUCTION_READBACK_MISMATCH")
                 if self._provider.shared_edge_exists(context.environment):
                     return self._failed("EDGE_DESTRUCTION_READBACK_MISMATCH")
-                return self._output(context, {"plan_digest": digest, "edge": "absent"})
+                return self._output(context, digest)
             if stage_id == "identity-destroy":
                 client_id = deployed_outputs(
                     self._filesystem,
@@ -624,10 +606,10 @@ class LocalDestructionExecutor:
                 )
                 return self._output(
                     context,
-                    {"oauth_client_id": client_id, "readback": "operator-attested"},
+                    "operator-attested",
                 )
             if stage_id == "foundation-destroy":
-                unlock_digest, _, _ = self._plan(
+                self._plan(
                     context,
                     "platform-foundation",
                     "platform-unlock",
@@ -647,11 +629,7 @@ class LocalDestructionExecutor:
                     return self._failed("FOUNDATION_DESTRUCTION_READBACK_MISMATCH")
                 return self._output(
                     context,
-                    {
-                        "destroy_plan_digest": destroy_digest,
-                        "retained_addresses": len(addresses),
-                        "unlock_plan_digest": unlock_digest,
-                    },
+                    destroy_digest,
                 )
             if stage_id == "destruction-readback":
                 outputs = deployed_outputs(self._filesystem, context.environment)
@@ -674,7 +652,7 @@ class LocalDestructionExecutor:
                     return self._failed("DESTRUCTION_FINAL_READBACK_MISMATCH")
                 return self._output(
                     context,
-                    {"retained_addresses": len(addresses), "status": "destroyed"},
+                    "provider-verified",
                 )
         except DestructionCommandError as error:
             return self._failed(str(error))

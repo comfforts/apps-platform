@@ -212,9 +212,10 @@ class LocalDestructionCommandsTest(unittest.TestCase):
             terraform = FakeTerraform(work, renderer)
             terminal = FakeTerminal()
             waiter = FakeWaiter()
+            control = LocalDestructionControl(filesystem)
             lifecycle = DestructionLifecycle(
                 FakeStateReader(),
-                LocalDestructionControl(filesystem),
+                control,
                 terminal,
                 LocalDestructionExecutor(
                     filesystem,
@@ -232,6 +233,11 @@ class LocalDestructionCommandsTest(unittest.TestCase):
                 return_value=OUTPUTS,
             ):
                 result = lifecycle.destroy_current("staging")
+            assert result.specification_digest is not None
+            closures = control.closed_stages(
+                "staging",
+                result.specification_digest,
+            )
 
         self.assertEqual(result.outcome, "destroyed")
         self.assertEqual(result.last_closed_stage, "destruction-readback")
@@ -259,6 +265,15 @@ class LocalDestructionCommandsTest(unittest.TestCase):
         self.assertTrue(any("DELETE_DNS_RECORD" in item for item in terminal.messages))
         self.assertTrue(any("DELETE_OAUTH_CLIENT" in item for item in terminal.messages))
         self.assertEqual(len(terminal.confirmations), 5)
+        closure_outputs = {
+            closure.stage_id: dict(closure.outputs)
+            for closure in closures
+        }
+        self.assertEqual(
+            closure_outputs["identity-destroy"]["identity-destroyed"],
+            "operator-attested",
+        )
+        self.assertNotIn(OUTPUTS["oauth-client-id"], repr(closure_outputs))
 
 
 if __name__ == "__main__":

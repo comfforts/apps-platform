@@ -15,6 +15,14 @@ REGISTRATION_INTENT ?=
 
 .PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-prepare platform-deploy platform-status platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-handoff fixture-deploy fixture-status fixture-destroy
 
+## Install pinned Terraform dependencies into the ignored project-local mirror.
+terraform-setup:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) infrastructure/tools/terraform_setup.py
+
+
+## Deterministic platform checks include governance, contract, fixture, runtime, and Terraform validations.
+
+## Deterministic platform checks.
 check: governance-check contract-check fixture-check runtime-check terraform-check operator-check ## Run every implemented deterministic platform check.
 
 ## Verify the standalone project shell without credentials or external services.
@@ -33,10 +41,6 @@ fixture-check:
 runtime-check:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_edge_runtime tests.test_proxy tests.test_observability tests.test_runtime_qualification tests.test_live_runtime
 
-## Install pinned Terraform dependencies into the ignored project-local mirror.
-terraform-setup:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) infrastructure/tools/terraform_setup.py
-
 ## Verify the pinned Terraform foundation offline in a disposable copy.
 terraform-check:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_terraform_foundation tests.test_infrastructure_config tests.test_backend_lifecycle tests.test_plan_policy tests.test_terraform_lifecycle tests.test_terraform_bootstrap tests.test_terraform_fixtures tests.test_terraform_platform_foundation tests.test_terraform_shared_edge tests.test_terraform_platform_controls tests.test_workflow_templates tests.test_terraform_qualification
@@ -44,6 +48,9 @@ terraform-check:
 ## Verify the credential-free interactive lifecycle core with deterministic adapters.
 operator-check:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_source_authority tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_local_deployment_inputs tests.test_local_deployment_commands tests.test_deployment_provider_commands tests.test_deployment_dns tests.test_application_integration tests.test_registration_lifecycle tests.test_integration_cli tests.test_local_integration tests.test_local_handoffs tests.test_local_generation_control tests.test_generation_provider_commands tests.test_fixture_deployment_lifecycle tests.test_local_fixture_deployment tests.test_qualification_lifecycle tests.test_qualification_suite tests.test_local_qualification tests.test_live_qualification_browser tests.test_live_qualification_probe tests.test_qualification_destruction_cli tests.test_generation_rollback tests.test_destruction_specification tests.test_destruction_lifecycle tests.test_local_destruction_control tests.test_local_destruction_commands
+
+
+## Platform management commands.
 
 ## Check tools, source, authentication, ownership, and provider readiness without creating lifecycle state.
 platform-preflight:
@@ -84,6 +91,9 @@ platform-qualify:
 ## Compile, confirm, and resume exact safe platform destruction.
 platform-destroy:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator destroy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+
+
+## Fixture management commands.
 
 ## Deploy one selected fixture and stop with inspectable bundles before registration.
 fixture-handoff: terraform-setup

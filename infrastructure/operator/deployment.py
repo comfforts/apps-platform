@@ -111,6 +111,15 @@ class CheckpointVerification:
 class DeploymentCommandError(RuntimeError):
     """A safe blocker code returned by the external command boundary."""
 
+    def __init__(
+        self,
+        code: str,
+        *,
+        diagnostic: dict[str, str | int] | None = None,
+    ) -> None:
+        super().__init__(code)
+        self.diagnostic = dict(diagnostic or {})
+
 
 @dataclass(frozen=True, slots=True)
 class _ImmediateWaiter:
@@ -227,6 +236,44 @@ _TERRAFORM_PLAN_GUIDANCE = {
         "Terraform could not read the selected state lineage"
     ),
 }
+_TERRAFORM_APPLY_GUIDANCE = {
+    "TERRAFORM_APPLY_AUTHENTICATION_FAILED": (
+        "the operator credentials are unavailable, expired, or require reauthentication"
+    ),
+    "TERRAFORM_APPLY_CONFLICT": (
+        "the provider reported a conflicting concurrent or existing operation"
+    ),
+    "TERRAFORM_APPLY_DEPENDENCY_PROPAGATION_PENDING": (
+        "a newly created provider dependency is not readable yet; wait briefly and replan"
+    ),
+    "TERRAFORM_APPLY_FAILED_UNKNOWN": (
+        "Terraform returned an apply diagnostic outside the safe classifier"
+    ),
+    "TERRAFORM_APPLY_IAM_CONFLICT": (
+        "the provider reported concurrent IAM policy changes; replan after they settle"
+    ),
+    "TERRAFORM_APPLY_IDENTITY_PROPAGATION_PENDING": (
+        "a newly created service identity is not readable yet; wait briefly and replan"
+    ),
+    "TERRAFORM_APPLY_INVALID_ARGUMENT": (
+        "the provider rejected the rendered resource request as invalid"
+    ),
+    "TERRAFORM_APPLY_PERMISSION_DENIED": (
+        "the provider denied a mutation required by the reviewed plan"
+    ),
+    "TERRAFORM_APPLY_PLUGIN_FAILED": (
+        "Terraform could not continue through the pinned provider plugin"
+    ),
+    "TERRAFORM_APPLY_QUOTA_EXCEEDED": (
+        "the provider rejected the mutation because a quota was exhausted"
+    ),
+    "TERRAFORM_APPLY_SERVICE_DISABLED": (
+        "the named provider API is disabled in the quota project"
+    ),
+    "TERRAFORM_APPLY_STATE_LOCKED": (
+        "another operation or stale lock currently owns the selected state lineage"
+    ),
+}
 
 
 class DeploymentExecutor:
@@ -263,6 +310,25 @@ class DeploymentExecutor:
             "inspect the named Terraform planning boundary before retrying",
         )
         self._terminal.write(f"Terraform plan blocker {blocker}: {guidance}.")
+        return self._failure(blocker)
+
+    def _terraform_apply_failure(
+        self,
+        error: DeploymentCommandError,
+    ) -> StageExecution:
+        blocker = str(error)
+        if error.diagnostic:
+            value: dict[str, object] = {
+                "blocker": blocker,
+                **error.diagnostic,
+            }
+            if self._safe_canonical(value) is not None:
+                self._terminal.write(self._pretty_json("TERRAFORM APPLY ERROR", value))
+        guidance = _TERRAFORM_APPLY_GUIDANCE.get(
+            blocker,
+            "inspect the named Terraform apply boundary before replanning",
+        )
+        self._terminal.write(f"Terraform apply blocker {blocker}: {guidance}.")
         return self._failure(blocker)
 
     def _bind_saved_plan(
@@ -649,10 +715,11 @@ class DeploymentExecutor:
             try:
                 self._commands.apply_terraform_plan(observer.request, exact_plan)
             except DeploymentCommandError as error:
+                failed = self._terraform_apply_failure(error)
                 return StageExecution(
-                    outcome="failed",
+                    outcome=failed.outcome,
                     plan_digest=exact_plan.policy_digest,
-                    blockers=(str(error),),
+                    blockers=failed.blockers,
                 )
 
         request = TerraformReadbackRequest(

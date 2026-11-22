@@ -274,9 +274,13 @@ command.
 When Terraform cannot produce a plan, the blocker distinguishes a state lock or read failure,
 backend access denial, operator reauthentication requirement, provider permission or quota failure,
 invalid rendered configuration, provider-plugin startup failure, the separately handled protected
-key-ring taint, or an unknown safe category. Follow the adjacent terminal guidance. Raw Terraform
-stderr is deliberately neither displayed nor retained because it may contain protected state or
-provider details.
+key-ring taint, or an unknown safe category. Apply failures separately distinguish authentication,
+dependency or identity propagation, service disablement, permission denial, quota exhaustion,
+invalid arguments, conflicts, state locks, provider-plugin failures, and unknown responses. Before
+the blocker, the terminal prints any safely extracted resource address, operation, HTTP status,
+provider status, and service name. Follow the adjacent guidance. Raw Terraform stderr and arbitrary
+provider messages are deliberately neither displayed nor retained because they may contain
+protected state or provider details.
 
 For every blocked or failed command, read stderr before the final JSON. The CLI prints an
 `Operator error` block containing the responsible component and safe blocker code. Known modules

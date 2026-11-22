@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import re
 import secrets
 import stat
 import subprocess
@@ -37,6 +38,36 @@ _PROHIBITED_TERRAFORM_ARGUMENTS = {
 _PROHIBITED_TERRAFORM_PREFIXES = ("-replace=", "-target=")
 _SIGNING_KEY_RING_ADDRESS = (
     "module.platform_foundation.google_kms_key_ring.assertion_signing"
+)
+_APPLY_HTTP_STATUS = re.compile(rb"(?:googleapi:\s*)?Error\s+([1-5][0-9]{2}):")
+_APPLY_OPERATION = re.compile(
+    rb"Error:\s+Error\s+([A-Za-z][A-Za-z0-9 _-]{0,79}):"
+)
+_APPLY_RESOURCE_ADDRESS = re.compile(
+    rb"(?m)^\s*with\s+([A-Za-z0-9_.\[\]\"-]{1,300}),\s*$"
+)
+_APPLY_SERVICE = re.compile(
+    rb"\b([a-z][a-z0-9.-]{1,100}\.googleapis\.com)\b"
+)
+_APPLY_STATUS_BLOCKERS = {
+    "SERVICE_DISABLED": "TERRAFORM_APPLY_SERVICE_DISABLED",
+    "UNAUTHENTICATED": "TERRAFORM_APPLY_AUTHENTICATION_FAILED",
+    "PERMISSION_DENIED": "TERRAFORM_APPLY_PERMISSION_DENIED",
+    "INVALID_ARGUMENT": "TERRAFORM_APPLY_INVALID_ARGUMENT",
+    "RESOURCE_EXHAUSTED": "TERRAFORM_APPLY_QUOTA_EXCEEDED",
+    "ALREADY_EXISTS": "TERRAFORM_APPLY_CONFLICT",
+}
+_APPLY_HTTP_BLOCKERS = {
+    400: "TERRAFORM_APPLY_INVALID_ARGUMENT",
+    401: "TERRAFORM_APPLY_AUTHENTICATION_FAILED",
+    403: "TERRAFORM_APPLY_PERMISSION_DENIED",
+    409: "TERRAFORM_APPLY_CONFLICT",
+    429: "TERRAFORM_APPLY_QUOTA_EXCEEDED",
+}
+_APPLY_PROVIDER_STATUSES = (
+    *_APPLY_STATUS_BLOCKERS,
+    "NOT_FOUND",
+    "FAILED_PRECONDITION",
 )
 
 
@@ -212,13 +243,90 @@ class TerraformCliAdapter:
         )
 
     @staticmethod
-    def _apply_failure(stderr: bytes) -> str:
+    def _apply_failure_code(stderr: bytes) -> str:
         normalized = stderr.lower()
         if b"service account" in normalized and b"does not exist" in normalized:
             return "TERRAFORM_APPLY_IDENTITY_PROPAGATION_PENDING"
+        if b"notification channel" in normalized and any(
+            marker in normalized for marker in (b"not found", b"does not exist")
+        ):
+            return "TERRAFORM_APPLY_DEPENDENCY_PROPAGATION_PENDING"
         if b"concurrent policy changes" in normalized:
             return "TERRAFORM_APPLY_IAM_CONFLICT"
-        return "TERRAFORM_APPLY_FAILED"
+        if b"error acquiring the state lock" in normalized:
+            return "TERRAFORM_APPLY_STATE_LOCKED"
+        if all(
+            marker in normalized
+            for marker in (b"has not been used in project", b"it is disabled")
+        ):
+            return "TERRAFORM_APPLY_SERVICE_DISABLED"
+        upper = stderr.upper()
+        for status, blocker in _APPLY_STATUS_BLOCKERS.items():
+            if status.encode("ascii") in upper:
+                return blocker
+        http_status = _APPLY_HTTP_STATUS.search(stderr)
+        if http_status is not None:
+            code = int(http_status.group(1))
+            if code in _APPLY_HTTP_BLOCKERS:
+                return _APPLY_HTTP_BLOCKERS[code]
+        if any(
+            marker in normalized
+            for marker in (
+                b"invalid_grant",
+                b"reauth related error",
+                b"could not find default credentials",
+                b"cannot fetch token",
+            )
+        ):
+            return "TERRAFORM_APPLY_AUTHENTICATION_FAILED"
+        if b"quota exceeded" in normalized:
+            return "TERRAFORM_APPLY_QUOTA_EXCEEDED"
+        if b"permission denied" in normalized:
+            return "TERRAFORM_APPLY_PERMISSION_DENIED"
+        if any(
+            marker in normalized
+            for marker in (
+                b"failed to instantiate provider",
+                b"unrecognized remote plugin message",
+                b"plugin did not respond",
+            )
+        ):
+            return "TERRAFORM_APPLY_PLUGIN_FAILED"
+        return "TERRAFORM_APPLY_FAILED_UNKNOWN"
+
+    @classmethod
+    def _apply_failure(cls, stderr: bytes) -> DeploymentCommandError:
+        blocker = cls._apply_failure_code(stderr)
+        diagnostic: dict[str, str | int] = {}
+
+        http_status = _APPLY_HTTP_STATUS.search(stderr)
+        if http_status is not None:
+            diagnostic["http_status"] = int(http_status.group(1))
+
+        operation = _APPLY_OPERATION.search(stderr)
+        if operation is not None:
+            diagnostic["operation"] = operation.group(1).decode("ascii")
+
+        resource = _APPLY_RESOURCE_ADDRESS.search(stderr)
+        if resource is not None:
+            diagnostic["resource_address"] = resource.group(1).decode("ascii")
+
+        service = _APPLY_SERVICE.search(stderr)
+        if service is not None:
+            diagnostic["service"] = service.group(1).decode("ascii")
+
+        upper = stderr.upper()
+        for status in _APPLY_PROVIDER_STATUSES:
+            if status.encode("ascii") in upper:
+                diagnostic["provider_status"] = status
+                break
+        if (
+            blocker == "TERRAFORM_APPLY_SERVICE_DISABLED"
+            and "provider_status" not in diagnostic
+        ):
+            diagnostic["provider_status"] = "SERVICE_DISABLED"
+
+        return DeploymentCommandError(blocker, diagnostic=diagnostic)
 
     @staticmethod
     def _plan_failure(stderr: bytes) -> str:
@@ -502,7 +610,7 @@ class TerraformCliAdapter:
             )
         )
         if applied.returncode != 0:
-            raise DeploymentCommandError(self._apply_failure(applied.stderr))
+            raise self._apply_failure(applied.stderr)
 
     def migrate_bootstrap_state(
         self,

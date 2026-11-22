@@ -112,7 +112,7 @@ class FakeCommands:
     actions: tuple[str, ...] = ("create",)
     wrong_project: bool = False
     readback_matches: bool = True
-    apply_error: str | None = None
+    apply_error: str | DeploymentCommandError | None = None
     planned: list[object] = field(default_factory=list)
     applied: list[tuple[object, ExactTerraformPlan]] = field(default_factory=list)
     readbacks: list[object] = field(default_factory=list)
@@ -201,6 +201,8 @@ class FakeCommands:
     ) -> None:
         self.applied.append((request, plan))
         if self.apply_error is not None:
+            if isinstance(self.apply_error, DeploymentCommandError):
+                raise self.apply_error
             raise DeploymentCommandError(self.apply_error)
 
     def readback_terraform(self, request: object) -> TerraformReadback:
@@ -557,7 +559,21 @@ class PlatformDeploymentTest(unittest.TestCase):
 
     def test_apply_failure_and_readback_discrepancy_stop_the_stage(self) -> None:
         cases = {
-            "apply": ("PROVIDER_APPLY_FAILED", True, "PROVIDER_APPLY_FAILED"),
+            "apply": (
+                DeploymentCommandError(
+                    "TERRAFORM_APPLY_INVALID_ARGUMENT",
+                    diagnostic={
+                        "http_status": 400,
+                        "operation": "creating Budget",
+                        "resource_address": (
+                            "module.platform_controls.google_billing_budget."
+                            "qualification[0]"
+                        ),
+                    },
+                ),
+                True,
+                "TERRAFORM_APPLY_INVALID_ARGUMENT",
+            ),
             "readback": (None, False, "TERRAFORM_READBACK_MISMATCH"),
         }
         for label, (apply_error, matches, blocker) in cases.items():
@@ -569,7 +585,8 @@ class PlatformDeploymentTest(unittest.TestCase):
                     apply_error=apply_error,
                     readback_matches=matches,
                 )
-                executor = DeploymentExecutor(root, FakeTerminal(), commands)
+                terminal = FakeTerminal()
+                executor = DeploymentExecutor(root, terminal, commands)
 
                 result = executor.execute(
                     _context("foundation", ("foundation-reference", "oauth-secret-container"))
@@ -577,6 +594,16 @@ class PlatformDeploymentTest(unittest.TestCase):
 
                 self.assertEqual(result.outcome, "failed")
                 self.assertIn(blocker, result.blockers)
+                if label == "apply":
+                    displayed = "\n".join(terminal.messages)
+                    self.assertIn("TERRAFORM APPLY ERROR\n{", displayed)
+                    self.assertIn('"http_status": 400', displayed)
+                    self.assertIn(
+                        '"resource_address": '
+                        '"module.platform_controls.google_billing_budget.'
+                        'qualification[0]"',
+                        displayed,
+                    )
 
     def test_plan_failure_reports_safe_operator_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

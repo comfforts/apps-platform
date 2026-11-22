@@ -379,11 +379,14 @@ identity session, Application Default Credentials, DNS executable and command ad
 Terraform executable and CLI configuration, Terraform command adapter, and private state
 directory. Terraform planning likewise reports a safe category for state locks and reads, backend
 access, authentication, provider permissions or quota, configuration, provider-plugin startup, and
-unknown diagnostics. Human-readable guidance is printed separately; raw Terraform stderr is never
-printed or retained. Every returned blocker first prints its component and safe code to stderr,
-then appears in the final JSON result. An unexpected adapter or operator exception is caught at the
-CLI boundary and reports only its exception class plus `OPERATOR_INTERNAL_ERROR`; the exception
-message is not echoed because it may contain protected material.
+unknown diagnostics. Apply failures report a specific safe category plus any bounded resource
+address, operation, HTTP status, provider status, and service name that can be extracted without
+echoing arbitrary provider text. Human-readable guidance is printed separately; raw Terraform
+stderr is never printed or retained. Every returned blocker first prints its component and safe
+code to stderr, then appears in the final JSON result. An unexpected adapter or operator exception
+is caught at the CLI boundary and reports only its exception class plus
+`OPERATOR_INTERNAL_ERROR`; the exception message is not echoed because it may contain protected
+material.
 
 Interactive `ACTION`, `READBACK`, and `PLAN` blocks print their safe structured content as
 indented, sorted JSON. Their display formatting does not change canonical digest calculation or

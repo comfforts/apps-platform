@@ -75,6 +75,29 @@ class OperatorCommandTest(unittest.TestCase):
         path.chmod(0o600)
         return path
 
+    def _failed_apply(self, stderr: bytes) -> DeploymentCommandError:
+        runner = FakeRunner([CommandResult(1, b"", stderr)])
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "root"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            saved_plan = self._private_file(workspace / "plan.tfplan", b"exact-plan")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            with self.assertRaises(DeploymentCommandError) as raised:
+                adapter.apply_plan(request, root, saved_plan)
+
+        return raised.exception
+
     def test_plan_uses_closed_argv_exact_identity_and_in_memory_redacted_projection(
         self,
     ) -> None:
@@ -228,39 +251,65 @@ class OperatorCommandTest(unittest.TestCase):
     def test_apply_classifies_identity_propagation_without_exposing_provider_output(
         self,
     ) -> None:
-        runner = FakeRunner(
-            [
-                CommandResult(
-                    1,
-                    b"",
-                    b"Service account private-runtime@example.invalid does not exist.",
-                )
-            ]
+        error = self._failed_apply(
+            b"Service account private-runtime@example.invalid does not exist."
         )
-        with tempfile.TemporaryDirectory() as directory:
-            workspace = Path(directory) / "private"
-            workspace.mkdir(mode=0o700)
-            root = workspace / "root"
-            root.mkdir(mode=0o700)
-            request = _phase_request(root)
-            terraform = self._private_file(workspace / "terraform", b"binary")
-            cli_config = self._private_file(workspace / "terraform.rc", b"config")
-            saved_plan = self._private_file(workspace / "plan.tfplan", b"exact-plan")
-            adapter = TerraformCliAdapter(
-                terraform,
-                cli_config,
-                workspace,
-                runner,
-            )
-
-            with self.assertRaises(DeploymentCommandError) as raised:
-                adapter.apply_plan(request, root, saved_plan)
-
         self.assertEqual(
-            str(raised.exception),
+            str(error),
             "TERRAFORM_APPLY_IDENTITY_PROPAGATION_PENDING",
         )
-        self.assertNotIn("private-runtime", str(raised.exception))
+        self.assertNotIn("private-runtime", str(error))
+
+    def test_apply_reports_only_bounded_provider_diagnostics(self) -> None:
+        error = self._failed_apply(
+            b"Error: Error creating Budget: googleapi: Error 403: "
+            b"Cloud Billing Budget API has not been used in project "
+            b"comfforts-platform-non-prod or it is disabled.\n\n"
+            b"Reason: SERVICE_DISABLED\n"
+            b"Service: billingbudgets.googleapis.com\n\n"
+            b"  with module.platform_controls.google_billing_budget."
+            b"qualification[0],\n"
+            b"client_secret=must-not-be-reported\n"
+        )
+        self.assertEqual(str(error), "TERRAFORM_APPLY_SERVICE_DISABLED")
+        self.assertEqual(
+            error.diagnostic,
+            {
+                "http_status": 403,
+                "operation": "creating Budget",
+                "provider_status": "SERVICE_DISABLED",
+                "resource_address": (
+                    "module.platform_controls.google_billing_budget.qualification[0]"
+                ),
+                "service": "billingbudgets.googleapis.com",
+            },
+        )
+        self.assertNotIn(
+            "must-not-be-reported",
+            json.dumps(error.diagnostic),
+        )
+
+    def test_apply_failure_classifier_uses_specific_safe_codes(self) -> None:
+        cases = {
+            b"Error 401: UNAUTHENTICATED": "TERRAFORM_APPLY_AUTHENTICATION_FAILED",
+            b"notification channel does not exist": (
+                "TERRAFORM_APPLY_DEPENDENCY_PROPAGATION_PENDING"
+            ),
+            b"concurrent policy changes": "TERRAFORM_APPLY_IAM_CONFLICT",
+            b"Error acquiring the state lock": "TERRAFORM_APPLY_STATE_LOCKED",
+            b"Error 429: RESOURCE_EXHAUSTED": "TERRAFORM_APPLY_QUOTA_EXCEEDED",
+            b"Error 403: PERMISSION_DENIED": "TERRAFORM_APPLY_PERMISSION_DENIED",
+            b"Error 400: INVALID_ARGUMENT": "TERRAFORM_APPLY_INVALID_ARGUMENT",
+            b"Error 409: ALREADY_EXISTS": "TERRAFORM_APPLY_CONFLICT",
+            b"plugin did not respond": "TERRAFORM_APPLY_PLUGIN_FAILED",
+            b"unclassified provider failure": "TERRAFORM_APPLY_FAILED_UNKNOWN",
+        }
+        for stderr, expected in cases.items():
+            with self.subTest(stderr=stderr):
+                self.assertEqual(
+                    TerraformCliAdapter._apply_failure_code(stderr),
+                    expected,
+                )
 
     def test_fixture_destroy_plan_and_empty_state_readback_are_explicit(self) -> None:
         plan_json = {

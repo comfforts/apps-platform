@@ -265,6 +265,26 @@ readback, changed identity, or another protected resource stops without state or
 Never disable `prevent_destroy`, use a targeted replacement, or replace the live key ring to bypass
 this stop.
 
+When deployment cannot construct an external command boundary, use the returned blocker rather
+than treating every case as the same adapter failure. Executor blockers name the unavailable
+gcloud, Cloud SDK configuration, operator identity session, Application Default Credentials, DNS,
+Terraform, or private-state boundary. Resolve only the named prerequisite, then rerun the same
+command.
+
+When Terraform cannot produce a plan, the blocker distinguishes a state lock or read failure,
+backend access denial, operator reauthentication requirement, provider permission or quota failure,
+invalid rendered configuration, provider-plugin startup failure, the separately handled protected
+key-ring taint, or an unknown safe category. Follow the adjacent terminal guidance. Raw Terraform
+stderr is deliberately neither displayed nor retained because it may contain protected state or
+provider details.
+
+For every blocked or failed command, read stderr before the final JSON. The CLI prints an
+`Operator error` block containing the responsible component and safe blocker code. Known modules
+may print additional specific guidance first. If an unexpected exception crosses the adapter
+boundary, the CLI prints only the operation, exception class, and `OPERATOR_INTERNAL_ERROR`; it
+never echoes the exception message. Treat that internal code as a software defect requiring source
+inspection, not as permission to bypass the failed boundary.
+
 ## Candidate staging verification
 
 A clean pushed branch containing current `origin/main` may exercise staging before merge:

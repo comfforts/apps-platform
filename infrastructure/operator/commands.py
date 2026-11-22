@@ -232,7 +232,59 @@ class TerraformCliAdapter:
             )
         ):
             return "TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED"
-        return "TERRAFORM_PLAN_FAILED"
+        if b"error acquiring the state lock" in normalized:
+            return "TERRAFORM_STATE_LOCKED"
+        if any(
+            marker in normalized
+            for marker in (b"error loading state", b"failed to load state")
+        ):
+            return "TERRAFORM_STATE_READ_FAILED"
+        if b"failed to get existing workspaces" in normalized and any(
+            marker in normalized
+            for marker in (b"403", b"access denied", b"permission denied")
+        ):
+            return "TERRAFORM_BACKEND_ACCESS_DENIED"
+        if any(
+            marker in normalized
+            for marker in (
+                b"invalid_grant",
+                b"reauth related error",
+                b"could not find default credentials",
+                b"cannot fetch token",
+            )
+        ):
+            return "TERRAFORM_OPERATOR_AUTHENTICATION_FAILED"
+        if any(
+            marker in normalized
+            for marker in (b"quota exceeded", b"resource_exhausted", b"error 429")
+        ):
+            return "TERRAFORM_PROVIDER_QUOTA_EXCEEDED"
+        if any(
+            marker in normalized
+            for marker in (b"error 403", b"permission_denied", b"permission denied")
+        ):
+            return "TERRAFORM_PROVIDER_PERMISSION_DENIED"
+        if any(
+            marker in normalized
+            for marker in (
+                b"missing required argument",
+                b"unsupported argument",
+                b"invalid value for input variable",
+                b"reference to undeclared",
+                b"unsupported block type",
+            )
+        ):
+            return "TERRAFORM_CONFIGURATION_INVALID"
+        if any(
+            marker in normalized
+            for marker in (
+                b"failed to load plugin schemas",
+                b"failed to instantiate provider",
+                b"unrecognized remote plugin message",
+            )
+        ):
+            return "TERRAFORM_PROVIDER_PLUGIN_FAILED"
+        return "TERRAFORM_PLAN_FAILED_UNKNOWN"
 
     def _request(
         self,

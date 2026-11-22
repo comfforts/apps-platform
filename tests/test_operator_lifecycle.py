@@ -129,6 +129,7 @@ class OperatorLifecycleTest(unittest.TestCase):
         terminal: FakeTerminal | None = None,
         blocker: str | None = None,
         executor: FakeExecutor | None = None,
+        execution_blockers: tuple[str, ...] = (),
     ) -> tuple[LifecycleOperator, FakeTerminal]:
         selected_terminal = terminal or FakeTerminal([True])
         selected_blockers = (blocker,) if blocker else ()
@@ -159,8 +160,31 @@ class OperatorLifecycleTest(unittest.TestCase):
             filesystem=LocalFilesystem(PROJECT_ROOT, state_root),
             clock=FixedClock(),
             executor=executor,
+            execution_blockers=execution_blockers,
         )
         return LifecycleOperator(adapters), selected_terminal
+
+    def test_execution_adapter_reports_its_exact_unavailable_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            operator, terminal = self._operator(
+                Path(directory),
+                execution_blockers=("OPERATOR_IDENTITY_SESSION_UNAVAILABLE",),
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            result = operator.execute("staging", prepared.specification_digest)
+
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(
+            result.blockers,
+            ("OPERATOR_IDENTITY_SESSION_UNAVAILABLE",),
+        )
+        self.assertIsNone(result.progress_digest)
+        self.assertIn(
+            "Readiness blocker OPERATOR_IDENTITY_SESSION_UNAVAILABLE:",
+            "\n".join(terminal.messages),
+        )
 
     def test_preflight_reports_all_readiness_without_writing_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -257,6 +281,47 @@ class OperatorLifecycleTest(unittest.TestCase):
             ["SOURCE_NOT_CLEAN"],
         )
         self.assertIn("  preflight mode: development", stderr.getvalue())
+
+    def test_cli_prints_safe_boundary_errors_before_result_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            blocked, _ = self._operator(
+                Path(directory),
+                git=FakeGit(clean=False),
+                terminal=FakeTerminal([]),
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
+                code = operator_main(
+                    ["preflight", "--environment", "staging"],
+                    preflight_factory=lambda _path, _authority: blocked,
+                )
+            result = json.loads(stdout.getvalue())
+
+        self.assertEqual(code, 2)
+        self.assertEqual(result["blockers"], ["SOURCE_NOT_CLEAN"])
+        self.assertIn("Operator error:", stderr.getvalue())
+        self.assertIn("  component: source-control", stderr.getvalue())
+        self.assertIn("  code: SOURCE_NOT_CLEAN", stderr.getvalue())
+
+    def test_cli_catches_unexpected_errors_without_printing_exception_text(self) -> None:
+        def failing_factory(_path: Path, _authority: str) -> LifecycleOperator:
+            raise OSError("private provider detail must not be printed")
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
+            code = operator_main(
+                ["status", "--environment", "staging"],
+                operator_factory=failing_factory,
+            )
+        result = json.loads(stdout.getvalue())
+        transcript = stderr.getvalue()
+
+        self.assertEqual(code, 2)
+        self.assertEqual(result["blockers"], ["OPERATOR_INTERNAL_ERROR"])
+        self.assertIn("  exception_type: OSError", transcript)
+        self.assertNotIn("private provider detail", transcript)
 
     def test_console_narration_blocks_end_with_an_empty_line(self) -> None:
         stderr = io.StringIO()

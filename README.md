@@ -373,6 +373,22 @@ one state-only recovery action. After a separate `y/N` confirmation it clears on
 and generates a fresh plan. An identity mismatch or declined confirmation stops without changing
 state; the lifecycle never disables `prevent_destroy` or replaces the live key ring.
 
+Blocked execution identifies the unavailable boundary rather than reporting only a generic
+adapter failure. The result distinguishes the Cloud SDK configuration and executable, operator
+identity session, Application Default Credentials, DNS executable and command adapter, pinned
+Terraform executable and CLI configuration, Terraform command adapter, and private state
+directory. Terraform planning likewise reports a safe category for state locks and reads, backend
+access, authentication, provider permissions or quota, configuration, provider-plugin startup, and
+unknown diagnostics. Human-readable guidance is printed separately; raw Terraform stderr is never
+printed or retained. Every returned blocker first prints its component and safe code to stderr,
+then appears in the final JSON result. An unexpected adapter or operator exception is caught at the
+CLI boundary and reports only its exception class plus `OPERATOR_INTERNAL_ERROR`; the exception
+message is not echoed because it may contain protected material.
+
+Interactive `ACTION`, `READBACK`, and `PLAN` blocks print their safe structured content as
+indented, sorted JSON. Their display formatting does not change canonical digest calculation or
+the exact saved plan selected for confirmation and apply.
+
 ### Candidate staging verification
 
 A clean pushed pull-request revision containing current `origin/main` may exercise staging before

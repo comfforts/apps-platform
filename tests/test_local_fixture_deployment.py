@@ -397,7 +397,7 @@ class FixtureExactPlanExecutionTest(unittest.TestCase):
         self.assertEqual(terraform.applied, ["fixture-authenticated"])
         self.assertEqual(terraform.outputs, ["fixture-authenticated"])
         self.assertEqual(result.outputs[0][0], "attachment-reference")
-        self.assertTrue(any(message.startswith("PLAN {") for message in terminal.messages))
+        self.assertTrue(any(message.startswith("PLAN\n{") for message in terminal.messages))
         self.assertTrue(any("Apply the reviewed" in message for message in terminal.messages))
 
     def test_policy_refusal_or_operator_cancellation_never_applies(self) -> None:

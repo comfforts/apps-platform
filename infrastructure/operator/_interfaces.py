@@ -164,3 +164,4 @@ class OperatorAdapters:
     filesystem: FilesystemAdapter
     clock: ClockAdapter
     executor: StageExecutor | None = None
+    execution_blockers: tuple[str, ...] = ()

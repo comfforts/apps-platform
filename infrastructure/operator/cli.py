@@ -221,7 +221,45 @@ def _load_registration_intent(path: Path) -> RegistrationIntent:
     )
 
 
+def _error_component(blocker: str) -> str:
+    if blocker.startswith("TERRAFORM_"):
+        return "terraform"
+    if blocker.startswith(("GCLOUD_", "CLOUD_SDK_")):
+        return "google-cloud"
+    if blocker.startswith("DNS_"):
+        return "dns"
+    if blocker.startswith("OPERATOR_"):
+        return "operator-session"
+    if blocker.startswith(
+        ("SOURCE_", "CANDIDATE_", "REPOSITORY_", "GITHUB_")
+    ):
+        return "source-control"
+    if blocker.startswith("FIXTURE_"):
+        return "fixture-application"
+    if blocker.startswith(("APPLICATION_", "ATTACHMENT_", "REGISTRATION_")):
+        return "application-lifecycle"
+    if blocker.startswith("QUALIFICATION_"):
+        return "qualification"
+    if blocker.startswith("EXECUTION_"):
+        return "deployment-executor"
+    return "platform-operator"
+
+
+def _report_result_errors(value: dict[str, object]) -> None:
+    blockers = value.get("blockers")
+    if not isinstance(blockers, list):
+        return
+    for blocker in blockers:
+        if not isinstance(blocker, str):
+            continue
+        print("Operator error:", file=sys.stderr)
+        print(f"  component: {_error_component(blocker)}", file=sys.stderr)
+        print(f"  code: {blocker}", file=sys.stderr)
+        print(file=sys.stderr)
+
+
 def _print(value: dict[str, object]) -> None:
+    _report_result_errors(value)
     print(json.dumps(value, indent=2, sort_keys=True))
 
 
@@ -243,7 +281,7 @@ def _trace_invocation(
     print(file=sys.stderr)
 
 
-def main(
+def _main(
     argv: Sequence[str] | None = None,
     *,
     operator_factory: Callable[[Path, str], LifecycleOperator] = _default_factory,
@@ -767,3 +805,69 @@ def main(
     status = operator.status(arguments.environment)
     _print(status.environment_status)
     return 0 if not status.conflicts else 2
+
+
+def _option_value(arguments: Sequence[str], option: str, default: str) -> str:
+    try:
+        index = arguments.index(option)
+        value = arguments[index + 1]
+    except (IndexError, ValueError):
+        return default
+    return value if value else default
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    operator_factory: Callable[[Path, str], LifecycleOperator] = _default_factory,
+    preflight_factory: Callable[
+        [Path, str], LifecycleOperator
+    ] = _default_preflight_factory,
+    integration_factory: Callable[
+        [Path, str], ApplicationIntegrationLifecycle
+    ] = _default_integration_factory,
+    qualification_factory: Callable[
+        [Path, str], QualificationLifecycle
+    ] = _default_qualification_factory,
+    destruction_factory: Callable[
+        [Path, str], DestructionLifecycle
+    ] = _default_destruction_factory,
+    fixture_factory: Callable[[Path, str], object] = _default_fixture_factory,
+    fixture_status_factory: Callable[[Path, str], object] = _default_fixture_status_factory,
+) -> int:
+    try:
+        return _main(
+            argv,
+            operator_factory=operator_factory,
+            preflight_factory=preflight_factory,
+            integration_factory=integration_factory,
+            qualification_factory=qualification_factory,
+            destruction_factory=destruction_factory,
+            fixture_factory=fixture_factory,
+            fixture_status_factory=fixture_status_factory,
+        )
+    except Exception as error:
+        arguments = list(argv) if argv is not None else sys.argv[1:]
+        operation = arguments[0] if arguments else "unknown"
+        environment = _option_value(arguments, "--environment", "unknown")
+        source_authority = _option_value(
+            arguments,
+            "--source-authority",
+            "accepted",
+        )
+        print("Unexpected operator error:", file=sys.stderr)
+        print("  component: platform-operator", file=sys.stderr)
+        print(f"  operation: {operation}", file=sys.stderr)
+        print(f"  exception_type: {type(error).__name__}", file=sys.stderr)
+        print("  code: OPERATOR_INTERNAL_ERROR", file=sys.stderr)
+        print(file=sys.stderr)
+        _print(
+            {
+                "blockers": ["OPERATOR_INTERNAL_ERROR"],
+                "environment": environment,
+                "operation": operation,
+                "outcome": "failed",
+                "source_authority": source_authority,
+            }
+        )
+        return 2

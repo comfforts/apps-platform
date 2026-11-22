@@ -21,6 +21,7 @@ from infrastructure.operator._interfaces import (
     DiscoverySnapshot,
     GitSnapshot,
     OperatorAdapters,
+    StageExecutor,
 )
 from infrastructure.tools.terraform_setup import (
     GOOGLE_PROVIDER_VERSION,
@@ -433,12 +434,18 @@ class SystemWaiter:
         time.sleep(seconds)
 
 
+@dataclass(frozen=True, slots=True)
+class _DeploymentExecutorResult:
+    executor: StageExecutor | None
+    blockers: tuple[str, ...] = ()
+
+
 def _local_deployment_executor(
     project_root: Path,
     state_root: Path,
     gcp: ProfileGcp,
     terminal: ConsoleTerminal,
-):
+) -> _DeploymentExecutorResult:
     """Arm real staging commands only when every local human-session seam exists."""
 
     from infrastructure.operator.commands import (
@@ -457,6 +464,24 @@ def _local_deployment_executor(
     gcloud = gcp.executable
     configuration = gcp.cloud_sdk_configuration
     dig_name = shutil.which("dig")
+    blockers: list[str] = []
+    if gcloud is None or not gcloud.is_file():
+        blockers.append("GCLOUD_EXECUTABLE_UNAVAILABLE")
+    if (
+        configuration is None
+        or not configuration.is_dir()
+        or configuration.is_symlink()
+    ):
+        blockers.append("CLOUD_SDK_CONFIGURATION_UNAVAILABLE")
+    if dig_name is None or not Path(dig_name).is_file():
+        blockers.append("DNS_EXECUTABLE_UNAVAILABLE")
+    if not TERRAFORM.is_file():
+        blockers.append("TERRAFORM_EXECUTABLE_UNAVAILABLE")
+    if not OFFLINE_CLI_CONFIG.is_file():
+        blockers.append("TERRAFORM_CLI_CONFIGURATION_UNAVAILABLE")
+    if blockers:
+        return _DeploymentExecutorResult(None, tuple(sorted(blockers)))
+
     session = gcp.operator_session(
         {
             "project_id": "comfforts-platform-non-prod",
@@ -464,28 +489,32 @@ def _local_deployment_executor(
             "region": "us-west1",
         }
     )
-    if (
-        gcloud is None
-        or configuration is None
-        or dig_name is None
-        or session is None
-        or not gcp.application_default_ready()
-        or not gcloud.is_file()
-        or not configuration.is_dir()
-        or configuration.is_symlink()
-        or not TERRAFORM.is_file()
-        or not OFFLINE_CLI_CONFIG.is_file()
-    ):
-        return None
+    if session is None:
+        blockers.append("OPERATOR_IDENTITY_SESSION_UNAVAILABLE")
+    if not gcp.application_default_ready():
+        blockers.append("OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE")
+    if blockers:
+        return _DeploymentExecutorResult(None, tuple(sorted(blockers)))
+
     try:
         resolved_state = state_root.resolve()
         if state_root.is_symlink():
-            return None
+            return _DeploymentExecutorResult(
+                None,
+                ("OPERATOR_STATE_DIRECTORY_UNAVAILABLE",),
+            )
         resolved_state.mkdir(mode=0o700, parents=True, exist_ok=True)
         resolved_state.chmod(0o700)
         working_root = resolved_state / "work/deployment"
         working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         working_root.chmod(0o700)
+    except (OSError, RuntimeError, ValueError):
+        return _DeploymentExecutorResult(
+            None,
+            ("OPERATOR_STATE_DIRECTORY_UNAVAILABLE",),
+        )
+
+    try:
         terraform_runner = ClosedSubprocessRunner((TERRAFORM,), working_root)
         terraform = TerraformCliAdapter(
             TERRAFORM,
@@ -497,6 +526,13 @@ def _local_deployment_executor(
                 ("HOME", str(Path.home().resolve())),
             ),
         )
+    except (OSError, RuntimeError, ValueError):
+        return _DeploymentExecutorResult(
+            None,
+            ("TERRAFORM_COMMAND_ADAPTER_UNAVAILABLE",),
+        )
+
+    try:
         provider = GcloudDeploymentProvider(
             executable=gcloud,
             cloud_sdk_configuration=configuration,
@@ -507,12 +543,26 @@ def _local_deployment_executor(
                 configuration,
             ),
         )
+    except (OSError, RuntimeError, ValueError):
+        return _DeploymentExecutorResult(
+            None,
+            ("GCLOUD_COMMAND_ADAPTER_UNAVAILABLE",),
+        )
+
+    try:
         dig = Path(dig_name).resolve()
         dns = DigDnsReadback(
             dig,
             project_root,
             ClosedDigRunner(dig, project_root),
         )
+    except (OSError, RuntimeError, ValueError):
+        return _DeploymentExecutorResult(
+            None,
+            ("DNS_COMMAND_ADAPTER_UNAVAILABLE",),
+        )
+
+    try:
         commands = LocalDeploymentCommands(
             DeploymentConfigurationRenderer(
                 project_root,
@@ -524,14 +574,19 @@ def _local_deployment_executor(
             dns,
             session,
         )
-        return DeploymentExecutor(
-            working_root,
-            terminal,
-            commands,
-            waiter=SystemWaiter(),
+        return _DeploymentExecutorResult(
+            DeploymentExecutor(
+                working_root,
+                terminal,
+                commands,
+                waiter=SystemWaiter(),
+            )
         )
     except (OSError, RuntimeError, ValueError):
-        return None
+        return _DeploymentExecutorResult(
+            None,
+            ("DEPLOYMENT_EXECUTOR_CONSTRUCTION_FAILED",),
+        )
 
 
 def build_local_operator(
@@ -557,6 +612,16 @@ def build_local_operator(
         cloud_sdk_configuration,
     )
     terminal = ConsoleTerminal()
+    execution = (
+        _local_deployment_executor(
+            resolved_project,
+            state_root,
+            gcp,
+            terminal,
+        )
+        if arm_executor
+        else _DeploymentExecutorResult(None)
+    )
     return LifecycleOperator(
         OperatorAdapters(
             git=LocalGit(resolved_project),
@@ -569,16 +634,8 @@ def build_local_operator(
             terminal=terminal,
             filesystem=LocalFilesystem(resolved_project, state_root),
             clock=SystemClock(),
-            executor=(
-                _local_deployment_executor(
-                    resolved_project,
-                    state_root,
-                    gcp,
-                    terminal,
-                )
-                if arm_executor
-                else None
-            ),
+            executor=execution.executor,
+            execution_blockers=execution.blockers,
         ),
         source_authority=source_authority,
     )

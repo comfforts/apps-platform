@@ -162,3 +162,19 @@ partial apply. The command boundary deletes the failed saved-plan artifact, prov
 verifies the identity before and after the prompt, and an exact allow-listed `terraform untaint`
 runs only after separate operator confirmation. The executor then produces a new plan; it never
 disables `prevent_destroy`, applies the failed plan, or generalizes this path to another resource.
+
+Executor construction returns explicit safe prerequisite blockers instead of collapsing every
+missing executable, session, configuration, command adapter, or private-state error into one
+unavailable result. Terraform planning classifies a closed allow-list of state, backend,
+authentication, permission, quota, configuration, plugin, and protected-taint diagnostics. The
+terminal prints guidance for the selected code while command stderr remains transient and
+unretained; an unmatched diagnostic becomes `TERRAFORM_PLAN_FAILED_UNKNOWN`.
+
+The CLI reports every returned blocker to stderr with a derived component before serializing the
+result JSON. Its outer exception boundary catches otherwise unhandled adapter or operator errors,
+prints only the operation and exception class, and returns `OPERATOR_INTERNAL_ERROR`; raw exception
+messages and tracebacks are not operator output.
+
+Safe `ACTION`, `READBACK`, and `PLAN` narration uses multiline, sorted, two-space-indented JSON for
+operator inspection. Digest binding continues to use canonical compact serialization independently
+of this display-only formatting.

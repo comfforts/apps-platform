@@ -431,6 +431,34 @@ destroyed.
         )
         self.assertEqual(retained_plans, [])
 
+    def test_plan_failures_are_safely_classified_without_exposing_stderr(self) -> None:
+        cases = {
+            b"Error acquiring the state lock": "TERRAFORM_STATE_LOCKED",
+            b"Error loading state: backend object unavailable": (
+                "TERRAFORM_STATE_READ_FAILED"
+            ),
+            b"Failed to get existing workspaces: querying Cloud Storage failed: 403": (
+                "TERRAFORM_BACKEND_ACCESS_DENIED"
+            ),
+            b"oauth2: invalid_grant: reauth related error": (
+                "TERRAFORM_OPERATOR_AUTHENTICATION_FAILED"
+            ),
+            b"Error 403: permission denied for protected resource": (
+                "TERRAFORM_PROVIDER_PERMISSION_DENIED"
+            ),
+            b"Error 429: quota exceeded": "TERRAFORM_PROVIDER_QUOTA_EXCEEDED",
+            b"Error: Missing required argument": "TERRAFORM_CONFIGURATION_INVALID",
+            b"Failed to load plugin schemas": "TERRAFORM_PROVIDER_PLUGIN_FAILED",
+            b"unclassified private provider diagnostic": "TERRAFORM_PLAN_FAILED_UNKNOWN",
+        }
+
+        for diagnostic, expected in cases.items():
+            with self.subTest(expected=expected):
+                observed = TerraformCliAdapter._plan_failure(diagnostic)
+
+                self.assertEqual(observed, expected)
+                self.assertNotIn("private", observed.lower())
+
     def test_signing_key_ring_taint_recovery_uses_one_exact_state_command(
         self,
     ) -> None:

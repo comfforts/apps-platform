@@ -445,7 +445,7 @@ class PlatformDeploymentTest(unittest.TestCase):
         )
         displayed = "\n".join(terminal.messages)
         self.assertIn(result.plan_digest or "", displayed)
-        self.assertIn('"phase":"platform-foundation"', displayed)
+        self.assertIn('"phase": "platform-foundation"', displayed)
         self.assertNotIn("private saved plan", displayed)
         self.assertNotIn(str(applied_plan.saved_plan_path), displayed)
 
@@ -577,6 +577,31 @@ class PlatformDeploymentTest(unittest.TestCase):
                 self.assertEqual(result.outcome, "failed")
                 self.assertIn(blocker, result.blockers)
 
+    def test_plan_failure_reports_safe_operator_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                plan_errors=["TERRAFORM_STATE_LOCKED"],
+            )
+            terminal = FakeTerminal([])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.execute(
+                _context(
+                    "foundation",
+                    ("foundation-reference", "oauth-secret-container"),
+                )
+            )
+
+        self.assertEqual(result.outcome, "failed")
+        self.assertEqual(result.blockers, ("TERRAFORM_STATE_LOCKED",))
+        self.assertIn(
+            "Terraform plan blocker TERRAFORM_STATE_LOCKED:",
+            "\n".join(terminal.messages),
+        )
+
     def test_saved_plan_must_be_private_and_bounded(self) -> None:
         class UnsafeCommands(FakeCommands):
             def create_terraform_plan(
@@ -636,7 +661,8 @@ class PlatformDeploymentTest(unittest.TestCase):
                 _context("foundation", ("foundation-reference", "oauth-secret-container"))
             )
 
-        summary = json.loads(terminal.messages[0].split(" ", maxsplit=1)[1])
+        self.assertTrue(terminal.messages[0].startswith("PLAN\n{\n  \"changes\":"))
+        summary = json.loads(terminal.messages[0].removeprefix("PLAN\n"))
         self.assertEqual(summary["phase"], "platform-foundation")
         self.assertNotIn("before", summary)
         self.assertNotIn("after", summary)
@@ -672,6 +698,9 @@ class PlatformDeploymentTest(unittest.TestCase):
             terminal.confirmations[0][1],
             "yes",
         )
+        self.assertTrue(
+            terminal.messages[0].startswith("ACTION\n{\n  \"action\":")
+        )
         self.assertIn("publish-immutable-image", "\n".join(terminal.messages))
 
     def test_bootstrap_service_readback_displays_verified_services(self) -> None:
@@ -681,12 +710,21 @@ class PlatformDeploymentTest(unittest.TestCase):
             result = executor.execute(_context("bootstrap-services", ()))
 
         self.assertEqual(result.outcome, "succeeded")
-        self.assertIn(
-            'READBACK {"services":['
-            '{"name":"serviceusage.googleapis.com","state":"enabled"},'
-            '{"name":"storage.googleapis.com","state":"enabled"}],'
-            '"stage":"bootstrap-services"}',
-            terminal.messages,
+        readback = next(
+            message for message in terminal.messages if message.startswith("READBACK\n")
+        )
+        self.assertEqual(
+            json.loads(readback.removeprefix("READBACK\n")),
+            {
+                "services": [
+                    {
+                        "name": "serviceusage.googleapis.com",
+                        "state": "enabled",
+                    },
+                    {"name": "storage.googleapis.com", "state": "enabled"},
+                ],
+                "stage": "bootstrap-services",
+            },
         )
 
     def test_oauth_checkpoint_displays_exact_values_pauses_and_never_receives_a_secret(self) -> None:

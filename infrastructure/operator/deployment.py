@@ -198,6 +198,35 @@ _POLLING = {
     "external-dns": (12, 10),
     "tls-readiness": (30, 10),
 }
+_TERRAFORM_PLAN_GUIDANCE = {
+    "TERRAFORM_BACKEND_ACCESS_DENIED": (
+        "the operator session cannot read the selected Terraform backend"
+    ),
+    "TERRAFORM_CONFIGURATION_INVALID": (
+        "the rendered Terraform configuration or variables are invalid"
+    ),
+    "TERRAFORM_OPERATOR_AUTHENTICATION_FAILED": (
+        "the operator credentials are unavailable, expired, or require reauthentication"
+    ),
+    "TERRAFORM_PLAN_FAILED_UNKNOWN": (
+        "Terraform returned a diagnostic outside the safe classifier"
+    ),
+    "TERRAFORM_PROVIDER_PERMISSION_DENIED": (
+        "the provider denied a read required to produce the plan"
+    ),
+    "TERRAFORM_PROVIDER_PLUGIN_FAILED": (
+        "Terraform could not start or negotiate with the pinned provider plugin"
+    ),
+    "TERRAFORM_PROVIDER_QUOTA_EXCEEDED": (
+        "the provider rejected planning because a quota was exhausted"
+    ),
+    "TERRAFORM_STATE_LOCKED": (
+        "another operation or stale lock currently owns the selected state lineage"
+    ),
+    "TERRAFORM_STATE_READ_FAILED": (
+        "Terraform could not read the selected state lineage"
+    ),
+}
 
 
 class DeploymentExecutor:
@@ -227,6 +256,14 @@ class DeploymentExecutor:
             outcome="failed",
             blockers=tuple(sorted(set(blockers))),
         )
+
+    def _terraform_plan_failure(self, blocker: str) -> StageExecution:
+        guidance = _TERRAFORM_PLAN_GUIDANCE.get(
+            blocker,
+            "inspect the named Terraform planning boundary before retrying",
+        )
+        self._terminal.write(f"Terraform plan blocker {blocker}: {guidance}.")
+        return self._failure(blocker)
 
     def _bind_saved_plan(
         self,
@@ -337,6 +374,16 @@ class DeploymentExecutor:
             allow_nan=False,
         )
 
+    @staticmethod
+    def _pretty_json(label: str, value: object) -> str:
+        return label + "\n" + json.dumps(
+            value,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+
     def _execute_read_only(self, context: StageContext) -> StageExecution:
         try:
             readback = self._commands.read_stage(context)
@@ -355,7 +402,7 @@ class DeploymentExecutor:
             return self._failure("PROHIBITED_ACTION_MATERIAL")
         digest = self._bound_digest(context, value)
         exact = ExactAction(proposal.action, digest, proposal.summary)
-        self._terminal.write(f"ACTION {canonical}")
+        self._terminal.write(self._pretty_json("ACTION", value))
         self._terminal.write(f"ACTION_DIGEST {digest}")
         if not self._terminal.confirm(
             f"Execute the reviewed {stage_id} action {digest}? [y/N] "
@@ -389,7 +436,7 @@ class DeploymentExecutor:
             readback_summary = self._safe_canonical(summary)
             if readback_summary is None:
                 return self._failure("PROHIBITED_READBACK_MATERIAL")
-            self._terminal.write(f"READBACK {readback_summary}")
+            self._terminal.write(self._pretty_json("READBACK", summary))
         return self._readback_result(context, readback, plan_digest=digest)
 
     def _execute_manual(self, context: StageContext, stage_id: str) -> StageExecution:
@@ -518,7 +565,7 @@ class DeploymentExecutor:
                 or stage_id != "foundation"
                 or observer.request is None
             ):
-                return self._failure(str(error))
+                return self._terraform_plan_failure(str(error))
             try:
                 identity = self._commands.signing_key_ring_recovery_identity(
                     context,
@@ -564,7 +611,7 @@ class DeploymentExecutor:
                     destructive=destructive,
                 )
             except (EnvironmentUnavailableError, DeploymentCommandError) as retry_error:
-                return self._failure(str(retry_error))
+                return self._terraform_plan_failure(str(retry_error))
 
         if not evaluated.accepted:
             return self._failure(*(violation.code for violation in evaluated.violations))
@@ -584,14 +631,9 @@ class DeploymentExecutor:
         if isinstance(exact_plan, StageExecution):
             return exact_plan
 
-        canonical_summary = json.dumps(
-            exact_plan.canonical_summary,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
+        self._terminal.write(
+            self._pretty_json("PLAN", exact_plan.canonical_summary)
         )
-        self._terminal.write(f"PLAN {canonical_summary}")
         self._terminal.write(f"PLAN_DIGEST {exact_plan.policy_digest}")
 
         if self._requires_apply(exact_plan.canonical_summary):

@@ -166,8 +166,31 @@ _READINESS_BLOCKER_GUIDANCE = {
         "environment profile"
     ),
     "DNS_TOOL_UNAVAILABLE": "the required local dig executable is unavailable",
+    "CLOUD_SDK_CONFIGURATION_UNAVAILABLE": (
+        "the selected Cloud SDK configuration directory is unavailable or unsafe"
+    ),
+    "DEPLOYMENT_EXECUTOR_CONSTRUCTION_FAILED": (
+        "the bounded deployment executor could not be assembled"
+    ),
+    "DNS_COMMAND_ADAPTER_UNAVAILABLE": (
+        "the bounded DNS command adapter could not be constructed"
+    ),
+    "DNS_EXECUTABLE_UNAVAILABLE": "the required local dig executable is unavailable",
+    "GCLOUD_COMMAND_ADAPTER_UNAVAILABLE": (
+        "the bounded Google Cloud command adapter could not be constructed"
+    ),
+    "GCLOUD_EXECUTABLE_UNAVAILABLE": (
+        "the gcloud executable is unavailable"
+    ),
     "OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE": (
         "Application Default Credentials are unavailable or cannot mint an access token"
+    ),
+    "OPERATOR_IDENTITY_SESSION_UNAVAILABLE": (
+        "the active account, project, billing reference, or identity-token session could not be "
+        "verified"
+    ),
+    "OPERATOR_STATE_DIRECTORY_UNAVAILABLE": (
+        "the private operator state directory is unavailable or unsafe"
     ),
     "OPERATOR_PROJECT_MISMATCH": (
         "the active gcloud project does not match the environment profile"
@@ -197,6 +220,15 @@ _READINESS_BLOCKER_GUIDANCE = {
     "SOURCE_NOT_MAIN": (
         "Accepted Source requires main; for a pushed staging branch rerun with "
         "SOURCE_AUTHORITY=candidate"
+    ),
+    "TERRAFORM_CLI_CONFIGURATION_UNAVAILABLE": (
+        "the pinned Terraform CLI configuration is unavailable"
+    ),
+    "TERRAFORM_COMMAND_ADAPTER_UNAVAILABLE": (
+        "the bounded Terraform command adapter could not be constructed"
+    ),
+    "TERRAFORM_EXECUTABLE_UNAVAILABLE": (
+        "the pinned project-local Terraform executable is unavailable"
     ),
 }
 
@@ -777,6 +809,7 @@ class LifecycleOperator:
         environment: str,
         blockers: tuple[str, ...],
     ) -> ExecutionResult:
+        self._report_blockers(blockers)
         return ExecutionResult("blocked", None, None, self.status(environment), blockers)
 
     def status(self, environment: str) -> StatusResult:
@@ -876,7 +909,10 @@ class LifecycleOperator:
         ):
             blockers.append("SPECIFICATION_NOT_APPROVED")
         if self._adapters.executor is None:
-            blockers.append("EXECUTION_ADAPTER_UNAVAILABLE")
+            blockers.extend(
+                self._adapters.execution_blockers
+                or ("EXECUTION_ADAPTER_UNAVAILABLE",)
+            )
         if blockers:
             return self._blocked_execution(environment, tuple(sorted(set(blockers))))
 

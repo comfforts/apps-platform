@@ -412,6 +412,7 @@ class ConsoleTerminal:
 
     def write(self, message: str) -> None:
         print(message, file=sys.stderr)
+        print(file=sys.stderr)
 
     def confirm_exact(self, prompt: str, expected: str) -> bool:
         return input(prompt) == expected

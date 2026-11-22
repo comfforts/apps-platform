@@ -37,6 +37,12 @@ results beneath `.platform-operator/`. Keep that directory outside Git. Do not p
 OAuth secrets, Terraform state, saved plans, browser state, or raw provider responses into the
 repository or an evidence record.
 
+The environment's `current-progress.v1.json` is the resumable working record. When a deployment
+succeeds, fails, or is cancelled, its latest terminal result is also retained at
+`environments/<environment>/progress/<specification-digest>.final.v1.json`. Compare those records
+when investigating changes between specifications. A resumed specification replaces its own
+terminal record; waiting and intermediate stage updates are not historical records.
+
 ## Normal staging lifecycle
 
 The normal accepted staging journey is:

@@ -15,6 +15,7 @@ from infrastructure.operator.commands import (
     CommandResult,
     TerraformCliAdapter,
 )
+from infrastructure.operator.deployment import DeploymentCommandError
 
 
 SOURCE_REVISION = "6" * 40
@@ -223,6 +224,43 @@ class OperatorCommandTest(unittest.TestCase):
             dict(invocation.environment)["CLOUDSDK_CONFIG"],
             str(workspace / "gcloud"),
         )
+
+    def test_apply_classifies_identity_propagation_without_exposing_provider_output(
+        self,
+    ) -> None:
+        runner = FakeRunner(
+            [
+                CommandResult(
+                    1,
+                    b"",
+                    b"Service account private-runtime@example.invalid does not exist.",
+                )
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "root"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            saved_plan = self._private_file(workspace / "plan.tfplan", b"exact-plan")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            with self.assertRaises(DeploymentCommandError) as raised:
+                adapter.apply_plan(request, root, saved_plan)
+
+        self.assertEqual(
+            str(raised.exception),
+            "TERRAFORM_APPLY_IDENTITY_PROPAGATION_PENDING",
+        )
+        self.assertNotIn("private-runtime", str(raised.exception))
 
     def test_fixture_destroy_plan_and_empty_state_readback_are_explicit(self) -> None:
         plan_json = {

@@ -257,6 +257,13 @@ class OperatorLifecycleTest(unittest.TestCase):
         )
         self.assertIn("  preflight mode: development", stderr.getvalue())
 
+    def test_console_narration_blocks_end_with_an_empty_line(self) -> None:
+        stderr = io.StringIO()
+        with mock.patch("sys.stderr", stderr):
+            local_adapters.ConsoleTerminal().write("Verified provider readback.")
+
+        self.assertEqual(stderr.getvalue(), "Verified provider readback.\n\n")
+
     def test_prepare_approves_small_fingerprint_and_deploy_reuses_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             terminal = FakeTerminal([True])
@@ -287,6 +294,14 @@ class OperatorLifecycleTest(unittest.TestCase):
             status = operator.status("staging").environment_status
 
             progress_files = list(state.rglob("current-progress.v1.json"))
+            terminal_progress_files = list(
+                state.rglob("progress/*.final.v1.json")
+            )
+            terminal_progress = (
+                json.loads(terminal_progress_files[0].read_text(encoding="utf-8"))
+                if terminal_progress_files
+                else None
+            )
             journal_files = list(state.rglob("journals/*.json"))
 
         self.assertEqual(deployed.outcome, "succeeded")
@@ -295,6 +310,14 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertEqual(status["last_closed_stage"], "readback")
         self.assertRegex(str(status["progress_digest"]), r"^sha256:[0-9a-f]{64}$")
         self.assertEqual(len(progress_files), 1)
+        self.assertEqual(len(terminal_progress_files), 1)
+        self.assertEqual(
+            terminal_progress_files[0].name,
+            prepared.specification_digest[7:] + ".final.v1.json",
+        )
+        assert terminal_progress is not None
+        self.assertEqual(terminal_progress["status"], "succeeded")
+        self.assertEqual(terminal_progress["completed"][-1]["stage_id"], "readback")
         self.assertEqual(journal_files, [])
         self.assertEqual(len(executor.calls), 11)
 
@@ -315,6 +338,33 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertEqual(executor.calls.count("preflight"), 1)
         self.assertEqual(executor.calls.count("bootstrap-services"), 2)
 
+    def test_successful_resume_replaces_the_same_specification_terminal_record(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            operator, _ = self._operator(
+                state,
+                executor=FakeExecutor([StageExecution("failed")]),
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            failed = operator.execute("staging", prepared.specification_digest)
+            terminal_path = next(state.rglob("progress/*.final.v1.json"))
+            failed_record = json.loads(terminal_path.read_text(encoding="utf-8"))
+            resumed = operator.execute("staging", prepared.specification_digest)
+            succeeded_record = json.loads(terminal_path.read_text(encoding="utf-8"))
+            terminal_record_count = len(
+                list(state.rglob("progress/*.final.v1.json"))
+            )
+
+        self.assertEqual(failed.outcome, "failed")
+        self.assertEqual(failed_record["status"], "failed")
+        self.assertEqual(resumed.outcome, "succeeded")
+        self.assertEqual(succeeded_record["status"], "succeeded")
+        self.assertEqual(terminal_record_count, 1)
+
     def test_waiting_failure_and_cancellation_are_not_success(self) -> None:
         for outcome in ("waiting", "failed", "cancelled"):
             with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory:
@@ -325,11 +375,18 @@ class OperatorLifecycleTest(unittest.TestCase):
                 prepared = operator.prepare("staging")
                 assert prepared.specification_digest is not None
                 result = operator.execute("staging", prepared.specification_digest)
+                terminal_progress_files = list(
+                    Path(directory).rglob("progress/*.final.v1.json")
+                )
 
                 self.assertEqual(result.outcome, outcome)
                 self.assertEqual(
                     operator.status("staging").environment_status["lifecycle_state"],
                     outcome,
+                )
+                self.assertEqual(
+                    len(terminal_progress_files),
+                    0 if outcome == "waiting" else 1,
                 )
 
     def test_source_change_requires_fresh_intent_and_conflicts_with_open_work(self) -> None:
@@ -440,6 +497,8 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertIn("  environment: staging", invocation)
         self.assertIn("  source authority: accepted", invocation)
         self.assertIn("  fixture selected: none", invocation)
+        self.assertTrue(invocation.startswith("Operator invocation:\n"))
+        self.assertTrue(invocation.endswith("\n\n"))
 
     def test_local_gcp_discovery_blocks_wrong_project_without_retaining_token(self) -> None:
         observed = (

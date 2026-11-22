@@ -104,6 +104,10 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             'deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"',
         ):
             self.assertIn(required_control, module)
+        self.assertEqual(
+            module.count("depends_on = [google_service_account.edge_runtime]"),
+            3,
+        )
 
     def test_module_has_no_later_slice_secret_or_activation_resource(self) -> None:
         module = _terraform_sources(MODULE_ROOT)

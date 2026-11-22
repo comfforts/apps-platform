@@ -240,6 +240,7 @@ def _trace_invocation(
         f"  fixture selected: {selected_fixture or 'none'}",
         file=sys.stderr,
     )
+    print(file=sys.stderr)
 
 
 def main(

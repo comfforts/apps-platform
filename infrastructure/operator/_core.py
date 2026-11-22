@@ -548,6 +548,16 @@ class LifecycleOperator:
     def _progress_path(self, environment: str) -> str:
         return f"{self._state_directory(environment)}/current-progress.v1.json"
 
+    def _terminal_progress_path(
+        self,
+        environment: str,
+        specification_digest: str,
+    ) -> str:
+        return (
+            f"{self._state_directory(environment)}/progress/"
+            f"{specification_digest[7:]}.final.v1.json"
+        )
+
     def _load_progress(self, environment: str) -> dict[str, Any] | None:
         value = self._read_json_state(self._progress_path(environment))
         if value is None:
@@ -666,11 +676,21 @@ class LifecycleOperator:
             raise ValueError("generated invalid deployment progress")
         if validate_lifecycle_material(progress):
             raise ValueError("generated deployment progress contains prohibited material")
+        contents = _canonical_bytes(progress) + b"\n"
         self._adapters.filesystem.write_state(
             self._progress_path(environment),
-            _canonical_bytes(progress) + b"\n",
+            contents,
             replace=True,
         )
+        if progress["status"] in _REPLACEABLE_PROGRESS:
+            self._adapters.filesystem.write_state(
+                self._terminal_progress_path(
+                    environment,
+                    str(progress["specification_digest"]),
+                ),
+                contents,
+                replace=True,
+            )
         return _digest(progress)
 
     def _has_conflicting_progress(

@@ -84,6 +84,8 @@ resource "google_storage_bucket_iam_member" "edge_configuration_reader" {
   bucket = google_storage_bucket.configuration.name
   role   = "roles/storage.objectViewer"
   member = local.edge_runtime_principal
+
+  depends_on = [google_service_account.edge_runtime]
 }
 
 resource "google_firestore_database" "sessions" {
@@ -154,6 +156,8 @@ resource "google_kms_crypto_key_iam_member" "edge_signer" {
   crypto_key_id = google_kms_crypto_key.assertion_signing.id
   role          = "roles/cloudkms.signerVerifier"
   member        = local.edge_runtime_principal
+
+  depends_on = [google_service_account.edge_runtime]
 }
 
 resource "google_secret_manager_secret" "edge_oauth" {
@@ -183,4 +187,6 @@ resource "google_secret_manager_secret_iam_member" "edge_oauth_secret_reader" {
   secret_id = google_secret_manager_secret.edge_oauth[0].id
   role      = "roles/secretmanager.secretAccessor"
   member    = local.edge_runtime_principal
+
+  depends_on = [google_service_account.edge_runtime]
 }

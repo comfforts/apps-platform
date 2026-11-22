@@ -146,6 +146,11 @@ private operator input; restricted members are never echoed in terminal results.
 no credential, secret payload, Terraform state, saved plan, raw provider response, or browser
 state. Private plans and raw command results never become progress content.
 
+The current deployment progress remains the single resume record. Its latest succeeded, failed, or
+cancelled value is also retained once per specification beneath `progress/`; a later terminal
+result for the same specification replaces that snapshot. Waiting and intermediate values are not
+retained as history.
+
 An interruption leaves the current stage open and resumes after the last closed stage. A closed
 mutation is never repeated. Waiting, cancellation, command failure, policy refusal, mismatched
 readback, unsafe output, and production refusal remain truthful terminal states rather than being

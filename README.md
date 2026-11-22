@@ -270,6 +270,10 @@ registrations, and evidence. A real staging session additionally requires:
 Generated specifications, approvals, progress, bundles, plans, and private command results live
 beneath the ignored `.platform-operator/` directory. Directories use mode `0700` and private files
 use mode `0600`. Do not copy that directory into Git or use it as shared application configuration.
+`current-progress.v1.json` remains the resumable working record. Each succeeded, failed, or cancelled
+deployment also retains its latest terminal result under
+`environments/<environment>/progress/<specification-digest>.final.v1.json`, so an operator can
+compare outcomes across specifications without retaining every intermediate stage update.
 
 The wizard never asks for an OAuth client secret in the terminal. The operator enters the secret
 directly into the approved Secret Manager surface and presses Enter only after completing the exact

@@ -193,6 +193,15 @@ class TerraformCliAdapter:
             )
         )
 
+    @staticmethod
+    def _apply_failure(stderr: bytes) -> str:
+        normalized = stderr.lower()
+        if b"service account" in normalized and b"does not exist" in normalized:
+            return "TERRAFORM_APPLY_IDENTITY_PROPAGATION_PENDING"
+        if b"concurrent policy changes" in normalized:
+            return "TERRAFORM_APPLY_IAM_CONFLICT"
+        return "TERRAFORM_APPLY_FAILED"
+
     def _request(
         self,
         root: Path,
@@ -374,7 +383,7 @@ class TerraformCliAdapter:
             )
         )
         if applied.returncode != 0:
-            raise DeploymentCommandError("TERRAFORM_APPLY_FAILED")
+            raise DeploymentCommandError(self._apply_failure(applied.stderr))
 
     def migrate_bootstrap_state(
         self,

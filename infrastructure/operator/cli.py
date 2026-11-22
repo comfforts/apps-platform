@@ -222,7 +222,7 @@ def _load_registration_intent(path: Path) -> RegistrationIntent:
 
 
 def _print(value: dict[str, object]) -> None:
-    print(json.dumps(value, sort_keys=True, separators=(",", ":")))
+    print(json.dumps(value, indent=2, sort_keys=True))
 
 
 def _trace_invocation(

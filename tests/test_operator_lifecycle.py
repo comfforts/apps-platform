@@ -248,6 +248,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             result = json.loads(stdout.getvalue())
 
         self.assertEqual(code, 0)
+        self.assertTrue(stdout.getvalue().startswith("{\n  \"blockers\":"))
         self.assertTrue(result["ready"])
         self.assertFalse(result["operational_ready"])
         self.assertEqual(result["preflight_mode"], "development")
@@ -486,9 +487,10 @@ class OperatorLifecycleTest(unittest.TestCase):
                     ["deploy", "--environment", "staging"],
                     operator_factory=lambda _path, _authority: operator,
                 )
-            result = json.loads(stdout.getvalue().splitlines()[-1])
+            result = json.loads(stdout.getvalue())
 
         self.assertEqual(code, 0)
+        self.assertTrue(stdout.getvalue().startswith("{\n  \"blockers\":"))
         self.assertEqual(result["outcome"], "succeeded")
         self.assertRegex(result["progress_digest"], r"^sha256:[0-9a-f]{64}$")
         invocation = stderr.getvalue()

@@ -388,6 +388,88 @@ class OperatorCommandTest(unittest.TestCase):
             dict(runner.requests[1].environment),
         )
 
+    def test_protected_signing_key_ring_taint_is_classified_and_plan_removed(
+        self,
+    ) -> None:
+        diagnostic = b"""
+Error: Instance cannot be destroyed
+
+Resource module.platform_foundation.google_kms_key_ring.assertion_signing has
+lifecycle.prevent_destroy set, but the plan calls for this resource to be
+destroyed.
+"""
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(1, b"", diagnostic),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "platform-foundation"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            self._private_file(request.backend_path, b'terraform { backend "gcs" {} }\n')
+            variables = self._private_file(root / "values.json", b"{}\n")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            with self.assertRaises(DeploymentCommandError) as raised:
+                adapter.create_plan(request, root, variables)
+            retained_plans = list((workspace / "plans").glob("*.tfplan"))
+
+        self.assertEqual(
+            str(raised.exception),
+            "TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED",
+        )
+        self.assertEqual(retained_plans, [])
+
+    def test_signing_key_ring_taint_recovery_uses_one_exact_state_command(
+        self,
+    ) -> None:
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(0, b"", b""),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "platform-foundation"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            self._private_file(request.backend_path, b'terraform { backend "gcs" {} }\n')
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            adapter.clear_signing_key_ring_taint(request, root)
+
+        self.assertEqual(runner.requests[0].argv[1], "init")
+        self.assertEqual(
+            runner.requests[1].argv[1:],
+            (
+                "untaint",
+                "-lock=true",
+                "-lock-timeout=0s",
+                "module.platform_foundation.google_kms_key_ring.assertion_signing",
+            ),
+        )
+        self.assertEqual(runner.requests[1].authority, "platform-state-recovery")
+
     def test_bootstrap_migrates_only_to_exact_remote_lineage_and_reads_it_back(
         self,
     ) -> None:

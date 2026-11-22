@@ -133,6 +133,19 @@ class DeploymentCommands(Protocol):
         plan: ExactTerraformPlan,
     ) -> None: ...
 
+    def signing_key_ring_recovery_identity(
+        self,
+        context: StageContext,
+        request: PhasePlanRequest,
+    ) -> str: ...
+
+    def clear_signing_key_ring_taint(
+        self,
+        context: StageContext,
+        request: PhasePlanRequest,
+        identity: str,
+    ) -> None: ...
+
     def readback_terraform(
         self,
         request: TerraformReadbackRequest,
@@ -500,7 +513,58 @@ class DeploymentExecutor:
         except EnvironmentUnavailableError as error:
             return self._failure(str(error))
         except DeploymentCommandError as error:
-            return self._failure(str(error))
+            if (
+                str(error) != "TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED"
+                or stage_id != "foundation"
+                or observer.request is None
+            ):
+                return self._failure(str(error))
+            try:
+                identity = self._commands.signing_key_ring_recovery_identity(
+                    context,
+                    observer.request,
+                )
+            except DeploymentCommandError as recovery_error:
+                return self._failure(str(recovery_error))
+            self._terminal.write(
+                "RECOVERY Terraform state marks the existing protected signing "
+                "key ring as tainted."
+            )
+            self._terminal.write(f"RECOVERY_LIVE_IDENTITY {identity}")
+            self._terminal.write(
+                "RECOVERY_EFFECT Clear only the Terraform taint marker; the live "
+                "key ring is not replaced or changed."
+            )
+            if not self._terminal.confirm(
+                "Clear only its Terraform taint marker and generate a fresh "
+                "foundation plan? [y/N] "
+            ):
+                return StageExecution(
+                    outcome="cancelled",
+                    blockers=(
+                        "TERRAFORM_PROTECTED_RESOURCE_RECOVERY_NOT_CONFIRMED",
+                    ),
+                )
+            try:
+                self._commands.clear_signing_key_ring_taint(
+                    context,
+                    observer.request,
+                    identity,
+                )
+            except DeploymentCommandError as recovery_error:
+                return self._failure(str(recovery_error))
+            observer = _ArtifactObserver(self._commands, context)
+            try:
+                evaluated = prepare_phase_plan(
+                    context.environment,
+                    phase,
+                    context.source_revision,
+                    self._working_root,
+                    observer,
+                    destructive=destructive,
+                )
+            except (EnvironmentUnavailableError, DeploymentCommandError) as retry_error:
+                return self._failure(str(retry_error))
 
         if not evaluated.accepted:
             return self._failure(*(violation.code for violation in evaluated.violations))

@@ -71,6 +71,11 @@ class FakeGcloud:
                 json.dumps([{"name": name, "state": "ENABLED"}]).encode(),
                 b"",
             )
+        if arguments[:3] == ("kms", "keyrings", "describe"):
+            name = (
+                f"projects/{PROJECT}/locations/{REGION}/keyRings/app-platform"
+            )
+            return ProviderCommandResult(0, (name + "\n").encode(), b"")
         if arguments[:3] == ("secrets", "versions", "list"):
             name = f"projects/{PROJECT}/secrets/app-platform-edge-oauth/versions/1"
             return ProviderCommandResult(0, json.dumps([{"name": name}]).encode(), b"")
@@ -200,10 +205,15 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
             fake = FakeGcloud(generation.contents)
             provider = self._provider(directory, fake)
 
+            key_ring = provider.signing_key_ring_identity()
             signing = provider.active_signing_key_version()
             secret = provider.oauth_secret_version()
             certificate = provider.certificate_readback()
 
+        self.assertEqual(
+            key_ring,
+            f"projects/{PROJECT}/locations/{REGION}/keyRings/app-platform",
+        )
         self.assertTrue(signing.endswith("/cryptoKeyVersions/1"))
         self.assertTrue(secret.endswith("/versions/1"))
         self.assertTrue(certificate.ready)

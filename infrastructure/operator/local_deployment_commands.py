@@ -70,6 +70,12 @@ class DeploymentTerraform(Protocol):
         terraform_root: Path,
     ) -> None: ...
 
+    def clear_signing_key_ring_taint(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> None: ...
+
     def read_output(
         self,
         request: PhasePlanRequest,
@@ -84,6 +90,8 @@ class DeploymentProvider(Protocol):
     def bootstrap_services_ready(self) -> bool: ...
 
     def bootstrap_backend_ready(self) -> bool: ...
+
+    def signing_key_ring_identity(self) -> str: ...
 
     def publish_initial_generation(self, generation: InitialGeneration) -> int: ...
 
@@ -192,6 +200,54 @@ class LocalDeploymentCommands:
             raise
         except (OSError, RuntimeError, ValueError) as error:
             raise DeploymentCommandError("TERRAFORM_PLAN_COMMAND_FAILED") from error
+
+    @staticmethod
+    def _validate_signing_key_ring_recovery(
+        context: StageContext,
+        request: PhasePlanRequest,
+    ) -> None:
+        if (
+            context.environment != "staging"
+            or context.stage.get("stage_id") != "foundation"
+            or request.phase != "platform-foundation"
+            or request.project_id != _PROJECT_ID
+        ):
+            raise DeploymentCommandError("TERRAFORM_RECOVERY_SCOPE_MISMATCH")
+
+    def signing_key_ring_recovery_identity(
+        self,
+        context: StageContext,
+        request: PhasePlanRequest,
+    ) -> str:
+        self._validate_signing_key_ring_recovery(context, request)
+        try:
+            return self._provider.signing_key_ring_identity()
+        except DeploymentProviderError as error:
+            raise self._provider_error(error) from error
+
+    def clear_signing_key_ring_taint(
+        self,
+        context: StageContext,
+        request: PhasePlanRequest,
+        identity: str,
+    ) -> None:
+        self._validate_signing_key_ring_recovery(context, request)
+        try:
+            if self._provider.signing_key_ring_identity() != identity:
+                raise DeploymentCommandError("SIGNING_KEY_RING_READBACK_MISMATCH")
+            rendered_plan = self._plans_by_request[id(request)]
+            self._terraform.clear_signing_key_ring_taint(
+                request,
+                rendered_plan.rendered.terraform_root,
+            )
+        except KeyError as error:
+            raise DeploymentCommandError("TERRAFORM_PLAN_CONTEXT_MISSING") from error
+        except DeploymentProviderError as error:
+            raise self._provider_error(error) from error
+        except DeploymentCommandError:
+            raise
+        except (OSError, RuntimeError, ValueError) as error:
+            raise DeploymentCommandError("TERRAFORM_STATE_RECOVERY_FAILED") from error
 
     def apply_terraform_plan(
         self,

@@ -126,6 +126,8 @@ class FakeCommands:
     ] = field(default_factory=list)
     checkpoint_outcomes: list[str] = field(default_factory=lambda: ["succeeded"])
     terraform_readiness: list[bool] = field(default_factory=list)
+    plan_errors: list[str] = field(default_factory=list)
+    recovered_taints: list[str] = field(default_factory=list)
 
     def create_terraform_plan(
         self,
@@ -134,6 +136,8 @@ class FakeCommands:
     ) -> TerraformPlanArtifact:
         del context
         self.planned.append(request)
+        if self.plan_errors:
+            raise DeploymentCommandError(self.plan_errors.pop(0))
         phase = str(getattr(request, "phase"))
         path = self.working_root / f"{phase}-{len(self.planned):04d}.tfplan"
         path.write_bytes(b"private saved plan")
@@ -169,6 +173,26 @@ class FakeCommands:
                 else [],
             },
         )
+
+    def signing_key_ring_recovery_identity(
+        self,
+        context: StageContext,
+        request: object,
+    ) -> str:
+        del context, request
+        return (
+            "projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
+            "app-platform"
+        )
+
+    def clear_signing_key_ring_taint(
+        self,
+        context: StageContext,
+        request: object,
+        identity: str,
+    ) -> None:
+        del context, request
+        self.recovered_taints.append(identity)
 
     def apply_terraform_plan(
         self,
@@ -476,6 +500,59 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(result.blockers, ("PLAN_NOT_CONFIRMED",))
         self.assertEqual(commands.applied, [])
         self.assertEqual(commands.readbacks, [])
+
+    def test_protected_signing_key_ring_taint_is_confirmed_repaired_and_replanned(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                plan_errors=["TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED"],
+            )
+            terminal = FakeTerminal(approvals=[True, True])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.execute(
+                _context(
+                    "foundation",
+                    ("foundation-reference", "oauth-secret-container"),
+                )
+            )
+
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertEqual(len(commands.planned), 2)
+        self.assertEqual(len(commands.recovered_taints), 1)
+        self.assertEqual(len(commands.applied), 1)
+        self.assertIn("Clear only its Terraform taint marker", terminal.confirmations[0][0])
+        self.assertIn(commands.recovered_taints[0], "\n".join(terminal.messages))
+
+    def test_declined_signing_key_ring_recovery_preserves_tainted_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                plan_errors=["TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED"],
+            )
+            terminal = FakeTerminal(approvals=[False])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.execute(
+                _context(
+                    "foundation",
+                    ("foundation-reference", "oauth-secret-container"),
+                )
+            )
+
+        self.assertEqual(result.outcome, "cancelled")
+        self.assertEqual(
+            result.blockers,
+            ("TERRAFORM_PROTECTED_RESOURCE_RECOVERY_NOT_CONFIRMED",),
+        )
+        self.assertEqual(commands.recovered_taints, [])
+        self.assertEqual(commands.applied, [])
 
     def test_apply_failure_and_readback_discrepancy_stop_the_stage(self) -> None:
         cases = {

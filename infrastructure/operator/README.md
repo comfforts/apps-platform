@@ -155,3 +155,10 @@ An interruption leaves the current stage open and resumes after the last closed 
 mutation is never repeated. Waiting, cancellation, command failure, policy refusal, mismatched
 readback, unsafe output, and production refusal remain truthful terminal states rather than being
 converted into success or automatic recovery.
+
+The foundation planner recognizes one bounded state-recovery case: the exact protected signing key
+ring is live under its expected immutable identity but Terraform retained a taint marker after a
+partial apply. The command boundary deletes the failed saved-plan artifact, provider readback
+verifies the identity before and after the prompt, and an exact allow-listed `terraform untaint`
+runs only after separate operator confirmation. The executor then produces a new plan; it never
+disables `prevent_destroy`, applies the failed plan, or generalizes this path to another resource.

@@ -254,6 +254,17 @@ match. In that case, inspect the discrepancy and prepare a new operation. The li
 automatically unlocks state, pushes state, imports a resource, broadens scope, or hides a failed
 readback.
 
+A failed foundation apply can leave the already-created signing key ring marked as tainted in
+Terraform state. On the next deployment, the operator recognizes only the exact protected-key-ring
+diagnostic, removes the unusable failed plan, and reads back the immutable live key-ring identity.
+It displays that identity and explains that the proposed repair changes only Terraform's taint
+marker. Confirm the separate `y/N` recovery only when the displayed project, region, and key-ring
+name match the selected environment. The operator reads the identity again, runs the exact
+state-recovery command, and creates a fresh foundation plan for normal review. Declining, failed
+readback, changed identity, or another protected resource stops without state or provider mutation.
+Never disable `prevent_destroy`, use a targeted replacement, or replace the live key ring to bypass
+this stop.
+
 ## Candidate staging verification
 
 A clean pushed branch containing current `origin/main` may exercise staging before merge:

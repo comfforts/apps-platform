@@ -367,6 +367,12 @@ changed source, specification, environment, or scope requires new preparation an
 automatically unlocks state, pushes state, imports a resource, broadens scope, or hides a failed
 readback.
 
+If a partial foundation apply created the protected signing key ring but Terraform marked that
+exact instance as tainted, the resumed deployment reads back its immutable live identity and shows
+one state-only recovery action. After a separate `y/N` confirmation it clears only the taint marker
+and generates a fresh plan. An identity mismatch or declined confirmation stops without changing
+state; the lifecycle never disables `prevent_destroy` or replaces the live key ring.
+
 ### Candidate staging verification
 
 A clean pushed pull-request revision containing current `origin/main` may exercise staging before

@@ -26,6 +26,7 @@ _ALLOWED_COMMANDS = {
     ("builds", "submit"),
     ("compute", "ssl-certificates", "describe"),
     ("kms", "keys", "versions", "list"),
+    ("kms", "keyrings", "describe"),
     ("secrets", "versions", "list"),
     ("services", "enable"),
     ("services", "list"),
@@ -289,6 +290,29 @@ class GcloudDeploymentProvider:
         if result.stdout.strip() != _BOOTSTRAP_BUCKET.encode("ascii"):
             raise DeploymentProviderError("BOOTSTRAP_BACKEND_READBACK_INVALID")
         return True
+
+    def signing_key_ring_identity(self) -> str:
+        expected = (
+            f"projects/{_PROJECT_ID}/locations/{_REGION}/keyRings/"
+            f"{_SIGNING_KEY_RING}"
+        )
+        try:
+            observed = self._run_common(
+                "SIGNING_KEY_RING_READBACK_FAILED",
+                "kms",
+                "keyrings",
+                "describe",
+                _SIGNING_KEY_RING,
+                f"--location={_REGION}",
+                "--format=value(name)",
+            ).stdout.decode("ascii", errors="strict").strip()
+        except UnicodeDecodeError as error:
+            raise DeploymentProviderError(
+                "SIGNING_KEY_RING_READBACK_INVALID"
+            ) from error
+        if observed != expected:
+            raise DeploymentProviderError("SIGNING_KEY_RING_READBACK_MISMATCH")
+        return observed
 
     def publish_initial_generation(self, generation: InitialGeneration) -> int:
         object_uri = f"gs://{_CONFIGURATION_BUCKET}/{generation.object_name}"

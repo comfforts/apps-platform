@@ -27,12 +27,17 @@ _PROHIBITED_TERRAFORM_ARGUMENTS = {
     "force-unlock",
     "import",
     "state",
+    "taint",
+    "untaint",
     "-force-copy",
     "-lock=false",
     "-migrate-state",
     "-reconfigure",
 }
 _PROHIBITED_TERRAFORM_PREFIXES = ("-replace=", "-target=")
+_SIGNING_KEY_RING_ADDRESS = (
+    "module.platform_foundation.google_kms_key_ring.assertion_signing"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +89,7 @@ class ClosedSubprocessRunner:
             "ordinary",
             "bootstrap-state-migration",
             "platform-state-read",
+            "platform-state-recovery",
             "application-state-read",
         }:
             raise ValueError("command authority is outside the approved set")
@@ -108,12 +114,24 @@ class ClosedSubprocessRunner:
             )
             if request.argv != expected:
                 raise ValueError("state projection command is not exact")
+        if request.authority == "platform-state-recovery":
+            expected = (
+                str(Path(request.argv[0]).resolve()),
+                "untaint",
+                "-lock=true",
+                "-lock-timeout=0s",
+                _SIGNING_KEY_RING_ADDRESS,
+            )
+            if request.argv != expected:
+                raise ValueError("platform state recovery command is not exact")
         if Path(request.argv[0]).name == "terraform":
             prohibited = _PROHIBITED_TERRAFORM_ARGUMENTS
             if request.authority == "bootstrap-state-migration":
                 prohibited = prohibited - {"-force-copy", "-migrate-state"}
             if request.authority in {"platform-state-read", "application-state-read"}:
                 prohibited = prohibited - {"state"}
+            if request.authority == "platform-state-recovery":
+                prohibited = prohibited - {"untaint"}
             if any(argument in prohibited for argument in request.argv[1:]):
                 raise ValueError("prohibited Terraform operation or argument")
             if any(
@@ -201,6 +219,20 @@ class TerraformCliAdapter:
         if b"concurrent policy changes" in normalized:
             return "TERRAFORM_APPLY_IAM_CONFLICT"
         return "TERRAFORM_APPLY_FAILED"
+
+    @staticmethod
+    def _plan_failure(stderr: bytes) -> str:
+        normalized = stderr.lower()
+        if all(
+            marker in normalized
+            for marker in (
+                b"instance cannot be destroyed",
+                _SIGNING_KEY_RING_ADDRESS.encode("ascii"),
+                b"lifecycle.prevent_destroy set",
+            )
+        ):
+            return "TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED"
+        return "TERRAFORM_PLAN_FAILED"
 
     def _request(
         self,
@@ -310,7 +342,14 @@ class TerraformCliAdapter:
             self._request(root, plan_environment, *plan_arguments)
         )
         if planned.returncode not in {0, 2}:
-            raise DeploymentCommandError("TERRAFORM_PLAN_FAILED")
+            failure = self._plan_failure(planned.stderr)
+            try:
+                plan_path.unlink(missing_ok=True)
+            except OSError as error:
+                raise DeploymentCommandError(
+                    "TERRAFORM_FAILED_PLAN_CLEANUP_FAILED"
+                ) from error
+            raise DeploymentCommandError(failure)
         if plan_path.is_symlink() or not plan_path.is_file():
             raise DeploymentCommandError("TERRAFORM_PLAN_ARTIFACT_INVALID")
         try:
@@ -338,6 +377,34 @@ class TerraformCliAdapter:
             saved_plan,
             self._projection(request, shown.stdout),
         )
+
+    def clear_signing_key_ring_taint(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> None:
+        if request.phase != "platform-foundation":
+            raise DeploymentCommandError("TERRAFORM_RECOVERY_SCOPE_MISMATCH")
+        root = self._bounded(terraform_root, file_required=False)
+        if not root.is_dir():
+            raise ValueError("Terraform root is not a directory")
+        backend = self._bounded(request.backend_path, file_required=True)
+        if backend.parent != root:
+            raise ValueError("backend declaration is outside the Terraform root")
+        self._initialize(request, root)
+        recovered = self._runner.run(
+            self._request(
+                root,
+                self._environment(),
+                "untaint",
+                "-lock=true",
+                "-lock-timeout=0s",
+                _SIGNING_KEY_RING_ADDRESS,
+                authority="platform-state-recovery",
+            )
+        )
+        if recovered.returncode != 0:
+            raise DeploymentCommandError("TERRAFORM_STATE_RECOVERY_FAILED")
 
     def _initialize(
         self,

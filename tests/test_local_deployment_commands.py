@@ -89,6 +89,7 @@ def _request(root: Path, phase: str) -> PhasePlanRequest:
 class FakeTerraform:
     applied: list[str] = field(default_factory=list)
     migrated: int = 0
+    recovered_taints: list[str] = field(default_factory=list)
 
     def create_plan(
         self,
@@ -154,6 +155,14 @@ class FakeTerraform:
         if request.phase != "bootstrap":
             raise AssertionError("wrong migration")
         self.migrated += 1
+
+    def clear_signing_key_ring_taint(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> None:
+        del terraform_root
+        self.recovered_taints.append(request.phase)
 
     def read_output(
         self,
@@ -255,6 +264,12 @@ class FakeProvider:
     def read_shared_edge_image(self, source_revision: str) -> str | None:
         del source_revision
         return self.image
+
+    def signing_key_ring_identity(self) -> str:
+        return (
+            "projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
+            "app-platform"
+        )
 
     def active_signing_key_version(self) -> str:
         return (
@@ -416,6 +431,28 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             dict(edge_result.outputs)["reserved-address"],
             "34.120.10.20",
         )
+
+    def test_signing_key_ring_recovery_verifies_live_identity_before_untaint(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, _, _, work = self._commands(directory)
+            context = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+            request = _request(work, "platform-foundation")
+            commands.create_terraform_plan(context, request)
+
+            identity = commands.signing_key_ring_recovery_identity(context, request)
+            commands.clear_signing_key_ring_taint(context, request, identity)
+
+        self.assertEqual(
+            identity,
+            "projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
+            "app-platform",
+        )
+        self.assertEqual(terraform.recovered_taints, ["platform-foundation"])
 
     def test_actions_are_exact_idempotent_and_read_back(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

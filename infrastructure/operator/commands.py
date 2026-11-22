@@ -302,7 +302,18 @@ class TerraformCliAdapter:
         )
         if planned.returncode not in {0, 2}:
             raise DeploymentCommandError("TERRAFORM_PLAN_FAILED")
-        saved_plan = self._bounded(plan_path, file_required=True)
+        if plan_path.is_symlink() or not plan_path.is_file():
+            raise DeploymentCommandError("TERRAFORM_PLAN_ARTIFACT_INVALID")
+        try:
+            plan_path.chmod(0o600)
+        except OSError as error:
+            raise DeploymentCommandError(
+                "TERRAFORM_PLAN_PERMISSIONS_FAILED"
+            ) from error
+        try:
+            saved_plan = self._bounded(plan_path, file_required=True)
+        except ValueError as error:
+            raise DeploymentCommandError("TERRAFORM_PLAN_ARTIFACT_INVALID") from error
         shown = self._runner.run(
             self._request(
                 root,

@@ -55,6 +55,7 @@ def _phase_request(root: Path, phase: str = "platform-foundation") -> PhasePlanR
 class FakeRunner:
     results: list[CommandResult]
     requests: list[CommandRequest] = field(default_factory=list)
+    plan_mode: int = 0o600
 
     def run(self, request: CommandRequest) -> CommandResult:
         self.requests.append(request)
@@ -63,7 +64,7 @@ class FakeRunner:
                 plan = Path(argument.removeprefix("-out="))
                 plan.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
                 plan.write_bytes(b"fake exact saved plan")
-                plan.chmod(0o600)
+                plan.chmod(self.plan_mode)
         return self.results.pop(0)
 
 
@@ -148,6 +149,42 @@ class OperatorCommandTest(unittest.TestCase):
         )
         self.assertNotIn("before", json.dumps(artifact.observation))
         self.assertNotIn("after", json.dumps(artifact.observation))
+
+    def test_plan_normalizes_tool_created_file_permissions(self) -> None:
+        plan_json = {
+            "format_version": "1.2",
+            "terraform_version": "1.17.2",
+            "resource_changes": [],
+        }
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(0, b"", b""),
+                CommandResult(0, json.dumps(plan_json).encode(), b""),
+            ],
+            plan_mode=0o644,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "root"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            self._private_file(request.backend_path, b'terraform { backend "gcs" {} }\n')
+            variable_file = self._private_file(workspace / "values.json", b"{}\n")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            artifact = adapter.create_plan(request, root, variable_file)
+            mode = artifact.saved_plan_path.stat().st_mode & 0o777
+
+        self.assertEqual(mode, 0o600)
 
     def test_apply_accepts_only_the_same_private_saved_plan_and_operator_session(self) -> None:
         runner = FakeRunner([CommandResult(0, b"", b"")])

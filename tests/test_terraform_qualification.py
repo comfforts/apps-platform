@@ -273,7 +273,14 @@ class TerraformQualificationGateTest(unittest.TestCase):
                 )
 
     def test_repository_has_no_state_plan_credential_or_mutation_workflow(self) -> None:
-        ignored_parts = {".cache", ".git", ".tools", ".venv", "__pycache__"}
+        ignored_parts = {
+            ".cache",
+            ".git",
+            ".platform-operator",
+            ".tools",
+            ".venv",
+            "__pycache__",
+        }
         prohibited: list[str] = []
         for path in PROJECT_ROOT.rglob("*"):
             relative = path.relative_to(PROJECT_ROOT)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import json
 import re
 import tomllib
@@ -10,6 +11,15 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _repository_files() -> Iterator[Path]:
+    """Yield repository files without ignored private operator runtime state."""
+
+    for path in PROJECT_ROOT.rglob("*"):
+        relative = path.relative_to(PROJECT_ROOT)
+        if path.is_file() and relative.parts[0] != ".platform-operator":
+            yield path
 
 
 class ProjectAuthorityTest(unittest.TestCase):
@@ -1124,9 +1134,10 @@ class ProjectAuthorityTest(unittest.TestCase):
             sorted(item.name for item in workflow_root.iterdir() if item.is_file()),
             ["check.yml"],
         )
-        self.assertFalse(any(PROJECT_ROOT.rglob("*.tfvars")))
-        self.assertFalse(any(PROJECT_ROOT.rglob("*.tfstate")))
-        self.assertFalse(any(PROJECT_ROOT.rglob("*.tfplan")))
+        repository_files = tuple(_repository_files())
+        self.assertFalse(any(path.name.endswith(".tfvars") for path in repository_files))
+        self.assertFalse(any(path.name.endswith(".tfstate") for path in repository_files))
+        self.assertFalse(any(path.name.endswith(".tfplan") for path in repository_files))
 
     def test_ap_m9_w2_removes_the_retired_manifest_implementation(self) -> None:
         config_root = PROJECT_ROOT / "infrastructure/config"
@@ -1392,8 +1403,8 @@ class ProjectAuthorityTest(unittest.TestCase):
 
         terraform_files = sorted(
             path.relative_to(PROJECT_ROOT).as_posix()
-            for path in PROJECT_ROOT.rglob("*")
-            if path.is_file() and path.name.endswith((".tf", ".tf.json"))
+            for path in _repository_files()
+            if path.name.endswith((".tf", ".tf.json"))
         )
         self.assertEqual(
             terraform_files,
@@ -1444,9 +1455,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         prohibited_files = sorted(
             path.relative_to(PROJECT_ROOT).as_posix()
-            for path in PROJECT_ROOT.rglob("*")
-            if path.is_file()
-            and path.name.endswith((".tfvars", ".tfstate", ".tfplan"))
+            for path in _repository_files()
+            if path.name.endswith((".tfvars", ".tfstate", ".tfplan"))
         )
         self.assertEqual(prohibited_files, [])
         self.assertTrue((PROJECT_ROOT / ".github/workflows/check.yml").is_file())

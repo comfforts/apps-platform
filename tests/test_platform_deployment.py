@@ -597,6 +597,21 @@ class PlatformDeploymentTest(unittest.TestCase):
         )
         self.assertIn("publish-immutable-image", "\n".join(terminal.messages))
 
+    def test_bootstrap_service_readback_displays_verified_services(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            executor, terminal, _ = self._executor(Path(directory) / "work")
+
+            result = executor.execute(_context("bootstrap-services", ()))
+
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertIn(
+            'READBACK {"services":['
+            '{"name":"serviceusage.googleapis.com","state":"enabled"},'
+            '{"name":"storage.googleapis.com","state":"enabled"}],'
+            '"stage":"bootstrap-services"}',
+            terminal.messages,
+        )
+
     def test_oauth_checkpoint_displays_exact_values_pauses_and_never_receives_a_secret(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             executor, terminal, commands = self._executor(Path(directory) / "work")

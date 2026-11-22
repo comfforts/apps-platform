@@ -351,6 +351,34 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertEqual(conflict.blockers, ("ACTIVE_OPERATION_CONFLICT",))
         self.assertEqual(len(terminal.prompts), 1)
 
+    def test_failed_operation_allows_fresh_source_intent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            git = FakeGit()
+            terminal = FakeTerminal([True, True])
+            operator, _ = self._operator(
+                Path(directory),
+                git=git,
+                terminal=terminal,
+                executor=FakeExecutor([StageExecution("failed")]),
+            )
+            first = operator.prepare("staging")
+            assert first.specification_digest is not None
+            failed = operator.execute("staging", first.specification_digest)
+
+            git.revision = "b" * 40
+            replacement = operator.prepare("staging")
+            assert replacement.specification_digest is not None
+            deployed = operator.execute("staging", replacement.specification_digest)
+
+        self.assertEqual(failed.outcome, "failed")
+        self.assertEqual(replacement.outcome, "prepared")
+        self.assertNotEqual(
+            replacement.specification_digest,
+            first.specification_digest,
+        )
+        self.assertEqual(deployed.outcome, "succeeded")
+        self.assertEqual(len(terminal.prompts), 2)
+
     def test_prohibited_output_and_tampered_progress_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory)

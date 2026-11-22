@@ -361,6 +361,22 @@ class DeploymentExecutor:
                 plan_digest=digest,
                 blockers=(str(error),),
             )
+        if stage_id == "bootstrap-services" and readback.matched:
+            services = proposal.summary.get("services")
+            if not isinstance(services, list) or any(
+                not isinstance(service, str) for service in services
+            ):
+                return self._failure("BOOTSTRAP_SERVICE_READBACK_INVALID")
+            summary = {
+                "stage": stage_id,
+                "services": [
+                    {"name": service, "state": "enabled"} for service in services
+                ],
+            }
+            readback_summary = self._safe_canonical(summary)
+            if readback_summary is None:
+                return self._failure("PROHIBITED_READBACK_MATERIAL")
+            self._terminal.write(f"READBACK {readback_summary}")
         return self._readback_result(context, readback, plan_digest=digest)
 
     def _execute_manual(self, context: StageContext, stage_id: str) -> StageExecution:

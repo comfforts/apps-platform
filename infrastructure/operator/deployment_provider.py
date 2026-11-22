@@ -27,8 +27,8 @@ _ALLOWED_COMMANDS = {
     ("compute", "ssl-certificates", "describe"),
     ("kms", "keys", "versions", "list"),
     ("secrets", "versions", "list"),
-    ("services", "describe"),
     ("services", "enable"),
+    ("services", "list"),
     ("storage", "cat"),
     ("storage", "buckets", "describe"),
     ("storage", "cp"),
@@ -261,17 +261,19 @@ class GcloudDeploymentProvider:
         )
 
     def bootstrap_services_ready(self) -> bool:
-        for service in _BOOTSTRAP_SERVICES:
-            result = self._run_common(
-                "BOOTSTRAP_SERVICE_READBACK_FAILED",
-                "services",
-                "describe",
-                service,
-                "--format=value(state)",
-            )
-            if result.stdout.strip() != b"ENABLED":
-                return False
-        return True
+        service_filter = " OR ".join(
+            f"config.name={service}" for service in _BOOTSTRAP_SERVICES
+        )
+        result = self._run_common(
+            "BOOTSTRAP_SERVICE_READBACK_FAILED",
+            "services",
+            "list",
+            "--enabled",
+            f"--filter={service_filter}",
+            "--format=value(config.name)",
+        )
+        enabled_services = set(result.stdout.splitlines())
+        return all(service.encode() in enabled_services for service in _BOOTSTRAP_SERVICES)
 
     def bootstrap_backend_ready(self) -> bool:
         result = self._try(

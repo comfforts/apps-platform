@@ -142,7 +142,7 @@ _DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
 )
 
 _STAGE_IDS = tuple(str(stage["stage_id"]) for stage in _DEPLOYMENT_STAGES)
-_TERMINAL_PROGRESS = {"cancelled", "succeeded"}
+_REPLACEABLE_PROGRESS = {"cancelled", "failed", "succeeded"}
 _PROGRESS_STATUSES = {"cancelled", "failed", "running", "succeeded", "waiting"}
 _READINESS_BLOCKER_GUIDANCE = {
     "CANDIDATE_BASE_STALE": (
@@ -682,7 +682,7 @@ class LifecycleOperator:
         return bool(
             progress is not None
             and progress.get("specification_digest") != specification_digest
-            and progress.get("status") not in _TERMINAL_PROGRESS
+            and progress.get("status") not in _REPLACEABLE_PROGRESS
         )
 
     @staticmethod
@@ -789,7 +789,7 @@ class LifecycleOperator:
 
         specification = self._load_specification(environment, specification_digest)
         if progress["specification_digest"] != specification_digest:
-            if progress["status"] not in _TERMINAL_PROGRESS:
+            if progress["status"] not in _REPLACEABLE_PROGRESS:
                 raise ValueError("active deployment progress conflicts with current specification")
             return StatusResult({**empty, "lifecycle_state": "absent", "blockers": []})
 
@@ -863,7 +863,7 @@ class LifecycleOperator:
         progress = self._load_progress(environment)
         if progress is None or (
             progress["specification_digest"] != specification_digest
-            and progress["status"] in _TERMINAL_PROGRESS
+            and progress["status"] in _REPLACEABLE_PROGRESS
         ):
             progress = self._new_progress(environment, source_revision, specification_digest)
             progress_digest = self._store_progress(progress)

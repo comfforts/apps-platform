@@ -29,14 +29,22 @@ class FakeGcloud:
     requests: list[ProviderCommandRequest] = field(default_factory=list)
     image_built: bool = False
     bootstrap_backend: bool = False
+    enabled_bootstrap_services: tuple[str, ...] = (
+        "serviceusage.googleapis.com",
+        "storage.googleapis.com",
+    )
 
     def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
         self.requests.append(request)
         arguments = request.argv[1:]
         if arguments[:2] == ("services", "enable"):
             return ProviderCommandResult(0, b"", b"")
-        if arguments[:2] == ("services", "describe"):
-            return ProviderCommandResult(0, b"ENABLED\n", b"")
+        if arguments[:2] == ("services", "list"):
+            return ProviderCommandResult(
+                0,
+                ("\n".join(self.enabled_bootstrap_services) + "\n").encode(),
+                b"",
+            )
         if arguments[:2] == ("storage", "cp"):
             if request.stdin != self.generation_contents:
                 return ProviderCommandResult(1, b"", b"wrong secret contents")
@@ -133,6 +141,31 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
         self.assertFalse(
             any(value.startswith("--impersonate-service-account=") for value in mutation.argv)
         )
+        readback = fake.requests[1]
+        self.assertEqual(
+            readback.argv[1:6],
+            (
+                "services",
+                "list",
+                "--enabled",
+                "--filter=config.name=serviceusage.googleapis.com OR "
+                "config.name=storage.googleapis.com",
+                "--format=value(config.name)",
+            ),
+        )
+
+    def test_bootstrap_service_readback_requires_every_service(self) -> None:
+        generation = initial_generation("a" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(
+                generation.contents,
+                enabled_bootstrap_services=("serviceusage.googleapis.com",),
+            )
+            provider = self._provider(directory, fake)
+
+            ready = provider.bootstrap_services_ready()
+
+        self.assertFalse(ready)
 
     def test_bootstrap_backend_readback_distinguishes_first_run_and_recovery(self) -> None:
         generation = initial_generation("f" * 40)

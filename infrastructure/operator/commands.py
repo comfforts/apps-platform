@@ -376,6 +376,14 @@ class TerraformCliAdapter:
     @staticmethod
     def _apply_failure_code(stderr: bytes) -> str:
         normalized = stderr.lower()
+        if all(
+            marker in normalized
+            for marker in (
+                b"revision named",
+                b"with different configuration already exists",
+            )
+        ):
+            return "TERRAFORM_APPLY_IMMUTABLE_REVISION_CONFLICT"
         if b"service account" in normalized and b"does not exist" in normalized:
             return "TERRAFORM_APPLY_IDENTITY_PROPAGATION_PENDING"
         if b"notification channel" in normalized and any(

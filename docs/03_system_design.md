@@ -995,6 +995,12 @@ the edge. In that mode, both foundation and inherited Shared Edge resources may 
 normal Shared Edge exact plan reconciles the partial inventory while preserving one Platform State
 owner and lineage.
 
+Terraform manages each inactive candidate's revision name, environment binding, and image digest as
+one immutable Cloud Run configuration. A later source or image therefore produces a newly named
+candidate instead of attempting to alter an existing revision. Terraform deliberately ignores only
+the service traffic assignment after creation: registration activation and rollback own that Live
+generation pointer and may move it only after their separate validation and confirmation.
+
 The Shared Edge phase can first reserve the address with TLS disabled. Certificate and HTTPS
 resources become eligible only after the later deployment engine has completed the external-DNS
 checkpoint. Bootstrap, foundation, and edge outputs are closed, typed, non-secret projections.

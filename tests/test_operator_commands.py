@@ -539,6 +539,10 @@ class OperatorCommandTest(unittest.TestCase):
             b"Error 403: PERMISSION_DENIED": "TERRAFORM_APPLY_PERMISSION_DENIED",
             b"Error 400: INVALID_ARGUMENT": "TERRAFORM_APPLY_INVALID_ARGUMENT",
             b"Error 409: ALREADY_EXISTS": "TERRAFORM_APPLY_CONFLICT",
+            (
+                b"Error 409: Revision named 'app-platform-edge-g1-deadbeef0000' "
+                b"with different configuration already exists."
+            ): "TERRAFORM_APPLY_IMMUTABLE_REVISION_CONFLICT",
             b"plugin did not respond": "TERRAFORM_APPLY_PLUGIN_FAILED",
             b"unclassified provider failure": "TERRAFORM_APPLY_FAILED_UNKNOWN",
         }

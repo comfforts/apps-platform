@@ -266,6 +266,10 @@ _TERRAFORM_APPLY_GUIDANCE = {
     "TERRAFORM_APPLY_IDENTITY_PROPAGATION_PENDING": (
         "a newly created service identity is not readable yet; wait briefly and replan"
     ),
+    "TERRAFORM_APPLY_IMMUTABLE_REVISION_CONFLICT": (
+        "the provider rejected a changed Cloud Run configuration under an existing "
+        "immutable revision name; create a newly bound candidate revision"
+    ),
     "TERRAFORM_APPLY_INVALID_ARGUMENT": (
         "the provider rejected the rendered resource request as invalid"
     ),

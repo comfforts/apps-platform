@@ -214,16 +214,16 @@ class LocalGenerationControlTest(unittest.TestCase):
         self.assertTrue(rollback.activated)
         self.assertEqual(provider.activations[-1][-1], "rollback")
 
-    def test_terraform_delegates_only_revision_environment_and_traffic(self) -> None:
+    def test_terraform_manages_candidate_binding_and_delegates_only_traffic(self) -> None:
         source = (
             PROJECT_ROOT
             / "infrastructure/terraform/modules/shared-edge/main.tf"
         ).read_text(encoding="utf-8")
         lifecycle = source.split("lifecycle {", maxsplit=1)[1].split("}", maxsplit=1)[0]
 
-        self.assertIn("template[0].revision", lifecycle)
-        self.assertIn("template[0].containers[0].env", lifecycle)
         self.assertIn("traffic", lifecycle)
+        self.assertNotIn("template[0].revision", lifecycle)
+        self.assertNotIn("template[0].containers[0].env", lifecycle)
         self.assertNotIn("image", lifecycle)
         self.assertNotIn("service_account", lifecycle)
 

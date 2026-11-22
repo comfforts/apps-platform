@@ -197,7 +197,10 @@ failures use a separate closed classifier and may print only the bounded resourc
 operation, HTTP status, provider status, and service name extracted from stderr. Arbitrary provider
 messages remain suppressed. A provider result inconsistent with the reviewed plan reports
 `TERRAFORM_APPLY_PROVIDER_INCONSISTENT_RESULT` with the bounded resource address; an unmatched
-apply response becomes `TERRAFORM_APPLY_FAILED_UNKNOWN`.
+apply response becomes `TERRAFORM_APPLY_FAILED_UNKNOWN`. A Cloud Run response that rejects changed
+configuration under an existing immutable revision name reports
+`TERRAFORM_APPLY_IMMUTABLE_REVISION_CONFLICT` rather than the generic concurrent/existing-operation
+conflict.
 
 The CLI reports every returned blocker to stderr with a derived component before serializing the
 result JSON. Its outer exception boundary catches otherwise unhandled adapter or operator errors,

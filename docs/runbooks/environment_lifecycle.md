@@ -273,6 +273,14 @@ fresh plans plus provider readback to reconcile resources created by the earlier
 edit or delete `current-progress.v1.json` by hand. The lifecycle never automatically unlocks state,
 pushes state, imports a resource, broadens scope, or hides a failed readback.
 
+A failed Shared Edge apply may have already recorded some valid edge resources, such as the
+reserved global address, in Platform State. When changed source starts a fresh deployment, the
+foundation PLAN then reports `planning_mode: refresh-only`. Review that plan as usual. It may show
+foundation and Shared Edge resources only as `no-op` or `read`; it is never applied and the later
+normal Shared Edge plan reconciles the partial inventory. Any create, update, delete, replacement,
+unexpected address, or unknown type in the refresh-only plan fails policy. Do not disable
+`prevent_destroy`, manually remove the partial resources, or edit state to advance the lifecycle.
+
 A failed foundation apply can leave the already-created signing key ring marked as tainted in
 Terraform state. On the next deployment, the operator recognizes only the exact protected-key-ring
 diagnostic, removes the unusable failed plan, and reads back the immutable live key-ring identity.
@@ -293,7 +301,8 @@ command.
 When Terraform cannot produce a plan, the blocker distinguishes a state lock or read failure,
 backend access denial, operator reauthentication requirement, provider permission or quota failure,
 invalid rendered configuration, provider-plugin startup failure, the separately handled protected
-key-ring taint, or an unknown safe category. Apply failures separately distinguish authentication,
+key-ring taint, a proposed protected-resource deletion, or an unknown safe category. Apply failures
+separately distinguish authentication,
 dependency or identity propagation, service disablement, permission denial, quota exhaustion,
 invalid arguments, conflicts, state locks, provider-plugin failures, and unknown responses. Before
 the blocker, a plan-policy refusal prints only its safe resource address, type, and actions; an

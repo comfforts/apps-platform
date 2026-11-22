@@ -74,6 +74,26 @@ def _shared_edge_observation() -> dict[str, object]:
     return observation
 
 
+def _foundation_refresh_observation() -> dict[str, object]:
+    observation = _foundation_observation()
+    observation["planning_mode"] = "refresh-only"
+    observation["changes"] = [
+        {
+            "address": "module.platform_foundation.google_storage_bucket.configuration",
+            "resource_type": "google_storage_bucket",
+            "provider_source": "registry.terraform.io/hashicorp/google",
+            "actions": ["no-op"],
+        },
+        {
+            "address": "module.shared_edge[0].google_compute_global_address.edge",
+            "resource_type": "google_compute_global_address",
+            "provider_source": "registry.terraform.io/hashicorp/google",
+            "actions": ["no-op"],
+        },
+    ]
+    return observation
+
+
 def _fixture_observation(application_id: str) -> dict[str, object]:
     return {
         "environment": "staging",
@@ -237,6 +257,51 @@ class PlanPolicyTest(unittest.TestCase):
             [change["actions"] for change in result.canonical_summary["changes"]],
             [["no-op"], ["create"], ["no-op"]],
         )
+
+    def test_foundation_refresh_accepts_existing_shared_edge_only_as_read_only(
+        self,
+    ) -> None:
+        policy = plan_policy(
+            "staging",
+            "platform-foundation",
+            SOURCE_REVISION,
+            destructive=False,
+        )
+
+        accepted = evaluate_plan(policy, _foundation_refresh_observation())
+
+        self.assertTrue(accepted.accepted)
+        self.assertEqual(accepted.violations, ())
+        self.assertEqual(accepted.canonical_summary["planning_mode"], "refresh-only")
+
+        for address, resource_type in (
+            (
+                "module.platform_foundation.google_storage_bucket.configuration",
+                "google_storage_bucket",
+            ),
+            (
+                "module.shared_edge[0].google_compute_global_address.edge",
+                "google_compute_global_address",
+            ),
+        ):
+            with self.subTest(address=address):
+                observation = _foundation_refresh_observation()
+                observation["changes"] = [
+                    {
+                        "address": address,
+                        "resource_type": resource_type,
+                        "provider_source": "registry.terraform.io/hashicorp/google",
+                        "actions": ["update"],
+                    }
+                ]
+
+                refused = evaluate_plan(policy, observation)
+
+                self.assertFalse(refused.accepted)
+                self.assertIn(
+                    "REFRESH_ONLY_MUTATION_PROHIBITED",
+                    [item.code for item in refused.violations],
+                )
 
     def test_shared_edge_rejects_inherited_mutation_wrong_prefix_and_unknown_type(
         self,

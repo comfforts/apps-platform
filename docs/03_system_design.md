@@ -986,6 +986,15 @@ from the preceding phase only as `no-op` or `read` observations. Their resource 
 prefixes remain closed; a create, update, delete, replacement, unexpected prefix, or unknown type
 fails policy instead of acquiring Shared Edge authority.
 
+A failed Shared Edge apply can leave a valid partial `module.shared_edge[0]` inventory in that same
+lineage. When a later source-bound deployment reaches foundation, the operator first projects the
+exact state addresses. If any Shared Edge address is already recorded, it creates an explicit
+refresh-only foundation plan rather than interpreting the foundation phase as authority to remove
+the edge. In that mode, both foundation and inherited Shared Edge resources may appear only as
+`no-op` or `read`; any drift or mutation fails policy and no refresh-only plan is applied. The later
+normal Shared Edge exact plan reconciles the partial inventory while preserving one Platform State
+owner and lineage.
+
 The Shared Edge phase can first reserve the address with TLS disabled. Certificate and HTTPS
 resources become eligible only after the later deployment engine has completed the external-DNS
 checkpoint. Bootstrap, foundation, and edge outputs are closed, typed, non-secret projections.

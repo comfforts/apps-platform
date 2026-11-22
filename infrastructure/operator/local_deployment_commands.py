@@ -57,6 +57,7 @@ _OAUTH_STORE_CONSOLE = (
 )
 _CLIENT_ID = re.compile(r"[0-9]+-[a-z0-9-]+\.apps\.googleusercontent\.com")
 _IPV4 = re.compile(r"(?:[0-9]{1,3}\.){3}[0-9]{1,3}")
+_SHARED_EDGE_STATE_PREFIX = "module.shared_edge["
 
 
 class DeploymentTerraform(Protocol):
@@ -67,6 +68,7 @@ class DeploymentTerraform(Protocol):
         variable_file: Path,
         *,
         bootstrap_remote: bool = False,
+        refresh_only: bool = False,
     ) -> TerraformPlanArtifact: ...
 
     def apply_plan(
@@ -87,6 +89,12 @@ class DeploymentTerraform(Protocol):
         request: PhasePlanRequest,
         terraform_root: Path,
     ) -> None: ...
+
+    def platform_state_addresses(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> tuple[str, ...]: ...
 
     def read_output(
         self,
@@ -202,11 +210,22 @@ class LocalDeploymentCommands:
             stage_id = self._stage_id(context)
             self._plans_by_stage[stage_id] = plan
             self._plans_by_request[id(request)] = plan
+            refresh_only = False
+            if request.phase == "platform-foundation":
+                state_addresses = self._terraform.platform_state_addresses(
+                    request,
+                    rendered.terraform_root,
+                )
+                refresh_only = any(
+                    address.startswith(_SHARED_EDGE_STATE_PREFIX)
+                    for address in state_addresses
+                )
             return self._terraform.create_plan(
                 request,
                 rendered.terraform_root,
                 rendered.variable_file,
                 bootstrap_remote=bootstrap_remote,
+                refresh_only=refresh_only,
             )
         except DeploymentCommandError:
             raise

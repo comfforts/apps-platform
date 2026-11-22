@@ -52,6 +52,9 @@ _APPLY_RESOURCE_ADDRESS = re.compile(
 _APPLY_INCONSISTENT_RESOURCE_ADDRESS = re.compile(
     rb"When applying changes to ([A-Za-z0-9_.\[\]\"-]{1,300}),\s+provider\b"
 )
+_PLAN_PROTECTED_RESOURCE_ADDRESS = re.compile(
+    rb"(?m)^Resource ([A-Za-z0-9_.\[\]\"-]{1,300}) has\s*$"
+)
 _APPLY_SERVICE = re.compile(
     rb"\b([a-z][a-z0-9.-]{1,100}\.googleapis\.com)\b"
 )
@@ -478,6 +481,14 @@ class TerraformCliAdapter:
             )
         ):
             return "TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED"
+        if all(
+            marker in normalized
+            for marker in (
+                b"instance cannot be destroyed",
+                b"lifecycle.prevent_destroy set",
+            )
+        ):
+            return "TERRAFORM_PROTECTED_RESOURCE_DELETE_PROPOSED"
         if b"error acquiring the state lock" in normalized:
             return "TERRAFORM_STATE_LOCKED"
         if any(
@@ -550,6 +561,8 @@ class TerraformCliAdapter:
     def _projection(
         request: PhasePlanRequest,
         raw_plan: bytes,
+        *,
+        planning_mode: str = "normal",
     ) -> dict[str, object]:
         if len(raw_plan) > 16 * 1024 * 1024:
             raise DeploymentCommandError("TERRAFORM_PLAN_OUTPUT_TOO_LARGE")
@@ -588,6 +601,7 @@ class TerraformCliAdapter:
             "owner_id": request.owner_id,
             "terraform_root": request.terraform_root,
             "phase": request.phase,
+            "planning_mode": planning_mode,
             "provider": {
                 "source": "registry.terraform.io/hashicorp/google",
                 "service": "google",
@@ -605,7 +619,10 @@ class TerraformCliAdapter:
         *,
         bootstrap_remote: bool = False,
         destroy: bool = False,
+        refresh_only: bool = False,
     ) -> TerraformPlanArtifact:
+        if destroy and refresh_only:
+            raise ValueError("destroy and refresh-only planning are mutually exclusive")
         root = self._bounded(terraform_root, file_required=False)
         if not root.is_dir():
             raise ValueError("Terraform root is not a directory")
@@ -635,6 +652,8 @@ class TerraformCliAdapter:
         ]
         if destroy:
             plan_arguments.append("-destroy")
+        if refresh_only:
+            plan_arguments.append("-refresh-only")
         plan_arguments.extend((f"-var-file={variables}", f"-out={plan_path}"))
         planned = self._runner.run(
             self._request(root, plan_environment, *plan_arguments)
@@ -642,6 +661,10 @@ class TerraformCliAdapter:
         if planned.returncode not in {0, 2}:
             failure = self._plan_failure(planned.stderr)
             diagnostic = self._capture_failure(request, "plan", planned)
+            if failure == "TERRAFORM_PROTECTED_RESOURCE_DELETE_PROPOSED":
+                resource = _PLAN_PROTECTED_RESOURCE_ADDRESS.search(planned.stderr)
+                if resource is not None:
+                    diagnostic["resource_address"] = resource.group(1).decode("ascii")
             try:
                 plan_path.unlink(missing_ok=True)
             except OSError as error:
@@ -674,7 +697,11 @@ class TerraformCliAdapter:
             raise DeploymentCommandError("TERRAFORM_PLAN_SHOW_FAILED")
         return TerraformPlanArtifact(
             saved_plan,
-            self._projection(request, shown.stdout),
+            self._projection(
+                request,
+                shown.stdout,
+                planning_mode="refresh-only" if refresh_only else "normal",
+            ),
         )
 
     def clear_signing_key_ring_taint(
@@ -878,6 +905,11 @@ class TerraformCliAdapter:
             )
         )
         if observed.returncode != 0:
+            if (
+                not observed.stdout.strip()
+                and b"no state file was found" in observed.stderr.lower()
+            ):
+                return ()
             raise DeploymentCommandError("TERRAFORM_STATE_READ_FAILED")
         if len(observed.stdout) > 1024 * 1024:
             raise DeploymentCommandError("TERRAFORM_STATE_OUTPUT_TOO_LARGE")

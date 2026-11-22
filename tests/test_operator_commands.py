@@ -211,6 +211,54 @@ class OperatorCommandTest(unittest.TestCase):
 
         self.assertEqual(mode, 0o600)
 
+    def test_refresh_only_plan_is_explicit_and_never_combined_with_destroy(self) -> None:
+        plan_json = {
+            "format_version": "1.2",
+            "terraform_version": "1.17.2",
+            "resource_changes": [],
+        }
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(0, b"", b""),
+                CommandResult(0, json.dumps(plan_json).encode(), b""),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "root"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            self._private_file(request.backend_path, b'terraform { backend "gcs" {} }\n')
+            variable_file = self._private_file(workspace / "values.json", b"{}\n")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            artifact = adapter.create_plan(
+                request,
+                root,
+                variable_file,
+                refresh_only=True,
+            )
+            with self.assertRaises(ValueError):
+                adapter.create_plan(
+                    request,
+                    root,
+                    variable_file,
+                    destroy=True,
+                    refresh_only=True,
+                )
+
+        self.assertIn("-refresh-only", runner.requests[1].argv)
+        self.assertEqual(artifact.observation["planning_mode"], "refresh-only")
+
     def test_apply_accepts_only_the_same_private_saved_plan_and_operator_session(self) -> None:
         runner = FakeRunner([CommandResult(0, b"", b"")])
         with tempfile.TemporaryDirectory() as directory:
@@ -356,7 +404,13 @@ class OperatorCommandTest(unittest.TestCase):
             )
 
     def test_failed_plan_persists_private_diagnostics_before_plan_cleanup(self) -> None:
-        stderr = b"Error: unclassified plan detail provider_payload=private\n"
+        stderr = (
+            b"Error: Instance cannot be destroyed\n"
+            b"Resource module.shared_edge[0].google_compute_global_address.edge has\n"
+            b"lifecycle.prevent_destroy set, but the plan calls for this resource "
+            b"to be destroyed.\n"
+            b"client_secret=must-remain-private\n"
+        )
         runner = FakeRunner(
             [
                 CommandResult(0, b"", b""),
@@ -396,12 +450,16 @@ class OperatorCommandTest(unittest.TestCase):
 
             self.assertEqual(
                 str(raised.exception),
-                "TERRAFORM_PLAN_FAILED_UNKNOWN",
+                "TERRAFORM_PROTECTED_RESOURCE_DELETE_PROPOSED",
+            )
+            self.assertEqual(
+                raised.exception.diagnostic["resource_address"],
+                "module.shared_edge[0].google_compute_global_address.edge",
             )
             self.assertEqual(diagnostic_path.read_bytes(), stderr)
             self.assertEqual(plan_files, ())
             self.assertNotIn(
-                "provider_payload",
+                "must-remain-private",
                 json.dumps(raised.exception.diagnostic),
             )
 
@@ -580,6 +638,33 @@ class OperatorCommandTest(unittest.TestCase):
         self.assertEqual(runner.requests[1].argv[1:], ("state", "list"))
         self.assertEqual(runner.requests[1].authority, "platform-state-read")
 
+    def test_platform_state_projection_treats_absent_initial_state_as_empty(self) -> None:
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(1, b"", b"No state file was found!\n"),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "platform-foundation"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            self._private_file(request.backend_path, b'terraform { backend "gcs" {} }\n')
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            addresses = adapter.platform_state_addresses(request, root)
+
+        self.assertEqual(addresses, ())
+
     def test_bootstrap_uses_explicit_local_backend_and_short_lived_human_session(self) -> None:
         plan_json = {
             "format_version": "1.2",
@@ -662,6 +747,12 @@ destroyed.
 
     def test_plan_failures_are_safely_classified_without_exposing_stderr(self) -> None:
         cases = {
+            (
+                b"Error: Instance cannot be destroyed\n"
+                b"Resource module.shared_edge[0].google_compute_global_address.edge has\n"
+                b"lifecycle.prevent_destroy set, but the plan calls for this resource "
+                b"to be destroyed."
+            ): "TERRAFORM_PROTECTED_RESOURCE_DELETE_PROPOSED",
             b"Error acquiring the state lock": "TERRAFORM_STATE_LOCKED",
             b"Error loading state: backend object unavailable": (
                 "TERRAFORM_STATE_READ_FAILED"

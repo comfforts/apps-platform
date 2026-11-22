@@ -81,6 +81,10 @@ _PHASE_INVENTORIES = {
     },
 }
 _INHERITED_READ_ONLY_INVENTORIES = {
+    "platform-foundation": {
+        "resource_types": _PHASE_INVENTORIES["shared-edge"]["resource_types"],
+        "address_prefixes": ("module.shared_edge[",),
+    },
     "shared-edge": {
         "resource_types": _PHASE_INVENTORIES["platform-foundation"][
             "resource_types"
@@ -109,6 +113,7 @@ class PlanPolicy:
     allowed_resource_types: tuple[str, ...]
     inherited_read_only_resource_types: tuple[str, ...]
     inherited_read_only_address_prefixes: tuple[str, ...]
+    allowed_planning_modes: tuple[str, ...]
     allowed_actions: tuple[str, ...]
     prohibited_delete_address_prefixes: tuple[str, ...]
     destructive: bool
@@ -183,6 +188,11 @@ def plan_policy(
         ),
         inherited_read_only_address_prefixes=tuple(
             inherited.get("address_prefixes", ())
+        ),
+        allowed_planning_modes=(
+            ("normal", "refresh-only")
+            if phase == "platform-foundation" and not destructive
+            else ("normal",)
         ),
         allowed_actions=actions,
         prohibited_delete_address_prefixes=retained_prefixes,
@@ -279,9 +289,28 @@ def _provider_summary(
     }
 
 
+def _planning_mode(
+    observation: dict[str, Any],
+    policy: PlanPolicy,
+    violations: list[PlanViolation],
+) -> str:
+    mode = observation.get("planning_mode", "normal")
+    if not isinstance(mode, str) or mode not in policy.allowed_planning_modes:
+        violations.append(
+            _violation(
+                "PLANNING_MODE_MISMATCH",
+                "/planning_mode",
+                "planning mode is outside the approved phase modes",
+            )
+        )
+        return str(mode or "")
+    return mode
+
+
 def _change_summaries(
     observation: dict[str, Any],
     policy: PlanPolicy,
+    planning_mode: str,
     violations: list[PlanViolation],
 ) -> list[dict[str, object]]:
     changes = observation.get("changes")
@@ -356,6 +385,20 @@ def _change_summaries(
         else:
             normalized_actions = tuple(actions)
             if (
+                planning_mode == "refresh-only"
+                and normalized_actions not in {("no-op",), ("read",)}
+            ):
+                violations.append(
+                    _violation(
+                        "REFRESH_ONLY_MUTATION_PROHIBITED",
+                        f"{path}/actions",
+                        "refresh-only planning may only preserve or read resources",
+                        address=safe_address,
+                        resource_type=safe_resource_type,
+                        actions=normalized_actions,
+                    )
+                )
+            elif (
                 inherited_read_only_resource
                 and normalized_actions not in {("no-op",), ("read",)}
             ):
@@ -449,7 +492,8 @@ def evaluate_plan(
     violations: list[PlanViolation] = []
     _compare_context(observation, policy, violations)
     provider = _provider_summary(observation, policy, violations)
-    changes = _change_summaries(observation, policy, violations)
+    planning_mode = _planning_mode(observation, policy, violations)
+    changes = _change_summaries(observation, policy, planning_mode, violations)
     ordered = _ordered(violations)
     if ordered or provider is None:
         return PlanPolicyResult(False, None, None, ordered)
@@ -460,6 +504,7 @@ def evaluate_plan(
         "environment": policy.environment,
         "owner_id": policy.owner_id,
         "phase": policy.phase,
+        "planning_mode": planning_mode,
         "project_id": policy.project_id,
         "provider": provider,
         "source_revision": policy.source_revision,

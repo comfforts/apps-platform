@@ -1802,6 +1802,13 @@ bindings remain exact. Absent, stale, or unapproved intent falls back to normal 
 malformed retained state and current blockers stop without evidence replacement. Explicit digest
 selection remains supported as a non-default pin.
 
+W9 also preserves a partial or complete Shared Edge when a changed source begins a fresh
+deployment. Before foundation planning, the operator projects exact Platform State addresses. An
+existing Shared Edge selects a refresh-only foundation plan whose policy admits only `no-op` and
+`read` observations; the later normal Shared Edge plan performs the actual reconciliation. This
+prevents a new specification from interpreting already recorded edge resources as foundation-stage
+deletion targets.
+
 W9 also adds `platform-preflight` as the non-publishing readiness path. It runs the same source,
 profile, tool, authentication, project, ownership, and discovery checks used before preparation,
 reports exact blockers, and stops before specification generation, digest publication, approval,

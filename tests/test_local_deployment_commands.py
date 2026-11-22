@@ -90,6 +90,8 @@ class FakeTerraform:
     applied: list[str] = field(default_factory=list)
     migrated: int = 0
     recovered_taints: list[str] = field(default_factory=list)
+    refresh_only_plans: list[bool] = field(default_factory=list)
+    state_addresses: tuple[str, ...] = ()
 
     def create_plan(
         self,
@@ -98,6 +100,7 @@ class FakeTerraform:
         variable_file: Path,
         *,
         bootstrap_remote: bool = False,
+        refresh_only: bool = False,
     ) -> TerraformPlanArtifact:
         if request.phase == "bootstrap":
             self.assertEqualForFake(
@@ -105,6 +108,7 @@ class FakeTerraform:
                 bootstrap_remote,
             )
         self.assert_private(variable_file)
+        self.refresh_only_plans.append(refresh_only)
         plan = terraform_root / "saved.tfplan"
         plan.write_bytes(b"saved plan")
         plan.chmod(0o600)
@@ -117,6 +121,7 @@ class FakeTerraform:
                 "owner_id": "app-platform",
                 "terraform_root": request.terraform_root,
                 "phase": request.phase,
+                "planning_mode": "refresh-only" if refresh_only else "normal",
                 "provider": {
                     "source": "registry.terraform.io/hashicorp/google",
                     "service": "google",
@@ -126,6 +131,16 @@ class FakeTerraform:
                 "changes": [],
             },
         )
+
+    def platform_state_addresses(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> tuple[str, ...]:
+        del terraform_root
+        if request.phase != "platform-foundation":
+            raise AssertionError("state projection is only expected for foundation")
+        return self.state_addresses
 
     @staticmethod
     def assertEqualForFake(observed: object, expected: object) -> None:
@@ -430,6 +445,28 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             dict(edge_result.outputs)["reserved-address"],
             "34.120.10.20",
         )
+
+    def test_foundation_preserves_existing_shared_edge_with_refresh_only_plan(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, _, _, work = self._commands(directory)
+            terraform.state_addresses = (
+                "module.platform_foundation.google_storage_bucket.configuration",
+                "module.shared_edge[0].google_compute_global_address.edge",
+            )
+            foundation = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+
+            artifact = commands.create_terraform_plan(
+                foundation,
+                _request(work, "platform-foundation"),
+            )
+
+        self.assertEqual(terraform.refresh_only_plans, [True])
+        self.assertEqual(artifact.observation["planning_mode"], "refresh-only")
 
     def test_signing_key_ring_recovery_verifies_live_identity_before_untaint(
         self,

@@ -227,6 +227,10 @@ _TERRAFORM_PLAN_GUIDANCE = {
     "TERRAFORM_PLAN_FAILED_UNKNOWN": (
         "Terraform returned a diagnostic outside the safe classifier"
     ),
+    "TERRAFORM_PROTECTED_RESOURCE_DELETE_PROPOSED": (
+        "the selected phase would delete a protected resource; preserve the resource "
+        "and inspect phase progression before retrying"
+    ),
     "TERRAFORM_PROVIDER_PERMISSION_DENIED": (
         "the provider denied a read required to produce the plan"
     ),

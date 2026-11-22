@@ -46,6 +46,7 @@ _PROHIBITED_ARGUMENT_PREFIXES = (
 _BOOTSTRAP_SERVICES = (
     "serviceusage.googleapis.com",
     "storage.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
 )
 _PROJECT_ID = "comfforts-platform-non-prod"
 _REGION = "us-west1"

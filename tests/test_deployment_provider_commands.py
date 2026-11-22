@@ -32,6 +32,7 @@ class FakeGcloud:
     enabled_bootstrap_services: tuple[str, ...] = (
         "serviceusage.googleapis.com",
         "storage.googleapis.com",
+        "cloudresourcemanager.googleapis.com",
     )
 
     def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
@@ -134,12 +135,13 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
         self.assertTrue(ready)
         mutation = fake.requests[0]
         self.assertEqual(
-            mutation.argv[1:5],
+            mutation.argv[1:6],
             (
                 "services",
                 "enable",
                 "serviceusage.googleapis.com",
                 "storage.googleapis.com",
+                "cloudresourcemanager.googleapis.com",
             ),
         )
         self.assertNotIn("GOOGLE_APPLICATION_CREDENTIALS", dict(mutation.environment))
@@ -154,7 +156,8 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
                 "list",
                 "--enabled",
                 "--filter=config.name=serviceusage.googleapis.com OR "
-                "config.name=storage.googleapis.com",
+                "config.name=storage.googleapis.com OR "
+                "config.name=cloudresourcemanager.googleapis.com",
                 "--format=value(config.name)",
             ),
         )
@@ -164,7 +167,10 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             fake = FakeGcloud(
                 generation.contents,
-                enabled_bootstrap_services=("serviceusage.googleapis.com",),
+                enabled_bootstrap_services=(
+                    "serviceusage.googleapis.com",
+                    "storage.googleapis.com",
+                ),
             )
             provider = self._provider(directory, fake)
 

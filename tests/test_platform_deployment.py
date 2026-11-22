@@ -257,6 +257,7 @@ class FakeCommands:
                     "services": [
                         "serviceusage.googleapis.com",
                         "storage.googleapis.com",
+                        "cloudresourcemanager.googleapis.com",
                     ]
                 },
             )
@@ -722,6 +723,10 @@ class PlatformDeploymentTest(unittest.TestCase):
                         "state": "enabled",
                     },
                     {"name": "storage.googleapis.com", "state": "enabled"},
+                    {
+                        "name": "cloudresourcemanager.googleapis.com",
+                        "state": "enabled",
+                    },
                 ],
                 "stage": "bootstrap-services",
             },

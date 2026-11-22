@@ -432,6 +432,7 @@ class LocalDeploymentCommands:
                 {"services": [
                     "serviceusage.googleapis.com",
                     "storage.googleapis.com",
+                    "cloudresourcemanager.googleapis.com",
                 ]},
             )
         if stage_id == "image-publish":

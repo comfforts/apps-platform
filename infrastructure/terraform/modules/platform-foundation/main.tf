@@ -7,6 +7,7 @@ locals {
     "artifactregistry.googleapis.com",
     "billingbudgets.googleapis.com",
     "cloudbuild.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
     "cloudkms.googleapis.com",
     "compute.googleapis.com",
     "firestore.googleapis.com",

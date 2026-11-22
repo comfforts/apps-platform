@@ -98,6 +98,7 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             "verification_overlap_hours",
             'registration_generation         = "later-stage-input"',
             '"cloudbuild.googleapis.com"',
+            '"cloudresourcemanager.googleapis.com"',
             "disable_on_destroy         = false",
             "depends_on = [google_project_service.platform]",
             'retained_only          = var.destruction_mode == "retained"',

@@ -820,7 +820,8 @@ Deployment consumes exactly that approved digest, follows this fixed sequence, a
 replaces one private progress record after each successful readback:
 
 1. source, identity, environment, state, ownership, and drift preflight;
-2. reviewed enablement and readback of the two APIs required for state bootstrap;
+2. reviewed enablement and readback of the three prerequisite APIs required for state bootstrap
+   and Terraform provider planning;
 3. one-time backend bootstrap when absent;
 4. platform foundation, including configuration storage, registry, identities, KMS, Firestore,
    Secret Manager containers, logging, evidence, and cost controls;

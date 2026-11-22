@@ -144,10 +144,15 @@ same source still cannot authorize preparation or deployment. Authentication, pr
 tool, DNS, and discovery failures remain blocking. Development preflight writes no lifecycle state
 and has no executor, Terraform-plan, provider-mutation, bundle, evidence, or qualification path.
 
-During the DNS checkpoint, add the displayed record at the external provider and press Enter. The
-command waits for readable propagation before continuing. During the OAuth checkpoint, enter the
-OAuth client secret only in the instructed Secret Manager console surface. The script never asks
-for that secret in the terminal.
+Each manual checkpoint first prints a pretty machine-readable record and then a numbered
+natural-language procedure. Follow the numbered procedure; the JSON record is supporting evidence,
+not the operator instruction by itself. OAuth is divided into three focused steps: application
+branding, Web-client creation, and Secret Manager entry. The command prints and attempts to open
+the exact allow-listed Google Cloud console page for each step, pauses after each one, and asks for
+only the OAuth client ID after client creation. The Secret Manager step names the existing target
+and requires exactly one enabled version before readback. The script never asks for the OAuth
+client secret in the terminal. The DNS procedure identifies the exact provider, zone, record,
+address, and TTL, then verifies authoritative and recursive DNS after Enter.
 
 Stop on a plan, account, project, ownership, DNS, TLS, OAuth, or provider-readback mismatch. Do not
 repair it by manually broadening scope, importing resources, pushing state, bypassing locks, or

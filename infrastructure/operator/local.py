@@ -15,6 +15,8 @@ import sys
 import tempfile
 import time
 from typing import TYPE_CHECKING
+from urllib.parse import parse_qs, urlsplit
+import webbrowser
 
 from infrastructure.operator._core import LifecycleOperator
 from infrastructure.operator._interfaces import (
@@ -435,6 +437,31 @@ class SystemWaiter:
 
 
 @dataclass(frozen=True, slots=True)
+class SystemConsolePageLauncher:
+    """Open only the reviewed staging OAuth console surfaces."""
+
+    def open(self, url: str) -> bool:
+        parsed = urlsplit(url)
+        query = parse_qs(parsed.query, strict_parsing=True)
+        if (
+            parsed.scheme != "https"
+            or parsed.netloc != "console.cloud.google.com"
+            or parsed.path
+            not in {
+                "/auth/branding",
+                "/auth/clients",
+                "/security/secret-manager/secret/app-platform-edge-oauth/versions",
+            }
+            or query != {"project": ["comfforts-platform-non-prod"]}
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.fragment
+        ):
+            raise ValueError("checkpoint console URL is outside the staging allow-list")
+        return webbrowser.open(url, new=2, autoraise=True)
+
+
+@dataclass(frozen=True, slots=True)
 class _DeploymentExecutorResult:
     executor: StageExecutor | None
     blockers: tuple[str, ...] = ()
@@ -581,6 +608,7 @@ def _local_deployment_executor(
                 terminal,
                 commands,
                 waiter=SystemWaiter(),
+                checkpoint_page_launcher=SystemConsolePageLauncher(),
             )
         )
     except (OSError, RuntimeError, ValueError):

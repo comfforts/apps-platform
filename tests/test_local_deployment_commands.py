@@ -493,6 +493,12 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
 
         transcript = json.dumps(checkpoint.instructions)
         self.assertIn("Comfforts Apps Staging", transcript)
+        self.assertIn("Web application", transcript)
+        self.assertIn("comfforts-platform-non-prod", transcript)
+        self.assertIn("comfforts.com", transcript)
+        self.assertIn("console.cloud.google.com/auth/branding", transcript)
+        self.assertIn("console.cloud.google.com/auth/clients", transcript)
+        self.assertIn("console.cloud.google.com/security/secret-manager", transcript)
         self.assertIn("/_platform/auth/callback", transcript)
         self.assertNotIn("client_secret", transcript)
         self.assertEqual(result.outcome, "succeeded")

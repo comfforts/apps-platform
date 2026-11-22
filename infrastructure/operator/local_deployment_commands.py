@@ -43,6 +43,16 @@ _REGION = "us-west1"
 _HOSTNAME = "apps-staging.comfforts.com"
 _CONFIGURATION_BUCKET = "comfforts-ap-stg-455651441682-configuration"
 _OAUTH_SECRET = f"projects/{_PROJECT_ID}/secrets/app-platform-edge-oauth"
+_OAUTH_BRANDING_CONSOLE = (
+    f"https://console.cloud.google.com/auth/branding?project={_PROJECT_ID}"
+)
+_OAUTH_CLIENTS_CONSOLE = (
+    f"https://console.cloud.google.com/auth/clients?project={_PROJECT_ID}"
+)
+_OAUTH_SECRET_CONSOLE = (
+    "https://console.cloud.google.com/security/secret-manager/secret/"
+    f"app-platform-edge-oauth/versions?project={_PROJECT_ID}"
+)
 _CLIENT_ID = re.compile(r"[0-9]+-[a-z0-9-]+\.apps\.googleusercontent\.com")
 _IPV4 = re.compile(r"(?:[0-9]{1,3}\.){3}[0-9]{1,3}")
 
@@ -514,9 +524,15 @@ class LocalDeploymentCommands:
             return ManualCheckpoint(
                 "provider-console",
                 (
+                    ("project_id", _PROJECT_ID),
+                    ("branding_console_url", _OAUTH_BRANDING_CONSOLE),
+                    ("clients_console_url", _OAUTH_CLIENTS_CONSOLE),
+                    ("secret_manager_console_url", _OAUTH_SECRET_CONSOLE),
                     ("application_name", "Comfforts Apps Staging"),
+                    ("application_type", "Web application"),
                     ("support_email", self._session.active_account),
                     ("homepage_url", f"https://{_HOSTNAME}"),
+                    ("authorized_domain", "comfforts.com"),
                     ("authorized_origin", f"https://{_HOSTNAME}"),
                     (
                         "redirect_uri",
@@ -540,6 +556,7 @@ class LocalDeploymentCommands:
                 "external-dns",
                 (
                     ("provider", "Squarespace"),
+                    ("dns_zone", "comfforts.com"),
                     ("record_type", "A"),
                     ("record_name", "apps-staging"),
                     ("hostname", _HOSTNAME),

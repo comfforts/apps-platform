@@ -107,6 +107,15 @@ class FakeWaiter:
 
 
 @dataclass
+class FakeCheckpointPageLauncher:
+    opened: list[str] = field(default_factory=list)
+
+    def open(self, url: str) -> bool:
+        self.opened.append(url)
+        return True
+
+
+@dataclass
 class FakeCommands:
     working_root: Path
     actions: tuple[str, ...] = ("create",)
@@ -309,7 +318,29 @@ class FakeCommands:
             return ManualCheckpoint(
                 checkpoint="provider-console",
                 instructions=(
+                    ("project_id", "comfforts-platform-non-prod"),
+                    (
+                        "branding_console_url",
+                        "https://console.cloud.google.com/auth/branding?"
+                        "project=comfforts-platform-non-prod",
+                    ),
+                    (
+                        "clients_console_url",
+                        "https://console.cloud.google.com/auth/clients?"
+                        "project=comfforts-platform-non-prod",
+                    ),
+                    (
+                        "secret_manager_console_url",
+                        "https://console.cloud.google.com/security/secret-manager/"
+                        "secret/app-platform-edge-oauth/versions?"
+                        "project=comfforts-platform-non-prod",
+                    ),
                     ("application_name", "Comfforts Apps Staging"),
+                    ("application_type", "Web application"),
+                    ("support_email", "operator@example.com"),
+                    ("homepage_url", "https://apps-staging.comfforts.com"),
+                    ("authorized_domain", "comfforts.com"),
+                    ("authorized_origin", "https://apps-staging.comfforts.com"),
                     ("redirect_uri", "https://apps-staging.comfforts.com/oauth/callback"),
                     ("secret_manager_target", "projects/example/secrets/oauth-client"),
                 ),
@@ -317,7 +348,10 @@ class FakeCommands:
         return ManualCheckpoint(
             checkpoint="external-dns",
             instructions=(
+                ("provider", "Squarespace"),
+                ("dns_zone", "comfforts.com"),
                 ("record_type", "A"),
+                ("record_name", "apps-staging"),
                 ("hostname", "apps-staging.comfforts.com"),
                 ("address", dict(context.inputs)["shared-edge.reserved-address"]),
                 ("ttl_seconds", "300"),
@@ -813,7 +847,17 @@ class PlatformDeploymentTest(unittest.TestCase):
 
     def test_oauth_checkpoint_displays_exact_values_pauses_and_never_receives_a_secret(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            executor, terminal, commands = self._executor(Path(directory) / "work")
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            terminal = FakeTerminal()
+            commands = FakeCommands(root)
+            launcher = FakeCheckpointPageLauncher()
+            executor = DeploymentExecutor(
+                root,
+                terminal,
+                commands,
+                checkpoint_page_launcher=launcher,
+            )
 
             result = executor.execute(
                 _context(
@@ -824,12 +868,32 @@ class PlatformDeploymentTest(unittest.TestCase):
 
         self.assertEqual(result.outcome, "succeeded")
         self.assertEqual(result.manual_acknowledgement, "operator-attested")
-        self.assertEqual(len(terminal.pauses), 1)
-        self.assertIn("Press Enter", terminal.pauses[0])
+        self.assertEqual(len(terminal.pauses), 3)
+        self.assertIn("step 1 of 3", terminal.pauses[0])
+        self.assertIn("step 2 of 3", terminal.pauses[1])
+        self.assertIn("step 3 of 3", terminal.pauses[2])
         transcript = "\n".join([*terminal.messages, *terminal.pauses])
+        checkpoint = next(
+            message for message in terminal.messages if message.startswith("CHECKPOINT\n")
+        )
+        self.assertEqual(
+            json.loads(checkpoint.removeprefix("CHECKPOINT\n"))["checkpoint"],
+            "provider-console",
+        )
+        self.assertIn("OAUTH STEP 1 OF 3: Configure application branding", transcript)
+        self.assertIn("OAUTH STEP 2 OF 3: Create the Web OAuth client", transcript)
+        self.assertIn("OAUTH STEP 3 OF 3: Store the OAuth client secret", transcript)
+        self.assertIn("Application type: Web application", transcript)
+        self.assertIn("exactly one ENABLED version", transcript)
+        self.assertIn("Do not create a second secret", transcript)
+        self.assertIn("accepts only the client ID", transcript)
         self.assertIn("Comfforts Apps Staging", transcript)
-        self.assertIn("Secret Manager directly", transcript)
+        self.assertIn("existing Secret Manager target", transcript)
         self.assertNotIn("client_secret", transcript)
+        self.assertEqual(len(launcher.opened), 3)
+        self.assertIn("/auth/branding?", launcher.opened[0])
+        self.assertIn("/auth/clients?", launcher.opened[1])
+        self.assertIn("/security/secret-manager/", launcher.opened[2])
         self.assertEqual(
             terminal.questions,
             ["Paste the OAuth client ID (never the client secret): "],
@@ -875,6 +939,9 @@ class PlatformDeploymentTest(unittest.TestCase):
             [1, 2, 3],
         )
         transcript = "\n".join(terminal.messages)
+        self.assertIn("MANUAL ACTION REQUIRED: Create the external DNS record", transcript)
+        self.assertIn("Open Squarespace DNS management", transcript)
+        self.assertIn("Save only this record", transcript)
         self.assertIn("apps-staging.comfforts.com", transcript)
         self.assertIn("192.0.2.10", transcript)
 

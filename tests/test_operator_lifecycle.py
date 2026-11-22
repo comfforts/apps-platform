@@ -26,6 +26,7 @@ from infrastructure.operator.cli import main as operator_main
 from infrastructure.operator.local import (
     LocalFilesystem,
     ProfileGcp,
+    SystemConsolePageLauncher,
     build_local_operator,
 )
 
@@ -329,6 +330,29 @@ class OperatorLifecycleTest(unittest.TestCase):
             local_adapters.ConsoleTerminal().write("Verified provider readback.")
 
         self.assertEqual(stderr.getvalue(), "Verified provider readback.\n\n")
+
+    def test_console_page_launcher_opens_only_reviewed_staging_oauth_pages(self) -> None:
+        launcher = SystemConsolePageLauncher()
+        url = (
+            "https://console.cloud.google.com/auth/branding?"
+            "project=comfforts-platform-non-prod"
+        )
+        with mock.patch(
+            "infrastructure.operator.local.webbrowser.open",
+            return_value=True,
+        ) as browser_open:
+            self.assertTrue(launcher.open(url))
+
+        browser_open.assert_called_once_with(url, new=2, autoraise=True)
+        with self.assertRaisesRegex(ValueError, "outside the staging allow-list"):
+            launcher.open(
+                "https://console.cloud.google.com/auth/branding?project=other-project"
+            )
+        with self.assertRaisesRegex(ValueError, "outside the staging allow-list"):
+            launcher.open(
+                "https://example.com/auth/branding?"
+                "project=comfforts-platform-non-prod"
+            )
 
     def test_prepare_approves_small_fingerprint_and_deploy_reuses_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -178,6 +178,12 @@ class DeploymentCommands(Protocol):
     ) -> CheckpointVerification: ...
 
 
+class CheckpointPageLauncher(Protocol):
+    """Open one reviewed provider-console page for an interactive checkpoint."""
+
+    def open(self, url: str) -> bool: ...
+
+
 @dataclass
 class _ArtifactObserver(TerraformPlanCommands):
     commands: DeploymentCommands
@@ -289,11 +295,13 @@ class DeploymentExecutor:
         commands: DeploymentCommands,
         *,
         waiter: Waiter | None = None,
+        checkpoint_page_launcher: CheckpointPageLauncher | None = None,
     ) -> None:
         self._working_root = working_root.resolve()
         self._terminal = terminal
         self._commands = commands
         self._waiter = waiter or _ImmediateWaiter()
+        self._checkpoint_page_launcher = checkpoint_page_launcher
         self._seen_saved_plans: set[Path] = set()
         if not self._working_root.is_dir():
             raise ValueError("deployment working root must already exist")
@@ -474,6 +482,151 @@ class DeploymentExecutor:
             allow_nan=False,
         )
 
+    @staticmethod
+    def _manual_checkpoint_guidance(
+        stage_id: str,
+        instructions: dict[str, str],
+    ) -> tuple[tuple[str, str], ...] | None:
+        if stage_id == "oauth-configuration":
+            required = {
+                "application_name",
+                "application_type",
+                "authorized_domain",
+                "authorized_origin",
+                "branding_console_url",
+                "clients_console_url",
+                "homepage_url",
+                "project_id",
+                "redirect_uri",
+                "secret_manager_console_url",
+                "secret_manager_target",
+                "support_email",
+            }
+            if not required.issubset(instructions):
+                return None
+            branding = "\n".join(
+                (
+                    "OAUTH STEP 1 OF 3: Configure application branding",
+                    "",
+                    f"The browser page is for project `{instructions['project_id']}`.",
+                    "If branding is not configured, enter these exact values. If it "
+                    "already exists, verify the values instead of creating another "
+                    "brand:",
+                    f"- Application name: {instructions['application_name']}",
+                    f"- User support email: {instructions['support_email']}",
+                    f"- Application homepage: {instructions['homepage_url']}",
+                    "- Authorized domain, if requested: "
+                    f"{instructions['authorized_domain']}",
+                    "",
+                    "Save the branding configuration, return to this terminal, and "
+                    "press Enter. Keep the deployment running.",
+                )
+            )
+            client = "\n".join(
+                (
+                    "OAUTH STEP 2 OF 3: Create the Web OAuth client",
+                    "",
+                    "On Google Auth Platform > Clients, create a client with these "
+                    "exact values. If this deployment is resuming and an exact "
+                    "matching client already exists, open and verify it instead of "
+                    "creating a duplicate:",
+                    f"- Application type: {instructions['application_type']}",
+                    f"- Name: {instructions['application_name']}",
+                    "- Authorized JavaScript origin: "
+                    f"{instructions['authorized_origin']}",
+                    f"- Authorized redirect URI: {instructions['redirect_uri']}",
+                    "",
+                    "Create or save the client. Keep both the client ID and client "
+                    "secret available temporarily. Do not download or commit a JSON "
+                    "credential file. Return here and press Enter; the next terminal "
+                    "prompt accepts only the client ID.",
+                )
+            )
+            secret = "\n".join(
+                (
+                    "OAUTH STEP 3 OF 3: Store the OAuth client secret",
+                    "",
+                    "The browser page opens the existing Secret Manager target:",
+                    f"{instructions['secret_manager_target']}",
+                    "Do not create a second secret.",
+                    "",
+                    "Inspect its versions before changing anything. This deployment "
+                    "requires exactly one ENABLED version:",
+                    "- If none is enabled, add one version containing only the OAuth "
+                    "client secret.",
+                    "- If one is enabled, confirm it is the intended secret for this "
+                    "exact OAuth client.",
+                    "- If more than one is enabled, stop and resolve stale versions "
+                    "before continuing.",
+                    "",
+                    "Never enter the client secret in this terminal, source control, "
+                    "chat, or a configuration file. After exactly one intended "
+                    "version is enabled, return here and press Enter for provider "
+                    "readback.",
+                )
+            )
+            return (
+                (branding, instructions["branding_console_url"]),
+                (client, instructions["clients_console_url"]),
+                (secret, instructions["secret_manager_console_url"]),
+            )
+        if stage_id == "external-dns":
+            required = {
+                "address",
+                "dns_zone",
+                "hostname",
+                "provider",
+                "record_name",
+                "record_type",
+                "ttl_seconds",
+            }
+            if not required.issubset(instructions):
+                return None
+            guidance = "\n".join(
+                (
+                    "MANUAL ACTION REQUIRED: Create the external DNS record",
+                    "",
+                    "Keep this deployment running while you complete these steps:",
+                    "",
+                    f"1. Open {instructions['provider']} DNS management for "
+                    f"`{instructions['dns_zone']}`.",
+                    "2. Create this exact record:",
+                    f"   - Type: {instructions['record_type']}",
+                    f"   - Host/name: {instructions['record_name']}",
+                    f"   - Full hostname: {instructions['hostname']}",
+                    f"   - Value/address: {instructions['address']}",
+                    f"   - TTL: {instructions['ttl_seconds']} seconds",
+                    "3. Save only this record. Do not modify another hostname, "
+                    "record, certificate, or application resource.",
+                    "4. Return here and press Enter. The deployment will verify "
+                    "authoritative and recursive DNS and wait for readable "
+                    "propagation.",
+                )
+            )
+            return ((guidance, ""),)
+        return None
+
+    def _show_checkpoint_page(self, url: str) -> None:
+        if not url:
+            return
+        self._terminal.write(f"CONSOLE PAGE\n{url}")
+        if self._checkpoint_page_launcher is None:
+            self._terminal.write(
+                "Open the console page above in a browser before continuing."
+            )
+            return
+        try:
+            opened = self._checkpoint_page_launcher.open(url)
+        except (OSError, RuntimeError, ValueError):
+            opened = False
+        if opened:
+            self._terminal.write("Opened the console page in the system browser.")
+        else:
+            self._terminal.write(
+                "The console page could not be opened automatically. Open the URL "
+                "above in a browser before continuing."
+            )
+
     def _execute_read_only(self, context: StageContext) -> StageExecution:
         try:
             readback = self._commands.read_stage(context)
@@ -541,6 +694,10 @@ class DeploymentExecutor:
             checkpoint.instructions
         ):
             return self._failure("MANUAL_CHECKPOINT_INVALID")
+        instruction_values = dict(checkpoint.instructions)
+        operator_steps = self._manual_checkpoint_guidance(stage_id, instruction_values)
+        if operator_steps is None:
+            return self._failure("MANUAL_CHECKPOINT_INVALID")
         value = {
             "checkpoint": checkpoint.checkpoint,
             "instructions": [
@@ -552,28 +709,27 @@ class DeploymentExecutor:
         if canonical is None:
             return self._failure("PROHIBITED_CHECKPOINT_MATERIAL")
         digest = self._bound_digest(context, value)
-        self._terminal.write(f"CHECKPOINT {canonical}")
+        self._terminal.write(self._pretty_json("CHECKPOINT", value))
         self._terminal.write(f"CHECKPOINT_DIGEST {digest}")
-        if stage_id == "oauth-configuration":
-            self._terminal.write(
-                "Enter the OAuth client secret in Secret Manager directly; "
-                "never enter it in this terminal."
-            )
-        self._terminal.pause(
-            f"Complete checkpoint {checkpoint.checkpoint!r}, then Press Enter to verify: "
-        )
         supplied_inputs: tuple[tuple[str, str], ...] = ()
-        if stage_id == "oauth-configuration":
-            client_id = self._terminal.ask(
-                "Paste the OAuth client ID (never the client secret): "
-            ).strip()
-            if not client_id:
-                return StageExecution(
-                    outcome="failed",
-                    plan_digest=digest,
-                    blockers=("OAUTH_CLIENT_ID_REQUIRED",),
-                )
-            supplied_inputs = (("oauth-client-id", client_id),)
+        for step_index, (guidance, console_url) in enumerate(operator_steps, start=1):
+            self._terminal.write(guidance)
+            self._show_checkpoint_page(console_url)
+            self._terminal.pause(
+                f"Complete step {step_index} of {len(operator_steps)} for "
+                f"{checkpoint.checkpoint!r}, then press Enter to continue: "
+            )
+            if stage_id == "oauth-configuration" and step_index == 2:
+                client_id = self._terminal.ask(
+                    "Paste the OAuth client ID (never the client secret): "
+                ).strip()
+                if not client_id:
+                    return StageExecution(
+                        outcome="failed",
+                        plan_digest=digest,
+                        blockers=("OAUTH_CLIENT_ID_REQUIRED",),
+                    )
+                supplied_inputs = (("oauth-client-id", client_id),)
 
         max_attempts, interval = _POLLING.get(stage_id, (1, 0))
         latest_blockers: tuple[str, ...] = ()

@@ -241,6 +241,7 @@ class OperatorCommandTest(unittest.TestCase):
         )
         self.assertIn("apply", invocation.argv)
         self.assertIn("-auto-approve", invocation.argv)
+        self.assertIn("-no-color", invocation.argv)
         self.assertNotIn("GOOGLE_IMPERSONATE_SERVICE_ACCOUNT", dict(invocation.environment))
         self.assertEqual(dict(invocation.environment)["HOME"], str(workspace / "home"))
         self.assertEqual(
@@ -287,6 +288,28 @@ class OperatorCommandTest(unittest.TestCase):
         self.assertNotIn(
             "must-not-be-reported",
             json.dumps(error.diagnostic),
+        )
+
+    def test_apply_classifies_provider_inconsistent_result_with_resource(self) -> None:
+        error = self._failed_apply(
+            b"Error: Provider produced inconsistent result after apply\n\n"
+            b"When applying changes to module.platform_controls."
+            b"google_logging_project_sink.edge[0], provider "
+            b'\"registry.terraform.io/hashicorp/google\" produced an unexpected '
+            b"new value: .unique_writer_identity: was cty.False, but now "
+            b"cty.True.\n"
+        )
+        self.assertEqual(
+            str(error),
+            "TERRAFORM_APPLY_PROVIDER_INCONSISTENT_RESULT",
+        )
+        self.assertEqual(
+            error.diagnostic,
+            {
+                "resource_address": (
+                    "module.platform_controls.google_logging_project_sink.edge[0]"
+                )
+            },
         )
 
     def test_apply_failure_classifier_uses_specific_safe_codes(self) -> None:

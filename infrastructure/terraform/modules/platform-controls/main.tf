@@ -27,9 +27,11 @@ resource "google_logging_project_sink" "edge" {
   destination = "logging.googleapis.com/projects/${var.controls_configuration.project_id}/locations/${var.controls_configuration.region}/buckets/${google_logging_project_bucket_config.edge[0].bucket_id}"
   filter      = local.edge_completion_filter
 
-  unique_writer_identity = false
-  disabled               = false
-  deletion_policy        = local.destruction_enabled ? "DELETE" : "PREVENT"
+  # Keep the writer-identity request at the provider default. For a Logging bucket in
+  # this same project, the API omits an actual writer identity while the provider
+  # records its default request value; forcing false creates a permanent plan diff.
+  disabled        = false
+  deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"
 
   exclusions {
     name        = "identity-and-visitor-data"

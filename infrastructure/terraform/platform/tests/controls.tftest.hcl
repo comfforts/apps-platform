@@ -19,7 +19,6 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
       module.platform_controls.policy_summary.logging.deletion_policy == "PREVENT" &&
       module.platform_controls.policy_summary.logging.internal_destination &&
       !module.platform_controls.policy_summary.logging.external_sink &&
-      !module.platform_controls.policy_summary.logging.unique_writer_identity &&
       module.platform_controls.policy_summary.logging.exclusion_count == 3 &&
       module.platform_controls.policy_summary.logging.default_bucket_excluded &&
       module.platform_controls.policy_summary.logging.owner_reader_role == "roles/logging.viewAccessor" &&

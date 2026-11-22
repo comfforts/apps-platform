@@ -264,6 +264,9 @@ _TERRAFORM_APPLY_GUIDANCE = {
     "TERRAFORM_APPLY_PLUGIN_FAILED": (
         "Terraform could not continue through the pinned provider plugin"
     ),
+    "TERRAFORM_APPLY_PROVIDER_INCONSISTENT_RESULT": (
+        "the provider returned a resource value inconsistent with the reviewed plan"
+    ),
     "TERRAFORM_APPLY_QUOTA_EXCEEDED": (
         "the provider rejected the mutation because a quota was exhausted"
     ),

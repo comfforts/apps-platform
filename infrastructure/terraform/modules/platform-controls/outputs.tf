@@ -59,7 +59,6 @@ output "policy_summary" {
       deletion_policy         = local.destruction_enabled ? "DELETE" : "PREVENT"
       internal_destination    = true
       external_sink           = false
-      unique_writer_identity  = false
       exclusion_count         = 3
       default_bucket_excluded = true
       allowed_fields          = local.allowed_log_fields

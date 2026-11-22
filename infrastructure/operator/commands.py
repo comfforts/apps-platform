@@ -46,6 +46,9 @@ _APPLY_OPERATION = re.compile(
 _APPLY_RESOURCE_ADDRESS = re.compile(
     rb"(?m)^\s*with\s+([A-Za-z0-9_.\[\]\"-]{1,300}),\s*$"
 )
+_APPLY_INCONSISTENT_RESOURCE_ADDRESS = re.compile(
+    rb"When applying changes to ([A-Za-z0-9_.\[\]\"-]{1,300}),\s+provider\b"
+)
 _APPLY_SERVICE = re.compile(
     rb"\b([a-z][a-z0-9.-]{1,100}\.googleapis\.com)\b"
 )
@@ -253,6 +256,8 @@ class TerraformCliAdapter:
             return "TERRAFORM_APPLY_DEPENDENCY_PROPAGATION_PENDING"
         if b"concurrent policy changes" in normalized:
             return "TERRAFORM_APPLY_IAM_CONFLICT"
+        if b"provider produced inconsistent result after apply" in normalized:
+            return "TERRAFORM_APPLY_PROVIDER_INCONSISTENT_RESULT"
         if b"error acquiring the state lock" in normalized:
             return "TERRAFORM_APPLY_STATE_LOCKED"
         if all(
@@ -308,6 +313,8 @@ class TerraformCliAdapter:
             diagnostic["operation"] = operation.group(1).decode("ascii")
 
         resource = _APPLY_RESOURCE_ADDRESS.search(stderr)
+        if resource is None:
+            resource = _APPLY_INCONSISTENT_RESOURCE_ADDRESS.search(stderr)
         if resource is not None:
             diagnostic["resource_address"] = resource.group(1).decode("ascii")
 
@@ -606,6 +613,7 @@ class TerraformCliAdapter:
                 "apply",
                 "-input=false",
                 "-auto-approve",
+                "-no-color",
                 str(plan),
             )
         )

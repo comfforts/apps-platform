@@ -84,6 +84,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
 
     def test_logging_is_regional_minimized_excluded_and_not_exported(self) -> None:
         main = (MODULE_ROOT / "main.tf").read_text(encoding="utf-8")
+        outputs = (MODULE_ROOT / "outputs.tf").read_text(encoding="utf-8")
         for required_control in (
             "location         = var.controls_configuration.region",
             "retention_days   = 7",
@@ -93,7 +94,6 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             'resource.type=\\"cloud_run_revision\\"',
             'jsonPayload.event_type=\\"request_completion\\"',
             'jsonPayload.component=\\"shared-edge\\"',
-            "unique_writer_identity = false",
             'resource "google_logging_project_exclusion" "edge_from_default"',
             'name        = "app-platform-edge-from-default"',
             "filter      = local.edge_resource_filter",
@@ -102,6 +102,8 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             'role    = "roles/logging.viewAccessor"',
         ):
             self.assertIn(required_control, main)
+        self.assertNotIn("unique_writer_identity", main)
+        self.assertNotIn("unique_writer_identity", outputs)
         self.assertEqual(main.count("exclusions {"), 3)
         for prohibited_field in (
             "assertion",

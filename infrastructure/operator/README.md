@@ -171,8 +171,9 @@ terminal prints guidance for the selected code while command stderr remains tran
 unretained; an unmatched diagnostic becomes `TERRAFORM_PLAN_FAILED_UNKNOWN`. Terraform apply
 failures use a separate closed classifier and may print only the bounded resource address,
 operation, HTTP status, provider status, and service name extracted from stderr. Arbitrary provider
-messages remain suppressed, and an unmatched apply response becomes
-`TERRAFORM_APPLY_FAILED_UNKNOWN`.
+messages remain suppressed. A provider result inconsistent with the reviewed plan reports
+`TERRAFORM_APPLY_PROVIDER_INCONSISTENT_RESULT` with the bounded resource address; an unmatched
+apply response becomes `TERRAFORM_APPLY_FAILED_UNKNOWN`.
 
 The CLI reports every returned blocker to stderr with a derived component before serializing the
 result JSON. Its outer exception boundary catches otherwise unhandled adapter or operator errors,

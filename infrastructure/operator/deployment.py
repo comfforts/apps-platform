@@ -542,7 +542,7 @@ class DeploymentExecutor:
                     "prompt accepts only the client ID.",
                 )
             )
-            oauth_store_step = "\n".join(
+            provider_guidance = "\n".join(
                 (
                     "OAUTH STEP 3 OF 3: Store the OAuth client secret",
                     "",
@@ -569,7 +569,7 @@ class DeploymentExecutor:
                 (branding, instructions["branding_console_url"]),
                 (client, instructions["clients_console_url"]),
                 (
-                    oauth_store_step,
+                    provider_guidance,
                     instructions["oauth_store_console_url"],
                 ),
             )

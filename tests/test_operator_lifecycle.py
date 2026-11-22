@@ -331,6 +331,32 @@ class OperatorLifecycleTest(unittest.TestCase):
 
         self.assertEqual(stderr.getvalue(), "Verified provider readback.\n\n")
 
+    def test_console_narration_redacts_values_without_hiding_safe_guidance(self) -> None:
+        message = "\n".join(
+            (
+                "Never enter the OAuth client secret in this terminal.",
+                "client_secret=GOCSPX-private-value",
+                "Authorization: Bearer ya29.private-value",
+                "Provider URL: https://operator:private-value@example.com/path",
+                "-----BEGIN PRIVATE KEY-----",
+                "private-key-material",
+                "-----END PRIVATE KEY-----",
+            )
+        )
+        stderr = io.StringIO()
+        with mock.patch("sys.stderr", stderr):
+            local_adapters.ConsoleTerminal().write(message)
+
+        transcript = stderr.getvalue()
+        self.assertIn("Never enter the OAuth client secret", transcript)
+        self.assertIn("client_secret=[REDACTED]", transcript)
+        self.assertIn("Authorization: [REDACTED]\n", transcript)
+        self.assertIn("https://operator:[REDACTED]@example.com/path", transcript)
+        self.assertIn("[REDACTED PRIVATE KEY]", transcript)
+        self.assertNotIn("GOCSPX-private-value", transcript)
+        self.assertNotIn("ya29.private-value", transcript)
+        self.assertNotIn("private-key-material", transcript)
+
     def test_console_page_launcher_opens_only_reviewed_staging_oauth_pages(self) -> None:
         launcher = SystemConsolePageLauncher()
         url = (

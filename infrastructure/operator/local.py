@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -36,6 +37,23 @@ from infrastructure.tools.terraform_setup import (
 
 if TYPE_CHECKING:
     from infrastructure.operator.local_deployment import OperatorSessionFacts
+
+
+_OUTPUT_ASSIGNMENT_RE = re.compile(
+    r"(?im)(\b(?:api[_-]?key|authorization|client[_-]?secret|password|"
+    r"access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key)\b"
+    r"\s*[:=]\s*)(?:Bearer\s+)?"
+    r"(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;]+)"
+)
+_OUTPUT_BEARER_RE = re.compile(r"(?i)\bBearer\s+[^\s,;]+")
+_OUTPUT_USERINFO_RE = re.compile(r"(?i)(https?://[^/\s:@]+:)[^@\s/]+@")
+_OUTPUT_PROVIDER_VALUE_RE = re.compile(
+    r"(?i)\b(?:GOCSPX-|ya29\.|ghp_|github_pat_)[A-Za-z0-9._-]+"
+)
+_OUTPUT_PEM_RE = re.compile(
+    r"(?s)-----BEGIN [^-\r\n]*PRIVATE KEY-----.*?"
+    r"-----END [^-\r\n]*PRIVATE KEY-----"
+)
 
 
 def _credential_free_environment() -> dict[str, str]:
@@ -407,6 +425,16 @@ class PinnedTerraform:
 
 @dataclass(frozen=True, slots=True)
 class ConsoleTerminal:
+    @staticmethod
+    def _redact_sensitive(message: str) -> str:
+        """Mask recognizable credential values before writing operator output."""
+
+        redacted = _OUTPUT_PEM_RE.sub("[REDACTED PRIVATE KEY]", message)
+        redacted = _OUTPUT_USERINFO_RE.sub(r"\1[REDACTED]@", redacted)
+        redacted = _OUTPUT_BEARER_RE.sub("Bearer [REDACTED]", redacted)
+        redacted = _OUTPUT_PROVIDER_VALUE_RE.sub("[REDACTED]", redacted)
+        return _OUTPUT_ASSIGNMENT_RE.sub(r"\1[REDACTED]", redacted)
+
     def ask(self, prompt: str) -> str:
         return input(prompt)
 
@@ -414,7 +442,7 @@ class ConsoleTerminal:
         return input(prompt).strip().lower() in {"y", "yes"}
 
     def write(self, message: str) -> None:
-        print(message, file=sys.stderr)
+        print(self._redact_sensitive(message), file=sys.stderr)
         print(file=sys.stderr)
 
     def confirm_exact(self, prompt: str, expected: str) -> bool:

@@ -183,6 +183,15 @@ class TerraformPlatformControlsTest(unittest.TestCase):
         ):
             self.assertNotIn(prohibited, main)
 
+    def test_budget_provider_charges_user_adc_quota_to_selected_project(self) -> None:
+        provider = (PLATFORM_ROOT / "provider.tf").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "billing_project       = var.platform_configuration.foundation.project_id",
+            provider,
+        )
+        self.assertIn("user_project_override = true", provider)
+
     def test_artifact_cleanup_is_dry_run_first_and_keeps_three_roles(self) -> None:
         main = (MODULE_ROOT / "main.tf").read_text(encoding="utf-8")
         for required_control in (

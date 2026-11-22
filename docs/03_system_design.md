@@ -980,6 +980,12 @@ values, provider payloads, and state never enter the canonical summary. A mismat
 provider default, unexpected resource/action, replacement, or non-destructive delete yields
 ordered violations and no consumable plan digest.
 
+Foundation and Shared Edge share one Terraform root and Platform State lineage. A Shared Edge plan
+may therefore include exact `module.platform_foundation` and `module.platform_controls` resources
+from the preceding phase only as `no-op` or `read` observations. Their resource types and module
+prefixes remain closed; a create, update, delete, replacement, unexpected prefix, or unknown type
+fails policy instead of acquiring Shared Edge authority.
+
 The Shared Edge phase can first reserve the address with TLS disabled. Certificate and HTTPS
 resources become eligible only after the later deployment engine has completed the external-DNS
 checkpoint. Bootstrap, foundation, and edge outputs are closed, typed, non-secret projections.

@@ -296,10 +296,11 @@ invalid rendered configuration, provider-plugin startup failure, the separately 
 key-ring taint, or an unknown safe category. Apply failures separately distinguish authentication,
 dependency or identity propagation, service disablement, permission denial, quota exhaustion,
 invalid arguments, conflicts, state locks, provider-plugin failures, and unknown responses. Before
-the blocker, the terminal prints any safely extracted resource address, operation, HTTP status,
-provider status, and service name. Follow the adjacent guidance. Raw Terraform stderr and arbitrary
-provider messages are deliberately not displayed because they may contain protected state or
-provider details. A failed plan or apply stores exact stdout and stderr beneath
+the blocker, a plan-policy refusal prints only its safe resource address, type, and actions; an
+apply failure prints any safely extracted resource address, operation, HTTP status, provider
+status, and service name. Follow the adjacent guidance. Raw Terraform stderr and arbitrary provider
+messages are deliberately not displayed because they may contain protected state or provider
+details. A failed plan or apply stores exact stdout and stderr beneath
 `.platform-operator/diagnostics/<environment>/` in a new mode-`0700` event directory with mode-`0600`
 files. The terminal prints the stderr path and SHA-256 digest. Inspect that local file when the safe
 blocker is insufficient; do not commit it or share it without reviewing and redacting its content.

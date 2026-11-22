@@ -42,6 +42,38 @@ def _foundation_observation() -> dict[str, object]:
     }
 
 
+def _shared_edge_observation() -> dict[str, object]:
+    observation = _foundation_observation()
+    observation["phase"] = "shared-edge"
+    observation["changes"] = [
+        {
+            "address": "module.shared_edge[0].google_compute_global_address.edge",
+            "resource_type": "google_compute_global_address",
+            "provider_source": "registry.terraform.io/hashicorp/google",
+            "actions": ["create"],
+        },
+        {
+            "address": (
+                "module.platform_foundation."
+                "google_storage_bucket.configuration"
+            ),
+            "resource_type": "google_storage_bucket",
+            "provider_source": "registry.terraform.io/hashicorp/google",
+            "actions": ["no-op"],
+        },
+        {
+            "address": (
+                "module.platform_controls."
+                "google_artifact_registry_repository.qualification_images[0]"
+            ),
+            "resource_type": "google_artifact_registry_repository",
+            "provider_source": "registry.terraform.io/hashicorp/google",
+            "actions": ["no-op"],
+        },
+    ]
+    return observation
+
+
 def _fixture_observation(application_id: str) -> dict[str, object]:
     return {
         "environment": "staging",
@@ -188,6 +220,72 @@ class PlanPolicyTest(unittest.TestCase):
                 ]
                 result = evaluate_plan(policy, observation)
                 self.assertIn(expected_code, [item.code for item in result.violations])
+
+    def test_shared_edge_accepts_exact_inherited_foundation_no_ops(self) -> None:
+        policy = plan_policy(
+            "staging",
+            "shared-edge",
+            SOURCE_REVISION,
+            destructive=False,
+        )
+
+        result = evaluate_plan(policy, _shared_edge_observation())
+
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.violations, ())
+        self.assertEqual(
+            [change["actions"] for change in result.canonical_summary["changes"]],
+            [["no-op"], ["create"], ["no-op"]],
+        )
+
+    def test_shared_edge_rejects_inherited_mutation_wrong_prefix_and_unknown_type(
+        self,
+    ) -> None:
+        policy = plan_policy(
+            "staging",
+            "shared-edge",
+            SOURCE_REVISION,
+            destructive=False,
+        )
+        cases = (
+            (
+                "module.platform_foundation.google_storage_bucket.configuration",
+                "google_storage_bucket",
+                ["update"],
+                "INHERITED_RESOURCE_MUTATION_PROHIBITED",
+            ),
+            (
+                "module.shared_edge[0].google_storage_bucket.configuration",
+                "google_storage_bucket",
+                ["no-op"],
+                "RESOURCE_PROHIBITED",
+            ),
+            (
+                "module.platform_foundation.google_dns_record_set.unexpected",
+                "google_dns_record_set",
+                ["no-op"],
+                "RESOURCE_PROHIBITED",
+            ),
+        )
+        for address, resource_type, actions, expected_code in cases:
+            with self.subTest(address=address, actions=actions):
+                observation = _shared_edge_observation()
+                observation["changes"] = [
+                    {
+                        "address": address,
+                        "resource_type": resource_type,
+                        "provider_source": "registry.terraform.io/hashicorp/google",
+                        "actions": actions,
+                    }
+                ]
+
+                result = evaluate_plan(policy, observation)
+
+                self.assertFalse(result.accepted)
+                self.assertIn(
+                    expected_code,
+                    [item.code for item in result.violations],
+                )
 
     def test_destroy_policy_allows_only_owned_deletes(self) -> None:
         policy = plan_policy(

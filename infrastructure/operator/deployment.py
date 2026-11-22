@@ -13,6 +13,7 @@ from contracts.lifecycle import validate_lifecycle_material
 from infrastructure.backend import (
     EnvironmentUnavailableError,
     PhasePlanRequest,
+    PlanViolation,
     TerraformPlanCommands,
     prepare_phase_plan,
 )
@@ -362,6 +363,28 @@ class DeploymentExecutor:
         )
         self._terminal.write(f"Terraform apply blocker {blocker}: {guidance}.")
         return self._failure(blocker)
+
+    def _plan_policy_failure(
+        self,
+        violations: tuple[PlanViolation, ...],
+    ) -> StageExecution:
+        details: list[dict[str, object]] = []
+        for violation in violations:
+            value: dict[str, object] = {
+                "code": violation.code,
+                "message": violation.message,
+                "path": violation.path,
+            }
+            if violation.address is not None:
+                value["address"] = violation.address
+            if violation.resource_type is not None:
+                value["resource_type"] = violation.resource_type
+            if violation.actions:
+                value["actions"] = list(violation.actions)
+            details.append(value)
+        if self._safe_canonical(details) is not None:
+            self._terminal.write(self._pretty_json("PLAN POLICY ERROR", details))
+        return self._failure(*(violation.code for violation in violations))
 
     def _bind_saved_plan(
         self,
@@ -875,7 +898,7 @@ class DeploymentExecutor:
                 return self._terraform_plan_failure(retry_error)
 
         if not evaluated.accepted:
-            return self._failure(*(violation.code for violation in evaluated.violations))
+            return self._plan_policy_failure(evaluated.violations)
         if (
             observer.request is None
             or observer.artifact is None

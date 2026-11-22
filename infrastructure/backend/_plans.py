@@ -80,6 +80,17 @@ _PHASE_INVENTORIES = {
         )
     },
 }
+_INHERITED_READ_ONLY_INVENTORIES = {
+    "shared-edge": {
+        "resource_types": _PHASE_INVENTORIES["platform-foundation"][
+            "resource_types"
+        ],
+        "address_prefixes": (
+            "module.platform_foundation.",
+            "module.platform_controls.",
+        ),
+    },
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +107,8 @@ class PlanPolicy:
     provider_source: str
     provider_service: str
     allowed_resource_types: tuple[str, ...]
+    inherited_read_only_resource_types: tuple[str, ...]
+    inherited_read_only_address_prefixes: tuple[str, ...]
     allowed_actions: tuple[str, ...]
     prohibited_delete_address_prefixes: tuple[str, ...]
     destructive: bool
@@ -106,6 +119,9 @@ class PlanViolation:
     code: str
     path: str
     message: str
+    address: str | None = None
+    resource_type: str | None = None
+    actions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +166,7 @@ def plan_policy(
         "module.platform_controls.google_storage_bucket_iam_member.evidence_owner_reader",
         "module.platform_controls.google_logging_project_exclusion.edge_from_default",
     ) if destructive and phase == "platform-foundation" else ()
+    inherited = _INHERITED_READ_ONLY_INVENTORIES.get(phase, {})
     return PlanPolicy(
         environment="staging",
         source_revision=source_revision,
@@ -161,14 +178,35 @@ def plan_policy(
         provider_source=_GOOGLE_PROVIDER,
         provider_service="google",
         allowed_resource_types=tuple(inventory["resource_types"]),
+        inherited_read_only_resource_types=tuple(
+            inherited.get("resource_types", ())
+        ),
+        inherited_read_only_address_prefixes=tuple(
+            inherited.get("address_prefixes", ())
+        ),
         allowed_actions=actions,
         prohibited_delete_address_prefixes=retained_prefixes,
         destructive=destructive,
     )
 
 
-def _violation(code: str, path: str, message: str) -> PlanViolation:
-    return PlanViolation(code, path, message)
+def _violation(
+    code: str,
+    path: str,
+    message: str,
+    *,
+    address: str | None = None,
+    resource_type: str | None = None,
+    actions: tuple[str, ...] = (),
+) -> PlanViolation:
+    return PlanViolation(
+        code,
+        path,
+        message,
+        address,
+        resource_type,
+        actions,
+    )
 
 
 def _ordered(values: list[PlanViolation]) -> tuple[PlanViolation, ...]:
@@ -264,16 +302,33 @@ def _change_summaries(
         resource_type = change.get("resource_type")
         provider_source = change.get("provider_source")
         actions = change.get("actions")
+        safe_address = str(address or "")
+        safe_resource_type = str(resource_type or "")
+        safe_actions = tuple(
+            action for action in actions if isinstance(action, str)
+        ) if isinstance(actions, list) else ()
         if not isinstance(address, str) or not address:
             violations.append(
                 _violation("PLAN_SHAPE_INVALID", f"{path}/address", "address is required")
             )
-        if resource_type not in policy.allowed_resource_types:
+        phase_resource = resource_type in policy.allowed_resource_types
+        inherited_read_only_resource = (
+            resource_type in policy.inherited_read_only_resource_types
+            and isinstance(address, str)
+            and any(
+                address.startswith(prefix)
+                for prefix in policy.inherited_read_only_address_prefixes
+            )
+        )
+        if not phase_resource and not inherited_read_only_resource:
             violations.append(
                 _violation(
                     "RESOURCE_PROHIBITED",
                     f"{path}/resource_type",
                     "resource type is outside the approved phase inventory",
+                    address=safe_address,
+                    resource_type=safe_resource_type,
+                    actions=safe_actions,
                 )
             )
         if provider_source != policy.provider_source:
@@ -300,12 +355,29 @@ def _change_summaries(
             normalized_actions: tuple[str, ...] = ()
         else:
             normalized_actions = tuple(actions)
-            if "create" in normalized_actions and "delete" in normalized_actions:
+            if (
+                inherited_read_only_resource
+                and normalized_actions not in {("no-op",), ("read",)}
+            ):
+                violations.append(
+                    _violation(
+                        "INHERITED_RESOURCE_MUTATION_PROHIBITED",
+                        f"{path}/actions",
+                        "an inherited resource may only remain unchanged or be read",
+                        address=safe_address,
+                        resource_type=safe_resource_type,
+                        actions=normalized_actions,
+                    )
+                )
+            elif "create" in normalized_actions and "delete" in normalized_actions:
                 violations.append(
                     _violation(
                         "REPLACEMENT_PROHIBITED",
                         f"{path}/actions",
                         "resource replacement is never implicit plan authority",
+                        address=safe_address,
+                        resource_type=safe_resource_type,
+                        actions=normalized_actions,
                     )
                 )
             elif "delete" in normalized_actions and not policy.destructive:
@@ -314,6 +386,9 @@ def _change_summaries(
                         "DESTRUCTIVE_ACTION_PROHIBITED",
                         f"{path}/actions",
                         "delete requires a separate destructive policy",
+                        address=safe_address,
+                        resource_type=safe_resource_type,
+                        actions=normalized_actions,
                     )
                 )
             elif "delete" in normalized_actions and any(
@@ -325,6 +400,9 @@ def _change_summaries(
                         "RETAINED_RESOURCE_DELETE_PROHIBITED",
                         f"{path}/address",
                         "retained recovery, evidence, or provider material cannot be deleted",
+                        address=safe_address,
+                        resource_type=safe_resource_type,
+                        actions=normalized_actions,
                     )
                 )
             elif (
@@ -336,6 +414,9 @@ def _change_summaries(
                         "ACTION_PROHIBITED",
                         f"{path}/actions",
                         "action is outside the approved phase inventory",
+                        address=safe_address,
+                        resource_type=safe_resource_type,
+                        actions=normalized_actions,
                     )
                 )
         summaries.append(

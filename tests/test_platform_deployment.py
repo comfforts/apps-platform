@@ -529,6 +529,45 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(commands.applied, [])
         self.assertEqual(commands.readbacks, [])
 
+    def test_policy_refusal_displays_only_safe_resource_details(self) -> None:
+        class ProhibitedResourceCommands(FakeCommands):
+            def create_terraform_plan(
+                self,
+                context: StageContext,
+                request: object,
+            ) -> TerraformPlanArtifact:
+                artifact = super().create_terraform_plan(context, request)
+                change = artifact.observation["changes"][0]  # type: ignore[index]
+                change["resource_type"] = "google_dns_record_set"
+                change["address"] = "module.unexpected.google_dns_record_set.edge"
+                return artifact
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = ProhibitedResourceCommands(root)
+            terminal = FakeTerminal([])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.execute(
+                _context("shared-edge", ("edge-reference", "reserved-address"))
+            )
+
+        displayed = "\n".join(terminal.messages)
+        self.assertEqual(result.outcome, "failed")
+        self.assertEqual(result.blockers, ("RESOURCE_PROHIBITED",))
+        self.assertIn("PLAN POLICY ERROR\n[", displayed)
+        self.assertIn('"resource_type": "google_dns_record_set"', displayed)
+        self.assertIn(
+            '"address": "module.unexpected.google_dns_record_set.edge"',
+            displayed,
+        )
+        self.assertIn('"actions": [', displayed)
+        self.assertNotIn("private saved plan", displayed)
+        self.assertEqual(terminal.confirmations, [])
+        self.assertEqual(commands.applied, [])
+        self.assertEqual(commands.readbacks, [])
+
     def test_declined_confirmation_cancels_without_apply_or_readback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "work"

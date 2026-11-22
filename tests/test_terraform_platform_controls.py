@@ -153,6 +153,10 @@ class TerraformPlatformControlsTest(unittest.TestCase):
     def test_budget_notifies_without_automatic_mutation_or_implicit_recipient(self) -> None:
         main = (MODULE_ROOT / "main.tf").read_text(encoding="utf-8")
         self.assertIn(
+            'billing_account = trimprefix(var.controls_configuration.billing_account_reference, "billingAccounts/")',
+            main,
+        )
+        self.assertNotIn(
             "billing_account = var.controls_configuration.billing_account_reference",
             main,
         )

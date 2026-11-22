@@ -128,7 +128,7 @@ resource "google_monitoring_notification_channel" "budget_email" {
 resource "google_billing_budget" "qualification" {
   count = local.retained_only ? 0 : 1
 
-  billing_account = var.controls_configuration.billing_account_reference
+  billing_account = trimprefix(var.controls_configuration.billing_account_reference, "billingAccounts/")
   display_name    = "App Platform qualification monthly budget"
   ownership_scope = "BILLING_ACCOUNT"
   deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"

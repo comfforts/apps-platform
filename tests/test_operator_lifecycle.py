@@ -168,7 +168,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             ready, terminal = self._operator(state, terminal=FakeTerminal([]))
             result = ready.preflight("staging")
 
-            blocked, _ = self._operator(
+            blocked, blocked_terminal = self._operator(
                 state,
                 terminal=FakeTerminal([]),
                 blocker="OPERATOR_PROJECT_MISMATCH",
@@ -182,6 +182,80 @@ class OperatorLifecycleTest(unittest.TestCase):
             blocked_result.blockers,
             ("OPERATOR_PROJECT_MISMATCH",),
         )
+        trace = "\n".join(terminal.messages)
+        self.assertIn(
+            "Environment profile path: infrastructure/config/profiles/staging.v1.json",
+            trace,
+        )
+        self.assertIn("Source snapshot:", trace)
+        self.assertIn("  repository: \"comfforts/apps-platform\"", trace)
+        self.assertIn("Discovery github: ready", trace)
+        self.assertIn("Discovery gcp: ready", trace)
+        self.assertIn("Discovery terraform: ready", trace)
+        self.assertIn("Discovery dns: ready", trace)
+        self.assertIn(
+            "Readiness blocker OPERATOR_PROJECT_MISMATCH: ",
+            "\n".join(blocked_terminal.messages),
+        )
+
+    def test_development_preflight_reports_source_without_enforcing_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "operator"
+            operator, terminal = self._operator(
+                state,
+                git=FakeGit(clean=False),
+                terminal=FakeTerminal([]),
+            )
+
+            development = operator.preflight("staging", mode="development")
+            operational = operator.preflight("staging")
+
+        self.assertTrue(development.ready)
+        self.assertFalse(development.operational_ready)
+        self.assertEqual(development.blockers, ())
+        self.assertEqual(
+            development.source_admission_blockers,
+            ("SOURCE_NOT_CLEAN",),
+        )
+        self.assertFalse(operational.ready)
+        self.assertEqual(operational.blockers, ("SOURCE_NOT_CLEAN",))
+        self.assertFalse(state.exists())
+        self.assertIn(
+            "Development source diagnostic SOURCE_NOT_CLEAN:",
+            "\n".join(terminal.messages),
+        )
+
+    def test_cli_development_preflight_is_explicit_and_machine_readable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            operator, _ = self._operator(
+                Path(directory),
+                git=FakeGit(clean=False),
+                terminal=FakeTerminal([]),
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
+                code = operator_main(
+                    [
+                        "preflight",
+                        "--environment",
+                        "staging",
+                        "--preflight-mode",
+                        "development",
+                    ],
+                    preflight_factory=lambda _path, _authority: operator,
+                )
+            result = json.loads(stdout.getvalue())
+
+        self.assertEqual(code, 0)
+        self.assertTrue(result["ready"])
+        self.assertFalse(result["operational_ready"])
+        self.assertEqual(result["preflight_mode"], "development")
+        self.assertEqual(
+            result["source_admission_blockers"],
+            ["SOURCE_NOT_CLEAN"],
+        )
+        self.assertIn("  preflight mode: development", stderr.getvalue())
 
     def test_prepare_approves_small_fingerprint_and_deploy_reuses_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -321,7 +395,8 @@ class OperatorLifecycleTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             operator, _ = self._operator(Path(directory), executor=FakeExecutor())
             stdout = io.StringIO()
-            with mock.patch("sys.stdout", stdout):
+            stderr = io.StringIO()
+            with mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
                 code = operator_main(
                     ["deploy", "--environment", "staging"],
                     operator_factory=lambda _path, _authority: operator,
@@ -331,6 +406,12 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(result["outcome"], "succeeded")
         self.assertRegex(result["progress_digest"], r"^sha256:[0-9a-f]{64}$")
+        invocation = stderr.getvalue()
+        self.assertIn("Operator invocation:", invocation)
+        self.assertIn("  operation: deploy", invocation)
+        self.assertIn("  environment: staging", invocation)
+        self.assertIn("  source authority: accepted", invocation)
+        self.assertIn("  fixture selected: none", invocation)
 
     def test_local_gcp_discovery_blocks_wrong_project_without_retaining_token(self) -> None:
         observed = (

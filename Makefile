@@ -2,6 +2,7 @@ PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 ENVIRONMENT ?= staging
 OPERATOR_STATE_DIRECTORY ?= .platform-operator
 SOURCE_AUTHORITY ?= accepted
+PREFLIGHT_MODE ?= operational
 SPECIFICATION_DIGEST ?=
 APPLICATION_ID ?=
 ACCESS_MODE ?=
@@ -52,9 +53,9 @@ operator-check:
 
 ## Platform management commands.
 
-## Check tools, source, authentication, ownership, and provider readiness without creating lifecycle state.
+## Check operational readiness, or use PREFLIGHT_MODE=development for local source diagnostics.
 platform-preflight:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator preflight --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator preflight --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --preflight-mode "$(PREFLIGHT_MODE)"
 
 ## Prepare and explicitly approve one complete lifecycle specification.
 platform-prepare:

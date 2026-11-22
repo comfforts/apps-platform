@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from typing import TYPE_CHECKING
@@ -410,7 +411,7 @@ class ConsoleTerminal:
         return input(prompt).strip().lower() in {"y", "yes"}
 
     def write(self, message: str) -> None:
-        print(message)
+        print(message, file=sys.stderr)
 
     def confirm_exact(self, prompt: str, expected: str) -> bool:
         return input(prompt) == expected

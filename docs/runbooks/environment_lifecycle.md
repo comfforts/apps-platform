@@ -119,6 +119,25 @@ The command keeps one interactive process open while it:
 8. reads back every result the provider exposes; and
 9. atomically records each readback-closed stage in private deployment progress.
 
+Every operator command writes a redacted execution trace to stderr before its final JSON result on
+stdout. The trace shows the operation, environment, state directory, source authority, selected
+fixture, profile, Git source facts, and the bounded non-secret result from each readiness adapter.
+When readiness is blocked, read the named adapter facts and the plain-language guidance printed
+with each stable blocker code. The trace never includes credentials, secret values, raw provider
+responses, Terraform state, or saved-plan content.
+
+For local maintenance of preflight behavior, use:
+
+```bash
+make platform-preflight ENVIRONMENT=staging PREFLIGHT_MODE=development
+```
+
+This runs the real read-only checks but reports source-admission findings separately as development
+diagnostics. `ready: true` means the development checks passed; `operational_ready: false` means the
+same source still cannot authorize preparation or deployment. Authentication, project, profile,
+tool, DNS, and discovery failures remain blocking. Development preflight writes no lifecycle state
+and has no executor, Terraform-plan, provider-mutation, bundle, evidence, or qualification path.
+
 During the DNS checkpoint, add the displayed record at the external provider and press Enter. The
 command waits for readable propagation before continuing. During the OAuth checkpoint, enter the
 OAuth client secret only in the instructed Secret Manager console surface. The script never asks

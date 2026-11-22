@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 from typing import Callable, Sequence
 
 from contracts import load_json_document
@@ -75,6 +76,12 @@ def _parser() -> argparse.ArgumentParser:
         choices=("accepted", "candidate"),
         default="accepted",
         help="accepted main or a clean pushed staging candidate",
+    )
+    parser.add_argument(
+        "--preflight-mode",
+        choices=("development", "operational"),
+        default="operational",
+        help="enforce source admission or report it as a development diagnostic",
     )
     parser.add_argument(
         "--specification-digest",
@@ -218,6 +225,23 @@ def _print(value: dict[str, object]) -> None:
     print(json.dumps(value, sort_keys=True, separators=(",", ":")))
 
 
+def _trace_invocation(
+    arguments: argparse.Namespace,
+    selected_fixture: str | None,
+) -> None:
+    print("Operator invocation:", file=sys.stderr)
+    print(f"  operation: {arguments.operation}", file=sys.stderr)
+    print(f"  environment: {arguments.environment}", file=sys.stderr)
+    print(f"  state directory: {arguments.state_directory}", file=sys.stderr)
+    print(f"  source authority: {arguments.source_authority}", file=sys.stderr)
+    if arguments.operation == "preflight":
+        print(f"  preflight mode: {arguments.preflight_mode}", file=sys.stderr)
+    print(
+        f"  fixture selected: {selected_fixture or 'none'}",
+        file=sys.stderr,
+    )
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -237,13 +261,17 @@ def main(
     fixture_factory: Callable[[Path, str], object] = _default_fixture_factory,
     fixture_status_factory: Callable[[Path, str], object] = _default_fixture_status_factory,
 ) -> int:
-    arguments = _parser().parse_args(argv)
+    parser = _parser()
+    arguments = parser.parse_args(argv)
+    if arguments.operation != "preflight" and arguments.preflight_mode != "operational":
+        parser.error("--preflight-mode=development is valid only for preflight")
     selected_fixture = (
         str(_required(arguments, "application_id"))
         if arguments.operation
         in {"fixture-handoff", "fixture-deploy", "fixture-destroy"}
         else None
     )
+    _trace_invocation(arguments, selected_fixture)
     if arguments.operation in {"preflight", "prepare", "deploy", "status"}:
         selected_operator_factory = (
             preflight_factory
@@ -335,14 +363,22 @@ def main(
             return 2
 
     if arguments.operation == "preflight":
-        result = operator.preflight(arguments.environment)
+        result = operator.preflight(
+            arguments.environment,
+            mode=arguments.preflight_mode,
+        )
         _print(
             {
                 "blockers": list(result.blockers),
                 "environment": arguments.environment,
                 "outcome": result.outcome,
+                "operational_ready": result.operational_ready,
+                "preflight_mode": arguments.preflight_mode,
                 "ready": result.ready,
                 "source_authority": arguments.source_authority,
+                "source_admission_blockers": list(
+                    result.source_admission_blockers
+                ),
             }
         )
         return 0 if result.ready else 2

@@ -177,9 +177,30 @@ DNS work, verifies readable results, and atomically records private resume progr
 
 `platform-preflight` is the optional readiness-only command. Use it to find missing tools or
 authentication, a wrong project, an ownership conflict, source drift, or another current blocker.
-It reports readiness and blocker codes without creating a specification, digest, approval,
-progress record, plan, private deployment working state, or external mutation.
+It prints the selected operation and scope, profile path and digest, complete Git source snapshot,
+and each bounded non-secret GitHub, GCP, Terraform, and DNS discovery result. A blocked check pairs
+its stable machine code with plain-language guidance. It creates no specification, digest,
+approval, progress record, plan, private deployment working state, or external mutation.
 It is not a required predecessor to `platform-deploy`.
+
+Operational preflight is the default and enforces Accepted or Candidate Source admission. During
+local maintenance, run the same real read-only checks without admitting the working tree as an
+operational source:
+
+```bash
+make platform-preflight ENVIRONMENT=staging PREFLIGHT_MODE=development
+```
+
+Development preflight reports dirty, unpushed, stale, or non-main source as non-blocking source
+diagnostics while continuing to enforce profile, authentication, project, tool, and discovery
+checks. Its result distinguishes `ready` for development from `operational_ready`. This mode exists
+only for preflight; it cannot prepare, approve, plan, deploy, publish a bundle, qualify, or mutate an
+external system.
+
+Operator narration is written to standard error. The final compact JSON result remains the only
+standard-output record, so a human receives a readable execution trace while automation can parse
+stdout without filtering progress messages. Traces never include access tokens, secret values,
+raw provider responses, Terraform state, or saved-plan content.
 
 `platform-prepare` is a separate optional specification-review command. It performs the readiness
 checks, writes the complete private specification, prints its digest, and requests approval, but

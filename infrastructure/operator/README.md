@@ -72,7 +72,24 @@ the journey from main with the default Accepted Source.
 Standalone preflight is the readiness-only command. It verifies source, profile, tools, active
 human account, user Application Default Credentials, provider project, ownership, and readable
 provider prerequisites without retaining a token or writing a specification, digest, approval,
-progress, plan, or deployment working state. It returns only readiness and blocker codes.
+progress, plan, or deployment working state. Its stderr trace identifies the invocation, selected
+fixture or lack of one, environment profile, exact source snapshot, each bounded non-secret adapter
+result, and plain-language blocker guidance. Its single stdout record is the final JSON result.
+Neither stream includes tokens, secret values, raw provider payloads, Terraform state, or saved
+plans.
+
+The default `PREFLIGHT_MODE=operational` enforces the selected Accepted or Candidate Source policy.
+For local code maintenance, `PREFLIGHT_MODE=development` runs the same read-only profile, Git,
+GitHub, GCP, ADC, Terraform-tool, and DNS checks but reports source-admission findings separately
+without making them block the diagnostic run:
+
+```bash
+make platform-preflight ENVIRONMENT=staging PREFLIGHT_MODE=development
+```
+
+Development mode is accepted only by `platform-preflight`. It never arms an executor, creates or
+approves a specification, writes lifecycle state, runs Terraform setup or planning, emits an
+operational artifact, or changes a provider.
 
 Standalone preparation repeats those checks and remains an optional specification dry run. It
 writes, displays, and approves the complete private specification without an external mutation.

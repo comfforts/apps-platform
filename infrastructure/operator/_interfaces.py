@@ -50,6 +50,8 @@ class PreflightResult:
     outcome: str
     ready: bool
     blockers: tuple[str, ...]
+    source_admission_blockers: tuple[str, ...] = ()
+    operational_ready: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -144,6 +144,61 @@ _DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
 _STAGE_IDS = tuple(str(stage["stage_id"]) for stage in _DEPLOYMENT_STAGES)
 _TERMINAL_PROGRESS = {"cancelled", "succeeded"}
 _PROGRESS_STATUSES = {"cancelled", "failed", "running", "succeeded", "waiting"}
+_READINESS_BLOCKER_GUIDANCE = {
+    "CANDIDATE_BASE_STALE": (
+        "the candidate branch does not contain current origin/main; update the branch before "
+        "retrying"
+    ),
+    "CANDIDATE_BRANCH_REQUIRED": (
+        "Candidate Source requires a non-main branch for staging"
+    ),
+    "CANDIDATE_NOT_PUSHED": (
+        "Candidate Source requires HEAD to match the configured upstream revision"
+    ),
+    "CANDIDATE_SOURCE_PRODUCTION_PROHIBITED": (
+        "Candidate Source is staging-only and cannot authorize production"
+    ),
+    "CANDIDATE_UPSTREAM_MISMATCH": (
+        "the branch must track its matching origin/<branch> upstream"
+    ),
+    "DISCOVERY_CONFLICT": (
+        "discovered repository, project, region, DNS, or tool facts do not match the "
+        "environment profile"
+    ),
+    "DNS_TOOL_UNAVAILABLE": "the required local dig executable is unavailable",
+    "OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE": (
+        "Application Default Credentials are unavailable or cannot mint an access token"
+    ),
+    "OPERATOR_PROJECT_MISMATCH": (
+        "the active gcloud project does not match the environment profile"
+    ),
+    "OPERATOR_SESSION_UNAVAILABLE": (
+        "an active gcloud account and project are required"
+    ),
+    "OWNERSHIP_TRANSFER_REQUIRED": (
+        "the environment remains disabled until its documented ownership transfer"
+    ),
+    "PINNED_TOOL_INVALID": (
+        "the project-local Terraform binary or provider package failed version or checksum "
+        "validation"
+    ),
+    "PINNED_TOOL_UNAVAILABLE": (
+        "the pinned project-local Terraform binary or provider mirror is unavailable"
+    ),
+    "REPOSITORY_MISMATCH": (
+        "the Git origin is not the canonical comfforts/apps-platform repository"
+    ),
+    "SOURCE_NOT_CLEAN": (
+        "the repository has modified or untracked files; inspect git status --short"
+    ),
+    "SOURCE_NOT_CURRENT": (
+        "Accepted Source requires HEAD, local main, and origin/main to be the same revision"
+    ),
+    "SOURCE_NOT_MAIN": (
+        "Accepted Source requires main; for a pushed staging branch rerun with "
+        "SOURCE_AUTHORITY=candidate"
+    ),
+}
 
 
 class LifecycleOperator:
@@ -179,13 +234,77 @@ class LifecycleOperator:
             profile_path = _PROFILE_PATHS[environment]
         except KeyError as error:
             raise ValueError(f"unsupported environment {environment!r}") from error
+        self._adapters.terminal.write(
+            f"Environment profile path: {profile_path}"
+        )
         loaded = load_lifecycle_document(
             self._adapters.filesystem.project_path(profile_path),
             "environment-profile",
         )
         if loaded.violations or loaded.value is None or loaded.digest is None:
             raise ValueError(f"invalid committed environment profile: {loaded.violations!r}")
+        self._adapters.terminal.write(
+            "Environment profile loaded: "
+            f"environment={environment} lifecycle_state={loaded.value['lifecycle_state']} "
+            f"digest={loaded.digest}"
+        )
         return loaded.value, loaded.digest
+
+    def _report_source(self, snapshot: GitSnapshot) -> None:
+        self._adapters.terminal.write("Source snapshot:")
+        values: tuple[tuple[str, object], ...] = (
+            ("repository", snapshot.repository),
+            ("branch", snapshot.branch),
+            ("revision", snapshot.revision),
+            ("clean", snapshot.clean),
+            ("main_revision", snapshot.main_revision),
+            ("origin_main_revision", snapshot.origin_main_revision),
+            ("upstream_branch", snapshot.upstream_branch),
+            ("upstream_revision", snapshot.upstream_revision),
+            ("origin_main_ancestor", snapshot.origin_main_ancestor),
+        )
+        for name, value in values:
+            self._adapters.terminal.write(
+                f"  {name}: {json.dumps(value, sort_keys=True)}"
+            )
+
+    def _report_discovery(self, discovery: DiscoverySnapshot) -> None:
+        outcome = "blocked" if discovery.blockers else "ready"
+        self._adapters.terminal.write(
+            f"Discovery {discovery.name}: {outcome}"
+        )
+        for name, value in discovery.facts:
+            self._adapters.terminal.write(
+                f"  {name}: {json.dumps(value, sort_keys=True)}"
+            )
+        if discovery.blockers:
+            self._adapters.terminal.write(
+                "  blockers: " + ", ".join(discovery.blockers)
+            )
+
+    def _report_blockers(self, blockers: tuple[str, ...]) -> None:
+        for blocker in blockers:
+            guidance = _READINESS_BLOCKER_GUIDANCE.get(
+                blocker,
+                "inspect the preceding source and discovery facts",
+            )
+            self._adapters.terminal.write(
+                f"Readiness blocker {blocker}: {guidance}."
+            )
+
+    def _report_development_source_diagnostics(
+        self,
+        blockers: tuple[str, ...],
+    ) -> None:
+        for blocker in blockers:
+            guidance = _READINESS_BLOCKER_GUIDANCE.get(
+                blocker,
+                "inspect the preceding source facts",
+            )
+            self._adapters.terminal.write(
+                f"Development source diagnostic {blocker}: {guidance}. "
+                "This does not block development preflight and cannot authorize an operation."
+            )
 
     def _source_blockers(
         self,
@@ -227,12 +346,15 @@ class LifecycleOperator:
         self,
         profile: dict[str, Any],
     ) -> tuple[DiscoverySnapshot, ...]:
-        return (
+        discoveries = (
             self._adapters.github.inspect(profile),
             self._adapters.gcp.inspect(profile),
             self._adapters.terraform.inspect(),
             self._adapters.dns.inspect(profile),
         )
+        for discovery in discoveries:
+            self._report_discovery(discovery)
+        return discoveries
 
     def _freshness_blockers(
         self,
@@ -251,6 +373,8 @@ class LifecycleOperator:
     def _readiness(
         self,
         environment: str,
+        *,
+        report_blockers: bool = True,
     ) -> tuple[
         dict[str, Any],
         str,
@@ -261,10 +385,15 @@ class LifecycleOperator:
         profile, profile_digest = self._load_profile(environment)
         profile_blockers = tuple(profile.get("blockers", ()))
         if profile.get("lifecycle_state") != "enabled":
+            if report_blockers:
+                self._report_blockers(profile_blockers)
             return profile, profile_digest, None, (), profile_blockers
         git = self._adapters.git.inspect()
+        self._report_source(git)
         discoveries = self._discoveries(profile)
         blockers = self._freshness_blockers(environment, profile, git, discoveries)
+        if report_blockers:
+            self._report_blockers(blockers)
         return profile, profile_digest, git, discoveries, blockers
 
     def _report_verified_session(
@@ -915,16 +1044,61 @@ class LifecycleOperator:
         )
         return PrepareResult("unchanged", True, True, specification, digest, ())
 
-    def preflight(self, environment: str) -> PreflightResult:
+    def preflight(
+        self,
+        environment: str,
+        *,
+        mode: str = "operational",
+    ) -> PreflightResult:
         """Check readiness without writing, approving, planning, or mutating."""
 
-        _, _, git, discoveries, blockers = self._readiness(environment)
+        if mode not in {"development", "operational"}:
+            raise ValueError(f"unsupported preflight mode {mode!r}")
+        _, _, git, discoveries, all_blockers = self._readiness(
+            environment,
+            report_blockers=False,
+        )
+        source_blockers = (
+            tuple(sorted(set(self._source_blockers(git, environment))))
+            if git is not None
+            else ()
+        )
+        source_codes = set(source_blockers)
+        readiness_blockers = tuple(
+            blocker for blocker in all_blockers if blocker not in source_codes
+        )
+        operational_ready = not all_blockers
+        if mode == "development":
+            blockers = readiness_blockers
+            self._report_development_source_diagnostics(source_blockers)
+            self._report_blockers(readiness_blockers)
+        else:
+            blockers = all_blockers
+            self._report_blockers(all_blockers)
         if blockers:
-            return PreflightResult("blocked", False, blockers)
+            return PreflightResult(
+                "blocked",
+                False,
+                blockers,
+                source_blockers,
+                operational_ready,
+            )
         assert git is not None
         self._report_verified_session(discoveries)
-        self._adapters.terminal.write(f"Preflight ready for {environment}.")
-        return PreflightResult("ready", True, ())
+        if mode == "development" and source_blockers:
+            self._adapters.terminal.write(
+                f"Development preflight ready for {environment}; source remains "
+                "operationally unadmitted."
+            )
+        else:
+            self._adapters.terminal.write(f"Preflight ready for {environment}.")
+        return PreflightResult(
+            "ready",
+            True,
+            (),
+            source_blockers,
+            operational_ready,
+        )
 
     def prepare(self, environment: str) -> PrepareResult:
         """Discover readiness, display one operation fingerprint, and approve it."""

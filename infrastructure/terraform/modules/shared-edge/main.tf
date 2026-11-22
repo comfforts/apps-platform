@@ -179,7 +179,6 @@ resource "google_compute_backend_service" "edge" {
   name                  = "app-platform-edge-backend"
   load_balancing_scheme = "EXTERNAL_MANAGED"
   protocol              = "HTTP"
-  timeout_sec           = 3600
   enable_cdn            = false
 
   backend {

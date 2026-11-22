@@ -134,7 +134,6 @@ class TerraformSharedEdgeTest(unittest.TestCase):
             "service = google_cloud_run_v2_service.edge.name",
             'load_balancing_scheme = "EXTERNAL_MANAGED"',
             'protocol              = "HTTP"',
-            "timeout_sec           = 3600",
             "enable_cdn            = false",
             'address_type = "EXTERNAL"',
             'ip_version   = "IPV4"',
@@ -161,6 +160,14 @@ class TerraformSharedEdgeTest(unittest.TestCase):
             "google_compute_backend_bucket",
         ):
             self.assertNotIn(prohibited, main)
+
+    def test_serverless_backend_uses_provider_managed_timeout(self) -> None:
+        main = (MODULE_ROOT / "main.tf").read_text(encoding="utf-8")
+        backend_service = main.split(
+            'resource "google_compute_backend_service" "edge" {', 1
+        )[1].split("\n}", 1)[0]
+
+        self.assertNotIn("timeout_sec", backend_service)
 
     def test_application_attachment_data_is_not_a_terraform_root_input(self) -> None:
         names = (

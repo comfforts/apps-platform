@@ -330,7 +330,7 @@ class FakeCommands:
                         "project=comfforts-platform-non-prod",
                     ),
                     (
-                        "secret_manager_console_url",
+                        "oauth_store_console_url",
                         "https://console.cloud.google.com/security/secret-manager/"
                         "secret/app-platform-edge-oauth/versions?"
                         "project=comfforts-platform-non-prod",
@@ -342,7 +342,10 @@ class FakeCommands:
                     ("authorized_domain", "comfforts.com"),
                     ("authorized_origin", "https://apps-staging.comfforts.com"),
                     ("redirect_uri", "https://apps-staging.comfforts.com/oauth/callback"),
-                    ("secret_manager_target", "projects/example/secrets/oauth-client"),
+                    (
+                        "oauth_store_target",
+                        "projects/example/secrets/oauth-client",
+                    ),
                 ),
             )
         return ManualCheckpoint(

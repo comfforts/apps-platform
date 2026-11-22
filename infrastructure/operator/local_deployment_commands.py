@@ -42,14 +42,16 @@ _PROJECT_ID = "comfforts-platform-non-prod"
 _REGION = "us-west1"
 _HOSTNAME = "apps-staging.comfforts.com"
 _CONFIGURATION_BUCKET = "comfforts-ap-stg-455651441682-configuration"
-_OAUTH_SECRET = f"projects/{_PROJECT_ID}/secrets/app-platform-edge-oauth"
+_OAUTH_STORE_TARGET = (
+    f"projects/{_PROJECT_ID}/secrets/app-platform-edge-oauth"
+)
 _OAUTH_BRANDING_CONSOLE = (
     f"https://console.cloud.google.com/auth/branding?project={_PROJECT_ID}"
 )
 _OAUTH_CLIENTS_CONSOLE = (
     f"https://console.cloud.google.com/auth/clients?project={_PROJECT_ID}"
 )
-_OAUTH_SECRET_CONSOLE = (
+_OAUTH_STORE_CONSOLE = (
     "https://console.cloud.google.com/security/secret-manager/secret/"
     f"app-platform-edge-oauth/versions?project={_PROJECT_ID}"
 )
@@ -329,7 +331,7 @@ class LocalDeploymentCommands:
             or output.get("hostname") != _HOSTNAME
             or not isinstance(foundation, dict)
             or foundation.get("configuration_bucket") != _CONFIGURATION_BUCKET
-            or foundation.get("oauth_secret_id") != _OAUTH_SECRET
+            or foundation.get("oauth_secret_id") != _OAUTH_STORE_TARGET
         ):
             raise DeploymentCommandError("FOUNDATION_READBACK_INVALID")
         try:
@@ -337,7 +339,7 @@ class LocalDeploymentCommands:
         except DeploymentProviderError as error:
             raise self._provider_error(error) from error
         reference = {**output, "signing_key_version": signing_version}
-        return _canonical(reference), _OAUTH_SECRET
+        return _canonical(reference), _OAUTH_STORE_TARGET
 
     @staticmethod
     def _edge_references(value: object, *, tls_enabled: bool) -> tuple[str, str]:
@@ -391,12 +393,12 @@ class LocalDeploymentCommands:
                     (("backend-reference", self._bootstrap_reference(value)),),
                 )
             if request.stage_id == "foundation":
-                foundation, secret = self._foundation_references(value)
+                foundation, oauth_store_target = self._foundation_references(value)
                 return TerraformReadback(
                     True,
                     (
                         ("foundation-reference", foundation),
-                        ("oauth-secret-container", secret),
+                        ("oauth-secret-container", oauth_store_target),
                     ),
                 )
             if request.stage_id == "shared-edge":
@@ -527,7 +529,10 @@ class LocalDeploymentCommands:
                     ("project_id", _PROJECT_ID),
                     ("branding_console_url", _OAUTH_BRANDING_CONSOLE),
                     ("clients_console_url", _OAUTH_CLIENTS_CONSOLE),
-                    ("secret_manager_console_url", _OAUTH_SECRET_CONSOLE),
+                    (
+                        "oauth_store_console_url",
+                        _OAUTH_STORE_CONSOLE,
+                    ),
                     ("application_name", "Comfforts Apps Staging"),
                     ("application_type", "Web application"),
                     ("support_email", self._session.active_account),
@@ -538,10 +543,9 @@ class LocalDeploymentCommands:
                         "redirect_uri",
                         f"https://{_HOSTNAME}/_platform/auth/callback",
                     ),
-                    ("secret_manager_target", _OAUTH_SECRET),
                     (
-                        "secret_instruction",
-                        "Add the client secret as one enabled Secret Manager version",
+                        "oauth_store_target",
+                        _OAUTH_STORE_TARGET,
                     ),
                 ),
             )

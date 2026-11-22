@@ -498,8 +498,8 @@ class DeploymentExecutor:
                 "homepage_url",
                 "project_id",
                 "redirect_uri",
-                "secret_manager_console_url",
-                "secret_manager_target",
+                "oauth_store_console_url",
+                "oauth_store_target",
                 "support_email",
             }
             if not required.issubset(instructions):
@@ -542,12 +542,12 @@ class DeploymentExecutor:
                     "prompt accepts only the client ID.",
                 )
             )
-            secret = "\n".join(
+            oauth_store_step = "\n".join(
                 (
                     "OAUTH STEP 3 OF 3: Store the OAuth client secret",
                     "",
                     "The browser page opens the existing Secret Manager target:",
-                    f"{instructions['secret_manager_target']}",
+                    f"{instructions['oauth_store_target']}",
                     "Do not create a second secret.",
                     "",
                     "Inspect its versions before changing anything. This deployment "
@@ -568,7 +568,10 @@ class DeploymentExecutor:
             return (
                 (branding, instructions["branding_console_url"]),
                 (client, instructions["clients_console_url"]),
-                (secret, instructions["secret_manager_console_url"]),
+                (
+                    oauth_store_step,
+                    instructions["oauth_store_console_url"],
+                ),
             )
         if stage_id == "external-dns":
             required = {

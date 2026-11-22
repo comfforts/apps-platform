@@ -126,7 +126,7 @@ class FakeCommands:
     ] = field(default_factory=list)
     checkpoint_outcomes: list[str] = field(default_factory=lambda: ["succeeded"])
     terraform_readiness: list[bool] = field(default_factory=list)
-    plan_errors: list[str] = field(default_factory=list)
+    plan_errors: list[str | DeploymentCommandError] = field(default_factory=list)
     recovered_taints: list[str] = field(default_factory=list)
 
     def create_terraform_plan(
@@ -137,7 +137,10 @@ class FakeCommands:
         del context
         self.planned.append(request)
         if self.plan_errors:
-            raise DeploymentCommandError(self.plan_errors.pop(0))
+            error = self.plan_errors.pop(0)
+            if isinstance(error, DeploymentCommandError):
+                raise error
+            raise DeploymentCommandError(error)
         phase = str(getattr(request, "phase"))
         path = self.working_root / f"{phase}-{len(self.planned):04d}.tfplan"
         path.write_bytes(b"private saved plan")
@@ -563,6 +566,11 @@ class PlatformDeploymentTest(unittest.TestCase):
                 DeploymentCommandError(
                     "TERRAFORM_APPLY_INVALID_ARGUMENT",
                     diagnostic={
+                        "diagnostic_digest": "sha256:" + "b" * 64,
+                        "diagnostic_path": (
+                            "/private/operator/diagnostics/staging/"
+                            "failure/stderr.log"
+                        ),
                         "http_status": 400,
                         "operation": "creating Budget",
                         "resource_address": (
@@ -604,6 +612,10 @@ class PlatformDeploymentTest(unittest.TestCase):
                         'qualification[0]"',
                         displayed,
                     )
+                    self.assertIn(
+                        "Private Terraform diagnostics may contain sensitive",
+                        displayed,
+                    )
 
     def test_plan_failure_reports_safe_operator_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -628,6 +640,46 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertIn(
             "Terraform plan blocker TERRAFORM_STATE_LOCKED:",
             "\n".join(terminal.messages),
+        )
+
+    def test_plan_failure_reports_private_diagnostic_reference_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                plan_errors=[
+                    DeploymentCommandError(
+                        "TERRAFORM_PLAN_FAILED_UNKNOWN",
+                        diagnostic={
+                            "diagnostic_digest": "sha256:" + "a" * 64,
+                            "diagnostic_path": (
+                                "/private/operator/diagnostics/staging/"
+                                "failure/stderr.log"
+                            ),
+                        },
+                    )
+                ],
+            )
+            terminal = FakeTerminal([])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.execute(
+                _context(
+                    "foundation",
+                    ("foundation-reference", "oauth-secret-container"),
+                )
+            )
+
+        displayed = "\n".join(terminal.messages)
+        self.assertEqual(result.outcome, "failed")
+        self.assertEqual(result.blockers, ("TERRAFORM_PLAN_FAILED_UNKNOWN",))
+        self.assertIn("TERRAFORM PLAN ERROR\n{", displayed)
+        self.assertIn('"diagnostic_digest": "sha256:', displayed)
+        self.assertIn('"diagnostic_path": "/private/operator/', displayed)
+        self.assertIn(
+            "Private Terraform diagnostics may contain sensitive",
+            displayed,
         )
 
     def test_saved_plan_must_be_private_and_bounded(self) -> None:

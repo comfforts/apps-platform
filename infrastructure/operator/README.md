@@ -134,7 +134,7 @@ uses a repository-root allow-list and cannot include private operator state. The
 and destruction live defaults retain explicit W9 authority gates; no partial external work occurs.
 Repository tests use deterministic fakes and process-local loopback only. Non-fake command adapters
 are not invoked by `make check` and reject path escape, ambient credential variables, shell
-interpolation, mutable scope, and raw-output persistence.
+interpolation, mutable scope, and raw-output persistence outside the private diagnostic boundary.
 
 ## Private local state
 
@@ -145,6 +145,14 @@ mode `0600`. Registration intent is a strict
 private operator input; restricted members are never echoed in terminal results. Documents contain
 no credential, secret payload, Terraform state, saved plan, raw provider response, or browser
 state. Private plans and raw command results never become progress content.
+
+A failed Terraform plan or apply stores its exact stdout and stderr only beneath
+`.platform-operator/diagnostics/<environment>/`. Each event has a mode-`0700` directory, mode-`0600`
+stream files, a timestamp, and a SHA-256 manifest. The terminal reports only the stderr path and
+content digest plus a warning that the local files may contain sensitive provider data. Diagnostic
+files are troubleshooting artifacts: they are never lifecycle documents, progress, evidence,
+qualification output, bundle content, or Git input, and the operator must not commit or share them
+without reviewing and redacting their contents.
 
 The current deployment progress remains the single resume record. Its latest succeeded, failed, or
 cancelled value is also retained once per specification beneath `progress/`; a later terminal
@@ -167,8 +175,10 @@ Executor construction returns explicit safe prerequisite blockers instead of col
 missing executable, session, configuration, command adapter, or private-state error into one
 unavailable result. Terraform planning classifies a closed allow-list of state, backend,
 authentication, permission, quota, configuration, plugin, and protected-taint diagnostics. The
-terminal prints guidance for the selected code while command stderr remains transient and
-unretained; an unmatched diagnostic becomes `TERRAFORM_PLAN_FAILED_UNKNOWN`. Terraform apply
+terminal prints guidance for the selected code while raw command output remains absent from the
+terminal and retained records; an unmatched diagnostic becomes `TERRAFORM_PLAN_FAILED_UNKNOWN`.
+The private diagnostic boundary retains exact failed plan/apply streams for local inspection.
+Terraform apply
 failures use a separate closed classifier and may print only the bounded resource address,
 operation, HTTP status, provider status, and service name extracted from stderr. Arbitrary provider
 messages remain suppressed. A provider result inconsistent with the reviewed plan reports

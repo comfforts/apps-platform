@@ -307,7 +307,23 @@ class DeploymentExecutor:
             blockers=tuple(sorted(set(blockers))),
         )
 
-    def _terraform_plan_failure(self, blocker: str) -> StageExecution:
+    def _terraform_plan_failure(
+        self,
+        error: str | DeploymentCommandError,
+    ) -> StageExecution:
+        blocker = str(error)
+        if isinstance(error, DeploymentCommandError) and error.diagnostic:
+            value: dict[str, object] = {
+                "blocker": blocker,
+                **error.diagnostic,
+            }
+            if self._safe_canonical(value) is not None:
+                self._terminal.write(self._pretty_json("TERRAFORM PLAN ERROR", value))
+            if "diagnostic_path" in error.diagnostic:
+                self._terminal.write(
+                    "Private Terraform diagnostics may contain sensitive provider "
+                    "data. Inspect locally; do not commit or share them unredacted."
+                )
         guidance = _TERRAFORM_PLAN_GUIDANCE.get(
             blocker,
             "inspect the named Terraform planning boundary before retrying",
@@ -327,6 +343,11 @@ class DeploymentExecutor:
             }
             if self._safe_canonical(value) is not None:
                 self._terminal.write(self._pretty_json("TERRAFORM APPLY ERROR", value))
+            if "diagnostic_path" in error.diagnostic:
+                self._terminal.write(
+                    "Private Terraform diagnostics may contain sensitive provider "
+                    "data. Inspect locally; do not commit or share them unredacted."
+                )
         guidance = _TERRAFORM_APPLY_GUIDANCE.get(
             blocker,
             "inspect the named Terraform apply boundary before replanning",
@@ -634,7 +655,7 @@ class DeploymentExecutor:
                 or stage_id != "foundation"
                 or observer.request is None
             ):
-                return self._terraform_plan_failure(str(error))
+                return self._terraform_plan_failure(error)
             try:
                 identity = self._commands.signing_key_ring_recovery_identity(
                     context,
@@ -680,7 +701,7 @@ class DeploymentExecutor:
                     destructive=destructive,
                 )
             except (EnvironmentUnavailableError, DeploymentCommandError) as retry_error:
-                return self._terraform_plan_failure(str(retry_error))
+                return self._terraform_plan_failure(retry_error)
 
         if not evaluated.accepted:
             return self._failure(*(violation.code for violation in evaluated.violations))

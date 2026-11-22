@@ -849,6 +849,15 @@ service-account key, long-lived credential, automatic unlock, state push, import
 cleanup, or destructive recovery is permitted. Capability available to the human account outside
 the script is residual risk and never expands the reviewed lifecycle scope.
 
+When Terraform plan or apply fails, the command boundary writes the exact captured stdout and
+stderr into a new timestamped event below the ignored private operator diagnostics directory. The
+event directory is mode `0700`; its streams and SHA-256 manifest are mode `0600`. Terminal output
+contains only the safe blocker, diagnostic path and digest, and a handling warning. The raw streams
+may contain sensitive provider material and therefore never enter a profile, specification,
+approval, progress record, bundle, evidence package, qualification result, Git input, or terminal
+transcript. This local troubleshooting boundary permits root-cause inspection without treating raw
+provider output as reviewed authority.
+
 After environment deployment, `outputs` compiles a Platform Integration Bundle for one application,
 environment, access mode, route intent, and platform revision. A fixture may consume a bundle whose
 qualification status is explicitly `unqualified`; real Application Adoption requires the owning

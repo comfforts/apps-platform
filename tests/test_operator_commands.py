@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 
@@ -289,6 +290,162 @@ class OperatorCommandTest(unittest.TestCase):
             "must-not-be-reported",
             json.dumps(error.diagnostic),
         )
+
+    def test_failed_apply_persists_exact_output_only_in_private_diagnostics(
+        self,
+    ) -> None:
+        stdout = b"google_billing_budget.qualification: Creating...\n"
+        stderr = (
+            b"Error: Error creating Budget: provider detail "
+            b"client_secret=must-remain-private\n"
+        )
+        runner = FakeRunner([CommandResult(1, stdout, stderr)])
+        with tempfile.TemporaryDirectory() as directory:
+            state_root = Path(directory) / ".platform-operator"
+            state_root.mkdir(mode=0o700)
+            work = state_root / "work"
+            work.mkdir(mode=0o700)
+            workspace = work / "deployment"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "platform-foundation"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            saved_plan = self._private_file(workspace / "plan.tfplan", b"exact-plan")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+                private_state_root=state_root,
+            )
+
+            with self.assertRaises(DeploymentCommandError) as raised:
+                adapter.apply_plan(request, root, saved_plan)
+
+            diagnostic_path = Path(raised.exception.diagnostic["diagnostic_path"])
+            diagnostic_directory = diagnostic_path.parent
+            manifest = json.loads(
+                (diagnostic_directory / "manifest.json").read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(diagnostic_path.read_bytes(), stderr)
+            self.assertEqual((diagnostic_directory / "stdout.log").read_bytes(), stdout)
+            self.assertEqual(stat.S_IMODE(diagnostic_path.stat().st_mode), 0o600)
+            self.assertEqual(
+                stat.S_IMODE((diagnostic_directory / "stdout.log").stat().st_mode),
+                0o600,
+            )
+            self.assertEqual(stat.S_IMODE(diagnostic_directory.stat().st_mode), 0o700)
+            self.assertEqual(manifest["operation"], "apply")
+            self.assertEqual(manifest["phase"], "platform-foundation")
+            self.assertEqual(manifest["environment"], "staging")
+            self.assertEqual(
+                raised.exception.diagnostic["diagnostic_digest"],
+                manifest["diagnostic_digest"],
+            )
+            self.assertTrue(
+                str(raised.exception.diagnostic["diagnostic_digest"]).startswith(
+                    "sha256:"
+                )
+            )
+            self.assertNotIn(
+                "must-remain-private",
+                json.dumps(raised.exception.diagnostic),
+            )
+
+    def test_failed_plan_persists_private_diagnostics_before_plan_cleanup(self) -> None:
+        stderr = b"Error: unclassified plan detail provider_payload=private\n"
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(1, b"plan progress\n", stderr),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            state_root = Path(directory) / ".platform-operator"
+            state_root.mkdir(mode=0o700)
+            work = state_root / "work"
+            work.mkdir(mode=0o700)
+            workspace = work / "deployment"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "platform-foundation"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            self._private_file(
+                request.backend_path,
+                b'terraform { backend "gcs" {} }\n',
+            )
+            variables = self._private_file(workspace / "values.json", b"{}\n")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+                private_state_root=state_root,
+            )
+
+            with self.assertRaises(DeploymentCommandError) as raised:
+                adapter.create_plan(request, root, variables)
+
+            diagnostic_path = Path(raised.exception.diagnostic["diagnostic_path"])
+            plan_files = tuple((workspace / "plans").glob("*.tfplan"))
+
+            self.assertEqual(
+                str(raised.exception),
+                "TERRAFORM_PLAN_FAILED_UNKNOWN",
+            )
+            self.assertEqual(diagnostic_path.read_bytes(), stderr)
+            self.assertEqual(plan_files, ())
+            self.assertNotIn(
+                "provider_payload",
+                json.dumps(raised.exception.diagnostic),
+            )
+
+    def test_diagnostic_symlink_is_rejected_without_masking_apply_failure(self) -> None:
+        runner = FakeRunner(
+            [CommandResult(1, b"", b"Error: unclassified provider failure\n")]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            state_root = temporary / ".platform-operator"
+            state_root.mkdir(mode=0o700)
+            outside = temporary / "outside"
+            outside.mkdir(mode=0o700)
+            (state_root / "diagnostics").symlink_to(outside, target_is_directory=True)
+            work = state_root / "work"
+            work.mkdir(mode=0o700)
+            workspace = work / "deployment"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "platform-foundation"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            saved_plan = self._private_file(workspace / "plan.tfplan", b"exact-plan")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+                private_state_root=state_root,
+            )
+
+            with self.assertRaises(DeploymentCommandError) as raised:
+                adapter.apply_plan(request, root, saved_plan)
+
+            self.assertEqual(
+                str(raised.exception),
+                "TERRAFORM_APPLY_FAILED_UNKNOWN",
+            )
+            self.assertEqual(
+                raised.exception.diagnostic["diagnostic_capture"],
+                "failed",
+            )
+            self.assertEqual(tuple(outside.iterdir()), ())
 
     def test_apply_classifies_provider_inconsistent_result_with_resource(self) -> None:
         error = self._failed_apply(

@@ -525,6 +525,7 @@ def _local_deployment_executor(
                 ("CLOUDSDK_CONFIG", str(configuration)),
                 ("HOME", str(Path.home().resolve())),
             ),
+            private_state_root=resolved_state,
         )
     except (OSError, RuntimeError, ValueError):
         return _DeploymentExecutorResult(
@@ -797,6 +798,7 @@ def build_local_fixture_operator(
             ("CLOUDSDK_CONFIG", str(configuration)),
             ("HOME", str(Path.home().resolve())),
         ),
+        private_state_root=resolved_state,
     )
     image_provider = GcloudDeploymentProvider(
         executable=gcloud,
@@ -1060,6 +1062,7 @@ def build_local_destruction(
             ("CLOUDSDK_CONFIG", str(configuration)),
             ("HOME", str(Path.home().resolve())),
         ),
+        private_state_root=resolved_state,
     )
     filesystem = LocalFilesystem(resolved_project, resolved_state)
     renderer = DeploymentConfigurationRenderer(

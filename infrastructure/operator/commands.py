@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
+import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import secrets
@@ -202,16 +205,29 @@ class TerraformCliAdapter:
         working_root: Path,
         runner: CommandRunner,
         operator_environment: tuple[tuple[str, str], ...] = (),
+        private_state_root: Path | None = None,
     ) -> None:
         self._executable = executable.resolve()
         self._cli_configuration = cli_configuration.resolve()
         self._working_root = working_root.resolve()
         self._runner = runner
         self._operator_environment = tuple(sorted(operator_environment))
+        self._private_state_root: Path | None = None
         if not self._working_root.is_dir():
             raise ValueError("Terraform working root does not exist")
         if stat.S_IMODE(self._working_root.stat().st_mode) & 0o077:
             raise ValueError("Terraform working root must be private")
+        if private_state_root is not None:
+            if private_state_root.is_symlink():
+                raise ValueError("private operator state root must not be a symlink")
+            resolved_state = private_state_root.resolve()
+            if (
+                not resolved_state.is_dir()
+                or stat.S_IMODE(resolved_state.stat().st_mode) & 0o077
+                or resolved_state not in self._working_root.parents
+            ):
+                raise ValueError("Terraform diagnostics require bounded private state")
+            self._private_state_root = resolved_state
         if not self._executable.is_file() or not self._cli_configuration.is_file():
             raise ValueError("pinned Terraform executable and CLI configuration are required")
         names = [name for name, _ in self._operator_environment]
@@ -244,6 +260,115 @@ class TerraformCliAdapter:
                 )
             )
         )
+
+    @staticmethod
+    def _write_private_file(path: Path, contents: bytes) -> None:
+        descriptor = os.open(
+            path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        try:
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, "wb") as stream:
+                descriptor = -1
+                stream.write(contents)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+
+    def _ensure_private_diagnostic_directory(self, path: Path) -> Path:
+        if self._private_state_root is None or path.is_symlink():
+            raise ValueError("private diagnostic directory is not bounded")
+        path.mkdir(mode=0o700, exist_ok=True)
+        if path.is_symlink() or not path.is_dir():
+            raise ValueError("private diagnostic directory is unavailable")
+        resolved = path.resolve()
+        if (
+            resolved == self._private_state_root
+            or self._private_state_root not in resolved.parents
+        ):
+            raise ValueError("private diagnostic directory escapes operator state")
+        resolved.chmod(0o700)
+        return resolved
+
+    def _capture_failure(
+        self,
+        request: PhasePlanRequest,
+        operation: str,
+        result: CommandResult,
+    ) -> dict[str, str]:
+        if self._private_state_root is None:
+            return {}
+        if (
+            operation not in {"plan", "apply"}
+            or re.fullmatch(r"[a-z][a-z0-9-]{1,31}", request.environment) is None
+            or re.fullmatch(r"[a-z][a-z0-9-]{1,63}", request.phase) is None
+        ):
+            return {"diagnostic_capture": "failed"}
+
+        try:
+            captured_at = datetime.now(UTC)
+            digest = hashlib.sha256()
+            digest.update(len(result.stdout).to_bytes(8, "big"))
+            digest.update(result.stdout)
+            digest.update(len(result.stderr).to_bytes(8, "big"))
+            digest.update(result.stderr)
+            raw_digest = digest.hexdigest()
+            diagnostic_digest = f"sha256:{raw_digest}"
+            diagnostics = self._ensure_private_diagnostic_directory(
+                self._private_state_root / "diagnostics"
+            )
+            environment_root = self._ensure_private_diagnostic_directory(
+                diagnostics / request.environment
+            )
+            event_name = (
+                captured_at.strftime("%Y%m%dT%H%M%S.%fZ")
+                + f"-{operation}-{request.phase}-{raw_digest[:12]}"
+            )
+            event_root = environment_root / event_name
+            event_root.mkdir(mode=0o700)
+            event_root.chmod(0o700)
+
+            stdout_path = event_root / "stdout.log"
+            stderr_path = event_root / "stderr.log"
+            self._write_private_file(stdout_path, result.stdout)
+            self._write_private_file(stderr_path, result.stderr)
+            manifest = {
+                "captured_at": captured_at.isoformat().replace("+00:00", "Z"),
+                "diagnostic_digest": diagnostic_digest,
+                "diagnostic_version": 1,
+                "environment": request.environment,
+                "operation": operation,
+                "phase": request.phase,
+                "stderr": {
+                    "bytes": len(result.stderr),
+                    "filename": stderr_path.name,
+                    "sha256": "sha256:" + hashlib.sha256(result.stderr).hexdigest(),
+                },
+                "stdout": {
+                    "bytes": len(result.stdout),
+                    "filename": stdout_path.name,
+                    "sha256": "sha256:" + hashlib.sha256(result.stdout).hexdigest(),
+                },
+            }
+            manifest_contents = (
+                json.dumps(
+                    manifest,
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                    allow_nan=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+            self._write_private_file(event_root / "manifest.json", manifest_contents)
+            return {
+                "diagnostic_digest": diagnostic_digest,
+                "diagnostic_path": str(stderr_path),
+            }
+        except (OSError, RuntimeError, ValueError):
+            return {"diagnostic_capture": "failed"}
 
     @staticmethod
     def _apply_failure_code(stderr: bytes) -> str:
@@ -299,9 +424,13 @@ class TerraformCliAdapter:
             return "TERRAFORM_APPLY_PLUGIN_FAILED"
         return "TERRAFORM_APPLY_FAILED_UNKNOWN"
 
-    @classmethod
-    def _apply_failure(cls, stderr: bytes) -> DeploymentCommandError:
-        blocker = cls._apply_failure_code(stderr)
+    def _apply_failure(
+        self,
+        request: PhasePlanRequest,
+        result: CommandResult,
+    ) -> DeploymentCommandError:
+        stderr = result.stderr
+        blocker = self._apply_failure_code(stderr)
         diagnostic: dict[str, str | int] = {}
 
         http_status = _APPLY_HTTP_STATUS.search(stderr)
@@ -332,6 +461,8 @@ class TerraformCliAdapter:
             and "provider_status" not in diagnostic
         ):
             diagnostic["provider_status"] = "SERVICE_DISABLED"
+
+        diagnostic.update(self._capture_failure(request, "apply", result))
 
         return DeploymentCommandError(blocker, diagnostic=diagnostic)
 
@@ -510,13 +641,14 @@ class TerraformCliAdapter:
         )
         if planned.returncode not in {0, 2}:
             failure = self._plan_failure(planned.stderr)
+            diagnostic = self._capture_failure(request, "plan", planned)
             try:
                 plan_path.unlink(missing_ok=True)
             except OSError as error:
                 raise DeploymentCommandError(
                     "TERRAFORM_FAILED_PLAN_CLEANUP_FAILED"
                 ) from error
-            raise DeploymentCommandError(failure)
+            raise DeploymentCommandError(failure, diagnostic=diagnostic)
         if plan_path.is_symlink() or not plan_path.is_file():
             raise DeploymentCommandError("TERRAFORM_PLAN_ARTIFACT_INVALID")
         try:
@@ -618,7 +750,7 @@ class TerraformCliAdapter:
             )
         )
         if applied.returncode != 0:
-            raise self._apply_failure(applied.stderr)
+            raise self._apply_failure(request, applied)
 
     def migrate_bootstrap_state(
         self,

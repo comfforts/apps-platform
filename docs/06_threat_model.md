@@ -790,7 +790,11 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
 - **AP-TM-010:** Terminal prompts never accept a secret payload. OAuth secrets enter Secret Manager
   directly. Profiles, specifications, progress, bundles, status, logs, and evidence exclude
   credentials, secret values, state, plans, raw provider responses, browser state, identity claims,
-  restricted membership, and application data.
+  restricted membership, and application data. Exact output from a failed Terraform plan or apply
+  may exist only as a timestamped, mode-`0600` troubleshooting artifact beneath the ignored
+  mode-`0700` private diagnostics directory. The terminal exposes only its path and SHA-256 digest;
+  the artifact is never evidence, authority, progress, bundle content, or a Git input and must be
+  reviewed and redacted before any external sharing.
 - **AP-TM-011:** The lifecycle binds explicit source authority, clean reviewed source, pinned tools
   and dependencies, one environment, an approved specification digest, the verified active human
   account and provider project, an exact plan, and readback. Accepted Source must be exact current

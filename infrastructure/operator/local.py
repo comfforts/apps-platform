@@ -453,8 +453,6 @@ class SystemConsolePageLauncher:
                 "/security/secret-manager/secret/app-platform-edge-oauth/versions",
             }
             or query != {"project": ["comfforts-platform-non-prod"]}
-            or parsed.username is not None
-            or parsed.password is not None
             or parsed.fragment
         ):
             raise ValueError("checkpoint console URL is outside the staging allow-list")

@@ -353,6 +353,11 @@ class OperatorLifecycleTest(unittest.TestCase):
                 "https://example.com/auth/branding?"
                 "project=comfforts-platform-non-prod"
             )
+        with self.assertRaisesRegex(ValueError, "outside the staging allow-list"):
+            launcher.open(
+                "https://operator@console.cloud.google.com/auth/branding?"
+                "project=comfforts-platform-non-prod"
+            )
 
     def test_prepare_approves_small_fingerprint_and_deploy_reuses_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

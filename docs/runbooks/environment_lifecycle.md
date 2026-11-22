@@ -255,9 +255,23 @@ Rerun the same command with the same environment and source authority. The lifec
 private progress and resumes after the last completed stage.
 
 Resume is refused when the source, specification, environment, scope, or recorded outputs no longer
-match. In that case, inspect the discrepancy and prepare a new operation. The lifecycle never
-automatically unlocks state, pushes state, imports a resource, broadens scope, or hides a failed
-readback.
+match. `ACTIVE_OPERATION_CONFLICT` prints the active source authority and revision, specification,
+last closed stage, active stage, requested source and specification, and the exact cancellation
+command. If the old operation should continue, restore its exact source and rerun the original
+command. If it should be abandoned in favor of changed source, run the displayed command, for
+example:
+
+```bash
+make platform-cancel ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+```
+
+Review the displayed operation and answer its `y/N` confirmation. Cancellation atomically marks
+only that private progress record as cancelled and retains its terminal snapshot. It does not run
+Terraform, call a provider, or change a cloud resource. Repeating the command returns `unchanged`
+without asking again. Then rerun `platform-deploy`; it prepares fresh source-bound intent and uses
+fresh plans plus provider readback to reconcile resources created by the earlier operation. Never
+edit or delete `current-progress.v1.json` by hand. The lifecycle never automatically unlocks state,
+pushes state, imports a resource, broadens scope, or hides a failed readback.
 
 A failed foundation apply can leave the already-created signing key ring marked as tainted in
 Terraform state. On the next deployment, the operator recognizes only the exact protected-key-ring

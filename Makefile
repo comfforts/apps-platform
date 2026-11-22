@@ -14,7 +14,7 @@ INTEGRATION_BUNDLE ?=
 ATTACHMENT_BUNDLE ?=
 REGISTRATION_INTENT ?=
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-prepare platform-deploy platform-status platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-handoff fixture-deploy fixture-status fixture-destroy
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-prepare platform-cancel platform-deploy platform-status platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-handoff fixture-deploy fixture-status fixture-destroy
 
 ## Install pinned Terraform dependencies into the ignored project-local mirror.
 terraform-setup:
@@ -60,6 +60,10 @@ platform-preflight:
 ## Prepare and explicitly approve one complete lifecycle specification.
 platform-prepare:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator prepare --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+
+## Cancel only the active private resume record; never mutate Terraform or cloud resources.
+platform-cancel:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator cancel --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
 
 ## Prepare, approve, and execute one exact deployment in the same interactive process.
 platform-deploy: terraform-setup

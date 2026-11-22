@@ -9,7 +9,11 @@ import re
 import subprocess
 from typing import Any, Protocol
 
-from infrastructure.operator.local_deployment import InitialGeneration
+from infrastructure.operator.local_deployment import (
+    InitialGeneration,
+    LocalDeploymentInputError,
+    existing_initial_generation_reference,
+)
 from infrastructure.operator.provider_commands import (
     ProviderCommandRequest,
     ProviderCommandResult,
@@ -315,7 +319,7 @@ class GcloudDeploymentProvider:
             raise DeploymentProviderError("SIGNING_KEY_RING_READBACK_MISMATCH")
         return observed
 
-    def publish_initial_generation(self, generation: InitialGeneration) -> int:
+    def publish_initial_generation(self, generation: InitialGeneration) -> str:
         object_uri = f"gs://{_CONFIGURATION_BUCKET}/{generation.object_name}"
         self._try(
             "storage",
@@ -326,10 +330,11 @@ class GcloudDeploymentProvider:
             *self._common(),
             stdin=generation.contents,
         )
-        return self.read_initial_generation(generation)
+        return self.read_initial_generation()
 
-    def read_initial_generation(self, generation: InitialGeneration) -> int:
-        object_uri = f"gs://{_CONFIGURATION_BUCKET}/{generation.object_name}"
+    def read_initial_generation(self) -> str:
+        object_name = "generations/1/compiled.json"
+        object_uri = f"gs://{_CONFIGURATION_BUCKET}/{object_name}"
         metadata = self._json(
             "GENERATION_OBJECT_READBACK_INVALID",
             self._run_common(
@@ -355,9 +360,10 @@ class GcloudDeploymentProvider:
             "cat",
             f"{object_uri}#{object_generation}",
         ).stdout
-        if contents != generation.contents:
-            raise DeploymentProviderError("GENERATION_OBJECT_CONTENT_MISMATCH")
-        return object_generation
+        try:
+            return existing_initial_generation_reference(contents, object_generation)
+        except LocalDeploymentInputError as error:
+            raise DeploymentProviderError(str(error)) from error
 
     def _read_image(
         self,

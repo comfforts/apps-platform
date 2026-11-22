@@ -229,7 +229,7 @@ class FakeTerraform:
 class FakeProvider:
     services: bool = False
     image: str | None = None
-    generation: int | None = None
+    generation_reference: str | None = None
     certificate_ready: bool = True
     backend: bool = False
 
@@ -242,16 +242,15 @@ class FakeProvider:
     def bootstrap_backend_ready(self) -> bool:
         return self.backend
 
-    def publish_initial_generation(self, generation: InitialGeneration) -> int:
-        del generation
-        self.generation = 42
-        return 42
+    def publish_initial_generation(self, generation: InitialGeneration) -> str:
+        if self.generation_reference is None:
+            self.generation_reference = generation.reference(42)
+        return self.generation_reference
 
-    def read_initial_generation(self, generation: InitialGeneration) -> int:
-        del generation
-        if self.generation is None:
+    def read_initial_generation(self) -> str:
+        if self.generation_reference is None:
             raise AssertionError("generation missing")
-        return self.generation
+        return self.generation_reference
 
     def publish_shared_edge_image(self, source_revision: str) -> str:
         del source_revision
@@ -474,7 +473,7 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
 
         self.assertTrue(provider.services)
         self.assertIsNotNone(provider.image)
-        self.assertEqual(provider.generation, 42)
+        self.assertIsNotNone(provider.generation_reference)
         self.assertTrue(all(result.matched for result in outputs))
 
     def test_oauth_prompts_only_non_secret_input_and_reads_secret_metadata(self) -> None:

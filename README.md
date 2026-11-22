@@ -363,9 +363,15 @@ transfer, and other irreversible operations.
 
 If an operation is interrupted, rerun the same command with the same environment and source
 authority. The lifecycle validates its private progress and resumes after the last closed stage. A
-changed source, specification, environment, or scope requires new preparation and review. It never
-automatically unlocks state, pushes state, imports a resource, broadens scope, or hides a failed
-readback.
+changed source, specification, environment, or scope cannot resume that exact operation. When the
+operator deliberately wants to abandon the old private resume position and reconcile from new
+source, run the `platform-cancel` command printed with `ACTIVE_OPERATION_CONFLICT`, review its exact
+source, specification, and stage summary, and confirm the cancellation. Cancellation atomically
+closes only the private progress record; it does not change Terraform state or cloud resources.
+Rerunning cancellation is an unchanged no-op. The next `platform-deploy` prepares fresh intent and
+uses fresh plans and provider readback to reconcile resources that already exist. The lifecycle
+never automatically unlocks state, pushes state, imports a resource, broadens scope, or hides a
+failed readback.
 
 If a partial foundation apply created the protected signing key ring but Terraform marked that
 exact instance as tainted, the resumed deployment reads back its immutable live identity and shows
@@ -417,6 +423,7 @@ qualification from clean current `main` with the default Accepted Source.
 | --- | --- |
 | `make platform-preflight ENVIRONMENT=<name>` | Report current source, tool, authentication, project, ownership, and provider-readiness blockers without creating lifecycle state |
 | `make platform-prepare ENVIRONMENT=<name>` | Optionally prepare and review a complete specification without external mutation |
+| `make platform-cancel ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Confirm and close only an active private deployment record so changed source can prepare fresh intent; no Terraform or cloud mutation |
 | `make platform-deploy ENVIRONMENT=<name>` | Reuse a fresh current approval or prepare one, then deploy, checkpoint, read back, and safely resume the shared platform |
 | `make platform-status ENVIRONMENT=<name>` | Report local desired, execution, and qualification state without mutation |
 | `make platform-outputs ...` | Generate one application-scoped Platform Integration Bundle |

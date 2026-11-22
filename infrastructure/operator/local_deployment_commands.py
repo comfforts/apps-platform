@@ -105,9 +105,9 @@ class DeploymentProvider(Protocol):
 
     def signing_key_ring_identity(self) -> str: ...
 
-    def publish_initial_generation(self, generation: InitialGeneration) -> int: ...
+    def publish_initial_generation(self, generation: InitialGeneration) -> str: ...
 
-    def read_initial_generation(self, generation: InitialGeneration) -> int: ...
+    def read_initial_generation(self) -> str: ...
 
     def publish_shared_edge_image(self, source_revision: str) -> str: ...
 
@@ -463,10 +463,9 @@ class LocalDeploymentCommands:
             return ActionProposal(
                 "publish-initial-registration-generation",
                 {
-                    "content_digest": generation.content_digest,
                     "generation": 1,
-                    "generation_digest": generation.generation_digest,
                     "object_name": generation.object_name,
+                    "purpose": "ensure-empty-registration-generation",
                 },
             )
         raise DeploymentCommandError("DEPLOYMENT_ACTION_UNAVAILABLE")
@@ -507,13 +506,12 @@ class LocalDeploymentCommands:
                     () if image else ("EDGE_IMAGE_READBACK_MISSING",),
                 )
             if stage_id == "generation-publish":
-                generation = initial_generation(context.source_revision)
-                object_generation = self._provider.read_initial_generation(generation)
+                reference = self._provider.read_initial_generation()
                 return StageReadback(
                     True,
                     ((
                         "registration-generation-reference",
-                        generation.reference(object_generation),
+                        reference,
                     ),),
                 )
         except DeploymentProviderError as error:

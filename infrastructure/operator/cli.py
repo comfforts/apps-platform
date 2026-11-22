@@ -43,6 +43,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "operation",
         choices=(
+            "cancel",
             "deploy",
             "detach",
             "outputs",
@@ -311,10 +312,16 @@ def _main(
         else None
     )
     _trace_invocation(arguments, selected_fixture)
-    if arguments.operation in {"preflight", "prepare", "deploy", "status"}:
+    if arguments.operation in {
+        "cancel",
+        "deploy",
+        "preflight",
+        "prepare",
+        "status",
+    }:
         selected_operator_factory = (
             preflight_factory
-            if arguments.operation == "preflight"
+            if arguments.operation in {"cancel", "preflight"}
             else operator_factory
         )
         operator = selected_operator_factory(
@@ -436,6 +443,30 @@ def _main(
             }
         )
         return 0 if result.outcome in {"prepared", "unchanged"} else 2
+
+    if arguments.operation == "cancel":
+        result = operator.cancel(arguments.environment)
+        progress = result.progress or {}
+        completed = progress.get("completed", [])
+        last_closed_stage = (
+            completed[-1]["stage_id"]
+            if isinstance(completed, list) and completed
+            else None
+        )
+        _print(
+            {
+                "active_stage": progress.get("active_stage"),
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "last_closed_stage": last_closed_stage,
+                "outcome": result.outcome,
+                "progress_digest": result.progress_digest,
+                "source_authority": arguments.source_authority,
+                "source_revision": progress.get("source_revision"),
+                "specification_digest": progress.get("specification_digest"),
+            }
+        )
+        return 0 if result.outcome in {"cancelled", "unchanged"} else 2
 
     if arguments.operation == "fixture-deploy":
         result = fixture.deploy(

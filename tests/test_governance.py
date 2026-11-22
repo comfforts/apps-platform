@@ -1600,6 +1600,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             overview,
         )
         self.assertIn("platform-prepare", overview)
+        self.assertIn("platform-cancel", overview)
         self.assertIn("platform-status", overview)
         self.assertIn("platform-deploy", overview)
         self.assertNotIn("W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED", runbook)
@@ -1608,6 +1609,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("one isolated staging or production deployment", normalized_runbook)
         self.assertIn("## Normal staging lifecycle", runbook)
         self.assertIn("## Resume an interrupted operation", runbook)
+        self.assertIn("make platform-cancel", runbook)
+        self.assertIn("does not run Terraform", normalized_runbook)
         self.assertIn("## Destroy a platform environment", runbook)
         self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", runbook)
         for governance_identifier in (

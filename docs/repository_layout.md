@@ -24,7 +24,7 @@ permission to create a resource or perform an external action.
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
-| `infrastructure/operator/` | linear Python preflight, preparation, exact-plan deployment, application integration, atomic progress, status, resume, external-effect adapters, and thin CLI |
+| `infrastructure/operator/` | linear Python preflight, preparation, local-only active-operation cancellation, exact-plan deployment, application integration, atomic progress, status, resume, external-effect adapters, and thin CLI |
 | `infrastructure/backend/` | AP-M9-W5 backend rendering, lineage, operation authority, plan policy, and fake command integration |
 | `infrastructure/terraform/bootstrap/` | state-bucket owner root with closed bootstrap phase output |
 | `infrastructure/terraform/platform/` | phased foundation and Shared Edge configuration on one Platform State lineage |

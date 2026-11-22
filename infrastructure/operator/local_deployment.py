@@ -11,7 +11,11 @@ import re
 import tempfile
 from typing import Any
 
-from contracts import compile_registration_set
+from contracts import (
+    compile_registration_set,
+    load_json_bytes,
+    validate_contract_instance,
+)
 from infrastructure.backend import PhasePlanRequest, backend_declarations
 from infrastructure.config import validate_configuration
 from infrastructure.operator._interfaces import StageContext
@@ -139,6 +143,51 @@ class InitialGeneration:
                 "object_name": self.object_name,
             }
         ).decode("utf-8")
+
+
+def existing_initial_generation_reference(
+    contents: bytes,
+    object_generation: int,
+) -> str:
+    """Validate and bind an existing immutable empty Registration Generation."""
+
+    if object_generation < 1:
+        raise LocalDeploymentInputError("INITIAL_GENERATION_READBACK_INVALID")
+    loaded = load_json_bytes(contents, max_bytes=1_048_576)
+    configuration = loaded.value
+    if (
+        loaded.violations
+        or not isinstance(configuration, dict)
+        or validate_contract_instance(
+            configuration,
+            "urn:comfforts:app-platform:schema:compiled-shared-edge:v1",
+        )
+        or configuration.get("generation") != 1
+        or configuration.get("previous_generation_digest") is not None
+        or configuration.get("application_states") != []
+        or configuration.get("catalogue") != []
+        or configuration.get("routes") != []
+        or configuration.get("admission_policies") != []
+        or configuration.get("reserved_paths")
+        != ["/", "/.well-known", "/_platform"]
+        or configuration.get("identity_delivery")
+        != {
+            "context_contract_version": 1,
+            "header_name": "X-Comfforts-Verified-Identity",
+        }
+        or not isinstance(configuration.get("generation_digest"), str)
+        or _DIGEST.fullmatch(str(configuration["generation_digest"])) is None
+    ):
+        raise LocalDeploymentInputError("INITIAL_GENERATION_READBACK_INVALID")
+    return _canonical(
+        {
+            "content_digest": _digest(contents),
+            "generation": 1,
+            "generation_digest": configuration["generation_digest"],
+            "object_generation": object_generation,
+            "object_name": "generations/1/compiled.json",
+        }
+    ).decode("utf-8")
 
 
 def initial_generation(source_revision: str) -> InitialGeneration:

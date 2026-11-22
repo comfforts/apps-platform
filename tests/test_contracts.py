@@ -207,7 +207,7 @@ class ContractSchemaTest(unittest.TestCase):
             "platform-retire:",
         ):
             self.assertIn(application_target, makefile)
-        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 21)
+        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 22)
 
     def test_contract_layer_runs_from_an_extracted_project_copy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

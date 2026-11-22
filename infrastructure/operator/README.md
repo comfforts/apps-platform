@@ -164,6 +164,20 @@ mutation is never repeated. Waiting, cancellation, command failure, policy refus
 readback, unsafe output, and production refusal remain truthful terminal states rather than being
 converted into success or automatic recovery.
 
+When changed source conflicts with a running or waiting deployment, `platform-cancel` is the only
+supported local reset. It displays and confirms the exact active source, specification, last closed
+stage, and active stage, then atomically marks that progress record cancelled. It never constructs
+an executor, invokes Terraform, calls a provider, edits Terraform state, or changes a cloud
+resource. A repeated cancellation is unchanged. The next deployment creates fresh source-bound
+intent and reconciles existing resources through normal exact plans and readback; operators never
+hand-edit or delete progress to bypass the conflict.
+
+Reconciliation treats the empty first Registration Generation as independently versioned
+configuration. If its create-only object already exists, deployment validates its complete schema,
+empty registration posture, immutable object generation, content digest, and generation digest,
+then reuses that exact reference across source revisions. It never overwrites or deletes the
+generation. Invalid or non-empty content fails closed.
+
 The foundation planner recognizes one bounded state-recovery case: the exact protected signing key
 ring is live under its expected immutable identity but Terraform retained a taint marker after a
 partial apply. The command boundary deletes the failed saved-plan artifact, provider readback

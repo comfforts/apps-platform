@@ -9,6 +9,7 @@ generic lifecycle graph or journal chain.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import hashlib
 import json
 from types import MappingProxyType
@@ -231,6 +232,14 @@ _READINESS_BLOCKER_GUIDANCE = {
         "the pinned project-local Terraform executable is unavailable"
     ),
 }
+
+
+@dataclass(frozen=True, slots=True)
+class _CancellationResult:
+    outcome: str
+    progress: dict[str, Any] | None
+    progress_digest: str | None
+    blockers: tuple[str, ...] = ()
 
 
 class LifecycleOperator:
@@ -725,16 +734,58 @@ class LifecycleOperator:
             )
         return _digest(progress)
 
-    def _has_conflicting_progress(
+    def _conflicting_progress(
         self,
         environment: str,
         specification_digest: str,
-    ) -> bool:
+    ) -> dict[str, Any] | None:
         progress = self._load_progress(environment)
-        return bool(
+        if (
             progress is not None
             and progress.get("specification_digest") != specification_digest
             and progress.get("status") not in _REPLACEABLE_PROGRESS
+        ):
+            return progress
+        return None
+
+    def _report_active_operation_conflict(
+        self,
+        environment: str,
+        progress: dict[str, Any],
+        *,
+        requested_revision: str,
+        requested_digest: str,
+    ) -> None:
+        completed = progress["completed"]
+        last_closed_stage = completed[-1]["stage_id"] if completed else "none"
+        authority = self._source_authority
+        try:
+            specification = self._load_specification(
+                environment,
+                str(progress["specification_digest"]),
+            )
+            authority = str(specification["source"]["authority"])
+        except (KeyError, TypeError, ValueError):
+            pass
+        self._adapters.terminal.write(
+            "\n".join(
+                (
+                    "Active deployment conflict:",
+                    f"  environment: {environment}",
+                    f"  source authority: {authority}",
+                    f"  source revision: {progress['source_revision']}",
+                    f"  specification digest: {progress['specification_digest']}",
+                    f"  status: {progress['status']}",
+                    f"  last closed stage: {last_closed_stage}",
+                    f"  active stage: {progress['active_stage']}",
+                    f"  requested source revision: {requested_revision}",
+                    f"  requested specification digest: {requested_digest}",
+                    "Close only the private active operation before preparing new intent:",
+                    "  make platform-cancel "
+                    f"ENVIRONMENT={environment} SOURCE_AUTHORITY={authority}",
+                    "Cancellation does not change Terraform state or cloud resources.",
+                )
+            )
         )
 
     @staticmethod
@@ -1086,12 +1137,18 @@ class LifecycleOperator:
         ):
             return None
         try:
-            conflict = self._has_conflicting_progress(environment, digest)
+            conflict = self._conflicting_progress(environment, digest)
         except ValueError:
             return PrepareResult(
                 "blocked", False, False, None, digest, ("PROGRESS_READBACK_FAILED",)
             )
         if conflict:
+            self._report_active_operation_conflict(
+                environment,
+                conflict,
+                requested_revision=git.revision,
+                requested_digest=digest,
+            )
             return PrepareResult(
                 "blocked", False, False, None, digest, ("ACTIVE_OPERATION_CONFLICT",)
             )
@@ -1166,7 +1223,14 @@ class LifecycleOperator:
         self._report_verified_session(discoveries)
         specification = self._specification(environment, profile_digest, git.revision)
         digest = _digest(specification)
-        if self._has_conflicting_progress(environment, digest):
+        conflict = self._conflicting_progress(environment, digest)
+        if conflict:
+            self._report_active_operation_conflict(
+                environment,
+                conflict,
+                requested_revision=git.revision,
+                requested_digest=digest,
+            )
             return PrepareResult(
                 "blocked", False, False, None, None, ("ACTIVE_OPERATION_CONFLICT",)
             )
@@ -1191,3 +1255,92 @@ class LifecycleOperator:
             return PrepareResult("cancelled", True, False, specification, digest, ())
         self._store_approval(environment, profile_digest, git.revision, digest)
         return PrepareResult("prepared", True, True, specification, digest, ())
+
+    def cancel(self, environment: str) -> _CancellationResult:
+        """Close one private active deployment without any external operation."""
+
+        self._load_profile(environment)
+        try:
+            progress = self._load_progress(environment)
+            current_digest = self._current_specification_digest(environment)
+        except ValueError:
+            blockers = ("PROGRESS_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return _CancellationResult("blocked", None, None, blockers)
+        if progress is None or progress["status"] in _REPLACEABLE_PROGRESS:
+            if progress is None:
+                self._adapters.terminal.write(
+                    f"No deployment operation exists for {environment}; nothing to cancel."
+                )
+                return _CancellationResult("unchanged", None, None, ())
+            self._adapters.terminal.write(
+                f"Deployment operation {progress['specification_digest']} is already "
+                f"{progress['status']}; nothing to cancel."
+            )
+            return _CancellationResult(
+                "unchanged",
+                progress,
+                _digest(progress),
+                (),
+            )
+
+        specification_digest = str(progress["specification_digest"])
+        if current_digest != specification_digest:
+            blockers = ("PROGRESS_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return _CancellationResult("blocked", progress, _digest(progress), blockers)
+        try:
+            specification = self._load_specification(
+                environment,
+                specification_digest,
+            )
+        except ValueError:
+            blockers = ("SPECIFICATION_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return _CancellationResult("blocked", progress, _digest(progress), blockers)
+        source = specification["source"]
+        authority = str(source["authority"])
+        if authority != self._source_authority:
+            self._adapters.terminal.write(
+                "Active deployment source authority does not match this invocation. "
+                f"Rerun with SOURCE_AUTHORITY={authority}."
+            )
+            blockers = ("SOURCE_AUTHORITY_MISMATCH",)
+            return _CancellationResult("blocked", progress, _digest(progress), blockers)
+
+        completed = progress["completed"]
+        last_closed_stage = completed[-1]["stage_id"] if completed else "none"
+        self._adapters.terminal.write(
+            "\n".join(
+                (
+                    "Cancel private deployment operation:",
+                    f"  environment: {environment}",
+                    f"  source authority: {authority}",
+                    f"  source revision: {progress['source_revision']}",
+                    f"  specification digest: {specification_digest}",
+                    f"  status: {progress['status']}",
+                    f"  last closed stage: {last_closed_stage}",
+                    f"  active stage: {progress['active_stage']}",
+                    "This closes only private resume state. Terraform state and cloud "
+                    "resources remain unchanged.",
+                )
+            )
+        )
+        confirmed = self._adapters.terminal.confirm(
+            f"Cancel private deployment operation {specification_digest}? [y/N] "
+        )
+        if not confirmed:
+            return _CancellationResult(
+                "declined",
+                progress,
+                _digest(progress),
+                ("CANCELLATION_DECLINED",),
+            )
+
+        cancelled = {**progress, "status": "cancelled", "blockers": []}
+        progress_digest = self._store_progress(cancelled)
+        self._adapters.terminal.write(
+            f"Cancelled private deployment operation {specification_digest}. "
+            "Terraform state and cloud resources were not changed."
+        )
+        return _CancellationResult("cancelled", cancelled, progress_digest, ())

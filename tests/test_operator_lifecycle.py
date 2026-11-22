@@ -283,6 +283,48 @@ class OperatorLifecycleTest(unittest.TestCase):
         )
         self.assertIn("  preflight mode: development", stderr.getvalue())
 
+    def test_cli_cancel_is_local_machine_readable_and_repeatable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            terminal = FakeTerminal([True, True])
+            operator, _ = self._operator(
+                Path(directory),
+                terminal=terminal,
+                executor=FakeExecutor([StageExecution("waiting")]),
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+            operator.execute("staging", prepared.specification_digest)
+
+            first_stdout = io.StringIO()
+            first_stderr = io.StringIO()
+            with mock.patch("sys.stdout", first_stdout), mock.patch(
+                "sys.stderr", first_stderr
+            ):
+                first_code = operator_main(
+                    ["cancel", "--environment", "staging"],
+                    preflight_factory=lambda _path, _authority: operator,
+                )
+            repeated_stdout = io.StringIO()
+            with mock.patch("sys.stdout", repeated_stdout), mock.patch(
+                "sys.stderr", io.StringIO()
+            ):
+                repeated_code = operator_main(
+                    ["cancel", "--environment", "staging"],
+                    preflight_factory=lambda _path, _authority: operator,
+                )
+
+        first = json.loads(first_stdout.getvalue())
+        repeated = json.loads(repeated_stdout.getvalue())
+        self.assertEqual(first_code, 0)
+        self.assertEqual(first["outcome"], "cancelled")
+        self.assertEqual(first["active_stage"], "preflight")
+        self.assertEqual(first["specification_digest"], prepared.specification_digest)
+        self.assertRegex(first["progress_digest"], r"^sha256:[0-9a-f]{64}$")
+        self.assertEqual(repeated_code, 0)
+        self.assertEqual(repeated["outcome"], "unchanged")
+        self.assertEqual(len(terminal.prompts), 2)
+        self.assertIn("  operation: cancel", first_stderr.getvalue())
+
     def test_cli_prints_safe_boundary_errors_before_result_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             blocked, _ = self._operator(
@@ -510,24 +552,56 @@ class OperatorLifecycleTest(unittest.TestCase):
                     0 if outcome == "waiting" else 1,
                 )
 
-    def test_source_change_requires_fresh_intent_and_conflicts_with_open_work(self) -> None:
+    def test_source_change_requires_explicit_idempotent_cancellation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
             git = FakeGit()
-            terminal = FakeTerminal([True, True])
+            terminal = FakeTerminal([True, True, True])
+            executor = FakeExecutor(
+                [StageExecution("succeeded"), StageExecution("waiting")]
+            )
             operator, _ = self._operator(
-                Path(directory),
+                state,
                 git=git,
                 terminal=terminal,
-                executor=FakeExecutor([StageExecution("waiting")]),
+                executor=executor,
             )
             first = operator.prepare("staging")
             assert first.specification_digest is not None
             operator.execute("staging", first.specification_digest)
             git.revision = "b" * 40
             conflict = operator.prepare("staging")
+            cancelled = operator.cancel("staging")
+            repeated = operator.cancel("staging")
+            replacement = operator.prepare("staging")
+            terminal_progress = json.loads(
+                next(state.rglob("progress/*.final.v1.json")).read_text(
+                    encoding="utf-8"
+                )
+            )
 
         self.assertEqual(conflict.blockers, ("ACTIVE_OPERATION_CONFLICT",))
-        self.assertEqual(len(terminal.prompts), 1)
+        self.assertEqual(cancelled.outcome, "cancelled")
+        self.assertEqual(repeated.outcome, "unchanged")
+        self.assertEqual(cancelled.progress, terminal_progress)
+        self.assertEqual(terminal_progress["status"], "cancelled")
+        self.assertEqual(
+            [item["stage_id"] for item in terminal_progress["completed"]],
+            ["preflight"],
+        )
+        self.assertEqual(terminal_progress["active_stage"], "bootstrap-services")
+        self.assertEqual(replacement.outcome, "prepared")
+        self.assertNotEqual(
+            replacement.specification_digest,
+            first.specification_digest,
+        )
+        self.assertEqual(executor.calls, ["preflight", "bootstrap-services"])
+        self.assertEqual(len(terminal.prompts), 3)
+        transcript = "\n".join(terminal.messages)
+        self.assertIn("Active deployment conflict", transcript)
+        self.assertIn(first.specification_digest, transcript)
+        self.assertIn("active stage: bootstrap-services", transcript)
+        self.assertIn("make platform-cancel", transcript)
 
     def test_failed_operation_allows_fresh_source_intent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

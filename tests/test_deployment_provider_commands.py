@@ -10,6 +10,7 @@ import unittest
 
 from infrastructure.operator.deployment_provider import (
     ClosedDeploymentGcloudRunner,
+    DeploymentProviderError,
     GcloudDeploymentProvider,
 )
 from infrastructure.operator.local_deployment import initial_generation
@@ -197,13 +198,36 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
             fake = FakeGcloud(generation.contents)
             provider = self._provider(directory, fake)
 
-            object_generation = provider.publish_initial_generation(generation)
+            reference = provider.publish_initial_generation(generation)
 
-        self.assertEqual(object_generation, 42)
+        self.assertEqual(reference, generation.reference(42))
         upload = fake.requests[0]
         self.assertEqual(upload.argv[1:3], ("storage", "cp"))
         self.assertIn("--if-generation-match=0", upload.argv)
         self.assertEqual(upload.stdin, generation.contents)
+
+    def test_existing_empty_generation_is_reused_across_source_revisions(self) -> None:
+        existing = initial_generation("a" * 40)
+        requested = initial_generation("b" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(existing.contents)
+            provider = self._provider(directory, fake)
+
+            reference = provider.publish_initial_generation(requested)
+
+        self.assertEqual(reference, existing.reference(42))
+
+    def test_existing_generation_must_be_the_valid_empty_generation(self) -> None:
+        requested = initial_generation("b" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(b"{}")
+            provider = self._provider(directory, fake)
+
+            with self.assertRaisesRegex(
+                DeploymentProviderError,
+                "INITIAL_GENERATION_READBACK_INVALID",
+            ):
+                provider.publish_initial_generation(requested)
 
     def test_non_secret_versions_and_certificate_are_closed_readbacks(self) -> None:
         generation = initial_generation("c" * 40)

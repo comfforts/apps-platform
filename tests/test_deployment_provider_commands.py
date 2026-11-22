@@ -21,6 +21,7 @@ from infrastructure.operator.provider_commands import (
 
 
 PROJECT = "comfforts-platform-non-prod"
+PROJECT_NUMBER = "455651441682"
 REGION = "us-west1"
 
 
@@ -35,6 +36,7 @@ class FakeGcloud:
         "storage.googleapis.com",
         "cloudresourcemanager.googleapis.com",
     )
+    oauth_secret_project: str = PROJECT
 
     def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
         self.requests.append(request)
@@ -79,7 +81,10 @@ class FakeGcloud:
             )
             return ProviderCommandResult(0, (name + "\n").encode(), b"")
         if arguments[:3] == ("secrets", "versions", "list"):
-            name = f"projects/{PROJECT}/secrets/app-platform-edge-oauth/versions/1"
+            name = (
+                f"projects/{self.oauth_secret_project}/secrets/"
+                "app-platform-edge-oauth/versions/1"
+            )
             return ProviderCommandResult(0, json.dumps([{"name": name}]).encode(), b"")
         if arguments[:3] == ("compute", "ssl-certificates", "describe"):
             return ProviderCommandResult(
@@ -248,6 +253,39 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
         self.assertTrue(secret.endswith("/versions/1"))
         self.assertTrue(certificate.ready)
         self.assertNotIn("secret payload", repr((signing, secret, certificate)))
+
+    def test_oauth_secret_version_accepts_project_number_and_normalizes_reference(
+        self,
+    ) -> None:
+        generation = initial_generation("c" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(
+                generation.contents,
+                oauth_secret_project=PROJECT_NUMBER,
+            )
+            provider = self._provider(directory, fake)
+
+            secret = provider.oauth_secret_version()
+
+        self.assertEqual(
+            secret,
+            f"projects/{PROJECT}/secrets/app-platform-edge-oauth/versions/1",
+        )
+
+    def test_oauth_secret_version_rejects_another_project(self) -> None:
+        generation = initial_generation("c" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(
+                generation.contents,
+                oauth_secret_project="999999999999",
+            )
+            provider = self._provider(directory, fake)
+
+            with self.assertRaisesRegex(
+                DeploymentProviderError,
+                "OAUTH_SECRET_VERSION_READBACK_INVALID",
+            ):
+                provider.oauth_secret_version()
 
     def test_shared_edge_build_is_source_tagged_and_returns_only_digest_reference(
         self,

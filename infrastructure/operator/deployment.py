@@ -491,12 +491,14 @@ class DeploymentExecutor:
             required = {
                 "application_name",
                 "application_type",
+                "audience",
                 "authorized_domain",
                 "authorized_origin",
                 "branding_console_url",
                 "clients_console_url",
                 "homepage_url",
                 "project_id",
+                "publishing_status",
                 "redirect_uri",
                 "oauth_store_console_url",
                 "oauth_store_target",
@@ -518,8 +520,18 @@ class DeploymentExecutor:
                     "- Authorized domain, if requested: "
                     f"{instructions['authorized_domain']}",
                     "",
-                    "Save the branding configuration, return to this terminal, and "
-                    "press Enter. Keep the deployment running.",
+                    "In Google Auth Platform > Audience, configure these staging "
+                    "access settings:",
+                    f"- Audience: {instructions['audience']}",
+                    "  Consumer Google and Google Workspace accounts are both "
+                    "eligible to authenticate. External does not make restricted "
+                    "applications public; platform admission still applies.",
+                    "- Publishing status for staging: "
+                    f"{instructions['publishing_status']}",
+                    "- Test users: add every Google account that will test staging.",
+                    "",
+                    "Save the branding and audience configuration, return to this "
+                    "terminal, and press Enter. Keep the deployment running.",
                 )
             )
             client = "\n".join(

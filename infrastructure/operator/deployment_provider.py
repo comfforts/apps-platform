@@ -53,6 +53,7 @@ _BOOTSTRAP_SERVICES = (
     "cloudresourcemanager.googleapis.com",
 )
 _PROJECT_ID = "comfforts-platform-non-prod"
+_PROJECT_NUMBER = "455651441682"
 _REGION = "us-west1"
 _CONFIGURATION_BUCKET = "comfforts-ap-stg-455651441682-configuration"
 _BOOTSTRAP_BUCKET = "comfforts-ap-stg-455651441682-platform-state"
@@ -512,15 +513,23 @@ class GcloudDeploymentProvider:
             for value in values
             if isinstance(value, dict) and isinstance(value.get("name"), str)
         )
-        prefix = f"projects/{_PROJECT_ID}/secrets/{_OAUTH_SECRET}/versions/"
-        if (
-            len(names) != 1
-            or not names[0].startswith(prefix)
-            or not names[0].removeprefix(prefix).isdigit()
-            or names[0].endswith("/0")
-        ):
+        if len(names) != 1:
             raise DeploymentProviderError("OAUTH_SECRET_VERSION_READBACK_INVALID")
-        return names[0]
+        trusted_prefixes = (
+            f"projects/{_PROJECT_ID}/secrets/{_OAUTH_SECRET}/versions/",
+            f"projects/{_PROJECT_NUMBER}/secrets/{_OAUTH_SECRET}/versions/",
+        )
+        version = next(
+            (
+                names[0].removeprefix(prefix)
+                for prefix in trusted_prefixes
+                if names[0].startswith(prefix)
+            ),
+            "",
+        )
+        if re.fullmatch(r"[1-9][0-9]*", version) is None:
+            raise DeploymentProviderError("OAUTH_SECRET_VERSION_READBACK_INVALID")
+        return trusted_prefixes[0] + version
 
     def certificate_readback(self) -> CertificateReadback:
         value = self._json(

@@ -337,6 +337,8 @@ class FakeCommands:
                     ),
                     ("application_name", "Comfforts Apps Staging"),
                     ("application_type", "Web application"),
+                    ("audience", "External"),
+                    ("publishing_status", "Testing"),
                     ("support_email", "operator@example.com"),
                     ("homepage_url", "https://apps-staging.comfforts.com"),
                     ("authorized_domain", "comfforts.com"),
@@ -887,6 +889,10 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertIn("OAUTH STEP 2 OF 3: Create the Web OAuth client", transcript)
         self.assertIn("OAUTH STEP 3 OF 3: Store the OAuth client secret", transcript)
         self.assertIn("Application type: Web application", transcript)
+        self.assertIn("Audience: External", transcript)
+        self.assertIn("Publishing status for staging: Testing", transcript)
+        self.assertIn("add every Google account that will test staging", transcript)
+        self.assertIn("Consumer Google and Google Workspace accounts", transcript)
         self.assertIn("exactly one ENABLED version", transcript)
         self.assertIn("Do not create a second secret", transcript)
         self.assertIn("accepts only the client ID", transcript)

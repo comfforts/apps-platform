@@ -533,6 +533,8 @@ class LocalDeploymentCommands:
                     ),
                     ("application_name", "Comfforts Apps Staging"),
                     ("application_type", "Web application"),
+                    ("audience", "External"),
+                    ("publishing_status", "Testing"),
                     ("support_email", self._session.active_account),
                     ("homepage_url", f"https://{_HOSTNAME}"),
                     ("authorized_domain", "comfforts.com"),

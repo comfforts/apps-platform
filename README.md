@@ -364,6 +364,12 @@ platform revision and Registration Generation recorded in the Platform Integrati
 networking, DNS/TLS, or another shared resource must change. An accepted qualification still
 requires the platform itself to have been deployed and qualified from Accepted Source.
 
+When a platform runtime update is requested, `platform-deploy` preserves the active Registration
+Generation, stages a source-bound Shared Edge revision, verifies its exact image and configuration
+binding, moves traffic to that revision, and verifies the active binding again. This keeps every
+currently registered route on the same catalogue while the edge implementation changes. External
+application revisions remain independent and do not require a platform redeployment.
+
 To inspect one fixture's generated bundles before registration, insert this optional command before
 that fixture's ordinary deploy:
 

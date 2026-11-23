@@ -808,6 +808,24 @@ def _local_deployment_executor(
             ("GCLOUD_COMMAND_ADAPTER_UNAVAILABLE",),
         )
 
+    generation_provider = _local_generation_provider(
+        project_root,
+        resolved_state,
+    )
+    if generation_provider is None:
+        return _DeploymentExecutorResult(
+            None,
+            ("GENERATION_COMMAND_ADAPTER_UNAVAILABLE",),
+        )
+    from infrastructure.operator.local_generation import (
+        LocalRegistrationGenerationControl,
+    )
+
+    generation_control = LocalRegistrationGenerationControl(
+        LocalFilesystem(project_root, resolved_state),
+        generation_provider,
+    )
+
     try:
         dig = Path(dig_name).resolve()
         dns = DigDnsReadback(
@@ -832,6 +850,8 @@ def _local_deployment_executor(
             provider,
             dns,
             session,
+            runtime_provider=generation_provider,
+            runtime_recorder=generation_control,
         )
         return _DeploymentExecutorResult(
             DeploymentExecutor(

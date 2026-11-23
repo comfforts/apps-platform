@@ -30,6 +30,10 @@ from infrastructure.operator.local_deployment import (
     initial_generation,
 )
 from infrastructure.operator.local_deployment_commands import LocalDeploymentCommands
+from infrastructure.operator.local_generation import (
+    ProviderGenerationActivation,
+    ProviderGenerationBinding,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -246,6 +250,7 @@ class FakeTerraform:
             "project_id": "comfforts-platform-non-prod",
             "region": "us-west1",
             "edge": {
+                "candidate_revision": "app-platform-edge-g1-testbinding",
                 "hostname": "apps-staging.comfforts.com",
                 "reserved_address": "34.120.10.20",
                 "service_name": "app-platform-edge",
@@ -261,6 +266,7 @@ class FakeProvider:
     generation_reference: str | None = None
     certificate_ready: bool = True
     backend: bool = False
+    initial_generation_publications: int = 0
 
     def enable_bootstrap_services(self) -> None:
         self.services = True
@@ -272,6 +278,7 @@ class FakeProvider:
         return self.backend
 
     def publish_initial_generation(self, generation: InitialGeneration) -> str:
+        self.initial_generation_publications += 1
         if self.generation_reference is None:
             self.generation_reference = generation.reference(42)
         return self.generation_reference
@@ -332,10 +339,63 @@ class FakeDns:
         )
 
 
+@dataclass
+class FakeRuntimeProvider:
+    binding: ProviderGenerationBinding
+    candidates: dict[str, ProviderGenerationBinding] = field(default_factory=dict)
+    activations: list[tuple[str, str, str, str]] = field(default_factory=list)
+
+    def shared_edge_exists(self, environment: str) -> bool:
+        return environment == self.binding.environment
+
+    def read_revision_binding(
+        self,
+        environment: str,
+        revision_name: str,
+    ) -> ProviderGenerationBinding:
+        binding = self.candidates[revision_name]
+        if binding.environment != environment:
+            raise RuntimeError("candidate environment mismatch")
+        return binding
+
+    def activate(
+        self,
+        environment: str,
+        revision_name: str,
+        generation_digest: str,
+        authority: str,
+    ) -> ProviderGenerationActivation:
+        self.activations.append(
+            (environment, revision_name, generation_digest, authority)
+        )
+        self.binding = self.read_revision_binding(environment, revision_name)
+        return ProviderGenerationActivation(
+            True,
+            revision_name,
+            generation_digest,
+        )
+
+    def read_active_binding(self, environment: str) -> ProviderGenerationBinding:
+        if environment != self.binding.environment:
+            raise RuntimeError("active environment mismatch")
+        return self.binding
+
+
+@dataclass
+class FakeRuntimeRecorder:
+    bindings: list[ProviderGenerationBinding] = field(default_factory=list)
+
+    def record_active_runtime(self, binding: ProviderGenerationBinding) -> None:
+        self.bindings.append(binding)
+
+
 class LocalDeploymentCommandsTest(unittest.TestCase):
     def _commands(
         self,
         directory: str,
+        *,
+        runtime_provider: FakeRuntimeProvider | None = None,
+        runtime_recorder: FakeRuntimeRecorder | None = None,
     ) -> tuple[LocalDeploymentCommands, FakeTerraform, FakeProvider, FakeDns, Path]:
         work = Path(directory) / "work"
         work.mkdir(mode=0o700)
@@ -355,12 +415,137 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
                 provider,
                 dns,
                 session,
+                runtime_provider=runtime_provider,
+                runtime_recorder=runtime_recorder,
             ),
             terraform,
             provider,
             dns,
             work,
         )
+
+    def test_redeploy_activates_current_source_with_active_generation(self) -> None:
+        old_binding = ProviderGenerationBinding(
+            environment="staging",
+            revision_name="app-platform-edge-g2-old",
+            platform_source_revision="c" * 40,
+            image_reference=(
+                "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                "app-platform-images/shared-edge@sha256:" + "c" * 64
+            ),
+            generation=2,
+            generation_digest="sha256:" + "2" * 64,
+            content_digest="sha256:" + "3" * 64,
+            object_name="generations/2/compiled-shared-edge.v1.json",
+            object_generation=84,
+        )
+        new_image = (
+            "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+            "app-platform-images/shared-edge@sha256:" + "d" * 64
+        )
+        candidate_name = "app-platform-edge-g2-current"
+        candidate = ProviderGenerationBinding(
+            environment="staging",
+            revision_name=candidate_name,
+            platform_source_revision=SOURCE,
+            image_reference=new_image,
+            generation=old_binding.generation,
+            generation_digest=old_binding.generation_digest,
+            content_digest=old_binding.content_digest,
+            object_name=old_binding.object_name,
+            object_generation=old_binding.object_generation,
+        )
+        runtime = FakeRuntimeProvider(
+            old_binding,
+            {candidate_name: candidate},
+        )
+        recorder = FakeRuntimeRecorder()
+        with tempfile.TemporaryDirectory() as directory:
+            commands, _, provider, _, _ = self._commands(
+                directory,
+                runtime_provider=runtime,
+                runtime_recorder=recorder,
+            )
+            provider.generation_reference = initial_generation(SOURCE).reference(42)
+            generation_context = _context(
+                "generation-publish",
+                ("registration-generation-reference",),
+            )
+            generation_proposal = commands.prepare_action(generation_context)
+            commands.execute_action(
+                generation_context,
+                ExactAction(
+                    generation_proposal.action,
+                    "sha256:" + "e" * 64,
+                    generation_proposal.summary,
+                ),
+            )
+            generation_readback = commands.readback_action(generation_context)
+            generation_reference = dict(generation_readback.outputs)[
+                "registration-generation-reference"
+            ]
+            edge_reference = json.dumps(
+                {
+                    "contract_version": 1,
+                    "environment": "staging",
+                    "output_kind": "shared-edge",
+                    "project_id": "comfforts-platform-non-prod",
+                    "region": "us-west1",
+                    "state_owner": "platform",
+                    "owner_id": "app-platform",
+                    "edge": {
+                        "candidate_revision": candidate_name,
+                        "hostname": "apps-staging.comfforts.com",
+                        "reserved_address": "34.120.10.20",
+                        "service_name": "app-platform-edge",
+                        "tls_enabled": True,
+                    },
+                },
+                sort_keys=True,
+            )
+            activation_context = _context(
+                "runtime-activation",
+                ("active-runtime-binding",),
+                (
+                    ("image-publish.shared-edge-image-digest", new_image),
+                    (
+                        "generation-publish.registration-generation-reference",
+                        generation_reference,
+                    ),
+                    ("shared-edge.edge-reference", edge_reference),
+                ),
+            )
+            proposal = commands.prepare_action(activation_context)
+            commands.execute_action(
+                activation_context,
+                ExactAction(
+                    proposal.action,
+                    "sha256:" + "f" * 64,
+                    proposal.summary,
+                ),
+            )
+            activation_readback = commands.readback_action(activation_context)
+
+        self.assertEqual(json.loads(generation_reference)["generation"], 2)
+        self.assertEqual(
+            generation_proposal.action,
+            "preserve-active-registration-generation",
+        )
+        self.assertEqual(provider.initial_generation_publications, 0)
+        self.assertEqual(
+            runtime.activations,
+            [
+                (
+                    "staging",
+                    candidate_name,
+                    old_binding.generation_digest,
+                    "apply",
+                )
+            ],
+        )
+        self.assertTrue(activation_readback.matched)
+        self.assertEqual(runtime.binding, candidate)
+        self.assertEqual(recorder.bindings, [candidate])
 
     @staticmethod
     def _readback(

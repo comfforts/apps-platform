@@ -477,6 +477,11 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         self.assertEqual(binding.environment, "staging")
         self.assertEqual(binding.revision_name, fake.revision_name)
         self.assertEqual(binding.platform_source_revision, SOURCE_REVISION)
+        self.assertEqual(
+            binding.image_reference,
+            f"{REGION}-docker.pkg.dev/{PROJECT_ID}/app-platform/"
+            "shared-edge@sha256:" + "d" * 64,
+        )
         self.assertEqual(binding.generation, 7)
         self.assertEqual(binding.generation_digest, GENERATION_DIGEST)
         self.assertEqual(binding.content_digest, CONTENT_DIGEST)
@@ -492,6 +497,32 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                     ("run", "services", "update"),
                     ("run", "services", "update-traffic"),
                 }
+                for request in fake.requests
+            )
+        )
+
+    def test_reads_one_exact_candidate_revision_binding_without_activation(self) -> None:
+        compiled = _canonical(proposal().compiled_configuration)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(
+                compiled,
+                object_created=True,
+                revision_created=True,
+                active=False,
+            )
+            provider = self._provider(directory, fake)
+
+            binding = provider.read_revision_binding(
+                "staging",
+                fake.revision_name,
+            )
+
+        self.assertEqual(binding.revision_name, fake.revision_name)
+        self.assertEqual(binding.platform_source_revision, SOURCE_REVISION)
+        self.assertEqual(binding.generation_digest, GENERATION_DIGEST)
+        self.assertFalse(
+            any(
+                request.argv[1:4] == ("run", "services", "update-traffic")
                 for request in fake.requests
             )
         )

@@ -208,7 +208,12 @@ _TERRAFORM_PHASES = {
     "fixture-restricted": "fixture-restricted",
 }
 _READ_ONLY_STAGES = {"preflight", "readback"}
-_ACTION_STAGES = {"bootstrap-services", "generation-publish", "image-publish"}
+_ACTION_STAGES = {
+    "bootstrap-services",
+    "generation-publish",
+    "image-publish",
+    "runtime-activation",
+}
 _MANUAL_STAGES = {"oauth-configuration", "external-dns"}
 _POLLING = {
     "external-dns": (12, 10),

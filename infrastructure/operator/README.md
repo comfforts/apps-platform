@@ -113,8 +113,10 @@ fail closed. Status is read-only. Production remains blocked by
 Deploy accepts only the exact current, approved specification. It follows one fixed readable
 workflow for preflight, reviewed
 bootstrap-service enablement, backend bootstrap, foundation, immutable image and closed initial
-Registration Generation publication, OAuth, Shared Edge, external DNS, TLS, and final readback
-stages. Terraform mutation requires a
+Registration Generation publication or active-generation preservation, OAuth, Shared Edge,
+source-bound runtime activation, external DNS, TLS, and final readback stages. On reconciliation,
+the runtime activation verifies the new revision against the active generation before moving
+traffic and verifies the resulting active binding afterward. Terraform mutation requires a
 fresh mode-`0600` saved plan under a
 mode-`0700` private root, W5 policy acceptance, a redacted summary and digest, a `y/N`
 confirmation, application of the same bound artifact, and provider/state readback. Image actions
@@ -222,7 +224,7 @@ Safe `ACTION`, `READBACK`, and `PLAN` narration uses multiline, sorted, two-spac
 operator inspection. Digest binding continues to use canonical compact serialization independently
 of this display-only formatting.
 
-`platform-deploy` presents seven numbered operator stages while retaining eleven internal
+`platform-deploy` presents seven numbered operator stages while retaining twelve internal
 readback-closed resume checkpoints. Related internal actions share one human stage, including DNS
 creation and TLS planning/readiness as `Stage 6/7 · Configure DNS and TLS`. A new process announces
 the stage containing its first pending checkpoint, making resume position visible without

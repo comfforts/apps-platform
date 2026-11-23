@@ -885,6 +885,12 @@ def _main(
             print("  source diagnostics:", file=sys.stderr)
             for diagnostic in diagnostics:
                 print(f"    - {diagnostic}", file=sys.stderr)
+            print(
+                "  A revision difference alone is informational. Run "
+                "platform-deploy only when platform-owned desired state must "
+                "change.",
+                file=sys.stderr,
+            )
         print(file=sys.stderr)
     _print(status.environment_status)
     return 0 if not status.conflicts else 2

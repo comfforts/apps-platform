@@ -37,6 +37,7 @@ class ProviderGenerationBinding:
     environment: str
     revision_name: str
     platform_source_revision: str
+    image_reference: str
     generation: int
     generation_digest: str
     content_digest: str
@@ -78,7 +79,7 @@ def _canonical(value: object) -> bytes:
 
 
 class LocalRegistrationGenerationControl:
-    """Create-only private proposal history plus provider revision activation."""
+    """Keep immutable proposals and the current provider revision binding."""
 
     def __init__(
         self,
@@ -313,6 +314,63 @@ class LocalRegistrationGenerationControl:
         ):
             raise ValueError("active platform source binding mismatch")
         return active.platform_source_revision
+
+    def record_active_runtime(self, binding: ProviderGenerationBinding) -> None:
+        """Rebind one unchanged generation to its verified current edge revision."""
+
+        pointer = self._read_json(self._pointer_path(binding.environment))
+        if pointer is None:
+            return
+        if set(pointer) != {"generation_digest", "revision_name"}:
+            raise ValueError("stored current generation pointer is invalid")
+        digest = pointer.get("generation_digest")
+        if digest != binding.generation_digest:
+            raise ValueError("active runtime generation binding mismatch")
+        proposal = self.read_proposal(binding.environment, binding.generation_digest)
+        if proposal is None:
+            raise ValueError("active runtime generation proposal is missing")
+        generation = proposal.registration_set.get("generation")
+        expected_object = (
+            "generations/1/compiled.json"
+            if generation == 1
+            and proposal.registration_set.get("previous_generation_digest") is None
+            else (
+                f"generations/{binding.generation_digest[7:]}/"
+                "compiled-shared-edge.v1.json"
+            )
+        )
+        if (
+            generation != binding.generation
+            or proposal.content_digest != binding.content_digest
+            or binding.object_name != expected_object
+            or binding.object_generation < 1
+            or not binding.revision_name
+            or not binding.image_reference
+        ):
+            raise ValueError("active runtime generation binding mismatch")
+        self._filesystem.write_state(
+            self._provider_path(binding.environment, binding.generation_digest),
+            _canonical(
+                {
+                    "generation_digest": binding.generation_digest,
+                    "object_generation": binding.object_generation,
+                    "revision_name": binding.revision_name,
+                }
+            )
+            + b"\n",
+            replace=True,
+        )
+        self._filesystem.write_state(
+            self._pointer_path(binding.environment),
+            _canonical(
+                {
+                    "generation_digest": binding.generation_digest,
+                    "revision_name": binding.revision_name,
+                }
+            )
+            + b"\n",
+            replace=True,
+        )
 
     def publish(
         self,

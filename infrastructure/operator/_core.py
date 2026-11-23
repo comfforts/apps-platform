@@ -121,12 +121,24 @@ _DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
         "manual_checkpoint": "none",
     },
     {
+        "stage_id": "runtime-activation",
+        "actions": ["create", "read", "update"],
+        "produces": ["active-runtime-binding"],
+        "consumes": [
+            ("image-publish", "shared-edge-image-digest"),
+            ("generation-publish", "registration-generation-reference"),
+            ("shared-edge", "edge-reference"),
+        ],
+        "manual_checkpoint": "none",
+    },
+    {
         "stage_id": "external-dns",
         "actions": ["create", "read"],
         "produces": [],
         "consumes": [
             ("shared-edge", "hostname"),
             ("shared-edge", "reserved-address"),
+            ("runtime-activation", "active-runtime-binding"),
         ],
         "manual_checkpoint": "external-dns",
     },
@@ -141,6 +153,7 @@ _DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
             ("oauth-configuration", "oauth-secret-version"),
             ("generation-publish", "registration-generation-reference"),
             ("shared-edge", "edge-reference"),
+            ("runtime-activation", "active-runtime-binding"),
         ],
         "manual_checkpoint": "none",
     },
@@ -148,7 +161,10 @@ _DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
         "stage_id": "readback",
         "actions": ["read"],
         "produces": [],
-        "consumes": [("tls-readiness", "certificate-reference")],
+        "consumes": [
+            ("tls-readiness", "certificate-reference"),
+            ("runtime-activation", "active-runtime-binding"),
+        ],
         "manual_checkpoint": "none",
     },
 )
@@ -163,6 +179,7 @@ _OPERATOR_STAGE_PRESENTATION = {
     "generation-publish": (3, "Publish the immutable image and initial generation"),
     "oauth-configuration": (4, "Configure OAuth"),
     "shared-edge": (5, "Create the Shared Edge"),
+    "runtime-activation": (5, "Activate the Shared Edge Runtime"),
     "external-dns": (6, "Configure DNS and TLS"),
     "tls-readiness": (6, "Configure DNS and TLS"),
     "readback": (7, "Verify the deployed platform"),

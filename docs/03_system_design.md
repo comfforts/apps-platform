@@ -830,21 +830,23 @@ replaces one private progress record after each successful readback:
 7. platform-owned OAuth branding/client creation and direct Secret Manager entry through an
    interactive provider-console checkpoint;
 8. Shared Edge, load balancer, reserved address, and full hostname readback;
-9. the exact external Squarespace record through an interactive checkpoint;
-10. authoritative and recursive DNS verification, certificate creation or readiness, and a
+9. exact source-, image-, and active-generation-bound Shared Edge revision activation;
+10. the exact external Squarespace record through an interactive checkpoint;
+11. authoritative and recursive DNS verification, certificate creation or readiness, and a
     one-hour readiness bound with 30-second observations; explicit provider failure states stop
     instead of being classified as pending; and
-11. state/provider/ownership readback and status reconciliation.
+12. state/provider/ownership readback and status reconciliation.
 
 The first execution of step 8 is dark and leaves TLS disabled until external DNS is verified. On a
 later source-bound reconciliation, the operator reads the exact Platform State addresses before
 planning. If the managed certificate is already state-owned, step 8 preserves the certificate and
 its HTTPS resources instead of rendering the first-deployment TLS-disabled shape. State presence
-does not imply readiness; step 10 still verifies DNS and the provider-managed certificate status.
+does not imply readiness; step 11 still verifies DNS and the provider-managed certificate status.
 
-The operator transcript groups those eleven internal resume checkpoints into seven numbered human
+The operator transcript groups those twelve internal resume checkpoints into seven numbered human
 stages: verification; state and foundation bootstrap; immutable image and generation publication;
-OAuth configuration; Shared Edge creation; DNS and TLS; and final platform readback. Each group is
+OAuth configuration; Shared Edge creation and runtime activation; DNS and TLS; and final platform
+readback. Each group is
 announced as `Stage n/7` when first entered in a process. A resumed process announces the group
 containing its first unclosed internal checkpoint, so a resume at certificate planning reports
 `Stage 6/7 · Configure DNS and TLS` without repeating the already closed DNS action.

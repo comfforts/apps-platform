@@ -578,10 +578,12 @@ class GcloudGenerationProvider(GenerationProvider):
             raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
         return revision_name, revision
 
-    def read_active_binding(self, environment: str) -> ProviderGenerationBinding:
-        """Read the exact active revision binding without changing provider state."""
-
-        revision_name, revision = self._active_revision(environment)
+    def _revision_binding(
+        self,
+        environment: str,
+        revision_name: str,
+        revision: dict[str, Any],
+    ) -> ProviderGenerationBinding:
         values = self._revision_environment(revision)
         required = {
             "APP_PLATFORM_CONFIGURATION_BUCKET",
@@ -621,16 +623,38 @@ class GcloudGenerationProvider(GenerationProvider):
             or not object_name
         ):
             raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
+        _, image_reference = self._revision_values(revision)
         return ProviderGenerationBinding(
             environment=environment,
             revision_name=revision_name,
             platform_source_revision=source_revision,
+            image_reference=image_reference,
             generation=generation,
             generation_digest=generation_digest,
             content_digest=content_digest,
             object_name=object_name,
             object_generation=object_generation,
         )
+
+    def read_revision_binding(
+        self,
+        environment: str,
+        revision_name: str,
+    ) -> ProviderGenerationBinding:
+        """Read one exact staged edge revision without moving traffic."""
+
+        if environment != "staging":
+            raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
+        revision = self._describe_revision(revision_name)
+        if revision is None:
+            raise GenerationProviderError("GENERATION_REVISION_READBACK_MISSING")
+        return self._revision_binding(environment, revision_name, revision)
+
+    def read_active_binding(self, environment: str) -> ProviderGenerationBinding:
+        """Read the exact active revision binding without changing provider state."""
+
+        revision_name, revision = self._active_revision(environment)
+        return self._revision_binding(environment, revision_name, revision)
 
     @staticmethod
     def _component_digest(value: object) -> str:

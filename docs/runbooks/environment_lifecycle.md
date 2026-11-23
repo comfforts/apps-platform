@@ -125,6 +125,13 @@ The command keeps one interactive process open while it:
 8. reads back every result the provider exposes; and
 9. atomically records each readback-closed stage in private deployment progress.
 
+When an active Registration Generation already exists, deployment does not republish or replace
+it. The command carries that exact generation into the newly rendered Shared Edge revision,
+verifies the staged revision's source, image, generation, and configuration-object bindings, then
+activates it and verifies that it owns 100 percent of edge traffic. A checkout revision difference
+by itself is only a status diagnostic; run deployment when platform-owned desired state actually
+needs reconciliation.
+
 Every operator command writes a redacted execution trace to stderr before its final JSON result on
 stdout. The trace shows the operation, environment, state directory, source authority, selected
 fixture, profile, Git source facts, and the bounded non-secret result from each readiness adapter.

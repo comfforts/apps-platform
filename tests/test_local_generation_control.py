@@ -173,6 +173,9 @@ class LocalGenerationControlTest(unittest.TestCase):
                 environment="staging",
                 revision_name="app-platform-edge-initial",
                 platform_source_revision="b" * 40,
+                image_reference=(
+                    "us-west1-docker.pkg.dev/example/edge@sha256:" + "9" * 64
+                ),
                 generation=1,
                 generation_digest=proposal().generation_digest,
                 content_digest=proposal().content_digest,
@@ -204,12 +207,54 @@ class LocalGenerationControlTest(unittest.TestCase):
         self.assertEqual(provider.published, [])
         self.assertEqual(provider.activations, [])
 
+    def test_rebinds_current_generation_to_verified_runtime_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            control, provider = self._control(directory)
+            publication = control.publish(proposal())
+            control.activate(
+                "staging",
+                publication.publication_reference,
+                proposal().generation_digest,
+            )
+            binding = ProviderGenerationBinding(
+                environment="staging",
+                revision_name="app-platform-edge-g1-current-source",
+                platform_source_revision="b" * 40,
+                image_reference=(
+                    "us-west1-docker.pkg.dev/example/edge@sha256:" + "9" * 64
+                ),
+                generation=1,
+                generation_digest=proposal().generation_digest,
+                content_digest=proposal().content_digest,
+                object_name="generations/1/compiled.json",
+                object_generation=41,
+            )
+            provider.active_binding = binding
+
+            control.record_active_runtime(binding)
+            current = LocalReviewedGenerationControl(control).current("staging")
+
+        assert current is not None
+        self.assertEqual(current.proposal, proposal())
+        self.assertTrue(
+            current.publication_reference.endswith(
+                ":revision:app-platform-edge-g1-current-source"
+            )
+        )
+        self.assertEqual(
+            control.active_platform_source_revision("staging"),
+            "b" * 40,
+        )
+
     def test_rejects_deployed_initial_generation_binding_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             binding = ProviderGenerationBinding(
                 environment="staging",
                 revision_name="app-platform-edge-initial",
                 platform_source_revision="a" * 40,
+                image_reference=(
+                    "us-west1-docker.pkg.dev/example/edge@sha256:" + "9" * 64
+                ),
                 generation=1,
                 generation_digest=_digest("e"),
                 content_digest=proposal().content_digest,

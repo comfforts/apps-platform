@@ -1,10 +1,11 @@
 output "edge_reference" {
   description = "Closed non-secret Shared Edge phase references."
   value = {
-    hostname         = var.edge_configuration.qualification_hostname
-    reserved_address = google_compute_global_address.edge.address
-    service_name     = google_cloud_run_v2_service.edge.name
-    tls_enabled      = var.edge_configuration.tls_enabled
+    candidate_revision = var.edge_configuration.candidate_revision
+    hostname           = var.edge_configuration.qualification_hostname
+    reserved_address   = google_compute_global_address.edge.address
+    service_name       = google_cloud_run_v2_service.edge.name
+    tls_enabled        = var.edge_configuration.tls_enabled
   }
 }
 

@@ -37,6 +37,10 @@ from infrastructure.operator.local_deployment import (
     RenderedTerraformInput,
     initial_generation,
 )
+from infrastructure.operator.local_generation import (
+    ProviderGenerationActivation,
+    ProviderGenerationBinding,
+)
 
 
 _PROJECT_ID = "comfforts-platform-non-prod"
@@ -137,6 +141,33 @@ class DeploymentDns(Protocol):
     def read(self, expected_address: str) -> DnsReadback: ...
 
 
+class RuntimeGenerationProvider(Protocol):
+    def shared_edge_exists(self, environment: str) -> bool: ...
+
+    def read_revision_binding(
+        self,
+        environment: str,
+        revision_name: str,
+    ) -> ProviderGenerationBinding: ...
+
+    def activate(
+        self,
+        environment: str,
+        revision_name: str,
+        generation_digest: str,
+        authority: str,
+    ) -> ProviderGenerationActivation: ...
+
+    def read_active_binding(
+        self,
+        environment: str,
+    ) -> ProviderGenerationBinding: ...
+
+
+class RuntimeGenerationRecorder(Protocol):
+    def record_active_runtime(self, binding: ProviderGenerationBinding) -> None: ...
+
+
 def _canonical(value: object) -> str:
     return json.dumps(
         value,
@@ -151,6 +182,14 @@ def _dict(value: object, code: str) -> dict[str, object]:
     if not isinstance(value, dict):
         raise DeploymentCommandError(code)
     return value
+
+
+def _object(value: str, code: str) -> dict[str, object]:
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise DeploymentCommandError(code) from error
+    return _dict(parsed, code)
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,14 +210,108 @@ class LocalDeploymentCommands:
         provider: DeploymentProvider,
         dns: DeploymentDns,
         session: OperatorSessionFacts,
+        *,
+        runtime_provider: RuntimeGenerationProvider | None = None,
+        runtime_recorder: RuntimeGenerationRecorder | None = None,
     ) -> None:
         self._renderer = renderer
         self._terraform = terraform
         self._provider = provider
         self._dns = dns
         self._session = session
+        self._runtime_provider = runtime_provider
+        self._runtime_recorder = runtime_recorder
         self._plans_by_stage: dict[str, _RenderedPlan] = {}
         self._plans_by_request: dict[int, _RenderedPlan] = {}
+
+    @staticmethod
+    def _generation_reference(binding: ProviderGenerationBinding) -> str:
+        return _canonical(
+            {
+                "content_digest": binding.content_digest,
+                "generation": binding.generation,
+                "generation_digest": binding.generation_digest,
+                "object_generation": binding.object_generation,
+                "object_name": binding.object_name,
+            }
+        )
+
+    def _active_generation_binding(self) -> ProviderGenerationBinding | None:
+        if self._runtime_provider is None:
+            return None
+        if not self._runtime_provider.shared_edge_exists("staging"):
+            return None
+        return self._runtime_provider.read_active_binding("staging")
+
+    def _active_generation_reference(self) -> str | None:
+        binding = self._active_generation_binding()
+        return None if binding is None else self._generation_reference(binding)
+
+    def _expected_runtime_binding(
+        self,
+        context: StageContext,
+    ) -> ProviderGenerationBinding:
+        inputs = self._inputs(context)
+        try:
+            generation = _object(
+                inputs["generation-publish.registration-generation-reference"],
+                "REGISTRATION_GENERATION_REFERENCE_INVALID",
+            )
+            edge_reference = _object(
+                inputs["shared-edge.edge-reference"],
+                "SHARED_EDGE_READBACK_INVALID",
+            )
+            edge = _dict(
+                edge_reference["edge"],
+                "SHARED_EDGE_READBACK_INVALID",
+            )
+            binding = ProviderGenerationBinding(
+                environment=context.environment,
+                revision_name=str(edge["candidate_revision"]),
+                platform_source_revision=context.source_revision,
+                image_reference=inputs[
+                    "image-publish.shared-edge-image-digest"
+                ],
+                generation=int(generation["generation"]),
+                generation_digest=str(generation["generation_digest"]),
+                content_digest=str(generation["content_digest"]),
+                object_name=str(generation["object_name"]),
+                object_generation=int(generation["object_generation"]),
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise DeploymentCommandError(
+                "RUNTIME_ACTIVATION_INPUT_INVALID"
+            ) from error
+        if (
+            binding.environment != "staging"
+            or not binding.revision_name.startswith(
+                f"app-platform-edge-g{binding.generation}-"
+            )
+            or not binding.image_reference.startswith(
+                f"{_REGION}-docker.pkg.dev/{_PROJECT_ID}/"
+                "app-platform-images/shared-edge@sha256:"
+            )
+            or len(binding.generation_digest) != 71
+            or len(binding.content_digest) != 71
+            or binding.object_generation < 1
+        ):
+            raise DeploymentCommandError("RUNTIME_ACTIVATION_INPUT_INVALID")
+        return binding
+
+    @staticmethod
+    def _runtime_binding_value(
+        binding: ProviderGenerationBinding,
+    ) -> dict[str, object]:
+        return {
+            "content_digest": binding.content_digest,
+            "generation": binding.generation,
+            "generation_digest": binding.generation_digest,
+            "image_reference": binding.image_reference,
+            "object_generation": binding.object_generation,
+            "object_name": binding.object_name,
+            "platform_source_revision": binding.platform_source_revision,
+            "revision_name": binding.revision_name,
+        }
 
     @staticmethod
     def _stage_id(context: StageContext) -> str:
@@ -402,6 +535,10 @@ class LocalDeploymentCommands:
             or not isinstance(edge, dict)
             or edge.get("hostname") != _HOSTNAME
             or edge.get("service_name") != "app-platform-edge"
+            or not isinstance(edge.get("candidate_revision"), str)
+            or not str(edge["candidate_revision"]).startswith(
+                "app-platform-edge-g"
+            )
             or edge.get("tls_enabled") is not tls_enabled
             or not isinstance(edge.get("reserved_address"), str)
             or _IPV4.fullmatch(str(edge["reserved_address"])) is None
@@ -494,10 +631,30 @@ class LocalDeploymentCommands:
         if stage_id == "readback":
             try:
                 certificate = self._provider.certificate_readback()
-            except DeploymentProviderError as error:
+                if self._runtime_provider is None:
+                    raise DeploymentCommandError(
+                        "RUNTIME_ACTIVATION_ADAPTER_UNAVAILABLE"
+                    )
+                expected = _object(
+                    self._inputs(context)[
+                        "runtime-activation.active-runtime-binding"
+                    ],
+                    "ACTIVE_RUNTIME_BINDING_INVALID",
+                )
+                observed = self._runtime_provider.read_active_binding(
+                    context.environment
+                )
+            except DeploymentCommandError:
+                raise
+            except (KeyError, DeploymentProviderError, RuntimeError, ValueError) as error:
                 raise self._provider_error(error) from error
             if not certificate.ready:
                 return StageReadback(False, blockers=("CERTIFICATE_READINESS_PENDING",))
+            if expected != self._runtime_binding_value(observed):
+                return StageReadback(
+                    False,
+                    blockers=("ACTIVE_RUNTIME_BINDING_MISMATCH",),
+                )
             return StageReadback(True)
         raise DeploymentCommandError("READBACK_STAGE_UNAVAILABLE")
 
@@ -524,6 +681,18 @@ class LocalDeploymentCommands:
                 },
             )
         if stage_id == "generation-publish":
+            active = self._active_generation_binding()
+            if active is not None:
+                return ActionProposal(
+                    "preserve-active-registration-generation",
+                    {
+                        "generation": active.generation,
+                        "generation_digest": active.generation_digest,
+                        "object_generation": active.object_generation,
+                        "object_name": active.object_name,
+                        "purpose": "bind-current-runtime-to-active-generation",
+                    },
+                )
             generation = initial_generation(context.source_revision)
             return ActionProposal(
                 "publish-initial-registration-generation",
@@ -532,6 +701,12 @@ class LocalDeploymentCommands:
                     "object_name": generation.object_name,
                     "purpose": "ensure-empty-registration-generation",
                 },
+            )
+        if stage_id == "runtime-activation":
+            expected = self._expected_runtime_binding(context)
+            return ActionProposal(
+                "activate-source-bound-shared-edge-runtime",
+                self._runtime_binding_value(expected),
             )
         raise DeploymentCommandError("DEPLOYMENT_ACTION_UNAVAILABLE")
 
@@ -548,9 +723,45 @@ class LocalDeploymentCommands:
                 self._provider.publish_initial_generation(
                     initial_generation(context.source_revision)
                 )
+            elif action.action == "preserve-active-registration-generation":
+                if self._active_generation_binding() is None:
+                    raise DeploymentCommandError(
+                        "ACTIVE_REGISTRATION_GENERATION_UNAVAILABLE"
+                    )
+            elif action.action == "activate-source-bound-shared-edge-runtime":
+                if self._runtime_provider is None:
+                    raise DeploymentCommandError(
+                        "RUNTIME_ACTIVATION_ADAPTER_UNAVAILABLE"
+                    )
+                expected = self._expected_runtime_binding(context)
+                candidate = self._runtime_provider.read_revision_binding(
+                    context.environment,
+                    expected.revision_name,
+                )
+                if candidate != expected:
+                    raise DeploymentCommandError(
+                        "RUNTIME_ACTIVATION_CANDIDATE_MISMATCH"
+                    )
+                activated = self._runtime_provider.activate(
+                    context.environment,
+                    expected.revision_name,
+                    expected.generation_digest,
+                    "apply",
+                )
+                if (
+                    not activated.activated
+                    or activated.active_revision_name != expected.revision_name
+                    or activated.active_generation_digest
+                    != expected.generation_digest
+                ):
+                    raise DeploymentCommandError(
+                        "RUNTIME_ACTIVATION_FAILED"
+                    )
             else:
                 raise DeploymentCommandError("DEPLOYMENT_ACTION_UNAVAILABLE")
-        except DeploymentProviderError as error:
+        except DeploymentCommandError:
+            raise
+        except (DeploymentProviderError, RuntimeError, ValueError) as error:
             raise self._provider_error(error) from error
 
     def readback_action(self, context: StageContext) -> StageReadback:
@@ -571,7 +782,9 @@ class LocalDeploymentCommands:
                     () if image else ("EDGE_IMAGE_READBACK_MISSING",),
                 )
             if stage_id == "generation-publish":
-                reference = self._provider.read_initial_generation()
+                reference = self._active_generation_reference()
+                if reference is None:
+                    reference = self._provider.read_initial_generation()
                 return StageReadback(
                     True,
                     ((
@@ -579,7 +792,32 @@ class LocalDeploymentCommands:
                         reference,
                     ),),
                 )
-        except DeploymentProviderError as error:
+            if stage_id == "runtime-activation":
+                if self._runtime_provider is None:
+                    raise DeploymentCommandError(
+                        "RUNTIME_ACTIVATION_ADAPTER_UNAVAILABLE"
+                    )
+                expected = self._expected_runtime_binding(context)
+                observed = self._runtime_provider.read_active_binding(
+                    context.environment
+                )
+                if observed != expected:
+                    return StageReadback(
+                        False,
+                        blockers=("ACTIVE_RUNTIME_BINDING_MISMATCH",),
+                    )
+                if self._runtime_recorder is not None:
+                    self._runtime_recorder.record_active_runtime(observed)
+                return StageReadback(
+                    True,
+                    ((
+                        "active-runtime-binding",
+                        _canonical(self._runtime_binding_value(observed)),
+                    ),),
+                )
+        except DeploymentCommandError:
+            raise
+        except (DeploymentProviderError, RuntimeError, ValueError) as error:
             raise self._provider_error(error) from error
         raise DeploymentCommandError("DEPLOYMENT_ACTION_UNAVAILABLE")
 

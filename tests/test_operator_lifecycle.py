@@ -503,7 +503,7 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertEqual(terminal_progress["status"], "succeeded")
         self.assertEqual(terminal_progress["completed"][-1]["stage_id"], "readback")
         self.assertEqual(journal_files, [])
-        self.assertEqual(len(executor.calls), 11)
+        self.assertEqual(len(executor.calls), 12)
         tls_context = next(
             context
             for context in executor.contexts
@@ -518,6 +518,7 @@ class OperatorLifecycleTest(unittest.TestCase):
                 "oauth-configuration.oauth-secret-version",
                 "generation-publish.registration-generation-reference",
                 "shared-edge.edge-reference",
+                "runtime-activation.active-runtime-binding",
             },
         )
 

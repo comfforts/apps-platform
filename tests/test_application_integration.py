@@ -339,7 +339,7 @@ class AttachmentValidationTest(unittest.TestCase):
         platform_result = lifecycle.validate_attachment(generated.bundle, attachment)
 
         self.assertEqual(target_result.outcome, "blocked")
-        self.assertEqual(target_result.blockers, ("TARGET_POSTURE_MISMATCH",))
+        self.assertEqual(target_result.blockers, ("TARGET_INGRESS_MISMATCH",))
         self.assertEqual(platform_result.outcome, "blocked")
         self.assertEqual(platform_result.blockers, ("PLATFORM_STATE_MISMATCH",))
         self.assertEqual(reader.requests, [])

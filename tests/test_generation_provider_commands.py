@@ -25,6 +25,7 @@ BUCKET = "comfforts-ap-stg-455651441682-configuration"
 GENERATION_DIGEST = "sha256:" + ("a" * 64)
 CONTENT_DIGEST = "sha256:" + ("b" * 64)
 SOURCE_REVISION = "c" * 40
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _canonical(value: object) -> bytes:
@@ -540,8 +541,17 @@ class GenerationProviderCommandsTest(unittest.TestCase):
 
     def test_attachment_readback_verifies_owner_ingress_audience_and_caller(self) -> None:
         compiled = _canonical(proposal().compiled_configuration)
+        fixture_labels = json.loads(
+            (
+                PROJECT_ROOT
+                / "infrastructure/config/examples/"
+                "fixture-authenticated.synthetic.v1.json"
+            ).read_bytes()
+        )["labels"]
 
         class AttachmentGcloud(FakeGcloud):
+            target_environment = str(fixture_labels["environment"])
+
             def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
                 arguments = request.argv[1:]
                 self.requests.append(request)
@@ -557,7 +567,8 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                                         )
                                     },
                                     "labels": {
-                                        "environment": "staging",
+                                        "application_id": "fixture-authenticated",
+                                        "environment": self.target_environment,
                                         "state_owner": "application",
                                     },
                                     "name": "fixture-authenticated",
@@ -632,6 +643,15 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             "urn:comfforts:app-platform:audience:fixture-authenticated",
         )
         self.assertIn("app-platform-edge-caller", target.caller_grant)
+        self.assertEqual(target.blockers, ())
+
+        fake.target_environment = "staging"
+        mismatched = provider.read_target("staging", reference)
+
+        self.assertEqual(
+            mismatched.blockers,
+            ("TARGET_ENVIRONMENT_LABEL_MISMATCH",),
+        )
 
 
 if __name__ == "__main__":

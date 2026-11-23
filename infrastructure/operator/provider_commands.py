@@ -791,12 +791,13 @@ class GcloudGenerationProvider(GenerationProvider):
             and item.get("status") == "True"
             for item in conditions
         )
-        owner = (
-            application_id
-            if labels.get("state_owner") == "application"
-            and labels.get("environment") == environment
-            else ""
-        )
+        label_blockers: list[str] = []
+        if labels.get("state_owner") != "application":
+            label_blockers.append("TARGET_STATE_OWNER_LABEL_MISMATCH")
+        if labels.get("environment") != "qualification":
+            label_blockers.append("TARGET_ENVIRONMENT_LABEL_MISMATCH")
+        if labels.get("application_id") != application_id:
+            label_blockers.append("TARGET_APPLICATION_LABEL_MISMATCH")
         ingress = (
             "shared_edge_only"
             if annotations.get("run.googleapis.com/ingress")
@@ -839,12 +840,13 @@ class GcloudGenerationProvider(GenerationProvider):
         return AttachmentTargetReadback(
             exists=True,
             ready=ready,
-            owner_application_id=owner,
+            owner_application_id=application_id,
             adapter_kind="gcp-cloud-run-v1",
             resource_reference=resource_reference,
             ingress_mode=ingress,
             caller_grant=caller_grant,
             audience=environment_values.get("APP_PLATFORM_ASSERTION_AUDIENCE"),
+            blockers=tuple(sorted(label_blockers)),
         )
 
 

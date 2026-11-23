@@ -53,6 +53,7 @@ class AttachmentTargetReadback:
     ingress_mode: str
     caller_grant: str
     audience: str | None
+    blockers: tuple[str, ...] = ()
 
 
 class AttachmentTargetReader(Protocol):
@@ -387,25 +388,48 @@ class ApplicationIntegrationLifecycle:
             return self._attachment_blocked("TARGET_NOT_FOUND")
         if not readback.ready:
             return self._attachment_blocked("TARGET_NOT_READY")
+        if readback.blockers:
+            return self._attachment_blocked(*readback.blockers)
 
-        observed = (
-            readback.owner_application_id,
-            readback.adapter_kind,
-            readback.resource_reference,
-            readback.ingress_mode,
-            readback.caller_grant,
-            readback.audience,
+        comparisons = (
+            (
+                readback.owner_application_id,
+                target["owner_application_id"],
+                "TARGET_OWNER_MISMATCH",
+            ),
+            (
+                readback.adapter_kind,
+                target["adapter_kind"],
+                "TARGET_ADAPTER_MISMATCH",
+            ),
+            (
+                readback.resource_reference,
+                target["resource_reference"],
+                "TARGET_REFERENCE_MISMATCH",
+            ),
+            (
+                readback.ingress_mode,
+                target["ingress_mode"],
+                "TARGET_INGRESS_MISMATCH",
+            ),
+            (
+                readback.caller_grant,
+                target["caller_grant"],
+                "TARGET_CALLER_GRANT_MISMATCH",
+            ),
+            (
+                readback.audience,
+                target["audience"],
+                "TARGET_AUDIENCE_MISMATCH",
+            ),
         )
-        expected = (
-            target["owner_application_id"],
-            target["adapter_kind"],
-            target["resource_reference"],
-            target["ingress_mode"],
-            target["caller_grant"],
-            target["audience"],
+        blockers = tuple(
+            blocker
+            for observed, expected, blocker in comparisons
+            if observed != expected
         )
-        if observed != expected:
-            return self._attachment_blocked("TARGET_POSTURE_MISMATCH")
+        if blockers:
+            return self._attachment_blocked(*blockers)
         return AttachmentValidationResult(
             outcome="validated",
             attachment_bundle=attachment_bundle,

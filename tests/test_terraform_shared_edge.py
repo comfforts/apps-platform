@@ -112,6 +112,7 @@ class TerraformSharedEdgeTest(unittest.TestCase):
 
         for binding_name in (
             "APP_PLATFORM_SOURCE_REVISION",
+            "APP_PLATFORM_PROJECT_NUMBER",
             "APP_PLATFORM_COMPILER_VERSION",
             "APP_PLATFORM_REGISTRATION_GENERATION",
             "APP_PLATFORM_GENERATION_DIGEST",

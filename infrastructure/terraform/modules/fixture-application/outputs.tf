@@ -19,6 +19,7 @@ output "policy_summary" {
     unauthenticated_invocation      = false
     edge_caller_principal           = var.edge_caller_principal
     edge_caller_role                = "roles/run.invoker"
+    edge_metadata_reader_role       = "roles/run.viewer"
     minimum_instances               = 0
     maximum_instances               = 1
     cpu                             = "1"

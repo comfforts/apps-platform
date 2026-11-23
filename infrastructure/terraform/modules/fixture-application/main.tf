@@ -77,3 +77,11 @@ resource "google_cloud_run_v2_service_iam_member" "edge_invoker" {
   role     = "roles/run.invoker"
   member   = var.edge_caller_principal
 }
+
+resource "google_cloud_run_v2_service_iam_member" "edge_metadata_reader" {
+  project  = var.runtime_configuration.project_id
+  location = var.runtime_configuration.region
+  name     = google_cloud_run_v2_service.runtime.name
+  role     = "roles/run.viewer"
+  member   = var.edge_caller_principal
+}

@@ -882,6 +882,18 @@ def build_local_operator(
         if arm_executor
         else _DeploymentExecutorResult(None)
     )
+    filesystem = LocalFilesystem(resolved_project, state_root)
+    active_source_reader = None
+    generation_provider = _local_generation_provider(resolved_project, state_root)
+    if generation_provider is not None:
+        from infrastructure.operator.local_generation import (
+            LocalRegistrationGenerationControl,
+        )
+
+        active_source_reader = LocalRegistrationGenerationControl(
+            filesystem,
+            generation_provider,
+        )
     return LifecycleOperator(
         OperatorAdapters(
             git=LocalGit(resolved_project),
@@ -892,12 +904,13 @@ def build_local_operator(
                 Path(dig_name).resolve() if dig_name else None
             ),
             terminal=terminal,
-            filesystem=LocalFilesystem(resolved_project, state_root),
+            filesystem=filesystem,
             clock=SystemClock(),
             executor=execution.executor,
             execution_blockers=execution.blockers,
         ),
         source_authority=source_authority,
+        active_source_reader=active_source_reader,
     )
 
 

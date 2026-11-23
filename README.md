@@ -225,6 +225,11 @@ application-specific platform assertion. Separately, every initial application a
 including a public one, accepts traffic only from the Shared Edge rather than through arbitrary
 direct origin invocation. Platform admission never grants an application feature entitlement.
 
+The Shared Edge runs under its platform runtime identity but uses short-lived impersonated
+credentials for the separate edge-caller identity when it reads an attached Cloud Run service and
+invokes it. Each application-owned service grants that caller only Cloud Run Viewer and Invoker on
+the exact service. No service-account key is created or stored.
+
 ## Repository structure
 
 | Path | Purpose |
@@ -457,7 +462,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-prepare ENVIRONMENT=<name>` | Optionally prepare and review a complete specification without external mutation |
 | `make platform-cancel ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Confirm and close only an active private deployment record so changed source can prepare fresh intent; no Terraform or cloud mutation |
 | `make platform-deploy ENVIRONMENT=<name>` | Reuse a fresh current approval or prepare one, then deploy, checkpoint, read back, and safely resume the shared platform |
-| `make platform-status ENVIRONMENT=<name>` | Report local desired, execution, and qualification state without mutation |
+| `make platform-status ENVIRONMENT=<name>` | Report checkout, recorded deployment, active runtime, execution, and qualification state without mutation |
 | `make platform-outputs ...` | Generate one application-scoped Platform Integration Bundle |
 | `make platform-register ...` | Validate an application attachment and activate a complete immutable generation |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |

@@ -41,6 +41,7 @@ _PHASE_INVENTORIES = {
             "google_secret_manager_secret",
             "google_secret_manager_secret_iam_member",
             "google_service_account",
+            "google_service_account_iam_member",
             "google_storage_bucket",
             "google_storage_bucket_iam_member",
         ),

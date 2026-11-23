@@ -18,6 +18,7 @@ from typing import Any
 from contracts.lifecycle import load_lifecycle_document, validate_lifecycle_material
 from infrastructure.operator._interfaces import (
     DiscoverySnapshot,
+    ActivePlatformSourceReader,
     ExecutionResult,
     GitSnapshot,
     OperatorInterrupted,
@@ -304,9 +305,11 @@ class LifecycleOperator:
         adapters: OperatorAdapters,
         *,
         source_authority: str = "accepted",
+        active_source_reader: ActivePlatformSourceReader | None = None,
     ) -> None:
         self._adapters = adapters
         self._source_authority = validate_source_authority(source_authority)
+        self._active_source_reader = active_source_reader
 
     @staticmethod
     def _state_directory(environment: str) -> str:
@@ -969,6 +972,12 @@ class LifecycleOperator:
             "profile_digest": profile_digest,
             "source_authority": None,
             "source_revision": None,
+            "checkout_source_authority": self._source_authority,
+            "checkout_source_revision": None,
+            "recorded_deployment_source_authority": None,
+            "recorded_deployment_source_revision": None,
+            "active_runtime_source_revision": None,
+            "source_diagnostics": [],
             "specification_digest": None,
             "progress_digest": None,
             "last_closed_stage": None,
@@ -995,11 +1004,32 @@ class LifecycleOperator:
 
         source = specification["source"]
         git = self._adapters.git.inspect()
-        conflicts = self._source_blockers(git, environment)
+        source_diagnostics = self._source_blockers(git, environment)
         if source["authority"] != self._source_authority:
-            conflicts.append("SOURCE_AUTHORITY_MISMATCH")
+            source_diagnostics.append("CHECKOUT_AUTHORITY_DIFFERS_FROM_DEPLOYMENT")
         if git.revision != source["revision"]:
-            conflicts.append("SOURCE_REVISION_MISMATCH")
+            source_diagnostics.append("CHECKOUT_DIFFERS_FROM_DEPLOYMENT")
+        active_runtime_source_revision = None
+        if self._active_source_reader is not None:
+            try:
+                active_runtime_source_revision = (
+                    self._active_source_reader.active_platform_source_revision(
+                        environment
+                    )
+                )
+            except Exception:
+                source_diagnostics.append("ACTIVE_RUNTIME_SOURCE_UNAVAILABLE")
+        if (
+            active_runtime_source_revision is not None
+            and git.revision != active_runtime_source_revision
+        ):
+            source_diagnostics.append("CHECKOUT_DIFFERS_FROM_ACTIVE_RUNTIME")
+        if (
+            active_runtime_source_revision is not None
+            and source["revision"] != active_runtime_source_revision
+        ):
+            source_diagnostics.append("DEPLOYMENT_DIFFERS_FROM_ACTIVE_RUNTIME")
+        conflicts = []
         if specification["profile_digest"] != profile_digest:
             conflicts.append("PROFILE_DIGEST_MISMATCH")
         ordered_conflicts = tuple(sorted(set(conflicts)))
@@ -1016,6 +1046,12 @@ class LifecycleOperator:
             "profile_digest": profile_digest,
             "source_authority": source["authority"],
             "source_revision": source["revision"],
+            "checkout_source_authority": self._source_authority,
+            "checkout_source_revision": git.revision,
+            "recorded_deployment_source_authority": source["authority"],
+            "recorded_deployment_source_revision": source["revision"],
+            "active_runtime_source_revision": active_runtime_source_revision,
+            "source_diagnostics": sorted(set(source_diagnostics)),
             "specification_digest": specification_digest,
             "progress_digest": _digest(progress),
             "lifecycle_state": state,

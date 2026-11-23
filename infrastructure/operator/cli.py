@@ -492,6 +492,19 @@ def _main(
                 "attachment_bundle_path": result.attachment_bundle_path,
             }
         )
+        if result.outcome == "deployed":
+            route = (
+                f"https://apps-staging.comfforts.com/{selected_fixture}"
+            )
+            print("Fixture registration activated successfully.", file=sys.stderr)
+            print(f"  Application: {selected_fixture}", file=sys.stderr)
+            print(f"  Route: {route}", file=sys.stderr)
+            print(
+                "  The selected registration is active; use fixture-status and the "
+                "route to verify live delivery.",
+                file=sys.stderr,
+            )
+            print(file=sys.stderr)
         return 0 if result.outcome == "deployed" else 2
 
     if arguments.operation == "fixture-handoff":
@@ -514,6 +527,23 @@ def _main(
                 "source_authority": arguments.source_authority,
             }
         )
+        if result.outcome == "prepared":
+            print("Fixture handoff prepared successfully.", file=sys.stderr)
+            print(f"  Application: {selected_fixture}", file=sys.stderr)
+            print(
+                f"  Platform integration bundle: {result.integration_bundle_path}",
+                file=sys.stderr,
+            )
+            print(
+                f"  Application attachment bundle: {result.attachment_bundle_path}",
+                file=sys.stderr,
+            )
+            print(
+                "  The fixture Application State exists, but it is not registered or "
+                "routable until fixture-deploy succeeds.",
+                file=sys.stderr,
+            )
+            print(file=sys.stderr)
         return 0 if result.outcome == "prepared" else 2
 
     if arguments.operation == "fixture-status":
@@ -834,6 +864,28 @@ def _main(
         return 0 if result.outcome in {"activated", "unchanged"} else 2
 
     status = operator.status(arguments.environment)
+    observed = status.environment_status
+    if observed.get("lifecycle_state") != "absent":
+        print("Platform status source readback:", file=sys.stderr)
+        print(
+            f"  current checkout: {observed.get('checkout_source_revision')}",
+            file=sys.stderr,
+        )
+        print(
+            "  recorded deployment operation: "
+            f"{observed.get('recorded_deployment_source_revision')}",
+            file=sys.stderr,
+        )
+        print(
+            f"  active Shared Edge runtime: {observed.get('active_runtime_source_revision')}",
+            file=sys.stderr,
+        )
+        diagnostics = observed.get("source_diagnostics")
+        if isinstance(diagnostics, list) and diagnostics:
+            print("  source diagnostics:", file=sys.stderr)
+            for diagnostic in diagnostics:
+                print(f"    - {diagnostic}", file=sys.stderr)
+        print(file=sys.stderr)
     _print(status.environment_status)
     return 0 if not status.conflicts else 2
 

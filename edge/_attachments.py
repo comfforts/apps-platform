@@ -192,21 +192,38 @@ def _unconditional_invokers(policy: Any) -> frozenset[str]:
 class GoogleCloudRunMetadataProvider:
     """Read one exact Cloud Run service and its IAM policy through an injected client."""
 
-    def __init__(self, services_client: Any) -> None:
+    def __init__(
+        self,
+        services_client: Any,
+        *,
+        project_number: str,
+        project_id: str,
+    ) -> None:
         self._services_client = services_client
+        self._project_number = project_number
+        self._project_id = project_id
+
+    def _provider_name(self, resource: CloudRunResource) -> str:
+        if resource.project_number != self._project_number:
+            raise AttachmentUnavailable("Cloud Run resource scope mismatch")
+        return (
+            f"projects/{self._project_id}/locations/{resource.region}/"
+            f"services/{resource.service_name}"
+        )
 
     async def describe(
         self,
         resource: CloudRunResource,
     ) -> CloudRunServiceMetadata:
         try:
+            provider_name = self._provider_name(resource)
             service = await self._services_client.get_service(
-                name=resource.provider_name,
+                name=provider_name,
             )
-            if getattr(service, "name", None) != resource.provider_name:
+            if getattr(service, "name", None) != provider_name:
                 raise AttachmentUnavailable("Cloud Run resource scope mismatch")
             policy = await self._services_client.get_iam_policy(
-                request={"resource": resource.provider_name},
+                request={"resource": provider_name},
             )
             labels = _mapping(getattr(service, "labels", {}))
             annotations = _mapping(getattr(service, "annotations", {}))
@@ -225,7 +242,7 @@ class GoogleCloudRunMetadataProvider:
                 and getattr(terminal_condition, "state", None) == READY_STATE
                 and isinstance(latest_ready_revision, str)
                 and latest_ready_revision.startswith(
-                    f"{resource.provider_name}/revisions/"
+                    f"{provider_name}/revisions/"
                 )
                 and isinstance(target_uri, str)
                 and not getattr(service, "invoker_iam_disabled", True)

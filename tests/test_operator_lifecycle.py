@@ -125,6 +125,16 @@ class FakeExecutor:
         )
 
 
+@dataclass
+class FakeActiveSourceReader:
+    revision: str
+
+    def active_platform_source_revision(self, environment: str) -> str:
+        if environment != "staging":
+            raise ValueError("unsupported environment")
+        return self.revision
+
+
 class OperatorLifecycleTest(unittest.TestCase):
     def _operator(
         self,
@@ -135,6 +145,7 @@ class OperatorLifecycleTest(unittest.TestCase):
         blocker: str | None = None,
         executor: FakeExecutor | None = None,
         execution_blockers: tuple[str, ...] = (),
+        active_source_reader: FakeActiveSourceReader | None = None,
     ) -> tuple[LifecycleOperator, FakeTerminal]:
         selected_terminal = terminal or FakeTerminal([True])
         selected_blockers = (blocker,) if blocker else ()
@@ -167,7 +178,13 @@ class OperatorLifecycleTest(unittest.TestCase):
             executor=executor,
             execution_blockers=execution_blockers,
         )
-        return LifecycleOperator(adapters), selected_terminal
+        return (
+            LifecycleOperator(
+                adapters,
+                active_source_reader=active_source_reader,
+            ),
+            selected_terminal,
+        )
 
     def test_execution_adapter_reports_its_exact_unavailable_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -503,6 +520,37 @@ class OperatorLifecycleTest(unittest.TestCase):
                 "shared-edge.edge-reference",
             },
         )
+
+    def test_status_observes_distinct_checkout_operation_and_runtime_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            git = FakeGit(revision="a" * 40)
+            operator, _ = self._operator(
+                Path(directory),
+                git=git,
+                executor=FakeExecutor(),
+                active_source_reader=FakeActiveSourceReader("c" * 40),
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+            operator.execute("staging", prepared.specification_digest)
+            git.revision = "b" * 40
+
+            result = operator.status("staging")
+            status = result.environment_status
+
+        self.assertEqual(result.conflicts, ())
+        self.assertEqual(status["checkout_source_revision"], "b" * 40)
+        self.assertEqual(status["recorded_deployment_source_revision"], "a" * 40)
+        self.assertEqual(status["active_runtime_source_revision"], "c" * 40)
+        self.assertEqual(
+            status["source_diagnostics"],
+            [
+                "CHECKOUT_DIFFERS_FROM_ACTIVE_RUNTIME",
+                "CHECKOUT_DIFFERS_FROM_DEPLOYMENT",
+                "DEPLOYMENT_DIFFERS_FROM_ACTIVE_RUNTIME",
+            ],
+        )
+        self.assertEqual(status["blockers"], [])
 
     def test_operator_stages_are_numbered_and_tls_resume_repeats_stage_six(self) -> None:
         @dataclass

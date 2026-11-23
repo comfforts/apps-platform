@@ -1396,9 +1396,13 @@ class CloudRunAttachmentTest(unittest.TestCase):
 
     def test_google_provider_uses_injected_client_and_exact_resource_only(self) -> None:
         resource = self.resource()
+        canonical_name = (
+            "projects/comfforts-platform-non-prod/locations/us-west1/"
+            "services/alpha-app"
+        )
         client = StaticCloudRunServicesClient(
             run_v2.Service(
-                name=resource.provider_name,
+                name=canonical_name,
                 labels={
                     "state_owner": "application",
                     "application_id": "alpha-app",
@@ -1412,7 +1416,7 @@ class CloudRunAttachmentTest(unittest.TestCase):
                     state=run_v2.Condition.State.CONDITION_SUCCEEDED,
                 ),
                 latest_ready_revision=(
-                    f"{resource.provider_name}/revisions/alpha-app-00007"
+                    f"{canonical_name}/revisions/alpha-app-00007"
                 ),
                 uri=self.target_uri,
                 invoker_iam_disabled=False,
@@ -1426,19 +1430,28 @@ class CloudRunAttachmentTest(unittest.TestCase):
                 ),
             ),
         )
-        provider = GoogleCloudRunMetadataProvider(client)
+        provider = GoogleCloudRunMetadataProvider(
+            client,
+            project_number="455651441682",
+            project_id="comfforts-platform-non-prod",
+        )
 
         self.assertEqual(client.service_requests, [])
         self.assertEqual(client.policy_requests, [])
 
         metadata = asyncio.run(provider.describe(resource))
 
-        self.assertEqual(client.service_requests, [resource.provider_name])
+        self.assertEqual(client.service_requests, [canonical_name])
         self.assertEqual(
             client.policy_requests,
-            [{"resource": resource.provider_name}],
+            [{"resource": canonical_name}],
         )
         self.assertEqual(metadata, self.metadata())
+
+        wrong_project = replace(resource, project_number="455651441683")
+        with self.assertRaises(AttachmentUnavailable):
+            asyncio.run(provider.describe(wrong_project))
+        self.assertEqual(client.service_requests, [canonical_name])
 
     def test_google_provider_does_not_treat_conditional_or_disabled_iam_as_grant(
         self,
@@ -1471,7 +1484,9 @@ class CloudRunAttachmentTest(unittest.TestCase):
 
         metadata = asyncio.run(
             GoogleCloudRunMetadataProvider(
-                StaticCloudRunServicesClient(service, policy)
+                StaticCloudRunServicesClient(service, policy),
+                project_number="455651441682",
+                project_id="455651441682",
             ).describe(resource)
         )
 

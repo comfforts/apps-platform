@@ -1269,6 +1269,14 @@ scope, unready service, owner reuse, caller mismatch, audience mismatch, disable
 invalid provider target closes before application delivery. Local fake readback is not evidence
 that IAM, ingress, a target service, or an edge caller exists in GCP.
 
+The Shared Edge runtime identity receives no direct invocation grant on application services. It
+may create short-lived credentials for only the dedicated edge-caller service account. That caller
+receives Cloud Run Viewer and Invoker only on each exact attached service, allowing the runtime to
+read the named service and IAM policy and then mint an audience-bound ID token without a stored
+service-account key. A project number from the typed attachment reference is accepted only when it
+maps to the configured project ID; the canonical provider response must then match that exact
+project ID, region, and service name.
+
 AP-M6-W8 delivers only a successfully selected, admitted, asserted, and resolved request. Its HTTP
 transport obtains a Google service-identity token for the resolved audience, preserves the
 registration-derived rewritten path and raw query bytes, and never accepts a registration-supplied

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 from pathlib import Path
@@ -188,8 +188,9 @@ class IntegrationCliTest(unittest.TestCase):
     def test_fixture_handoff_emits_inspectable_paths_without_registration(self) -> None:
         fixture = FakeFixtureOperator()
         output = io.StringIO()
+        diagnostics = io.StringIO()
 
-        with redirect_stdout(output):
+        with redirect_stdout(output), redirect_stderr(diagnostics):
             code = main(
                 [
                     "fixture-handoff",
@@ -213,12 +214,21 @@ class IntegrationCliTest(unittest.TestCase):
             "/private/application-attachment-bundle.v1.json",
         )
         self.assertEqual(fixture.application_ids, ["fixture-authenticated"])
+        self.assertIn(
+            "Fixture handoff prepared successfully.",
+            diagnostics.getvalue(),
+        )
+        self.assertIn(
+            "not registered or routable",
+            diagnostics.getvalue(),
+        )
 
     def test_fixture_deploy_requires_and_selects_one_application(self) -> None:
         fixture = FakeFixtureOperator()
         output = io.StringIO()
+        diagnostics = io.StringIO()
 
-        with redirect_stdout(output):
+        with redirect_stdout(output), redirect_stderr(diagnostics):
             code = main(
                 [
                     "fixture-deploy",
@@ -238,6 +248,14 @@ class IntegrationCliTest(unittest.TestCase):
         self.assertEqual(
             result["application_ids"],
             ["fixture-authenticated"],
+        )
+        self.assertIn(
+            "Fixture registration activated successfully.",
+            diagnostics.getvalue(),
+        )
+        self.assertIn(
+            "https://apps-staging.comfforts.com/fixture-authenticated",
+            diagnostics.getvalue(),
         )
 
     def test_fixture_deploy_rejects_an_omitted_application(self) -> None:

@@ -103,6 +103,10 @@ class GitAdapter(Protocol):
     def inspect(self) -> GitSnapshot: ...
 
 
+class ActivePlatformSourceReader(Protocol):
+    def active_platform_source_revision(self, environment: str) -> str: ...
+
+
 class DiscoveryAdapter(Protocol):
     def inspect(self, profile: dict[str, object]) -> DiscoverySnapshot: ...
 

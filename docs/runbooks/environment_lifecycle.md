@@ -182,9 +182,13 @@ Run:
 make platform-status ENVIRONMENT=staging
 ```
 
-Status reports the selected source, desired configuration, execution progress, active registration
-generation, and latest qualification state without changing the provider or repository. A deployed
-resource is not necessarily qualified; status reports those states separately.
+Status reports the current checkout source, the source recorded by the last deployment operation,
+the source serving the active Shared Edge, desired configuration, execution progress, active
+registration generation, and latest qualification state without changing the provider or
+repository. These three source revisions can legitimately differ during candidate maintenance, so
+status reports their alignment as diagnostics rather than treating every difference as a failed
+read. An unreadable or internally inconsistent record remains a blocker. A deployed resource is
+not necessarily qualified; status reports those states separately.
 
 ## Connect an application
 

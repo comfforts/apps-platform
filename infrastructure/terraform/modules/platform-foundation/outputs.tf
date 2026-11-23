@@ -55,13 +55,14 @@ output "policy_summary" {
       private_material_exportable = false
     }
     identities = {
-      edge_runtime_account_id = var.foundation_configuration.identities.edge_runtime_account_id
-      edge_runtime_principal  = local.edge_runtime_principal
-      edge_caller_account_id  = var.foundation_configuration.identities.edge_caller_account_id
-      edge_caller_principal   = local.edge_caller_principal
-      separated               = local.edge_runtime_principal != local.edge_caller_principal
-      deletion_policy         = local.destruction_enabled ? "DELETE" : "PREVENT"
-      service_account_keys    = false
+      edge_runtime_account_id    = var.foundation_configuration.identities.edge_runtime_account_id
+      edge_runtime_principal     = local.edge_runtime_principal
+      edge_caller_account_id     = var.foundation_configuration.identities.edge_caller_account_id
+      edge_caller_principal      = local.edge_caller_principal
+      separated                  = local.edge_runtime_principal != local.edge_caller_principal
+      runtime_impersonation_role = "roles/iam.serviceAccountTokenCreator"
+      deletion_policy            = local.destruction_enabled ? "DELETE" : "PREVENT"
+      service_account_keys       = false
     }
     oauth = {
       secret_id              = var.foundation_configuration.oauth_secret_id

@@ -55,11 +55,20 @@ Fixture deploy and destroy always require one fixture application identifier and
 fixture's Application State. Fixture status is suite-wide by default and accepts the same optional
 identifier when a single-fixture readback is more useful.
 
+`platform-status` is observational. It reports the current checkout source, the source recorded by
+the last deployment operation, and the source serving the active Shared Edge separately. Expected
+differences are source diagnostics, not command failures; unreadable or inconsistent lifecycle
+state remains a blocker.
+
 `fixture-handoff` is an optional mutating inspection stop. It deploys or reconciles the selected
 fixture and prints the canonical Platform Integration Bundle and Application Attachment Bundle
 paths and digests, but does not register the fixture. A following `fixture-deploy` revalidates and
 reuses that exact pair when every source, generation, image, digest, relationship, and provider
 binding is unchanged; otherwise the normal end-to-end path regenerates it.
+
+On success, both fixture commands print a concise human-readable completion message in addition to
+their machine-readable JSON. Handoff explicitly says that the fixture is not yet routed. Deploy
+reports the activated route without claiming that registration readback is full live qualification.
 
 Accepted Source is the default and requires exact clean current `main`. To verify a pull request
 against real staging provider behavior before merge, first push the clean branch and add

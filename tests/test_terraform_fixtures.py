@@ -144,6 +144,7 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
                 ("google_service_account", "runtime"),
                 ("google_cloud_run_v2_service", "runtime"),
                 ("google_cloud_run_v2_service_iam_member", "edge_invoker"),
+                ("google_cloud_run_v2_service_iam_member", "edge_metadata_reader"),
             ],
         )
         for required_control in (
@@ -157,6 +158,7 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
             'cpu    = "1"',
             'memory = "512Mi"',
             'role     = "roles/run.invoker"',
+            'role     = "roles/run.viewer"',
             "APP_PLATFORM_ISSUER",
             "APP_PLATFORM_PUBLIC_KEY_REFERENCE",
             "APP_PLATFORM_ASSERTION_AUDIENCE",

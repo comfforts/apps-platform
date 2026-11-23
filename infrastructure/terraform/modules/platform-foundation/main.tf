@@ -12,6 +12,7 @@ locals {
     "compute.googleapis.com",
     "firestore.googleapis.com",
     "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
     "run.googleapis.com",
@@ -77,6 +78,19 @@ resource "google_service_account" "edge_caller" {
   depends_on = [google_project_service.platform]
 
   deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"
+}
+
+resource "google_service_account_iam_member" "edge_caller_token_creator" {
+  count = local.retained_only ? 0 : 1
+
+  service_account_id = google_service_account.edge_caller[0].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = local.edge_runtime_principal
+
+  depends_on = [
+    google_service_account.edge_runtime,
+    google_service_account.edge_caller,
+  ]
 }
 
 resource "google_storage_bucket_iam_member" "edge_configuration_reader" {

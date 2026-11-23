@@ -49,6 +49,11 @@ resource "google_cloud_run_v2_service" "edge" {
       }
 
       env {
+        name  = "APP_PLATFORM_PROJECT_NUMBER"
+        value = var.edge_configuration.project_number
+      }
+
+      env {
         name  = "APP_PLATFORM_REGION"
         value = var.edge_configuration.region
       }

@@ -12,7 +12,7 @@ from typing import Any, Protocol
 from urllib.parse import quote
 
 import httpx
-from google.oauth2 import id_token as google_id_token
+from google.auth import impersonated_credentials
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response, StreamingResponse
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -483,16 +483,19 @@ class ServiceIdentityTokenSource(Protocol):
 class GoogleAuthServiceIdentityTokenSource:
     """Fetch a Cloud Run workload ID token through an injected google-auth request."""
 
-    def __init__(self, auth_request: Any) -> None:
+    def __init__(self, auth_request: Any, target_credentials: Any) -> None:
         self._auth_request = auth_request
+        self._target_credentials = target_credentials
 
     async def token(self, audience: str) -> str:
         try:
-            token = await asyncio.to_thread(
-                google_id_token.fetch_id_token,
-                self._auth_request,
-                audience,
+            credentials = impersonated_credentials.IDTokenCredentials(
+                self._target_credentials,
+                target_audience=audience,
+                include_email=True,
             )
+            await asyncio.to_thread(credentials.refresh, self._auth_request)
+            token = credentials.token
         except Exception as error:
             raise ProxyUnavailable("service identity unavailable") from error
         if not isinstance(token, str) or _TOKEN_PATTERN.fullmatch(token) is None:

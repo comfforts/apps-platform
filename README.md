@@ -361,6 +361,15 @@ registration. The normal staging journey does not require this optional inspecti
 `y/N` confirmation. Typed confirmation is reserved for destruction, retirement, ownership
 transfer, and other irreversible operations.
 
+The DNS checkpoint first uses `dig` against every authoritative name server plus `1.1.1.1` and
+`8.8.8.8`. If the exact address and authoritative TTL are already verified, the wizard says that
+no DNS change is required; otherwise it opens Squarespace and asks the operator to add or update
+only the displayed record. After Enter, the same readback must pass before the stage closes. The
+following managed-certificate readback prints its progress every 30 seconds and waits for up to one
+hour. Explicit certificate or domain-validation failures stop immediately; only a genuine
+provisioning state waits. If it is still provisioning after the bound, the command returns a
+resumable `waiting` result without removing the verified DNS record or platform resources.
+
 If an operation is interrupted, rerun the same command with the same environment and source
 authority. The lifecycle validates its private progress and resumes after the last closed stage. A
 changed source, specification, environment, or scope cannot resume that exact operation. When the

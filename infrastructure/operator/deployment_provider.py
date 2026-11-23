@@ -61,6 +61,7 @@ _OAUTH_SECRET = "app-platform-edge-oauth"
 _SIGNING_KEY_RING = "app-platform"
 _SIGNING_KEY = "edge-signing"
 _CERTIFICATE = "app-platform-edge-certificate"
+_HOSTNAME = "apps-staging.comfforts.com"
 _IMAGE_PACKAGE = (
     f"{_REGION}-docker.pkg.dev/{_PROJECT_ID}/app-platform-images/shared-edge"
 )
@@ -150,7 +151,12 @@ class ClosedDeploymentGcloudRunner:
 @dataclass(frozen=True, slots=True)
 class CertificateReadback:
     reference: str
-    ready: bool
+    status: str
+    domain_status: str
+
+    @property
+    def ready(self) -> bool:
+        return self.status == "ACTIVE" and self.domain_status == "ACTIVE"
 
 
 class GcloudDeploymentProvider:
@@ -550,11 +556,43 @@ class GcloudDeploymentProvider:
         if not isinstance(managed, dict):
             raise DeploymentProviderError("CERTIFICATE_READBACK_INVALID")
         domains = managed.get("domains")
+        domain_statuses = managed.get("domainStatus")
         status = managed.get("status")
         reference = value.get("selfLink")
-        if domains != ["apps-staging.comfforts.com"] or not isinstance(reference, str):
+        if (
+            domains != [_HOSTNAME]
+            or not isinstance(domain_statuses, dict)
+            or set(domain_statuses) != {_HOSTNAME}
+            or not isinstance(domain_statuses.get(_HOSTNAME), str)
+            or not isinstance(status, str)
+            or not isinstance(reference, str)
+        ):
             raise DeploymentProviderError("CERTIFICATE_READBACK_INVALID")
-        return CertificateReadback(reference=reference, ready=status == "ACTIVE")
+        domain_status = domain_statuses[_HOSTNAME]
+        if status == "PROVISIONING_FAILED":
+            raise DeploymentProviderError("CERTIFICATE_PROVISIONING_FAILED")
+        if status == "PROVISIONING_FAILED_PERMANENTLY":
+            raise DeploymentProviderError(
+                "CERTIFICATE_PROVISIONING_FAILED_PERMANENTLY"
+            )
+        if status == "RENEWAL_FAILED":
+            raise DeploymentProviderError("CERTIFICATE_RENEWAL_FAILED")
+        domain_failure = {
+            "FAILED_NOT_VISIBLE": "CERTIFICATE_DOMAIN_NOT_VISIBLE",
+            "FAILED_CAA_CHECKING": "CERTIFICATE_DOMAIN_CAA_CHECK_FAILED",
+            "FAILED_CAA_FORBIDDEN": "CERTIFICATE_DOMAIN_CAA_FORBIDDEN",
+            "FAILED_RATE_LIMITED": "CERTIFICATE_DOMAIN_RATE_LIMITED",
+        }.get(domain_status)
+        if domain_failure is not None:
+            raise DeploymentProviderError(domain_failure)
+        if domain_status.startswith("FAILED_"):
+            raise DeploymentProviderError("CERTIFICATE_DOMAIN_VALIDATION_FAILED")
+        if (status, domain_status) not in {
+            ("ACTIVE", "ACTIVE"),
+            ("PROVISIONING", "PROVISIONING"),
+        }:
+            raise DeploymentProviderError("CERTIFICATE_READBACK_INVALID")
+        return CertificateReadback(reference, status, domain_status)
 
 
 __all__ = (

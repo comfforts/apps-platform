@@ -56,6 +56,7 @@ _OAUTH_STORE_CONSOLE = (
     "https://console.cloud.google.com/security/secret-manager/secret/"
     f"app-platform-edge-oauth/versions?project={_PROJECT_ID}"
 )
+_DNS_CONSOLE = "https://account.squarespace.com/domains"
 _CLIENT_ID = re.compile(r"[0-9]+-[a-z0-9-]+\.apps\.googleusercontent\.com")
 _IPV4 = re.compile(r"(?:[0-9]{1,3}\.){3}[0-9]{1,3}")
 _SHARED_EDGE_STATE_PREFIX = "module.shared_edge["
@@ -427,7 +428,11 @@ class LocalDeploymentCommands:
                 edge, address = self._edge_references(value, tls_enabled=False)
                 return TerraformReadback(
                     True,
-                    (("edge-reference", edge), ("reserved-address", address)),
+                    (
+                        ("edge-reference", edge),
+                        ("hostname", _HOSTNAME),
+                        ("reserved-address", address),
+                    ),
                 )
             self._edge_references(value, tls_enabled=True)
             certificate = self._provider.certificate_readback()
@@ -573,20 +578,33 @@ class LocalDeploymentCommands:
             )
         if stage_id == "external-dns":
             try:
-                address = self._inputs(context)["shared-edge.reserved-address"]
+                inputs = self._inputs(context)
+                address = inputs["shared-edge.reserved-address"]
+                hostname = inputs["shared-edge.hostname"]
             except KeyError as error:
-                raise DeploymentCommandError("DNS_ADDRESS_MISSING") from error
+                raise DeploymentCommandError("DNS_INPUT_MISSING") from error
+            if hostname != _HOSTNAME:
+                raise DeploymentCommandError("DNS_HOSTNAME_INVALID")
             if _IPV4.fullmatch(address) is None:
                 raise DeploymentCommandError("DNS_ADDRESS_INVALID")
+            try:
+                existing = self._dns.read(address)
+            except DnsReadbackError as error:
+                raise DeploymentCommandError(str(error)) from error
             return ManualCheckpoint(
                 "external-dns",
                 (
                     ("provider", "Squarespace"),
+                    ("dns_console_url", _DNS_CONSOLE),
                     ("dns_zone", "comfforts.com"),
                     ("record_type", "A"),
                     ("record_name", "apps-staging"),
-                    ("hostname", _HOSTNAME),
+                    ("hostname", hostname),
                     ("address", address),
+                    (
+                        "record_status",
+                        "verified" if existing.ready else "reconcile",
+                    ),
                     ("ttl_seconds", "1800"),
                 ),
             )

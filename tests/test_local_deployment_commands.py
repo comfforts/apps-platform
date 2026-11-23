@@ -301,7 +301,8 @@ class FakeProvider:
     def certificate_readback(self) -> CertificateReadback:
         return CertificateReadback(
             "https://compute.googleapis.com/projects/example/certificates/edge",
-            self.certificate_ready,
+            "ACTIVE" if self.certificate_ready else "PROVISIONING",
+            "ACTIVE" if self.certificate_ready else "PROVISIONING",
         )
 
 
@@ -438,7 +439,7 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             )
             edge = _context(
                 "shared-edge",
-                ("edge-reference", "reserved-address"),
+                ("edge-reference", "hostname", "reserved-address"),
                 edge_inputs,
             )
             commands.create_terraform_plan(edge, _request(work, "shared-edge"))
@@ -460,6 +461,10 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
         self.assertEqual(
             dict(edge_result.outputs)["reserved-address"],
             "34.120.10.20",
+        )
+        self.assertEqual(
+            dict(edge_result.outputs)["hostname"],
+            "apps-staging.comfforts.com",
         )
         self.assertTrue(
             variables["platform_configuration"]["shared_edge"]["tls_enabled"]
@@ -584,18 +589,46 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             context = _context(
                 "external-dns",
                 (),
-                (("shared-edge.reserved-address", "34.120.10.20"),),
+                (
+                    ("shared-edge.hostname", "apps-staging.comfforts.com"),
+                    ("shared-edge.reserved-address", "34.120.10.20"),
+                ),
             )
-            checkpoint = commands.prepare_manual_checkpoint(context)
             dns.ready = False
+            checkpoint = commands.prepare_manual_checkpoint(context)
             waiting = commands.verify_manual_checkpoint(context, 1, ())
             dns.ready = True
             verified = commands.verify_manual_checkpoint(context, 2, ())
 
         self.assertIn(("ttl_seconds", "1800"), checkpoint.instructions)
+        self.assertIn(("record_status", "reconcile"), checkpoint.instructions)
+        self.assertIn(
+            ("dns_console_url", "https://account.squarespace.com/domains"),
+            checkpoint.instructions,
+        )
         self.assertEqual(waiting.outcome, "waiting")
         self.assertEqual(verified.outcome, "succeeded")
-        self.assertEqual(dns.addresses, ["34.120.10.20", "34.120.10.20"])
+        self.assertEqual(
+            dns.addresses,
+            ["34.120.10.20", "34.120.10.20", "34.120.10.20"],
+        )
+
+    def test_dns_checkpoint_recognizes_an_existing_verified_record(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, _, _, dns, _ = self._commands(directory)
+            context = _context(
+                "external-dns",
+                (),
+                (
+                    ("shared-edge.hostname", "apps-staging.comfforts.com"),
+                    ("shared-edge.reserved-address", "34.120.10.20"),
+                ),
+            )
+
+            checkpoint = commands.prepare_manual_checkpoint(context)
+
+        self.assertIn(("record_status", "verified"), checkpoint.instructions)
+        self.assertEqual(dns.addresses, ["34.120.10.20"])
 
 
 if __name__ == "__main__":

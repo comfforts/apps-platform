@@ -737,6 +737,80 @@ class OperatorLifecycleTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "deployment progress"):
                 operator.status("staging")
 
+    def test_legacy_waiting_progress_adds_hostname_and_preserves_resume_authority(
+        self,
+    ) -> None:
+        @dataclass
+        class WaitingTlsExecutor(FakeExecutor):
+            def execute(self, context: StageContext) -> StageExecution:
+                if context.stage["stage_id"] == "tls-readiness":
+                    self.calls.append("tls-readiness")
+                    self.contexts.append(context)
+                    return StageExecution(
+                        "waiting",
+                        blockers=(
+                            "CERTIFICATE_READINESS_PENDING",
+                            "TERRAFORM_READINESS_PENDING",
+                        ),
+                    )
+                return super().execute(context)
+
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            executor = WaitingTlsExecutor()
+            operator, _ = self._operator(state, executor=executor)
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+            result = operator.execute("staging", prepared.specification_digest)
+            self.assertEqual(result.outcome, "waiting")
+
+            path = next(state.rglob("current-progress.v1.json"))
+            progress = json.loads(path.read_text(encoding="utf-8"))
+            shared_edge = next(
+                entry
+                for entry in progress["completed"]
+                if entry["stage_id"] == "shared-edge"
+            )
+            shared_edge["outputs"] = [
+                output
+                for output in shared_edge["outputs"]
+                if output["name"] != "hostname"
+            ]
+            edge_reference = next(
+                output
+                for output in shared_edge["outputs"]
+                if output["name"] == "edge-reference"
+            )
+            edge_reference["value"] = json.dumps(
+                {
+                    "edge": {"hostname": "apps-staging.comfforts.com"},
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            path.write_text(
+                json.dumps(progress, sort_keys=True, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+
+            normalized = operator._load_progress("staging")
+            conflict = operator._conflicting_progress(
+                "staging",
+                "sha256:" + "f" * 64,
+            )
+
+        assert normalized is not None
+        normalized_edge = next(
+            entry
+            for entry in normalized["completed"]
+            if entry["stage_id"] == "shared-edge"
+        )
+        self.assertEqual(
+            [output["name"] for output in normalized_edge["outputs"]],
+            ["edge-reference", "hostname", "reserved-address"],
+        )
+        self.assertIsNotNone(conflict)
+
     def test_production_status_is_read_only_and_ownership_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "not-created"

@@ -37,6 +37,8 @@ class FakeGcloud:
         "cloudresourcemanager.googleapis.com",
     )
     oauth_secret_project: str = PROJECT
+    certificate_status: str = "ACTIVE"
+    certificate_domain_status: str = "ACTIVE"
 
     def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
         self.requests.append(request)
@@ -93,7 +95,12 @@ class FakeGcloud:
                     {
                         "managed": {
                             "domains": ["apps-staging.comfforts.com"],
-                            "status": "ACTIVE",
+                            "domainStatus": {
+                                "apps-staging.comfforts.com": (
+                                    self.certificate_domain_status
+                                ),
+                            },
+                            "status": self.certificate_status,
                         },
                         "selfLink": f"https://compute.googleapis.com/{PROJECT}/certificate",
                     }
@@ -252,7 +259,71 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
         self.assertTrue(signing.endswith("/cryptoKeyVersions/1"))
         self.assertTrue(secret.endswith("/versions/1"))
         self.assertTrue(certificate.ready)
+        self.assertEqual(certificate.status, "ACTIVE")
+        self.assertEqual(certificate.domain_status, "ACTIVE")
         self.assertNotIn("secret payload", repr((signing, secret, certificate)))
+
+    def test_certificate_readback_distinguishes_provisioning_from_failure(self) -> None:
+        generation = initial_generation("c" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            provisioning = self._provider(
+                directory,
+                FakeGcloud(
+                    generation.contents,
+                    certificate_status="PROVISIONING",
+                    certificate_domain_status="PROVISIONING",
+                ),
+            ).certificate_readback()
+
+        self.assertFalse(provisioning.ready)
+        self.assertEqual(provisioning.status, "PROVISIONING")
+        self.assertEqual(provisioning.domain_status, "PROVISIONING")
+
+        failures = (
+            (
+                "PROVISIONING_FAILED",
+                "FAILED_NOT_VISIBLE",
+                "CERTIFICATE_PROVISIONING_FAILED",
+            ),
+            (
+                "PROVISIONING_FAILED_PERMANENTLY",
+                "FAILED_NOT_VISIBLE",
+                "CERTIFICATE_PROVISIONING_FAILED_PERMANENTLY",
+            ),
+            (
+                "RENEWAL_FAILED",
+                "FAILED_CAA_FORBIDDEN",
+                "CERTIFICATE_RENEWAL_FAILED",
+            ),
+            (
+                "PROVISIONING",
+                "FAILED_NOT_VISIBLE",
+                "CERTIFICATE_DOMAIN_NOT_VISIBLE",
+            ),
+            (
+                "PROVISIONING",
+                "FAILED_CAA_FORBIDDEN",
+                "CERTIFICATE_DOMAIN_CAA_FORBIDDEN",
+            ),
+            (
+                "PROVISIONING",
+                "FAILED_RATE_LIMITED",
+                "CERTIFICATE_DOMAIN_RATE_LIMITED",
+            ),
+        )
+        for status, domain_status, blocker in failures:
+            with self.subTest(status=status, domain_status=domain_status):
+                with tempfile.TemporaryDirectory() as directory:
+                    provider = self._provider(
+                        directory,
+                        FakeGcloud(
+                            generation.contents,
+                            certificate_status=status,
+                            certificate_domain_status=domain_status,
+                        ),
+                    )
+                    with self.assertRaisesRegex(DeploymentProviderError, blocker):
+                        provider.certificate_readback()
 
     def test_oauth_secret_version_accepts_project_number_and_normalizes_reference(
         self,

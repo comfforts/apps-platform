@@ -230,6 +230,7 @@ class FakeCommands:
             ),
             "shared-edge": (
                 ("edge-reference", "verified-edge"),
+                ("hostname", "apps-staging.comfforts.com"),
                 ("reserved-address", "192.0.2.10"),
             ),
             "tls-readiness": (
@@ -354,11 +355,13 @@ class FakeCommands:
             checkpoint="external-dns",
             instructions=(
                 ("provider", "Squarespace"),
+                ("dns_console_url", "https://account.squarespace.com/domains"),
                 ("dns_zone", "comfforts.com"),
                 ("record_type", "A"),
                 ("record_name", "apps-staging"),
-                ("hostname", "apps-staging.comfforts.com"),
+                ("hostname", dict(context.inputs)["shared-edge.hostname"]),
                 ("address", dict(context.inputs)["shared-edge.reserved-address"]),
+                ("record_status", "reconcile"),
                 ("ttl_seconds", "300"),
             ),
         )
@@ -520,7 +523,10 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor = DeploymentExecutor(root, terminal, commands)
 
             result = executor.execute(
-                _context("shared-edge", ("edge-reference", "reserved-address"))
+                _context(
+                    "shared-edge",
+                    ("edge-reference", "hostname", "reserved-address"),
+                )
             )
 
         self.assertEqual(result.outcome, "failed")
@@ -550,7 +556,10 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor = DeploymentExecutor(root, terminal, commands)
 
             result = executor.execute(
-                _context("shared-edge", ("edge-reference", "reserved-address"))
+                _context(
+                    "shared-edge",
+                    ("edge-reference", "hostname", "reserved-address"),
+                )
             )
 
         displayed = "\n".join(terminal.messages)
@@ -924,9 +933,12 @@ class PlatformDeploymentTest(unittest.TestCase):
             json.loads(checkpoint.removeprefix("CHECKPOINT\n"))["checkpoint"],
             "provider-console",
         )
-        self.assertIn("OAUTH STEP 1 OF 3: Configure application branding", transcript)
-        self.assertIn("OAUTH STEP 2 OF 3: Create the Web OAuth client", transcript)
-        self.assertIn("OAUTH STEP 3 OF 3: Store the OAuth client secret", transcript)
+        self.assertIn("OAUTH STEP 1 OF 3: Review application branding", transcript)
+        self.assertIn("OAUTH STEP 2 OF 3: Review the Web OAuth client", transcript)
+        self.assertIn(
+            "OAUTH STEP 3 OF 3: Verify the OAuth client secret in Secret Manager",
+            transcript,
+        )
         self.assertIn("Application type: Web application", transcript)
         self.assertIn("Audience: External", transcript)
         self.assertIn("Publishing status for staging: Testing", transcript)
@@ -962,11 +974,13 @@ class PlatformDeploymentTest(unittest.TestCase):
             )
             terminal = FakeTerminal()
             waiter = FakeWaiter()
+            launcher = FakeCheckpointPageLauncher()
             executor = DeploymentExecutor(
                 root,
                 terminal,
                 commands,
                 waiter=waiter,
+                checkpoint_page_launcher=launcher,
             )
             context = _context("external-dns", ())
             context = StageContext(
@@ -974,7 +988,10 @@ class PlatformDeploymentTest(unittest.TestCase):
                 source_revision=context.source_revision,
                 specification_digest=context.specification_digest,
                 stage=context.stage,
-                inputs=(("shared-edge.reserved-address", "192.0.2.10"),),
+                inputs=(
+                    ("shared-edge.hostname", "apps-staging.comfforts.com"),
+                    ("shared-edge.reserved-address", "192.0.2.10"),
+                ),
             )
 
             result = executor.execute(context)
@@ -987,9 +1004,11 @@ class PlatformDeploymentTest(unittest.TestCase):
             [1, 2, 3],
         )
         transcript = "\n".join(terminal.messages)
-        self.assertIn("MANUAL ACTION REQUIRED: Create the external DNS record", transcript)
+        self.assertIn("MANUAL ACTION REQUIRED: Reconcile the external DNS record", transcript)
         self.assertIn("Open Squarespace DNS management", transcript)
-        self.assertIn("Save only this record", transcript)
+        self.assertIn("Add or update only this record", transcript)
+        self.assertIn("EXTERNAL DNS VERIFIED", transcript)
+        self.assertEqual(launcher.opened, ["https://account.squarespace.com/domains"])
         self.assertIn("apps-staging.comfforts.com", transcript)
         self.assertIn("192.0.2.10", transcript)
 
@@ -1010,7 +1029,10 @@ class PlatformDeploymentTest(unittest.TestCase):
                 source_revision=context.source_revision,
                 specification_digest=context.specification_digest,
                 stage=context.stage,
-                inputs=(("shared-edge.reserved-address", "192.0.2.10"),),
+                inputs=(
+                    ("shared-edge.hostname", "apps-staging.comfforts.com"),
+                    ("shared-edge.reserved-address", "192.0.2.10"),
+                ),
             )
 
             result = executor.execute(context)
@@ -1018,6 +1040,54 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(result.outcome, "waiting")
         self.assertIn("CHECKPOINT_POLL_EXHAUSTED", result.blockers)
         self.assertEqual(len(commands.manual_verifications), 12)
+
+    def test_dns_checkpoint_reports_existing_verified_record_without_creation_language(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(root)
+            terminal = FakeTerminal()
+            launcher = FakeCheckpointPageLauncher()
+            executor = DeploymentExecutor(
+                root,
+                terminal,
+                commands,
+                checkpoint_page_launcher=launcher,
+            )
+            context = _context("external-dns", ())
+            context = StageContext(
+                environment=context.environment,
+                source_revision=context.source_revision,
+                specification_digest=context.specification_digest,
+                stage=context.stage,
+                inputs=(
+                    ("shared-edge.hostname", "apps-staging.comfforts.com"),
+                    ("shared-edge.reserved-address", "192.0.2.10"),
+                ),
+            )
+            original = commands.prepare_manual_checkpoint
+
+            def prepared(selected: StageContext) -> ManualCheckpoint:
+                checkpoint = original(selected)
+                return ManualCheckpoint(
+                    checkpoint.checkpoint,
+                    tuple(
+                        (name, "verified" if name == "record_status" else value)
+                        for name, value in checkpoint.instructions
+                    ),
+                )
+
+            commands.prepare_manual_checkpoint = prepared  # type: ignore[method-assign]
+
+            result = executor.execute(context)
+
+        transcript = "\n".join(terminal.messages)
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertIn("EXTERNAL DNS RECORD ALREADY VERIFIED", transcript)
+        self.assertNotIn("Create the external DNS record", transcript)
+        self.assertIn("No DNS change is required", transcript)
 
     def test_tls_readiness_is_bounded_and_closes_only_after_provider_readback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1028,9 +1098,10 @@ class PlatformDeploymentTest(unittest.TestCase):
                 terraform_readiness=[False, False, True],
             )
             waiter = FakeWaiter()
+            terminal = FakeTerminal()
             executor = DeploymentExecutor(
                 root,
-                FakeTerminal(),
+                terminal,
                 commands,
                 waiter=waiter,
             )
@@ -1040,8 +1111,34 @@ class PlatformDeploymentTest(unittest.TestCase):
             )
 
         self.assertEqual(result.outcome, "succeeded")
-        self.assertEqual(waiter.delays, [10, 10])
+        self.assertEqual(waiter.delays, [30, 30])
         self.assertEqual(len(commands.readbacks), 3)
+        self.assertIn(
+            "Managed certificate is still provisioning (attempt 1 of 120)",
+            "\n".join(terminal.messages),
+        )
+
+    def test_tls_readiness_waits_for_one_hour_before_returning_waiting(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(root, terraform_readiness=[False] * 120)
+            waiter = FakeWaiter()
+            terminal = FakeTerminal()
+            executor = DeploymentExecutor(root, terminal, commands, waiter=waiter)
+
+            result = executor.execute(
+                _context("tls-readiness", ("certificate-reference",))
+            )
+
+        self.assertEqual(result.outcome, "waiting")
+        self.assertEqual(len(commands.readbacks), 120)
+        self.assertEqual(waiter.delays, [30] * 119)
+        self.assertIn("TERRAFORM_READINESS_PENDING", result.blockers)
+        self.assertIn(
+            "Certificate is still provisioning after 60 minutes",
+            "\n".join(terminal.messages),
+        )
 
     def test_prohibited_checkpoint_or_action_material_is_never_displayed(self) -> None:
         class UnsafeActionCommands(FakeCommands):

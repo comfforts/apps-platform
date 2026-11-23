@@ -146,13 +146,22 @@ and has no executor, Terraform-plan, provider-mutation, bundle, evidence, or qua
 
 Each manual checkpoint first prints a pretty machine-readable record and then a numbered
 natural-language procedure. Follow the numbered procedure; the JSON record is supporting evidence,
-not the operator instruction by itself. OAuth is divided into three focused steps: application
-branding, Web-client creation, and Secret Manager entry. The command prints and attempts to open
+not the operator instruction by itself. OAuth is divided into three focused reviews: application
+branding, the Web client, and its Secret Manager version. Each review may leave an exact existing
+configuration unchanged or make only the displayed correction. The command prints and attempts to open
 the exact allow-listed Google Cloud console page for each step, pauses after each one, and asks for
-only the OAuth client ID after client creation. The Secret Manager step names the existing target
+only the OAuth client ID after the client review. The Secret Manager step names the existing target
 and requires exactly one enabled version before readback. The script never asks for the OAuth
-client secret in the terminal. The DNS procedure identifies the exact provider, zone, record,
-address, and TTL, then verifies authoritative and recursive DNS after Enter.
+client secret in the terminal.
+
+Before showing the DNS procedure, the command uses `dig` to compare the displayed address at every
+authoritative name server and the two approved recursive resolvers, and checks the authoritative
+TTL. An already valid record is reported as verified and needs no change. Otherwise the command
+opens the Squarespace domains page and asks the operator to add or update only that record. After
+Enter, the same checks must pass and the command prints a completion message. Managed-certificate
+readback then runs every 30 seconds for up to one hour. A known provider or domain failure stops
+immediately instead of appearing as pending; a genuine provisioning state remains resumable if it
+outlasts the bound.
 
 Stop on a plan, account, project, ownership, DNS, TLS, OAuth, or provider-readback mismatch. Do not
 repair it by manually broadening scope, importing resources, pushing state, bypassing locks, or

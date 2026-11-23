@@ -829,10 +829,11 @@ replaces one private progress record after each successful readback:
 6. immutable closed initial Registration Generation publication;
 7. platform-owned OAuth branding/client creation and direct Secret Manager entry through an
    interactive provider-console checkpoint;
-8. Shared Edge, load balancer, and reserved address;
+8. Shared Edge, load balancer, reserved address, and full hostname readback;
 9. the exact external Squarespace record through an interactive checkpoint;
-10. authoritative and recursive DNS verification, certificate creation or readiness, and bounded
-   propagation wait; and
+10. authoritative and recursive DNS verification, certificate creation or readiness, and a
+    one-hour readiness bound with 30-second observations; explicit provider failure states stop
+    instead of being classified as pending; and
 11. state/provider/ownership readback and status reconciliation.
 
 The operator transcript groups those eleven internal resume checkpoints into seven numbered human
@@ -843,10 +844,12 @@ containing its first unclosed internal checkpoint, so a resume at certificate pl
 `Stage 6/7 · Configure DNS and TLS` without repeating the already closed DNS action.
 
 The local wizard remains active at a manual checkpoint, prints the exact approved values and
-provider destination, and waits for Enter. It never asks for a secret payload. After acknowledgement
-it verifies every provider-readable value; an unreadable field is recorded as operator-attested.
-Rerunning the same operation is a crash-recovery path that resumes after the last closed stage. A
-scope change, unapproved mutation, owner mismatch, or drift requires new preparation and approval.
+provider destination, and waits for Enter. It never asks for a secret payload. Before the DNS
+pause, readback distinguishes an exact existing record from one that must be reconciled; after
+acknowledgement it verifies every provider-readable value and narrates the closed checkpoint. An
+unreadable field is recorded as operator-attested. Rerunning the same operation is a crash-recovery
+path that resumes after the last closed stage. A scope change, unapproved mutation, owner mismatch,
+or drift requires new preparation and approval.
 
 The lifecycle verifies and uses one short-lived human-authenticated operator session for the
 selected environment and provider project. Each Terraform mutation plans, canonicalizes,

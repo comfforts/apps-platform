@@ -225,7 +225,7 @@ def _load_registration_intent(path: Path) -> RegistrationIntent:
 def _error_component(blocker: str) -> str:
     if blocker.startswith("TERRAFORM_"):
         return "terraform"
-    if blocker.startswith(("GCLOUD_", "CLOUD_SDK_")):
+    if blocker.startswith(("GCLOUD_", "CLOUD_SDK_", "CERTIFICATE_")):
         return "google-cloud"
     if blocker.startswith("DNS_"):
         return "dns"

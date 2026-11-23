@@ -212,7 +212,7 @@ _ACTION_STAGES = {"bootstrap-services", "generation-publish", "image-publish"}
 _MANUAL_STAGES = {"oauth-configuration", "external-dns"}
 _POLLING = {
     "external-dns": (12, 10),
-    "tls-readiness": (30, 10),
+    "tls-readiness": (120, 30),
 }
 _TERRAFORM_PLAN_GUIDANCE = {
     "SHARED_EDGE_INPUT_INCOMPLETE": (
@@ -543,7 +543,7 @@ class DeploymentExecutor:
                 return None
             branding = "\n".join(
                 (
-                    "OAUTH STEP 1 OF 3: Configure application branding",
+                    "OAUTH STEP 1 OF 3: Review application branding",
                     "",
                     f"The browser page is for project `{instructions['project_id']}`.",
                     "If branding is not configured, enter these exact values. If it "
@@ -565,17 +565,18 @@ class DeploymentExecutor:
                     f"{instructions['publishing_status']}",
                     "- Test users: add every Google account that will test staging.",
                     "",
-                    "Save the branding and audience configuration, return to this "
-                    "terminal, and press Enter. Keep the deployment running.",
+                    "Save any required correction, or leave an already matching "
+                    "configuration unchanged. Return to this terminal and press "
+                    "Enter. Keep the deployment running.",
                 )
             )
             client = "\n".join(
                 (
-                    "OAUTH STEP 2 OF 3: Create the Web OAuth client",
+                    "OAUTH STEP 2 OF 3: Review the Web OAuth client",
                     "",
-                    "On Google Auth Platform > Clients, create a client with these "
-                    "exact values. If this deployment is resuming and an exact "
-                    "matching client already exists, open and verify it instead of "
+                    "On Google Auth Platform > Clients, review the Web OAuth client "
+                    "for these exact values. Create it only when no exact matching "
+                    "client exists; otherwise verify the existing client instead of "
                     "creating a duplicate:",
                     f"- Application type: {instructions['application_type']}",
                     f"- Name: {instructions['application_name']}",
@@ -583,15 +584,16 @@ class DeploymentExecutor:
                     f"{instructions['authorized_origin']}",
                     f"- Authorized redirect URI: {instructions['redirect_uri']}",
                     "",
-                    "Create or save the client. Keep both the client ID and client "
-                    "secret available temporarily. Do not download or commit a JSON "
-                    "credential file. Return here and press Enter; the next terminal "
-                    "prompt accepts only the client ID.",
+                    "Save any required correction, or leave an exact matching client "
+                    "unchanged. Keep both the client ID and client secret available "
+                    "temporarily. Do not download or commit a JSON credential file. "
+                    "Return here and press Enter; the next terminal prompt accepts "
+                    "only the client ID.",
                 )
             )
             provider_guidance = "\n".join(
                 (
-                    "OAUTH STEP 3 OF 3: Store the OAuth client secret",
+                    "OAUTH STEP 3 OF 3: Verify the OAuth client secret in Secret Manager",
                     "",
                     "The browser page opens the existing Secret Manager target:",
                     f"{instructions['oauth_store_target']}",
@@ -623,37 +625,58 @@ class DeploymentExecutor:
         if stage_id == "external-dns":
             required = {
                 "address",
+                "dns_console_url",
                 "dns_zone",
                 "hostname",
                 "provider",
                 "record_name",
+                "record_status",
                 "record_type",
                 "ttl_seconds",
             }
             if not required.issubset(instructions):
                 return None
-            guidance = "\n".join(
-                (
-                    "MANUAL ACTION REQUIRED: Create the external DNS record",
-                    "",
-                    "Keep this deployment running while you complete these steps:",
-                    "",
-                    f"1. Open {instructions['provider']} DNS management for "
-                    f"`{instructions['dns_zone']}`.",
-                    "2. Create this exact record:",
-                    f"   - Type: {instructions['record_type']}",
-                    f"   - Host/name: {instructions['record_name']}",
-                    f"   - Full hostname: {instructions['hostname']}",
-                    f"   - Value/address: {instructions['address']}",
-                    f"   - TTL: {instructions['ttl_seconds']} seconds",
-                    "3. Save only this record. Do not modify another hostname, "
-                    "record, certificate, or application resource.",
-                    "4. Return here and press Enter. The deployment will verify "
-                    "authoritative and recursive DNS and wait for readable "
-                    "propagation.",
+            if instructions["record_status"] == "verified":
+                guidance = "\n".join(
+                    (
+                        "EXTERNAL DNS RECORD ALREADY VERIFIED",
+                        "",
+                        f"`{instructions['hostname']}` already resolves to "
+                        f"`{instructions['address']}` at every authoritative name "
+                        "server and the approved recursive resolvers, with the "
+                        f"required {instructions['ttl_seconds']}-second authoritative "
+                        "TTL.",
+                        "",
+                        "No DNS change is required. Review the record in Squarespace "
+                        "if desired, then return here and press Enter so the running "
+                        "deployment can verify it again immediately before continuing.",
+                    )
                 )
-            )
-            return ((guidance, ""),)
+            elif instructions["record_status"] == "reconcile":
+                guidance = "\n".join(
+                    (
+                        "MANUAL ACTION REQUIRED: Reconcile the external DNS record",
+                        "",
+                        "Keep this deployment running while you complete these steps:",
+                        "",
+                        f"1. Open {instructions['provider']} DNS management for "
+                        f"`{instructions['dns_zone']}`.",
+                        "2. Add or update only this record so it has these exact values:",
+                        f"   - Type: {instructions['record_type']}",
+                        f"   - Host/name: {instructions['record_name']}",
+                        f"   - Full hostname: {instructions['hostname']}",
+                        f"   - Value/address: {instructions['address']}",
+                        f"   - TTL: {instructions['ttl_seconds']} seconds",
+                        "3. Save only this record. Do not modify another hostname, "
+                        "record, certificate, or application resource.",
+                        "4. Return here and press Enter. The deployment will verify "
+                        "authoritative and recursive DNS and wait for readable "
+                        "propagation.",
+                    )
+                )
+            else:
+                return None
+            return ((guidance, instructions["dns_console_url"]),)
         return None
 
     def _show_checkpoint_page(self, url: str) -> None:
@@ -813,6 +836,15 @@ class DeploymentExecutor:
                         plan_digest=digest,
                         blockers=("DNS_PROVIDER_VERIFICATION_REQUIRED",),
                     )
+                if stage_id == "external-dns":
+                    self._terminal.write(
+                        "EXTERNAL DNS VERIFIED\n"
+                        f"{instruction_values['hostname']} resolves to "
+                        f"{instruction_values['address']} at every authoritative "
+                        "name server and the approved recursive resolvers. The "
+                        f"authoritative TTL is {instruction_values['ttl_seconds']} "
+                        "seconds. The DNS checkpoint is complete."
+                    )
                 return self._readback_result(
                     context,
                     StageReadback(True, verification.outputs),
@@ -826,6 +858,12 @@ class DeploymentExecutor:
                     blockers=("CHECKPOINT_OUTCOME_INVALID",),
                 )
             if attempt < max_attempts:
+                if stage_id == "external-dns":
+                    self._terminal.write(
+                        "External DNS is not yet consistently readable "
+                        f"(attempt {attempt} of {max_attempts}); waiting "
+                        f"{interval} seconds before retrying."
+                    )
                 self._waiter.wait(interval)
         return StageExecution(
             outcome="waiting",
@@ -979,11 +1017,28 @@ class DeploymentExecutor:
                     blockers=tuple(sorted(set(blockers))),
                 )
             if readback.ready:
+                if stage_id == "tls-readiness":
+                    self._terminal.write(
+                        "Managed certificate is ACTIVE for "
+                        "apps-staging.comfforts.com. TLS readiness is complete."
+                    )
                 break
             if attempt < max_attempts:
+                if stage_id == "tls-readiness":
+                    self._terminal.write(
+                        "Managed certificate is still provisioning "
+                        f"(attempt {attempt} of {max_attempts}); waiting "
+                        f"{interval} seconds before retrying."
+                    )
                 self._waiter.wait(interval)
         assert readback is not None
         if not readback.ready:
+            if stage_id == "tls-readiness":
+                self._terminal.write(
+                    "Certificate is still provisioning after 60 minutes. Leave "
+                    "the verified DNS record and platform resources in place, then "
+                    "resume platform-deploy later."
+                )
             return StageExecution(
                 outcome="waiting",
                 plan_digest=exact_plan.policy_digest,

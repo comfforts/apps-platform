@@ -109,7 +109,7 @@ _DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
     {
         "stage_id": "shared-edge",
         "actions": ["create", "read", "update"],
-        "produces": ["edge-reference", "reserved-address"],
+        "produces": ["edge-reference", "hostname", "reserved-address"],
         "consumes": [
             ("foundation", "foundation-reference"),
             ("image-publish", "shared-edge-image-digest"),
@@ -123,7 +123,10 @@ _DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
         "stage_id": "external-dns",
         "actions": ["create", "read"],
         "produces": [],
-        "consumes": [("shared-edge", "reserved-address")],
+        "consumes": [
+            ("shared-edge", "hostname"),
+            ("shared-edge", "reserved-address"),
+        ],
         "manual_checkpoint": "external-dns",
     },
     {
@@ -624,12 +627,54 @@ class LifecycleOperator:
         value = self._read_json_state(self._progress_path(environment))
         if value is None:
             return None
+        value = self._normalize_progress(value, environment)
         if (
-            not self._valid_progress(value, environment)
+            value is None
+            or not self._valid_progress(value, environment)
             or validate_lifecycle_material(value)
         ):
             raise ValueError("stored deployment progress is invalid")
         return value
+
+    @staticmethod
+    def _normalize_progress(
+        value: dict[str, Any],
+        environment: str,
+    ) -> dict[str, Any] | None:
+        """Upgrade the one pre-hostname private progress shape in memory."""
+
+        normalized = json.loads(json.dumps(value))
+        completed = normalized.get("completed")
+        if not isinstance(completed, list):
+            return normalized
+        expected_hostname = {
+            "staging": "apps-staging.comfforts.com",
+            "production": "apps.comfforts.com",
+        }.get(environment)
+        for entry in completed:
+            if not isinstance(entry, dict) or entry.get("stage_id") != "shared-edge":
+                continue
+            outputs = entry.get("outputs")
+            if not isinstance(outputs, list):
+                return None
+            names = [
+                output.get("name") if isinstance(output, dict) else None
+                for output in outputs
+            ]
+            if names != ["edge-reference", "reserved-address"]:
+                return normalized
+            edge_reference = outputs[0].get("value")
+            if not isinstance(edge_reference, str):
+                return None
+            try:
+                edge = json.loads(edge_reference)
+                hostname = edge["edge"]["hostname"]
+            except (KeyError, TypeError, json.JSONDecodeError):
+                return None
+            if hostname != expected_hostname:
+                return None
+            outputs.insert(1, {"name": "hostname", "value": hostname})
+        return normalized
 
     @staticmethod
     def _valid_progress(value: dict[str, Any], environment: str) -> bool:

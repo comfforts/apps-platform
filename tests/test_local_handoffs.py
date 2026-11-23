@@ -91,6 +91,67 @@ class LocalApplicationHandoffsTest(unittest.TestCase):
                 GENERATION_DIGEST,
             )
 
+    def test_new_attachment_revision_shares_unchanged_registration_generation(
+        self,
+    ) -> None:
+        integration = json.loads(
+            (
+                VECTORS
+                / "platform-integration-bundle.staging.synthetic.v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        attachment = json.loads(
+            (
+                VECTORS
+                / "application-attachment-bundle.staging.synthetic.v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        successor_attachment = dict(attachment)
+        successor_attachment["application_source_revision"] = "c" * 40
+        successor_attachment["attachment_revision"] = 2
+        with tempfile.TemporaryDirectory() as directory:
+            filesystem = LocalFilesystem(
+                PROJECT_ROOT,
+                Path(directory) / "operator",
+            )
+            handoffs = LocalApplicationHandoffs(filesystem)
+            original = handoffs.from_bundles(
+                integration,
+                attachment,
+                7,
+                GENERATION_DIGEST,
+            )
+            successor = handoffs.from_bundles(
+                integration,
+                successor_attachment,
+                7,
+                GENERATION_DIGEST,
+            )
+
+            self.assertTrue(handoffs.record(original))
+            self.assertTrue(handoffs.record(successor))
+            self.assertTrue(handoffs.record(successor))
+            observed = handoffs.read(
+                "staging",
+                "fixture-authenticated",
+                GENERATION_DIGEST,
+            )
+            latest = handoffs.latest_for_application(
+                "staging",
+                "fixture-authenticated",
+                7,
+            )
+            stored = tuple(
+                filesystem.state_path(
+                    "environments/staging/applications/"
+                    "fixture-authenticated/handoffs"
+                ).iterdir()
+            )
+
+        self.assertEqual(observed, successor)
+        self.assertEqual(latest, successor)
+        self.assertEqual(len(stored), 2)
+
 
 class LocalFixturePreparationsTest(unittest.TestCase):
     def test_publishes_and_reads_canonical_inspectable_bundle_pair(self) -> None:

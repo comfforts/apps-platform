@@ -56,11 +56,18 @@ class LocalApplicationHandoffs:
         self._filesystem = filesystem
 
     @staticmethod
-    def _path(record: ApplicationHandoffRecord) -> str:
+    def _filename(record: ApplicationHandoffRecord) -> str:
+        generation = record.registration_generation_digest[7:]
+        if record.attachment_revision == 1:
+            return f"{generation}.v1.json"
+        return f"{generation}.{record.attachment_revision}.v1.json"
+
+    @classmethod
+    def _path(cls, record: ApplicationHandoffRecord) -> str:
         return (
             f"environments/{record.environment}/applications/"
             f"{record.application_id}/handoffs/"
-            f"{record.registration_generation_digest[7:]}.v1.json"
+            f"{cls._filename(record)}"
         )
 
     @staticmethod
@@ -171,51 +178,32 @@ class LocalApplicationHandoffs:
         application_id: str,
         generation_digest: str,
     ) -> ApplicationHandoffRecord | None:
-        key = ApplicationHandoffRecord(
-            environment=environment,
-            application_id=application_id,
-            application_source_revision="0" * 40,
-            integration_bundle_digest="sha256:" + ("0" * 64),
-            attachment_bundle_digest="sha256:" + ("0" * 64),
-            attachment_revision=1,
-            registration_generation=1,
-            registration_generation_digest=generation_digest,
+        if _DIGEST.fullmatch(generation_digest) is None:
+            raise ValueError("invalid application handoff lookup")
+        records = tuple(
+            record
+            for record in self._records(environment, application_id)
+            if record.registration_generation_digest == generation_digest
         )
-        payload = self._filesystem.read_state(self._path(key))
-        if payload is None:
+        if not records:
             return None
-        try:
-            value = json.loads(payload)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ValueError("stored application handoff is invalid") from error
-        if not isinstance(value, dict):
-            raise ValueError("stored application handoff is invalid")
-        record = self._record(value)
-        if (
-            record.environment != environment
-            or record.application_id != application_id
-            or record.registration_generation_digest != generation_digest
-        ):
-            raise ValueError("stored application handoff binding mismatch")
-        return record
+        return max(records, key=lambda item: item.attachment_revision)
 
-    def latest_for_application(
+    def _records(
         self,
         environment: str,
         application_id: str,
-        maximum_generation: int,
-    ) -> ApplicationHandoffRecord | None:
+    ) -> tuple[ApplicationHandoffRecord, ...]:
         if (
             environment != "staging"
             or _APPLICATION_ID.fullmatch(application_id) is None
-            or maximum_generation < 1
         ):
             raise ValueError("invalid application handoff lookup")
         directory = self._filesystem.state_path(
             f"environments/{environment}/applications/{application_id}/handoffs"
         )
         if not directory.exists():
-            return None
+            return ()
         if directory.is_symlink() or not directory.is_dir():
             raise ValueError("stored application handoff directory is invalid")
         records: list[ApplicationHandoffRecord] = []
@@ -232,12 +220,29 @@ class LocalApplicationHandoffs:
             if (
                 record.environment != environment
                 or record.application_id != application_id
-                or path.name
-                != f"{record.registration_generation_digest[7:]}.v1.json"
+                or path.name != self._filename(record)
             ):
                 raise ValueError("stored application handoff binding mismatch")
-            if record.registration_generation <= maximum_generation:
-                records.append(record)
+            records.append(record)
+        return tuple(records)
+
+    def latest_for_application(
+        self,
+        environment: str,
+        application_id: str,
+        maximum_generation: int,
+    ) -> ApplicationHandoffRecord | None:
+        if (
+            environment != "staging"
+            or _APPLICATION_ID.fullmatch(application_id) is None
+            or maximum_generation < 1
+        ):
+            raise ValueError("invalid application handoff lookup")
+        records = [
+            record
+            for record in self._records(environment, application_id)
+            if record.registration_generation <= maximum_generation
+        ]
         if not records:
             return None
         records.sort(

@@ -281,7 +281,15 @@ class PrivateTerraformWorkspace:
             ):
                 self._copy(path, destination / path.name)
         modules = self._project_root / "infrastructure/terraform/modules"
-        self._copy_directory(modules, self._working_root / "modules")
+        relative_modules = Path(os.path.relpath(modules, start=source))
+        module_destination = (destination / relative_modules).resolve()
+        workspace_boundary = self._working_root.parent.resolve()
+        if (
+            module_destination == workspace_boundary
+            or workspace_boundary not in module_destination.parents
+        ):
+            raise LocalDeploymentInputError("TERRAFORM_SOURCE_INVALID")
+        self._copy_directory(modules, module_destination)
         return destination
 
 

@@ -463,6 +463,64 @@ class OperatorCommandTest(unittest.TestCase):
                 json.dumps(raised.exception.diagnostic),
             )
 
+    def test_failed_init_persists_private_diagnostics_and_names_module_error(
+        self,
+    ) -> None:
+        stdout = b"Initializing the backend...\nInitializing modules...\n"
+        stderr = (
+            b"Error: Unreadable module directory\n\n"
+            b"Unable to evaluate directory symlink: lstat ../../modules: "
+            b"no such file or directory\n"
+            b"client_secret=must-remain-private\n"
+        )
+        runner = FakeRunner([CommandResult(1, stdout, stderr)])
+        with tempfile.TemporaryDirectory() as directory:
+            state_root = Path(directory) / ".platform-operator"
+            state_root.mkdir(mode=0o700)
+            work = state_root / "work"
+            work.mkdir(mode=0o700)
+            workspace = work / "fixtures"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "fixture-public"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root, "fixture-public")
+            self._private_file(
+                request.backend_path,
+                b'terraform { backend "gcs" {} }\n',
+            )
+            variables = self._private_file(workspace / "values.json", b"{}\n")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+                private_state_root=state_root,
+            )
+
+            with self.assertRaises(DeploymentCommandError) as raised:
+                adapter.create_plan(request, root, variables)
+
+            diagnostic_path = Path(raised.exception.diagnostic["diagnostic_path"])
+            diagnostic_directory = diagnostic_path.parent
+            manifest = json.loads(
+                (diagnostic_directory / "manifest.json").read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(
+                str(raised.exception),
+                "TERRAFORM_INIT_MODULE_UNREADABLE",
+            )
+            self.assertEqual(diagnostic_path.read_bytes(), stderr)
+            self.assertEqual((diagnostic_directory / "stdout.log").read_bytes(), stdout)
+            self.assertEqual(manifest["operation"], "init")
+            self.assertEqual(manifest["phase"], "fixture-public")
+            self.assertNotIn(
+                "must-remain-private",
+                json.dumps(raised.exception.diagnostic),
+            )
+
     def test_diagnostic_symlink_is_rejected_without_masking_apply_failure(self) -> None:
         runner = FakeRunner(
             [CommandResult(1, b"", b"Error: unclassified provider failure\n")]

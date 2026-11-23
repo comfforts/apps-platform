@@ -180,6 +180,11 @@ class FixtureConfigurationRendererTest(unittest.TestCase):
                     stat.S_IMODE(value.variable_file.stat().st_mode),
                     0o600,
                 )
+                module_root = (
+                    value.terraform_root / "../../modules/fixture-application"
+                ).resolve()
+                self.assertTrue(module_root.is_dir())
+                self.assertTrue((module_root / "main.tf").is_file())
 
         self.assertEqual(len({value.terraform_root for value in rendered}), 3)
         self.assertEqual(len({value.configuration_digest for value in rendered}), 3)

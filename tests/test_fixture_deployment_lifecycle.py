@@ -280,7 +280,20 @@ class FixtureDeploymentLifecycleTest(unittest.TestCase):
             terminal.messages,
             [
                 "▸ Stage 1/2 · Resolve the Platform Handoff",
-                "▸ Stage 2/2 · Deploy the Fixture Application",
+                "▸ Stage 2/2 · Prepare the Fixture Application Handoff",
+            ],
+        )
+
+        terminal.messages.clear()
+        reused_handoff = lifecycle.handoff(_request())
+
+        self.assertEqual(reused_handoff.outcome, "prepared")
+        self.assertTrue(reused_handoff.preparation_reused)
+        self.assertEqual(
+            terminal.messages,
+            [
+                "▸ Stage 1/2 · Resolve the Platform Handoff",
+                "▸ Stage 2/2 · Reuse the Prepared Fixture Application Handoff",
             ],
         )
 

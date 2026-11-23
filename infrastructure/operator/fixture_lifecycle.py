@@ -388,6 +388,8 @@ class FixtureSuiteLifecycle:
         definition: FixtureDefinition,
         *,
         total_stages: int,
+        preparation_stage_title: str,
+        reuse_stage_title: str,
     ) -> tuple[FixturePreparation | None, bool, tuple[str, ...]]:
         self._announce_stage(1, total_stages, "Resolve the Platform Handoff")
         try:
@@ -403,7 +405,7 @@ class FixtureSuiteLifecycle:
                 self._announce_stage(
                     2,
                     total_stages,
-                    "Reuse the Verified Fixture Application",
+                    reuse_stage_title,
                 )
                 return prepared, True, ()
 
@@ -427,7 +429,7 @@ class FixtureSuiteLifecycle:
             self._announce_stage(
                 2,
                 total_stages,
-                "Deploy the Fixture Application",
+                preparation_stage_title,
             )
             image = self._commands.build_image(
                 FixtureImageRequest(
@@ -510,6 +512,8 @@ class FixtureSuiteLifecycle:
             request,
             definition,
             total_stages=2,
+            preparation_stage_title="Prepare the Fixture Application Handoff",
+            reuse_stage_title="Reuse the Prepared Fixture Application Handoff",
         )
         if preparation is None:
             return self._handoff_blocked(request, *blockers)
@@ -534,6 +538,8 @@ class FixtureSuiteLifecycle:
             request,
             definition,
             total_stages=3,
+            preparation_stage_title="Deploy the Fixture Application",
+            reuse_stage_title="Reuse the Verified Fixture Application",
         )
         if preparation is None:
             return self._blocked(*blockers)

@@ -268,7 +268,7 @@ class TerraformCliAdapter:
         operation: str,
         result: CommandResult,
     ) -> dict[str, str]:
-        if operation not in {"plan", "apply"}:
+        if operation not in {"init", "plan", "apply"}:
             return {"diagnostic_capture": "failed"}
         return capture_private_command_failure(
             self._private_state_root,
@@ -278,6 +278,41 @@ class TerraformCliAdapter:
             stdout=result.stdout,
             stderr=result.stderr,
         )
+
+    @staticmethod
+    def _init_failure(stderr: bytes) -> str:
+        normalized = stderr.lower()
+        if b"unreadable module directory" in normalized:
+            return "TERRAFORM_INIT_MODULE_UNREADABLE"
+        if any(
+            marker in normalized
+            for marker in (
+                b"could not load the schema for provider",
+                b"failed to install provider",
+                b"failed to query available provider packages",
+            )
+        ):
+            return "TERRAFORM_INIT_PROVIDER_FAILED"
+        if any(
+            marker in normalized
+            for marker in (
+                b"could not find default credentials",
+                b"invalid_grant",
+                b"reauth related error",
+                b"unable to generate access token",
+            )
+        ):
+            return "TERRAFORM_INIT_AUTHENTICATION_FAILED"
+        if any(
+            marker in normalized
+            for marker in (
+                b"error loading state",
+                b"failed to get existing workspaces",
+                b"failed to read existing workspace",
+            )
+        ):
+            return "TERRAFORM_INIT_BACKEND_FAILED"
+        return "TERRAFORM_INIT_FAILED"
 
     @staticmethod
     def _apply_failure_code(stderr: bytes) -> str:
@@ -667,7 +702,10 @@ class TerraformCliAdapter:
             self._request(root, self._environment(), *init_arguments)
         )
         if initialized.returncode != 0:
-            raise DeploymentCommandError("TERRAFORM_INIT_FAILED")
+            raise DeploymentCommandError(
+                self._init_failure(initialized.stderr),
+                diagnostic=self._capture_failure(request, "init", initialized),
+            )
 
     def apply_plan(
         self,

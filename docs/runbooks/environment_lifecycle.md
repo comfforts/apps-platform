@@ -246,7 +246,8 @@ make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 applies the selected fixture's Application State, validates provider posture, and writes the two
 canonical non-secret bundle files beneath `.platform-operator/`; it does not activate a Registration
 Generation or make the route available. It labels the same first two steps as stage 1/2 and 2/2.
-Inspect the files without editing them.
+Stage 2/2 is `Prepare the Fixture Application Handoff`: it may deploy or reconcile Application
+State, but it never registers or activates the route. Inspect the files without editing them.
 
 The subsequent `fixture-deploy` retains its normal complete automation. It rereads the prepared
 pair and proceeds directly to registration only when the environment, fixture identifier, source
@@ -331,18 +332,19 @@ gcloud, Cloud SDK configuration, operator identity session, Application Default 
 Terraform, or private-state boundary. Resolve only the named prerequisite, then rerun the same
 command.
 
-When Terraform cannot produce a plan, the blocker distinguishes a state lock or read failure,
-backend access denial, operator reauthentication requirement, provider permission or quota failure,
-invalid rendered configuration, provider-plugin startup failure, the separately handled protected
-key-ring taint, a proposed protected-resource deletion, or an unknown safe category. Apply failures
-separately distinguish authentication,
+When Terraform cannot initialize or produce a plan, the blocker distinguishes an unreadable
+reviewed module, initialization backend, authentication, or pinned-provider failure, a state lock
+or read failure, backend access denial, operator reauthentication requirement, provider permission
+or quota failure, invalid rendered configuration, provider-plugin startup failure, the separately
+handled protected key-ring taint, a proposed protected-resource deletion, or an unknown safe
+category. Apply failures separately distinguish authentication,
 dependency or identity propagation, service disablement, permission denial, quota exhaustion,
 invalid arguments, conflicts, state locks, provider-plugin failures, and unknown responses. Before
 the blocker, a plan-policy refusal prints only its safe resource address, type, and actions; an
 apply failure prints any safely extracted resource address, operation, HTTP status, provider
 status, and service name. Follow the adjacent guidance. Raw Terraform stderr and arbitrary provider
 messages are deliberately not displayed because they may contain protected state or provider
-details. A failed plan or apply stores exact stdout and stderr beneath
+details. A failed init, plan, or apply stores exact stdout and stderr beneath
 `.platform-operator/diagnostics/<environment>/` in a new mode-`0700` event directory with mode-`0600`
 files. The terminal prints the stderr path and SHA-256 digest. Inspect that local file when the safe
 blocker is insufficient; do not commit it or share it without reviewing and redacting its content.

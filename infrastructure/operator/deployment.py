@@ -225,6 +225,23 @@ _TERRAFORM_PLAN_GUIDANCE = {
     "TERRAFORM_CONFIGURATION_INVALID": (
         "the rendered Terraform configuration or variables are invalid"
     ),
+    "TERRAFORM_INIT_AUTHENTICATION_FAILED": (
+        "Terraform could not authenticate while initializing the selected state lineage"
+    ),
+    "TERRAFORM_INIT_BACKEND_FAILED": (
+        "Terraform could not initialize the selected remote state lineage"
+    ),
+    "TERRAFORM_INIT_FAILED": (
+        "Terraform initialization failed outside the safe classifier; inspect the "
+        "private diagnostic"
+    ),
+    "TERRAFORM_INIT_MODULE_UNREADABLE": (
+        "a reviewed Terraform module path is absent or unreadable in the "
+        "private workspace"
+    ),
+    "TERRAFORM_INIT_PROVIDER_FAILED": (
+        "Terraform could not install or load the pinned provider during initialization"
+    ),
     "TERRAFORM_OPERATOR_AUTHENTICATION_FAILED": (
         "the operator credentials are unavailable, expired, or require reauthentication"
     ),

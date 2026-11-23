@@ -427,7 +427,8 @@ class GcloudGenerationProvider(GenerationProvider):
         if len(digest_value) != 64:
             raise GenerationProviderError("GENERATION_PROPOSAL_INVALID")
         object_name = (
-            f"generations/{digest_value}/compiled-shared-edge.v1.json"
+            f"environments/{proposal.environment}/generations/{generation}/"
+            "compiled-shared-edge.v1.json"
         )
         object_uri = f"gs://{self._configuration_bucket}/{object_name}"
         copied = self._try_common(

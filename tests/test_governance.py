@@ -670,7 +670,9 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(state_and_operator_decision, normalized_decisions)
 
         for activation_and_rollback_decision in (
-            "content-addressed, immutable compiled configuration object",
+            "immutable compiled configuration object is published as an inactive candidate",
+            "environment-and-generation path",
+            "generation digest, content digest, and exact GCS object generation",
             "traffic assignment to one immutable edge revision",
             "There is no separate registration endpoint or database",
             "100 percent of edge traffic",

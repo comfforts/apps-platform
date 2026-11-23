@@ -103,6 +103,40 @@ run "plans_one_immutable_shared_edge_and_hostname_forwarder" {
   }
 }
 
+run "plans_environment_scoped_registration_generation" {
+  command = plan
+
+  variables {
+    platform_configuration = merge(
+      jsondecode(file("../../config/examples/platform-shared-edge.synthetic.v2.json")),
+      {
+        shared_edge = merge(
+          jsondecode(file("../../config/examples/platform-shared-edge.synthetic.v2.json")).shared_edge,
+          {
+            registration_generation = merge(
+              jsondecode(file("../../config/examples/platform-shared-edge.synthetic.v2.json")).shared_edge.registration_generation,
+              {
+                generation        = 2
+                generation_digest = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+                content_digest    = "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+                object_name       = "environments/staging/generations/2/compiled-shared-edge.v1.json"
+              },
+            )
+          },
+        )
+      },
+    )
+  }
+
+  assert {
+    condition = (
+      module.shared_edge[0].policy_summary.registration_generation.generation == 2 &&
+      module.shared_edge[0].policy_summary.registration_generation.object_name == "environments/staging/generations/2/compiled-shared-edge.v1.json"
+    )
+    error_message = "the Shared Edge must accept the environment-scoped immutable generation object"
+  }
+}
+
 run "plans_reserved_address_before_dns_verified_tls" {
   command = plan
 

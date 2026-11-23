@@ -576,12 +576,16 @@ touching existing Finance Assistant records.
 ### Decision
 
 Complete Registration Sets remain reviewed Git inputs. The deterministic compiler validates the
-declared predecessor and produces one canonical generation digest before Terraform planning. A
-content-addressed, immutable compiled configuration object is published as an inactive candidate in
-a platform-owned GCS configuration bucket under that digest. The object is restricted platform configuration: it may
-contain the issuer-and-subject membership required by a restricted Admission Mode, but it contains
-no secret, credential, signed assertion, request payload, or application data and is never a public
-catalogue or evidence artifact.
+declared predecessor and produces one canonical generation digest before Terraform planning. An
+immutable compiled configuration object is published as an inactive candidate in a platform-owned
+GCS configuration bucket. New objects use the readable environment-and-generation path
+`environments/<environment>/generations/<number>/compiled-shared-edge.v1.json`; create-only
+publication, the generation digest, content digest, and exact GCS object generation provide the
+immutable binding. Existing initial and digest-addressed object names remain valid historical
+bindings and are never renamed or overwritten. The object is restricted platform configuration:
+it may contain the issuer-and-subject membership required by a restricted Admission Mode, but it
+contains no secret, credential, signed assertion, request payload, or application data and is never
+a public catalogue or evidence artifact.
 
 Each candidate Cloud Run edge revision is immutable and binds all of these values:
 

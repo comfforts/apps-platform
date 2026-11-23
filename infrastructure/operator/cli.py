@@ -31,6 +31,7 @@ from infrastructure.operator.local import (
     build_local_qualification,
 )
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
+from infrastructure.operator.output import print_result as _print
 from infrastructure.operator.qualification import QualificationLifecycle
 
 
@@ -220,48 +221,6 @@ def _load_registration_intent(path: Path) -> RegistrationIntent:
         forwarding_mode=value["forwarding_mode"],
         restricted_members=tuple(members),
     )
-
-
-def _error_component(blocker: str) -> str:
-    if blocker.startswith("TERRAFORM_"):
-        return "terraform"
-    if blocker.startswith(("GCLOUD_", "CLOUD_SDK_", "CERTIFICATE_")):
-        return "google-cloud"
-    if blocker.startswith("DNS_"):
-        return "dns"
-    if blocker.startswith("OPERATOR_"):
-        return "operator-session"
-    if blocker.startswith(
-        ("SOURCE_", "CANDIDATE_", "REPOSITORY_", "GITHUB_")
-    ):
-        return "source-control"
-    if blocker.startswith("FIXTURE_"):
-        return "fixture-application"
-    if blocker.startswith(("APPLICATION_", "ATTACHMENT_", "REGISTRATION_")):
-        return "application-lifecycle"
-    if blocker.startswith("QUALIFICATION_"):
-        return "qualification"
-    if blocker.startswith("EXECUTION_"):
-        return "deployment-executor"
-    return "platform-operator"
-
-
-def _report_result_errors(value: dict[str, object]) -> None:
-    blockers = value.get("blockers")
-    if not isinstance(blockers, list):
-        return
-    for blocker in blockers:
-        if not isinstance(blocker, str):
-            continue
-        print("Operator error:", file=sys.stderr)
-        print(f"  component: {_error_component(blocker)}", file=sys.stderr)
-        print(f"  code: {blocker}", file=sys.stderr)
-        print(file=sys.stderr)
-
-
-def _print(value: dict[str, object]) -> None:
-    _report_result_errors(value)
-    print(json.dumps(value, indent=2, sort_keys=True))
 
 
 def _trace_invocation(

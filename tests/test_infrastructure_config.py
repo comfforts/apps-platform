@@ -184,6 +184,43 @@ class InfrastructureConfigurationTest(unittest.TestCase):
             _codes(violations),
         )
 
+    def test_registration_generation_object_paths_are_immutable_and_compatible(self) -> None:
+        platform = _example("platform-shared-edge.synthetic.v2.json")
+        shared_edge = platform["shared_edge"]
+        assert isinstance(shared_edge, dict)
+        generation = shared_edge["registration_generation"]
+        assert isinstance(generation, dict)
+        generation.update(
+            {
+                "generation": 2,
+                "generation_digest": "sha256:" + ("2" * 64),
+                "content_digest": "sha256:" + ("3" * 64),
+            }
+        )
+
+        compatible_paths = (
+            "generations/" + ("2" * 64) + "/compiled-shared-edge.v1.json",
+            "environments/staging/generations/2/compiled-shared-edge.v1.json",
+        )
+        for object_name in compatible_paths:
+            with self.subTest(object_name=object_name):
+                generation["object_name"] = object_name
+                self.assertEqual(
+                    validate_configuration(platform, "platform", allow_synthetic=True),
+                    (),
+                )
+
+        generation["object_name"] = (
+            "environments/production/generations/2/compiled-shared-edge.v1.json"
+        )
+        self.assertIn(
+            (
+                "CONFIGURATION_POLICY_INVALID",
+                "/shared_edge/registration_generation/object_name",
+            ),
+            _codes(validate_configuration(platform, "platform", allow_synthetic=True)),
+        )
+
     def test_backend_policy_enforces_four_exclusive_state_owners(self) -> None:
         backend = _example("backend.synthetic.v1.json")
         buckets = backend["state_buckets"]

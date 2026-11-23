@@ -232,8 +232,11 @@ messages and tracebacks are not operator output.
 
 Known retained-state failures do not use that outer fallback. Invalid current specification
 pointers or records return `SPECIFICATION_READBACK_FAILED`; malformed, digest-mismatched, or
-unrecognized progress returns `PROGRESS_READBACK_FAILED`. These blockers preserve the private
-records for local inspection.
+unrecognized progress first reports the exact safe structural invariant that failed and then
+returns `PROGRESS_READBACK_FAILED`. A blocked execution likewise narrates its exact blocker codes
+and their operator guidance before returning the final machine result. These blockers preserve the
+private records for local inspection. Shared final-result formatting lives in the operator output
+module so entry points do not duplicate blocker-component mapping or JSON presentation.
 
 Safe `ACTION`, `READBACK`, and `PLAN` narration uses multiline, sorted, two-space-indented JSON for
 operator inspection. Digest binding continues to use canonical compact serialization independently

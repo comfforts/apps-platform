@@ -395,13 +395,35 @@ def _platform_violations(value: dict[str, Any]) -> list[Violation]:
     )
     if isinstance(generation, dict):
         number = generation.get("generation")
+        generation_digest = generation.get("generation_digest")
         object_name = generation.get("object_name")
-        if isinstance(number, int) and object_name != f"generations/{number}/compiled.json":
+        environment = value.get("environment")
+        legacy_initial = (
+            number == 1 and object_name == "generations/1/compiled.json"
+        )
+        legacy_content_addressed = (
+            isinstance(generation_digest, str)
+            and object_name
+            == (
+                f"generations/{generation_digest.removeprefix('sha256:')}/"
+                "compiled-shared-edge.v1.json"
+            )
+        )
+        environment_scoped = (
+            isinstance(environment, str)
+            and isinstance(number, int)
+            and object_name
+            == (
+                f"environments/{environment}/generations/{number}/"
+                "compiled-shared-edge.v1.json"
+            )
+        )
+        if not (legacy_initial or legacy_content_addressed or environment_scoped):
             violations.append(
                 _violation(
                     "CONFIGURATION_POLICY_INVALID",
                     "/shared_edge/registration_generation/object_name",
-                    "generation object name must bind the declared generation",
+                    "generation object name must bind the declared environment, generation, and digest",
                 )
             )
     return violations

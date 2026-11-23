@@ -237,6 +237,10 @@ _OPERATOR_STAGE_COUNT = 7
 _REPLACEABLE_PROGRESS = {"cancelled", "failed", "succeeded"}
 _PROGRESS_STATUSES = {"cancelled", "failed", "running", "succeeded", "waiting"}
 _READINESS_BLOCKER_GUIDANCE = {
+    "ACTIVE_OPERATION_CONFLICT": (
+        "another non-terminal specification owns current progress; inspect platform-status and "
+        "cancel it explicitly only when replacement is intended"
+    ),
     "CANDIDATE_BASE_STALE": (
         "the candidate branch does not contain current origin/main; update the branch before "
         "retrying"
@@ -330,6 +334,10 @@ _READINESS_BLOCKER_GUIDANCE = {
         "the retained predecessor workflow is read-only history; prepare current intent before "
         "deploying"
     ),
+    "EXECUTION_ADAPTER_UNAVAILABLE": (
+        "the bounded deployment executor is unavailable; resolve its reported construction "
+        "blocker before retrying"
+    ),
     "PINNED_TOOL_INVALID": (
         "the project-local Terraform binary or provider package failed version or checksum "
         "validation"
@@ -344,8 +352,23 @@ _READINESS_BLOCKER_GUIDANCE = {
         "private deployment progress is malformed, digest-mismatched, or not bound to a "
         "recognized workflow"
     ),
+    "PROFILE_DIGEST_MISMATCH": (
+        "the approved specification profile no longer matches the selected environment profile"
+    ),
     "SPECIFICATION_READBACK_FAILED": (
         "the current private specification pointer or canonical specification is invalid"
+    ),
+    "SPECIFICATION_NOT_APPROVED": (
+        "the selected specification has no current matching operator approval"
+    ),
+    "SPECIFICATION_NOT_CURRENT": (
+        "the requested specification is not the current private specification pointer"
+    ),
+    "SOURCE_AUTHORITY_MISMATCH": (
+        "the selected specification authority differs from this operator invocation"
+    ),
+    "SOURCE_REVISION_MISMATCH": (
+        "the checkout revision differs from the approved specification revision"
     ),
     "SOURCE_NOT_CLEAN": (
         "the repository has modified or untracked files; inspect git status --short"
@@ -821,16 +844,19 @@ class LifecycleOperator:
             outputs.insert(1, {"name": "hostname", "value": hostname})
         return normalized
 
-    @staticmethod
     def _valid_progress(
+        self,
         value: dict[str, Any],
         environment: str,
         workflow: str = _CURRENT_WORKFLOW,
     ) -> bool:
         stage_schema = _PROGRESS_STAGES_BY_WORKFLOW.get(workflow)
         if stage_schema is None:
+            self._print_progress_error(
+                f"stage schema is not defined for workflow {workflow!r}"
+            )
             return False
-        if set(value) != {
+        expected_fields = {
             "progress_version",
             "environment",
             "operation",
@@ -840,53 +866,111 @@ class LifecycleOperator:
             "completed",
             "active_stage",
             "blockers",
-        }:
+        }
+        if set(value) != expected_fields:
+            missing = sorted(expected_fields - set(value))
+            unexpected = sorted(set(value) - expected_fields)
+            self._print_progress_error(
+                "invalid progress field set; "
+                f"missing={missing!r} unexpected={unexpected!r}"
+            )
             return False
         completed = value.get("completed")
-        if (
-            value.get("progress_version") != 1
-            or value.get("environment") != environment
-            or value.get("operation") != "deploy"
-            or not isinstance(value.get("source_revision"), str)
-            or not isinstance(value.get("specification_digest"), str)
-            or value.get("status") not in _PROGRESS_STATUSES
-            or not isinstance(completed, list)
-            or not isinstance(value.get("active_stage"), (str, type(None)))
-            or not isinstance(value.get("blockers"), list)
-            or not all(isinstance(item, str) for item in value["blockers"])
-        ):
+        if value.get("progress_version") != 1:
+            self._print_progress_error("progress_version must be 1")
+            return False
+        if value.get("environment") != environment:
+            self._print_progress_error(
+                "environment does not match the selected environment"
+            )
+            return False
+        if value.get("operation") != "deploy":
+            self._print_progress_error("operation must be deploy")
+            return False
+        if not isinstance(value.get("source_revision"), str):
+            self._print_progress_error("source_revision must be a string")
+            return False
+        if not isinstance(value.get("specification_digest"), str):
+            self._print_progress_error("specification_digest must be a string")
+            return False
+        if value.get("status") not in _PROGRESS_STATUSES:
+            self._print_progress_error("status is not recognized")
+            return False
+        if not isinstance(completed, list):
+            self._print_progress_error("completed must be a list")
+            return False
+        if not isinstance(value.get("active_stage"), (str, type(None))):
+            self._print_progress_error("active_stage must be a string or null")
+            return False
+        if not isinstance(value.get("blockers"), list):
+            self._print_progress_error("blockers must be a list")
+            return False
+        if not all(isinstance(item, str) for item in value["blockers"]):
+            self._print_progress_error("every blocker must be a string")
             return False
         source_revision = value["source_revision"]
         specification_digest = value["specification_digest"]
+        if len(source_revision) != 40 or any(
+            character not in "0123456789abcdef" for character in source_revision
+        ):
+            self._print_progress_error(
+                "source_revision must be a 40-character lowercase hexadecimal commit"
+            )
+            return False
         if (
-            len(source_revision) != 40
-            or any(character not in "0123456789abcdef" for character in source_revision)
-            or len(specification_digest) != 71
+            len(specification_digest) != 71
             or not specification_digest.startswith("sha256:")
             or any(
                 character not in "0123456789abcdef"
                 for character in specification_digest[7:]
             )
         ):
+            self._print_progress_error(
+                "specification_digest must be a canonical SHA-256 digest"
+            )
             return False
         completed_ids: list[str] = []
         for index, item in enumerate(completed):
             if index >= len(stage_schema):
+                self._print_progress_error(
+                    f"completed stage index {index} exceeds the workflow schema"
+                )
                 return False
-            if (
-                not isinstance(item, dict)
-                or set(item)
-                != {
-                    "stage_id",
-                    "outputs",
-                    "plan_digest",
-                    "manual_acknowledgement",
-                }
-                or not isinstance(item.get("stage_id"), str)
-                or not isinstance(item.get("outputs"), list)
-                or not isinstance(item.get("plan_digest"), (str, type(None)))
-                or not isinstance(item.get("manual_acknowledgement"), str)
-            ):
+            if not isinstance(item, dict):
+                self._print_progress_error(
+                    f"completed stage index {index} must be an object"
+                )
+                return False
+            expected_stage_fields = {
+                "stage_id",
+                "outputs",
+                "plan_digest",
+                "manual_acknowledgement",
+            }
+            if set(item) != expected_stage_fields:
+                self._print_progress_error(
+                    f"completed stage index {index} has an invalid field set"
+                )
+                return False
+            if not isinstance(item.get("stage_id"), str):
+                self._print_progress_error(
+                    f"completed stage index {index} stage_id must be a string"
+                )
+                return False
+            if not isinstance(item.get("outputs"), list):
+                self._print_progress_error(
+                    f"completed stage index {index} outputs must be a list"
+                )
+                return False
+            if not isinstance(item.get("plan_digest"), (str, type(None))):
+                self._print_progress_error(
+                    f"completed stage index {index} plan_digest must be a string or null"
+                )
+                return False
+            if not isinstance(item.get("manual_acknowledgement"), str):
+                self._print_progress_error(
+                    f"completed stage index {index} manual_acknowledgement must be a string"
+                )
                 return False
             if item["plan_digest"] is not None and (
                 len(item["plan_digest"]) != 71
@@ -896,6 +980,10 @@ class LifecycleOperator:
                     for character in item["plan_digest"][7:]
                 )
             ):
+                self._print_progress_error(
+                    f"completed stage index {index} plan_digest must be a canonical "
+                    "SHA-256 digest"
+                )
                 return False
             expected_stage_id, expected_outputs, manual_checkpoint = stage_schema[index]
             outputs = item["outputs"]
@@ -906,32 +994,60 @@ class LifecycleOperator:
                 or not isinstance(output.get("value"), str)
                 for output in outputs
             ):
+                self._print_progress_error(
+                    f"completed stage index {index} contains an invalid output record"
+                )
                 return False
             if tuple(output["name"] for output in outputs) != expected_outputs:
+                self._print_progress_error(
+                    f"completed stage index {index} output names do not match stage schema"
+                )
                 return False
             expected_acknowledgement = {
                 "external-dns": "provider-verified",
                 "provider-console": "operator-attested",
             }.get(manual_checkpoint, "not-required")
             if item["manual_acknowledgement"] != expected_acknowledgement:
+                self._print_progress_error(
+                    f"completed stage index {index} has an invalid manual acknowledgement"
+                )
                 return False
             if item["stage_id"] != expected_stage_id:
+                self._print_progress_error(
+                    f"completed stage index {index} must be {expected_stage_id!r}"
+                )
                 return False
             completed_ids.append(str(item["stage_id"]))
         stage_ids = tuple(stage[0] for stage in stage_schema)
         if completed_ids != list(stage_ids[: len(completed_ids)]):
+            self._print_progress_error(
+                "completed stages do not form the workflow prefix"
+            )
             return False
         expected_active_stage = (
             stage_ids[len(completed_ids)]
             if len(completed_ids) < len(stage_ids)
             else None
         )
-        return (
-            value["active_stage"] == expected_active_stage
-            and (value["status"] == "succeeded")
-            == (expected_active_stage is None)
-            and (value["status"] not in {"running", "succeeded"} or not value["blockers"])
-        )
+        if value["active_stage"] != expected_active_stage:
+            self._print_progress_error(
+                "active_stage does not identify the next workflow stage"
+            )
+            return False
+        if (value["status"] == "succeeded") != (expected_active_stage is None):
+            self._print_progress_error(
+                "succeeded status does not match workflow completion"
+            )
+            return False
+        if value["status"] in {"running", "succeeded"} and value["blockers"]:
+            self._print_progress_error(
+                "running or succeeded progress cannot contain blockers"
+            )
+            return False
+        return True
+
+    def _print_progress_error(self, message: str) -> None:
+        self._adapters.terminal.write(f"Progress validation failed: {message}.")
 
     def _store_progress(self, progress: dict[str, Any]) -> str:
         environment = str(progress["environment"])
@@ -1145,6 +1261,9 @@ class LifecycleOperator:
         environment: str,
         blockers: tuple[str, ...],
     ) -> ExecutionResult:
+        self._adapters.terminal.write(
+            "Execution blocked: " + ", ".join(blockers) + "."
+        )
         self._report_blockers(blockers)
         return ExecutionResult("blocked", None, None, self.status(environment), blockers)
 

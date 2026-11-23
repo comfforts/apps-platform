@@ -933,7 +933,7 @@ class OperatorLifecycleTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory)
-            operator, _ = self._operator(state, executor=FakeExecutor())
+            operator, terminal = self._operator(state, executor=FakeExecutor())
             prepared = operator.prepare("staging")
             assert prepared.specification_digest is not None
             operator.execute("staging", prepared.specification_digest)
@@ -948,6 +948,35 @@ class OperatorLifecycleTest(unittest.TestCase):
 
         self.assertEqual(status.environment_status["lifecycle_state"], "blocked")
         self.assertEqual(status.conflicts, ("PROGRESS_READBACK_FAILED",))
+        self.assertIn(
+            "Progress validation failed: completed stage index 0 must be 'preflight'.",
+            terminal.messages,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            operator, terminal = self._operator(state, executor=FakeExecutor())
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+            operator.execute("staging", prepared.specification_digest)
+            path = next(state.rglob("current-progress.v1.json"))
+            progress = json.loads(path.read_text(encoding="utf-8"))
+            progress["unexpected"] = "field"
+            path.write_text(
+                json.dumps(progress, sort_keys=True, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            status = operator.status("staging")
+
+        self.assertEqual(status.conflicts, ("PROGRESS_READBACK_FAILED",))
+        self.assertTrue(
+            any(
+                message.startswith(
+                    "Progress validation failed: invalid progress field set;"
+                )
+                for message in terminal.messages
+            )
+        )
 
     def test_active_historical_workflow_requires_cancellation_not_supersession(
         self,
@@ -990,6 +1019,10 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertEqual(
             old_execution.blockers,
             ("HISTORICAL_WORKFLOW_NOT_EXECUTABLE",),
+        )
+        self.assertIn(
+            "Execution blocked: HISTORICAL_WORKFLOW_NOT_EXECUTABLE.",
+            terminal.messages,
         )
 
     def test_legacy_waiting_progress_adds_hostname_and_preserves_resume_authority(

@@ -262,7 +262,7 @@ class TerraformSharedEdgeTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('mock_provider "google"', test_file)
-        self.assertEqual(test_file.count("command = plan"), 2)
+        self.assertEqual(test_file.count("command = plan"), 3)
         self.assertNotIn("command = apply", test_file)
         self.assertIn("platform-shared-edge.synthetic.v2.json", test_file)
         for required_policy in (

@@ -76,6 +76,7 @@ class FakeGcloud:
     candidate_environment: dict[str, str] | None = None
     candidate_image: str | None = None
     candidate_service_account: str | None = None
+    configuration_object_name: str | None = None
 
     @property
     def revision_name(self) -> str:
@@ -109,8 +110,8 @@ class FakeGcloud:
         )
 
     def _revision(self, revision_name: str) -> bytes:
-        object_name = (
-            f"generations/{GENERATION_DIGEST[7:]}/compiled-shared-edge.v1.json"
+        object_name = self.configuration_object_name or (
+            "environments/staging/generations/7/compiled-shared-edge.v1.json"
         )
         digest = "sha256:" + ("f" * 64) if self.corrupt_revision else GENERATION_DIGEST
         environment = {
@@ -298,6 +299,11 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         )
         self.assertEqual(upload.stdin, compiled)
         self.assertIn("--if-generation-match=0", upload.argv)
+        self.assertIn(
+            f"gs://{BUCKET}/environments/staging/generations/7/"
+            "compiled-shared-edge.v1.json",
+            upload.argv,
+        )
         self.assertNotIn("HOME", dict(upload.environment))
         self.assertNotIn("GOOGLE_APPLICATION_CREDENTIALS", dict(upload.environment))
 
@@ -469,6 +475,10 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                 object_created=True,
                 revision_created=True,
                 active=True,
+                configuration_object_name=(
+                    f"generations/{GENERATION_DIGEST[7:]}/"
+                    "compiled-shared-edge.v1.json"
+                ),
             )
             provider = self._provider(directory, fake)
 

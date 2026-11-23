@@ -420,10 +420,13 @@ deletes or mutates its Application State.
 ### Initial Live generation activation
 
 The reviewed Registration Set remains in Git and compiles before planning into an immutable,
-content-addressed GCS configuration object. One candidate Cloud Run edge revision binds the exact
-source commit, compiler, generation digest, object generation, container image digest, identity
-profile, and adapter configuration. The candidate receives no user traffic while attachment,
-ownership, IAM, and provider dependencies are validated.
+create-only GCS configuration object. New objects use the environment-and-generation path
+`environments/<environment>/generations/<number>/compiled-shared-edge.v1.json`; the generation
+digest, content digest, and GCS object generation bind its exact content. Historical initial and
+digest-addressed names remain readable and immutable. One candidate Cloud Run edge revision binds
+the exact source commit, compiler, generation digest, object name and generation, container image
+digest, identity profile, and adapter configuration. The candidate receives no user traffic while
+attachment, ownership, IAM, and provider dependencies are validated.
 
 The current Live generation pointer is the Cloud Run service's 100-percent traffic assignment to
 one immutable edge revision. Owner-approved activation changes that pointer once. The load balancer

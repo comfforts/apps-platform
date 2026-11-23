@@ -140,7 +140,11 @@ variable "platform_configuration" {
       var.platform_configuration.shared_edge.registration_generation.generation <= 2147483647 &&
       can(regex("^sha256:[0-9a-f]{64}$", var.platform_configuration.shared_edge.registration_generation.generation_digest)) &&
       can(regex("^sha256:[0-9a-f]{64}$", var.platform_configuration.shared_edge.registration_generation.content_digest)) &&
-      var.platform_configuration.shared_edge.registration_generation.object_name == "generations/${var.platform_configuration.shared_edge.registration_generation.generation}/compiled.json" &&
+      contains([
+        var.platform_configuration.shared_edge.registration_generation.generation == 1 ? "generations/1/compiled.json" : "",
+        "generations/${trimprefix(var.platform_configuration.shared_edge.registration_generation.generation_digest, "sha256:")}/compiled-shared-edge.v1.json",
+        "environments/${var.platform_configuration.environment}/generations/${var.platform_configuration.shared_edge.registration_generation.generation}/compiled-shared-edge.v1.json",
+      ], var.platform_configuration.shared_edge.registration_generation.object_name) &&
       var.platform_configuration.shared_edge.registration_generation.object_generation >= 1 &&
       var.platform_configuration.shared_edge.registration_generation.object_generation <= 9223372036854775807,
       false,

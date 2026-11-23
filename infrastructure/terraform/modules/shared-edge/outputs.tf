@@ -20,6 +20,12 @@ output "policy_summary" {
     binding_versions        = var.edge_configuration.binding_versions
     configuration_bucket    = var.edge_configuration.configuration_bucket
     operator_identity       = var.edge_configuration.operator_identity
+    caller_identity = {
+      iam_credentials_service = "iamcredentials.googleapis.com"
+      runtime_principal       = "serviceAccount:${var.edge_configuration.runtime_identity_email}"
+      caller_service_account  = var.edge_configuration.edge_caller_service_account_id
+      impersonation_role      = "roles/iam.serviceAccountTokenCreator"
+    }
     runtime = {
       region                       = var.edge_configuration.region
       ingress                      = var.destruction_enabled ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"

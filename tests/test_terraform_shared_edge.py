@@ -43,6 +43,26 @@ class TerraformSharedEdgeTest(unittest.TestCase):
             "module.platform_foundation.foundation_reference.edge_runtime_email",
             main,
         )
+        self.assertIn(
+            "module.platform_foundation.foundation_reference.edge_caller_service_account_id",
+            main,
+        )
+        self.assertIn(
+            'from = module.platform_foundation.google_project_service.platform["iamcredentials.googleapis.com"]',
+            main,
+        )
+        self.assertIn(
+            "to   = module.shared_edge[0].google_project_service.iam_credentials",
+            main,
+        )
+        self.assertIn(
+            "from = module.platform_foundation.google_service_account_iam_member.edge_caller_token_creator[0]",
+            main,
+        )
+        self.assertIn(
+            "to   = module.shared_edge[0].google_service_account_iam_member.edge_caller_token_creator",
+            main,
+        )
         self.assertIn('count  = var.platform_configuration.phase == "shared-edge"', main)
         self.assertNotIn('resource "', main)
         self.assertNotIn('data "', main)
@@ -65,6 +85,11 @@ class TerraformSharedEdgeTest(unittest.TestCase):
         self.assertEqual(
             resources,
             [
+                ("google_project_service", "iam_credentials"),
+                (
+                    "google_service_account_iam_member",
+                    "edge_caller_token_creator",
+                ),
                 ("google_cloud_run_v2_service", "edge"),
                 ("google_cloud_run_v2_service_iam_member", "load_balancer_invoker"),
                 ("google_compute_region_network_endpoint_group", "edge"),
@@ -86,6 +111,15 @@ class TerraformSharedEdgeTest(unittest.TestCase):
             module.count('resource "google_compute_managed_ssl_certificate"'), 1
         )
         self.assertEqual(module.count('resource "google_compute_target_https_proxy"'), 1)
+        for caller_control in (
+            'service = "iamcredentials.googleapis.com"',
+            "disable_dependent_services = false",
+            "disable_on_destroy         = false",
+            "service_account_id = var.edge_configuration.edge_caller_service_account_id",
+            'role               = "roles/iam.serviceAccountTokenCreator"',
+            'member             = "serviceAccount:${var.edge_configuration.runtime_identity_email}"',
+        ):
+            self.assertIn(caller_control, module)
 
     def test_edge_revision_is_immutable_bounded_and_closed_to_direct_origin(self) -> None:
         module = _terraform_sources(MODULE_ROOT)
@@ -213,7 +247,7 @@ class TerraformSharedEdgeTest(unittest.TestCase):
             'data "',
             "terraform_remote_state",
             "google_cloud_run_v2_service.runtime",
-            "google_service_account",
+            'resource "google_service_account" "',
             "google_project_iam",
             "google_dns_",
             "https://fixture-",

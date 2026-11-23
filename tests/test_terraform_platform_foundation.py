@@ -62,7 +62,6 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
                 ("google_storage_bucket", "configuration"),
                 ("google_service_account", "edge_runtime"),
                 ("google_service_account", "edge_caller"),
-                ("google_service_account_iam_member", "edge_caller_token_creator"),
                 ("google_storage_bucket_iam_member", "edge_configuration_reader"),
                 ("google_firestore_database", "sessions"),
                 ("google_firestore_field", "session_expiration"),
@@ -93,7 +92,6 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             'role          = "roles/cloudkms.signerVerifier"',
             'role   = "roles/storage.objectViewer"',
             'role      = "roles/secretmanager.secretAccessor"',
-            'role               = "roles/iam.serviceAccountTokenCreator"',
             'resource "google_secret_manager_secret" "edge_oauth"',
             "deletion_protection = !local.destruction_enabled",
             "manual_rotation_days",
@@ -101,16 +99,21 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             'registration_generation         = "later-stage-input"',
             '"cloudbuild.googleapis.com"',
             '"cloudresourcemanager.googleapis.com"',
-            '"iamcredentials.googleapis.com"',
             "disable_on_destroy         = false",
             "depends_on = [google_project_service.platform]",
-            'retained_only          = var.destruction_mode == "retained"',
+            'retained_only                  = var.destruction_mode == "retained"',
             'deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"',
         ):
             self.assertIn(required_control, module)
+        self.assertNotIn('"iamcredentials.googleapis.com"', module)
+        self.assertNotIn("roles/iam.serviceAccountTokenCreator", module)
         self.assertGreaterEqual(
             module.count("google_service_account.edge_runtime"),
-            4,
+            3,
+        )
+        self.assertIn(
+            'edge_runtime_email             = "${var.foundation_configuration.identities.edge_runtime_account_id}@${var.foundation_configuration.project_id}.iam.gserviceaccount.com"',
+            module,
         )
 
     def test_module_has_no_later_slice_secret_or_activation_resource(self) -> None:

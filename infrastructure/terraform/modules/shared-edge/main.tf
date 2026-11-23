@@ -1,3 +1,19 @@
+resource "google_project_service" "iam_credentials" {
+  project = var.edge_configuration.project_id
+  service = "iamcredentials.googleapis.com"
+
+  disable_dependent_services = false
+  disable_on_destroy         = false
+}
+
+resource "google_service_account_iam_member" "edge_caller_token_creator" {
+  service_account_id = var.edge_configuration.edge_caller_service_account_id
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${var.edge_configuration.runtime_identity_email}"
+
+  depends_on = [google_project_service.iam_credentials]
+}
+
 resource "google_cloud_run_v2_service" "edge" {
   project  = var.edge_configuration.project_id
   location = var.edge_configuration.region
@@ -9,6 +25,11 @@ resource "google_cloud_run_v2_service" "edge" {
   ingress              = var.destruction_enabled ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   default_uri_disabled = true
   invoker_iam_disabled = false
+
+  depends_on = [
+    google_project_service.iam_credentials,
+    google_service_account_iam_member.edge_caller_token_creator,
+  ]
 
   template {
     revision                         = var.edge_configuration.candidate_revision

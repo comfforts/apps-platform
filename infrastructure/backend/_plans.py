@@ -61,6 +61,8 @@ _PHASE_INVENTORIES = {
             "google_compute_target_http_proxy",
             "google_compute_target_https_proxy",
             "google_compute_url_map",
+            "google_project_service",
+            "google_service_account_iam_member",
         ),
     },
     **{
@@ -93,6 +95,17 @@ _INHERITED_READ_ONLY_INVENTORIES = {
         "address_prefixes": (
             "module.platform_foundation.",
             "module.platform_controls.",
+        ),
+    },
+}
+_PHASE_EXACT_RESOURCE_ADDRESSES = {
+    "shared-edge": {
+        "google_project_service": (
+            "module.shared_edge[0].google_project_service.iam_credentials",
+        ),
+        "google_service_account_iam_member": (
+            "module.shared_edge[0].google_service_account_iam_member."
+            "edge_caller_token_creator",
         ),
     },
 }
@@ -342,6 +355,12 @@ def _change_summaries(
                 _violation("PLAN_SHAPE_INVALID", f"{path}/address", "address is required")
             )
         phase_resource = resource_type in policy.allowed_resource_types
+        exact_phase_addresses = _PHASE_EXACT_RESOURCE_ADDRESSES.get(
+            policy.phase,
+            {},
+        ).get(str(resource_type))
+        if exact_phase_addresses is not None:
+            phase_resource = phase_resource and address in exact_phase_addresses
         inherited_read_only_resource = (
             resource_type in policy.inherited_read_only_resource_types
             and isinstance(address, str)

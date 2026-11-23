@@ -258,6 +258,103 @@ class PlanPolicyTest(unittest.TestCase):
             [["no-op"], ["create"], ["no-op"]],
         )
 
+    def test_shared_edge_owns_runtime_impersonation_enablement_and_binding(
+        self,
+    ) -> None:
+        policy = plan_policy(
+            "staging",
+            "shared-edge",
+            SOURCE_REVISION,
+            destructive=False,
+        )
+        observation = _shared_edge_observation()
+        observation["changes"] = [
+            {
+                "address": (
+                    "module.shared_edge[0]."
+                    "google_project_service.iam_credentials"
+                ),
+                "resource_type": "google_project_service",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["create"],
+            },
+            {
+                "address": (
+                    "module.shared_edge[0].google_service_account_iam_member."
+                    "edge_caller_token_creator"
+                ),
+                "resource_type": "google_service_account_iam_member",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["create"],
+            },
+        ]
+
+        accepted = evaluate_plan(policy, observation)
+
+        self.assertTrue(accepted.accepted)
+        self.assertEqual(accepted.violations, ())
+
+        for address, resource_type in (
+            (
+                "module.platform_foundation.google_project_service."
+                'platform["iamcredentials.googleapis.com"]',
+                "google_project_service",
+            ),
+            (
+                "module.platform_foundation.google_service_account_iam_member."
+                "edge_caller_token_creator[0]",
+                "google_service_account_iam_member",
+            ),
+        ):
+            with self.subTest(address=address):
+                inherited = _shared_edge_observation()
+                inherited["changes"] = [
+                    {
+                        "address": address,
+                        "resource_type": resource_type,
+                        "provider_source": "registry.terraform.io/hashicorp/google",
+                        "actions": ["create"],
+                    }
+                ]
+
+                refused = evaluate_plan(policy, inherited)
+
+                self.assertFalse(refused.accepted)
+                self.assertIn(
+                    "INHERITED_RESOURCE_MUTATION_PROHIBITED",
+                    [item.code for item in refused.violations],
+                )
+
+        for address, resource_type in (
+            (
+                "module.unexpected.google_project_service.iam_credentials",
+                "google_project_service",
+            ),
+            (
+                "module.unexpected.google_service_account_iam_member."
+                "edge_caller_token_creator",
+                "google_service_account_iam_member",
+            ),
+        ):
+            with self.subTest(address=address):
+                unexpected = _shared_edge_observation()
+                unexpected["changes"] = [
+                    {
+                        "address": address,
+                        "resource_type": resource_type,
+                        "provider_source": "registry.terraform.io/hashicorp/google",
+                        "actions": ["create"],
+                    }
+                ]
+
+                refused = evaluate_plan(policy, unexpected)
+
+                self.assertFalse(refused.accepted)
+                self.assertIn(
+                    "RESOURCE_PROHIBITED",
+                    [item.code for item in refused.violations],
+                )
+
     def test_foundation_refresh_accepts_existing_shared_edge_only_as_read_only(
         self,
     ) -> None:

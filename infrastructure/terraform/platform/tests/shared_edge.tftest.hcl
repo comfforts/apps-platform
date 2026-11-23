@@ -38,6 +38,16 @@ run "plans_one_immutable_shared_edge_and_hostname_forwarder" {
 
   assert {
     condition = (
+      module.shared_edge[0].policy_summary.caller_identity.iam_credentials_service == "iamcredentials.googleapis.com" &&
+      module.shared_edge[0].policy_summary.caller_identity.runtime_principal == "serviceAccount:app-platform-edge-runtime@synthetic-platform.iam.gserviceaccount.com" &&
+      module.shared_edge[0].policy_summary.caller_identity.caller_service_account == "projects/synthetic-platform/serviceAccounts/app-platform-edge-caller@synthetic-platform.iam.gserviceaccount.com" &&
+      module.shared_edge[0].policy_summary.caller_identity.impersonation_role == "roles/iam.serviceAccountTokenCreator"
+    )
+    error_message = "the Shared Edge phase must own keyless runtime-to-caller impersonation"
+  }
+
+  assert {
+    condition = (
       module.shared_edge[0].policy_summary.runtime.region == "us-west1" &&
       module.shared_edge[0].policy_summary.runtime.ingress == "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" &&
       module.shared_edge[0].policy_summary.runtime.default_uri_disabled &&

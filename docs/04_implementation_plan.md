@@ -1826,6 +1826,12 @@ operator-flow, ownership, exact-plan, readback, bundle, fixture, qualification, 
 coverage. The Finance Assistant wizard remains the interaction reference for a linear human-run
 session, while Apps Platform retains multi-application ownership boundaries and independent state.
 
+The fixed workflow is explicitly versioned when its persisted stage schema changes. The completed
+11-stage predecessor remains readable, immutable historical progress; the current 12-stage workflow
+starts fresh progress only after the operator confirms current-pointer supersession. It never
+synthesizes runtime-activation evidence for the predecessor, never resumes an active predecessor as
+the current workflow, and reports invalid retained state through named readback blockers.
+
 #### AP-M9-W10 · Staging deployment and qualification
 
 From Accepted Source on clean protected main, deliberately invoke staging preparation/deployment, complete the OAuth

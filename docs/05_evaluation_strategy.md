@@ -1608,6 +1608,13 @@ replacement. Verify explicit current-digest selection remains compatible. Verify
 transcripts for `y/N` plan review, typed irreversible boundaries, Enter checkpoints, bounded
 polling, cancellation, truthful waiting/failure states, and no secret prompt or output.
 
+Retain an exact terminal predecessor workflow and prove status reads it as historical without
+changing its canonical bytes or synthesizing newly introduced stage evidence. Prove declined
+current-pointer supersession changes no file; confirmed supersession retains the predecessor
+specification and final snapshot and starts fresh current-workflow progress. A running or waiting
+predecessor must remain an active-operation conflict, and malformed retained progress must return a
+named readback blocker rather than `OPERATOR_INTERNAL_ERROR`.
+
 #### AP-EVAL-M9-04 · State, Terraform, operator session, plans, and ownership
 
 Verify deployable bootstrap/foundation/edge phases preserve independent state ownership, locking,

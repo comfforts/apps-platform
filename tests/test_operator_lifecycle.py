@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import base64
+import hashlib
 import io
 import json
 import os
@@ -136,6 +137,73 @@ class FakeActiveSourceReader:
 
 
 class OperatorLifecycleTest(unittest.TestCase):
+    @staticmethod
+    def _canonical_json(value: object) -> bytes:
+        return (
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+            + b"\n"
+        )
+
+    def _install_historical_v1_success(
+        self,
+        state: Path,
+        operator: LifecycleOperator,
+    ) -> tuple[str, bytes, bytes]:
+        """Replace current pointers with an exact successful 11-stage workflow."""
+
+        prepared = operator.prepare("staging")
+        assert prepared.specification is not None
+        assert prepared.specification_digest is not None
+        deployed = operator.execute("staging", prepared.specification_digest)
+        self.assertEqual(deployed.outcome, "succeeded")
+
+        historical_specification = {
+            **prepared.specification,
+            "specification_version": 1,
+            "workflow": "platform-deploy-v1",
+        }
+        specification_payload = self._canonical_json(historical_specification)
+        specification_digest = (
+            "sha256:"
+            + hashlib.sha256(specification_payload.rstrip(b"\n")).hexdigest()
+        )
+        environment_root = state / "environments" / "staging"
+        specification_path = (
+            environment_root
+            / "specifications"
+            / f"{specification_digest[7:]}.v1.json"
+        )
+        specification_path.parent.mkdir(parents=True, exist_ok=True)
+        specification_path.write_bytes(specification_payload)
+        (environment_root / "current-specification.v1.json").write_bytes(
+            self._canonical_json({"specification_digest": specification_digest})
+        )
+
+        progress_path = environment_root / "current-progress.v1.json"
+        progress = json.loads(progress_path.read_text(encoding="utf-8"))
+        progress["specification_digest"] = specification_digest
+        progress["completed"] = [
+            entry
+            for entry in progress["completed"]
+            if entry["stage_id"] != "runtime-activation"
+        ]
+        progress_payload = self._canonical_json(progress)
+        progress_path.write_bytes(progress_payload)
+        terminal_path = (
+            environment_root
+            / "progress"
+            / f"{specification_digest[7:]}.final.v1.json"
+        )
+        terminal_path.parent.mkdir(parents=True, exist_ok=True)
+        terminal_path.write_bytes(progress_payload)
+        return specification_digest, progress_payload, progress_payload
+
     def _operator(
         self,
         state_root: Path,
@@ -459,11 +527,102 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertTrue(prepared.approved)
         self.assertRegex(str(prepared.specification_digest), r"^sha256:[0-9a-f]{64}$")
         assert prepared.specification is not None
-        self.assertEqual(prepared.specification["workflow"], "platform-deploy-v1")
+        self.assertEqual(prepared.specification["workflow"], "platform-deploy-v2")
         self.assertNotIn("stages", prepared.specification)
         assert reused is not None
         self.assertEqual(reused.specification_digest, prepared.specification_digest)
         self.assertEqual(len(terminal.prompts), 1)
+
+    def test_completed_predecessor_workflow_is_historical_until_confirmed_supersession(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            git = FakeGit()
+            terminal = FakeTerminal([True])
+            executor = FakeExecutor()
+            operator, _ = self._operator(
+                state,
+                git=git,
+                terminal=terminal,
+                executor=executor,
+            )
+            historical_digest, progress_payload, terminal_payload = (
+                self._install_historical_v1_success(state, operator)
+            )
+            terminal.prompts.clear()
+            terminal.messages.clear()
+
+            status = operator.status("staging").environment_status
+            environment_root = state / "environments" / "staging"
+            progress_path = environment_root / "current-progress.v1.json"
+            terminal_path = (
+                environment_root
+                / "progress"
+                / f"{historical_digest[7:]}.final.v1.json"
+            )
+            self.assertEqual(progress_path.read_bytes(), progress_payload)
+            self.assertEqual(terminal_path.read_bytes(), terminal_payload)
+
+            git.revision = "b" * 40
+            terminal.approvals.extend([False, True, True])
+            declined = operator.prepare("staging")
+            pointer_after_decline = json.loads(
+                (environment_root / "current-specification.v1.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(progress_path.read_bytes(), progress_payload)
+            self.assertEqual(terminal_path.read_bytes(), terminal_payload)
+
+            replacement = operator.prepare("staging")
+            assert replacement.specification is not None
+            assert replacement.specification_digest is not None
+            deployed = operator.execute(
+                "staging",
+                replacement.specification_digest,
+            )
+            current_progress = json.loads(progress_path.read_text(encoding="utf-8"))
+            retained_terminal_payload = terminal_path.read_bytes()
+
+        self.assertEqual(status["lifecycle_state"], "deployed")
+        self.assertEqual(status["workflow"], "platform-deploy-v1")
+        self.assertEqual(status["workflow_compatibility"], "historical")
+        self.assertEqual(declined.outcome, "cancelled")
+        self.assertEqual(
+            declined.blockers,
+            ("HISTORICAL_PROGRESS_SUPERSESSION_DECLINED",),
+        )
+        self.assertEqual(
+            pointer_after_decline["specification_digest"],
+            historical_digest,
+        )
+        self.assertEqual(replacement.outcome, "prepared")
+        self.assertEqual(replacement.specification["specification_version"], 2)
+        self.assertEqual(replacement.specification["workflow"], "platform-deploy-v2")
+        self.assertEqual(deployed.outcome, "succeeded")
+        self.assertEqual(len(current_progress["completed"]), 12)
+        self.assertEqual(
+            current_progress["completed"][8]["stage_id"],
+            "runtime-activation",
+        )
+        self.assertEqual(retained_terminal_payload, terminal_payload)
+        self.assertEqual(
+            terminal.prompts,
+            [
+                "Supersede the historical platform-deploy-v1 current pointers with "
+                "platform-deploy-v2? [y/N] ",
+                "Supersede the historical platform-deploy-v1 current pointers with "
+                "platform-deploy-v2? [y/N] ",
+                f"Approve exact deployment specification "
+                f"{replacement.specification_digest}? [y/N] ",
+            ],
+        )
+        transcript = "\n".join(terminal.messages)
+        self.assertIn("Historical deployment progress detected", transcript)
+        self.assertIn("11 completed stages", transcript)
+        self.assertIn("12-stage platform-deploy-v2", transcript)
+        self.assertIn("retained unchanged", transcript)
 
     def test_deploy_records_one_atomic_progress_and_truthful_status(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -785,8 +944,53 @@ class OperatorLifecycleTest(unittest.TestCase):
                 json.dumps(progress, sort_keys=True, separators=(",", ":")) + "\n",
                 encoding="utf-8",
             )
-            with self.assertRaisesRegex(ValueError, "deployment progress"):
-                operator.status("staging")
+            status = operator.status("staging")
+
+        self.assertEqual(status.environment_status["lifecycle_state"], "blocked")
+        self.assertEqual(status.conflicts, ("PROGRESS_READBACK_FAILED",))
+
+    def test_active_historical_workflow_requires_cancellation_not_supersession(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            git = FakeGit()
+            terminal = FakeTerminal([True])
+            operator, _ = self._operator(
+                state,
+                git=git,
+                terminal=terminal,
+                executor=FakeExecutor(),
+            )
+            historical_digest, _, _ = self._install_historical_v1_success(
+                state,
+                operator,
+            )
+            progress_path = (
+                state / "environments" / "staging" / "current-progress.v1.json"
+            )
+            progress = json.loads(progress_path.read_text(encoding="utf-8"))
+            progress["completed"] = progress["completed"][:-1]
+            progress["status"] = "waiting"
+            progress["active_stage"] = "readback"
+            progress["blockers"] = ["TERRAFORM_READINESS_PENDING"]
+            progress_path.write_bytes(self._canonical_json(progress))
+            terminal.prompts.clear()
+            terminal.messages.clear()
+            git.revision = "b" * 40
+
+            replacement = operator.prepare("staging")
+            old_execution = operator.execute("staging", historical_digest)
+
+        self.assertEqual(replacement.outcome, "blocked")
+        self.assertEqual(replacement.blockers, ("ACTIVE_OPERATION_CONFLICT",))
+        self.assertEqual(terminal.prompts, [])
+        self.assertIn("make platform-cancel", "\n".join(terminal.messages))
+        self.assertEqual(old_execution.outcome, "blocked")
+        self.assertEqual(
+            old_execution.blockers,
+            ("HISTORICAL_WORKFLOW_NOT_EXECUTABLE",),
+        )
 
     def test_legacy_waiting_progress_adds_hostname_and_preserves_resume_authority(
         self,

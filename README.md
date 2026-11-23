@@ -288,6 +288,13 @@ use mode `0600`. Do not copy that directory into Git or use it as shared applica
 deployment also retains its latest terminal result under
 `environments/<environment>/progress/<specification-digest>.final.v1.json`, so an operator can
 compare outcomes across specifications without retaining every intermediate stage update.
+The workflow named by a specification is versioned independently from that progress-file format.
+A completed predecessor workflow remains readable historical evidence after the executable stage
+sequence changes; status labels it `historical` and never invents newly added stage results. Before
+preparing the current workflow, the wizard explains the difference and asks whether to supersede
+only the private current pointers. Declining leaves every pointer and record unchanged. Accepting
+retains the predecessor specification and terminal snapshot, then uses fresh current-workflow
+progress when deployment begins.
 
 The wizard never asks for an OAuth client secret in the terminal. The operator enters the secret
 directly into the approved Secret Manager surface and presses Enter only after completing the exact
@@ -334,6 +341,13 @@ silently replacing evidence. `SPECIFICATION_DIGEST=sha256:<digest>` remains avai
 operator deliberately needs to pin an explicit current digest, but it is not part of the normal
 prepare-to-deploy sequence. Do not run `platform-prepare` merely as a routine extra step—the
 ordinary one-command deployment sequence starts with `platform-deploy`.
+
+If the current pointers still identify a successfully completed predecessor workflow,
+`platform-prepare` or the preparation phase of `platform-deploy` prints its source, digest, status,
+and stage count before asking a separate `y/N` question. This confirmation changes no cloud
+resource. It only permits the new specification to become current; exact plan and action
+confirmations still occur later. A running or waiting predecessor is not eligible for this path and
+must be continued from its exact source or explicitly closed with `platform-cancel`.
 
 ### Accepted staging operation
 
@@ -410,6 +424,12 @@ Rerunning cancellation is an unchanged no-op. The next `platform-deploy` prepare
 uses fresh plans and provider readback to reconcile resources that already exist. The lifecycle
 never automatically unlocks state, pushes state, imports a resource, broadens scope, or hides a
 failed readback.
+
+An older completed workflow is history rather than an interruption. It is readable through
+`platform-status`, but it is never resumed or rewritten to claim stages that did not exist when it
+ran. Use the displayed supersession prompt to start the current workflow. Malformed or
+digest-mismatched specification/progress files instead return `SPECIFICATION_READBACK_FAILED` or
+`PROGRESS_READBACK_FAILED`; do not edit or delete them to bypass the blocker.
 
 If a partial foundation apply created the protected signing key ring but Terraform marked that
 exact instance as tainted, the resumed deployment reads back its immutable live identity and shows

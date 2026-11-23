@@ -172,6 +172,16 @@ cancelled value is also retained once per specification beneath `progress/`; a l
 result for the same specification replaces that snapshot. Waiting and intermediate values are not
 retained as history.
 
+Deployment specifications also name their exact executable workflow. The recognized
+`platform-deploy-v1` predecessor has 11 stages; current `platform-deploy-v2` has 12 and includes
+explicit runtime activation. A structurally and digest-valid terminal Version 1 record is loaded as
+immutable historical state and reported by status, never resumed and never padded with a synthetic
+runtime-activation result. Preparing Version 2 requires a separate `y/N` confirmation before the
+private current pointers move. Declining changes no file. Accepting keeps the predecessor
+specification and terminal snapshot at their content-addressed paths; fresh progress is written
+only when Version 2 execution begins. A running or waiting predecessor remains an active-operation
+conflict and uses `platform-cancel` rather than this supersession path.
+
 An interruption leaves the current stage open and resumes after the last closed stage. A closed
 mutation is never repeated. Waiting, cancellation, command failure, policy refusal, mismatched
 readback, unsafe output, and production refusal remain truthful terminal states rather than being
@@ -219,6 +229,11 @@ The CLI reports every returned blocker to stderr with a derived component before
 result JSON. Its outer exception boundary catches otherwise unhandled adapter or operator errors,
 prints only the operation and exception class, and returns `OPERATOR_INTERNAL_ERROR`; raw exception
 messages and tracebacks are not operator output.
+
+Known retained-state failures do not use that outer fallback. Invalid current specification
+pointers or records return `SPECIFICATION_READBACK_FAILED`; malformed, digest-mismatched, or
+unrecognized progress returns `PROGRESS_READBACK_FAILED`. These blockers preserve the private
+records for local inspection.
 
 Safe `ACTION`, `READBACK`, and `PLAN` narration uses multiline, sorted, two-space-indented JSON for
 operator inspection. Digest binding continues to use canonical compact serialization independently

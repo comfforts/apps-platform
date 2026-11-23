@@ -802,6 +802,17 @@ digest. Absence, drift, or missing approval falls back to normal preparation. Ma
 state or a current blocker fails closed without rewriting the evidence. Supplying an explicit
 current digest remains an optional pin, not the ordinary interface.
 
+The specification version and workflow identifier bind the executable stage schema. The completed
+11-stage `platform-deploy-v1` workflow remains an exact readable predecessor after the current
+12-stage `platform-deploy-v2` workflow adds runtime activation. A valid terminal predecessor record
+is historical: status may report it, but execution cannot resume it and the lifecycle cannot add a
+stage result that the predecessor never ran. Before new preparation changes the private current
+pointers, the operator displays both workflows and confirms that local supersession with `y/N`.
+The predecessor specification and terminal snapshot remain unchanged. A declined confirmation
+changes nothing; a running or waiting predecessor remains an active-operation conflict. An invalid
+or unrecognized record fails with a named readback blocker instead of reaching the generic internal
+error boundary.
+
 Source authority is an explicit specification input derived from Git readback, never a free-form
 operator value. `accepted` requires the exact clean current protected-main revision. `candidate`
 requires staging, a clean non-main branch, an exact pushed matching origin revision, and current

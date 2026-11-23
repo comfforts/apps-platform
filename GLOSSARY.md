@@ -41,6 +41,9 @@ A private, atomically replaced record of completed readback-closed stages, their
 outputs, the current stage, blockers, and the resume position for one approved deployment. It is
 not a public contract or hand-authored authority and contains no credential, secret payload,
 Terraform state, saved plan, or raw provider response.
+Its stage schema is bound by the Deployment Specification's workflow identifier. An exact terminal
+record from a recognized predecessor workflow is historical evidence: it can be inspected but not
+resumed, rewritten, or expanded with results for stages introduced later.
 
 ## Terraform Phase
 

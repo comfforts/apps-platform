@@ -40,6 +40,10 @@ _PROFILE_PATHS = {
     "staging": "infrastructure/config/profiles/staging.v1.json",
 }
 
+_CURRENT_SPECIFICATION_VERSION = 2
+_CURRENT_WORKFLOW = "platform-deploy-v2"
+_HISTORICAL_WORKFLOW = "platform-deploy-v1"
+
 
 def _canonical_bytes(value: object) -> bytes:
     return json.dumps(
@@ -169,7 +173,52 @@ _DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
     },
 )
 
-_STAGE_IDS = tuple(str(stage["stage_id"]) for stage in _DEPLOYMENT_STAGES)
+# Progress is private operator state, but its completed-stage shape is still a
+# persisted interface. Keep the exact predecessor schema readable so a valid
+# terminal operation remains evidence after the executable workflow advances.
+# Historical progress is never resumed or rewritten as current progress.
+_HISTORICAL_PROGRESS_STAGES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("preflight", (), "none"),
+    ("bootstrap-services", (), "none"),
+    ("bootstrap", ("backend-reference",), "none"),
+    (
+        "foundation",
+        ("foundation-reference", "oauth-secret-container"),
+        "none",
+    ),
+    ("image-publish", ("shared-edge-image-digest",), "none"),
+    (
+        "generation-publish",
+        ("registration-generation-reference",),
+        "none",
+    ),
+    (
+        "oauth-configuration",
+        ("oauth-client-id", "oauth-secret-version"),
+        "provider-console",
+    ),
+    (
+        "shared-edge",
+        ("edge-reference", "hostname", "reserved-address"),
+        "none",
+    ),
+    ("external-dns", (), "external-dns"),
+    ("tls-readiness", ("certificate-reference",), "none"),
+    ("readback", (), "none"),
+)
+_CURRENT_PROGRESS_STAGES: tuple[tuple[str, tuple[str, ...], str], ...] = tuple(
+    (
+        str(stage["stage_id"]),
+        tuple(str(name) for name in stage["produces"]),
+        str(stage["manual_checkpoint"]),
+    )
+    for stage in _DEPLOYMENT_STAGES
+)
+_PROGRESS_STAGES_BY_WORKFLOW = {
+    _HISTORICAL_WORKFLOW: _HISTORICAL_PROGRESS_STAGES,
+    _CURRENT_WORKFLOW: _CURRENT_PROGRESS_STAGES,
+}
+
 _OPERATOR_STAGE_PRESENTATION = {
     "preflight": (1, "Verify source, tools, identity, and project"),
     "bootstrap-services": (2, "Bootstrap state and platform foundation"),
@@ -274,6 +323,13 @@ _READINESS_BLOCKER_GUIDANCE = {
     "OWNERSHIP_TRANSFER_REQUIRED": (
         "the environment remains disabled until its documented ownership transfer"
     ),
+    "HISTORICAL_PROGRESS_SUPERSESSION_DECLINED": (
+        "the historical deployment record and current pointers were left unchanged"
+    ),
+    "HISTORICAL_WORKFLOW_NOT_EXECUTABLE": (
+        "the retained predecessor workflow is read-only history; prepare current intent before "
+        "deploying"
+    ),
     "PINNED_TOOL_INVALID": (
         "the project-local Terraform binary or provider package failed version or checksum "
         "validation"
@@ -283,6 +339,13 @@ _READINESS_BLOCKER_GUIDANCE = {
     ),
     "REPOSITORY_MISMATCH": (
         "the Git origin is not the canonical comfforts/apps-platform repository"
+    ),
+    "PROGRESS_READBACK_FAILED": (
+        "private deployment progress is malformed, digest-mismatched, or not bound to a "
+        "recognized workflow"
+    ),
+    "SPECIFICATION_READBACK_FAILED": (
+        "the current private specification pointer or canonical specification is invalid"
     ),
     "SOURCE_NOT_CLEAN": (
         "the repository has modified or untracked files; inspect git status --short"
@@ -530,10 +593,10 @@ class LifecycleOperator:
         revision: str,
     ) -> dict[str, Any]:
         return {
-            "specification_version": 1,
+            "specification_version": _CURRENT_SPECIFICATION_VERSION,
             "environment": environment,
             "operation": "deploy",
-            "workflow": "platform-deploy-v1",
+            "workflow": _CURRENT_WORKFLOW,
             "profile_digest": profile_digest,
             "source": {
                 "authority": self._source_authority,
@@ -545,6 +608,14 @@ class LifecycleOperator:
     @staticmethod
     def _valid_specification(value: dict[str, Any]) -> bool:
         source = value.get("source")
+        specification_version = value.get("specification_version")
+        workflow = value.get("workflow")
+        workflow_version_valid = (
+            specification_version == 1 and workflow == _HISTORICAL_WORKFLOW
+        ) or (
+            specification_version == _CURRENT_SPECIFICATION_VERSION
+            and workflow == _CURRENT_WORKFLOW
+        )
         return (
             set(value)
             == {
@@ -555,10 +626,9 @@ class LifecycleOperator:
                 "profile_digest",
                 "source",
             }
-            and value.get("specification_version") == 1
+            and workflow_version_valid
             and value.get("environment") in _PROFILE_PATHS
             and value.get("operation") == "deploy"
-            and value.get("workflow") == "platform-deploy-v1"
             and isinstance(value.get("profile_digest"), str)
             and isinstance(source, dict)
             and set(source) == {"authority", "repository", "revision"}
@@ -588,12 +658,20 @@ class LifecycleOperator:
         environment: str,
         digest: str,
     ) -> dict[str, Any]:
-        path = (
+        base = (
             f"{self._state_directory(environment)}/specifications/"
-            f"{digest[7:]}.v1.json"
+            f"{digest[7:]}"
         )
-        value = self._read_json_state(path)
-        if value is None or not self._valid_specification(value) or _digest(value) != digest:
+        candidates = tuple(
+            value
+            for version in (_CURRENT_SPECIFICATION_VERSION, 1)
+            if (value := self._read_json_state(f"{base}.v{version}.json"))
+            is not None
+        )
+        if len(candidates) != 1:
+            raise ValueError("stored deployment specification is invalid or digest-mismatched")
+        value = candidates[0]
+        if not self._valid_specification(value) or _digest(value) != digest:
             raise ValueError("stored deployment specification is invalid or digest-mismatched")
         return value
 
@@ -624,8 +702,12 @@ class LifecycleOperator:
         digest: str,
     ) -> None:
         directory = self._state_directory(environment)
+        specification_version = int(specification["specification_version"])
         self._adapters.filesystem.write_state(
-            f"{directory}/specifications/{digest[7:]}.v1.json",
+            (
+                f"{directory}/specifications/{digest[7:]}"
+                f".v{specification_version}.json"
+            ),
             _canonical_bytes(specification) + b"\n",
             replace=False,
         )
@@ -678,9 +760,22 @@ class LifecycleOperator:
         if value is None:
             return None
         value = self._normalize_progress(value, environment)
+        specification_digest = (
+            value.get("specification_digest") if isinstance(value, dict) else None
+        )
+        if not isinstance(specification_digest, str):
+            raise ValueError("stored deployment progress is invalid")
+        try:
+            specification = self._load_specification(
+                environment,
+                specification_digest,
+            )
+        except ValueError as error:
+            raise ValueError("stored deployment progress is invalid") from error
+        workflow = str(specification["workflow"])
         if (
             value is None
-            or not self._valid_progress(value, environment)
+            or not self._valid_progress(value, environment, workflow)
             or validate_lifecycle_material(value)
         ):
             raise ValueError("stored deployment progress is invalid")
@@ -727,7 +822,14 @@ class LifecycleOperator:
         return normalized
 
     @staticmethod
-    def _valid_progress(value: dict[str, Any], environment: str) -> bool:
+    def _valid_progress(
+        value: dict[str, Any],
+        environment: str,
+        workflow: str = _CURRENT_WORKFLOW,
+    ) -> bool:
+        stage_schema = _PROGRESS_STAGES_BY_WORKFLOW.get(workflow)
+        if stage_schema is None:
+            return False
         if set(value) != {
             "progress_version",
             "environment",
@@ -769,6 +871,8 @@ class LifecycleOperator:
             return False
         completed_ids: list[str] = []
         for index, item in enumerate(completed):
+            if index >= len(stage_schema):
+                return False
             if (
                 not isinstance(item, dict)
                 or set(item)
@@ -793,8 +897,7 @@ class LifecycleOperator:
                 )
             ):
                 return False
-            expected_stage = _DEPLOYMENT_STAGES[index]
-            expected_outputs = tuple(str(name) for name in expected_stage["produces"])
+            expected_stage_id, expected_outputs, manual_checkpoint = stage_schema[index]
             outputs = item["outputs"]
             if any(
                 not isinstance(output, dict)
@@ -809,15 +912,18 @@ class LifecycleOperator:
             expected_acknowledgement = {
                 "external-dns": "provider-verified",
                 "provider-console": "operator-attested",
-            }.get(str(expected_stage["manual_checkpoint"]), "not-required")
+            }.get(manual_checkpoint, "not-required")
             if item["manual_acknowledgement"] != expected_acknowledgement:
                 return False
+            if item["stage_id"] != expected_stage_id:
+                return False
             completed_ids.append(str(item["stage_id"]))
-        if completed_ids != list(_STAGE_IDS[: len(completed_ids)]):
+        stage_ids = tuple(stage[0] for stage in stage_schema)
+        if completed_ids != list(stage_ids[: len(completed_ids)]):
             return False
         expected_active_stage = (
-            _STAGE_IDS[len(completed_ids)]
-            if len(completed_ids) < len(_STAGE_IDS)
+            stage_ids[len(completed_ids)]
+            if len(completed_ids) < len(stage_ids)
             else None
         )
         return (
@@ -829,7 +935,7 @@ class LifecycleOperator:
 
     def _store_progress(self, progress: dict[str, Any]) -> str:
         environment = str(progress["environment"])
-        if not self._valid_progress(progress, environment):
+        if not self._valid_progress(progress, environment, _CURRENT_WORKFLOW):
             raise ValueError("generated invalid deployment progress")
         if validate_lifecycle_material(progress):
             raise ValueError("generated deployment progress contains prohibited material")
@@ -863,6 +969,69 @@ class LifecycleOperator:
         ):
             return progress
         return None
+
+    def _progress_workflow(
+        self,
+        environment: str,
+        progress: dict[str, Any],
+    ) -> str:
+        specification = self._load_specification(
+            environment,
+            str(progress["specification_digest"]),
+        )
+        return str(specification["workflow"])
+
+    def _historical_terminal_progress(
+        self,
+        environment: str,
+        requested_digest: str,
+    ) -> dict[str, Any] | None:
+        progress = self._load_progress(environment)
+        if (
+            progress is None
+            or progress["specification_digest"] == requested_digest
+            or progress["status"] not in _REPLACEABLE_PROGRESS
+            or self._progress_workflow(environment, progress) != _HISTORICAL_WORKFLOW
+        ):
+            return None
+        return progress
+
+    def _confirm_historical_supersession(
+        self,
+        environment: str,
+        progress: dict[str, Any],
+    ) -> bool:
+        completed_count = len(progress["completed"])
+        self._adapters.terminal.write(
+            "\n".join(
+                (
+                    "Historical deployment progress detected:",
+                    f"  environment: {environment}",
+                    f"  workflow: {_HISTORICAL_WORKFLOW}",
+                    f"  status: {progress['status']}",
+                    f"  source revision: {progress['source_revision']}",
+                    f"  specification digest: {progress['specification_digest']}",
+                    f"  {completed_count} completed stages",
+                    (
+                        f"This is a valid {completed_count}-stage predecessor result. It is "
+                        "readable history, not resumable current progress."
+                    ),
+                    (
+                        f"Continuing will move the private current pointers to the "
+                        f"{len(_DEPLOYMENT_STAGES)}-stage {_CURRENT_WORKFLOW} workflow."
+                    ),
+                    (
+                        "The historical specification and terminal progress snapshot are "
+                        "retained unchanged."
+                    ),
+                    "No Terraform plan or cloud resource is changed by this confirmation.",
+                )
+            )
+        )
+        return self._adapters.terminal.confirm(
+            f"Supersede the historical {_HISTORICAL_WORKFLOW} current pointers with "
+            f"{_CURRENT_WORKFLOW}? [y/N] "
+        )
 
     def _report_active_operation_conflict(
         self,
@@ -997,6 +1166,8 @@ class LifecycleOperator:
             "source_diagnostics": [],
             "specification_digest": None,
             "progress_digest": None,
+            "workflow": None,
+            "workflow_compatibility": None,
             "last_closed_stage": None,
             "qualification_status": "not-run",
         }
@@ -1008,18 +1179,52 @@ class LifecycleOperator:
             }
             return StatusResult(value, profile_blockers)
 
-        specification_digest = self._current_specification_digest(environment)
-        progress = self._load_progress(environment)
+        try:
+            specification_digest = self._current_specification_digest(environment)
+        except ValueError:
+            blockers = ("SPECIFICATION_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return StatusResult(
+                {**empty, "lifecycle_state": "blocked", "blockers": list(blockers)},
+                blockers,
+            )
+        try:
+            progress = self._load_progress(environment)
+        except ValueError:
+            blockers = ("PROGRESS_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return StatusResult(
+                {**empty, "lifecycle_state": "blocked", "blockers": list(blockers)},
+                blockers,
+            )
         if specification_digest is None or progress is None:
             return StatusResult({**empty, "lifecycle_state": "absent", "blockers": []})
 
-        specification = self._load_specification(environment, specification_digest)
+        try:
+            specification = self._load_specification(environment, specification_digest)
+        except ValueError:
+            blockers = ("SPECIFICATION_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return StatusResult(
+                {**empty, "lifecycle_state": "blocked", "blockers": list(blockers)},
+                blockers,
+            )
         if progress["specification_digest"] != specification_digest:
             if progress["status"] not in _REPLACEABLE_PROGRESS:
-                raise ValueError("active deployment progress conflicts with current specification")
+                blockers = ("ACTIVE_OPERATION_CONFLICT",)
+                self._report_blockers(blockers)
+                return StatusResult(
+                    {
+                        **empty,
+                        "lifecycle_state": "blocked",
+                        "blockers": list(blockers),
+                    },
+                    blockers,
+                )
             return StatusResult({**empty, "lifecycle_state": "absent", "blockers": []})
 
         source = specification["source"]
+        workflow = str(specification["workflow"])
         git = self._adapters.git.inspect()
         source_diagnostics = self._source_blockers(git, environment)
         if source["authority"] != self._source_authority:
@@ -1071,6 +1276,10 @@ class LifecycleOperator:
             "source_diagnostics": sorted(set(source_diagnostics)),
             "specification_digest": specification_digest,
             "progress_digest": _digest(progress),
+            "workflow": workflow,
+            "workflow_compatibility": (
+                "current" if workflow == _CURRENT_WORKFLOW else "historical"
+            ),
             "lifecycle_state": state,
             "last_closed_stage": (
                 str(completed[-1]["stage_id"]) if completed else None
@@ -1088,9 +1297,27 @@ class LifecycleOperator:
         """Execute or resume the fixed workflow for the approved preparation."""
 
         _, profile_digest = self._load_profile(environment)
-        if self._current_specification_digest(environment) != specification_digest:
+        try:
+            current_digest = self._current_specification_digest(environment)
+        except ValueError:
+            return self._blocked_execution(
+                environment,
+                ("SPECIFICATION_READBACK_FAILED",),
+            )
+        if current_digest != specification_digest:
             return self._blocked_execution(environment, ("SPECIFICATION_NOT_CURRENT",))
-        specification = self._load_specification(environment, specification_digest)
+        try:
+            specification = self._load_specification(environment, specification_digest)
+        except ValueError:
+            return self._blocked_execution(
+                environment,
+                ("SPECIFICATION_READBACK_FAILED",),
+            )
+        if specification["workflow"] != _CURRENT_WORKFLOW:
+            return self._blocked_execution(
+                environment,
+                ("HISTORICAL_WORKFLOW_NOT_EXECUTABLE",),
+            )
         source = specification["source"]
         source_revision = str(source["revision"])
         git = self._adapters.git.inspect()
@@ -1116,7 +1343,10 @@ class LifecycleOperator:
         if blockers:
             return self._blocked_execution(environment, tuple(sorted(set(blockers))))
 
-        progress = self._load_progress(environment)
+        try:
+            progress = self._load_progress(environment)
+        except ValueError:
+            return self._blocked_execution(environment, ("PROGRESS_READBACK_FAILED",))
         if progress is None or (
             progress["specification_digest"] != specification_digest
             and progress["status"] in _REPLACEABLE_PROGRESS
@@ -1282,6 +1512,7 @@ class LifecycleOperator:
         if (
             specification["environment"] != environment
             or specification["profile_digest"] != profile_digest
+            or specification["workflow"] != _CURRENT_WORKFLOW
             or source["authority"] != self._source_authority
             or source_revision != git.revision
         ):
@@ -1380,7 +1611,13 @@ class LifecycleOperator:
         self._report_verified_session(discoveries)
         specification = self._specification(environment, profile_digest, git.revision)
         digest = _digest(specification)
-        conflict = self._conflicting_progress(environment, digest)
+        try:
+            conflict = self._conflicting_progress(environment, digest)
+            historical = self._historical_terminal_progress(environment, digest)
+        except ValueError:
+            blockers = ("PROGRESS_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return PrepareResult("blocked", False, False, None, None, blockers)
         if conflict:
             self._report_active_operation_conflict(
                 environment,
@@ -1391,6 +1628,13 @@ class LifecycleOperator:
             return PrepareResult(
                 "blocked", False, False, None, None, ("ACTIVE_OPERATION_CONFLICT",)
             )
+        if historical is not None and not self._confirm_historical_supersession(
+            environment,
+            historical,
+        ):
+            blockers = ("HISTORICAL_PROGRESS_SUPERSESSION_DECLINED",)
+            self._report_blockers(blockers)
+            return PrepareResult("cancelled", False, False, None, None, blockers)
         self._store_specification(environment, specification, digest)
         if self._approved(
             environment,

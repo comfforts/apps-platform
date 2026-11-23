@@ -43,6 +43,12 @@ succeeds, fails, or is cancelled, its latest terminal result is also retained at
 when investigating changes between specifications. A resumed specification replaces its own
 terminal record; waiting and intermediate stage updates are not historical records.
 
+The workflow identifier inside a specification is separately versioned. `platform-deploy-v1` is
+the recognized completed 11-stage predecessor; `platform-deploy-v2` is the current 12-stage
+workflow with explicit runtime activation. `platform-status` can read an exact predecessor result
+and labels its `workflow_compatibility` as `historical`. It does not add runtime-activation evidence
+or otherwise rewrite that record.
+
 ## Normal staging lifecycle
 
 The normal accepted staging journey is:
@@ -102,6 +108,15 @@ it is absent, stale, or unapproved, deployment creates and requests approval for
 retained state is malformed or a current prerequisite is blocked, deployment stops without
 replacing it. `SPECIFICATION_DIGEST=sha256:<digest>` is an optional explicit pin for a current
 approved digest, not a normal handoff requirement.
+
+When current private pointers identify a terminal `platform-deploy-v1` result, preparation prints
+that workflow, source revision, digest, status, and completed-stage count. It then asks whether to
+supersede the current pointers with `platform-deploy-v2`. Answering `N` leaves the pointers and
+records unchanged. Answering `y` retains the old specification and terminal progress snapshot,
+then allows the Version 2 specification review; deployment later starts fresh 12-stage progress.
+This local confirmation performs no Terraform or provider mutation and does not replace the later
+plan/action confirmations. A running or waiting predecessor is an active operation and still
+requires exact-source resume or `platform-cancel`.
 
 ## Deploy the shared platform
 
@@ -310,6 +325,12 @@ without asking again. Then rerun `platform-deploy`; it prepares fresh source-bou
 fresh plans plus provider readback to reconcile resources created by the earlier operation. Never
 edit or delete `current-progress.v1.json` by hand. The lifecycle never automatically unlocks state,
 pushes state, imports a resource, broadens scope, or hides a failed readback.
+
+A completed predecessor workflow is not resumed. It remains inspectable history until the operator
+accepts the displayed current-pointer supersession prompt. The old final snapshot remains at its
+original digest path. An unrecognized, malformed, or digest-mismatched private record instead
+returns `SPECIFICATION_READBACK_FAILED` or `PROGRESS_READBACK_FAILED`; inspect the private files
+locally and fix the software or restore the exact record rather than deleting evidence.
 
 A failed Shared Edge apply may have already recorded some valid edge resources, such as the
 reserved global address, in Platform State. When changed source starts a fresh deployment, the

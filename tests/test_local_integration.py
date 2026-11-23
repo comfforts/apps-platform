@@ -12,7 +12,10 @@ from infrastructure.operator._interfaces import StatusResult
 from infrastructure.operator.integration import RegistrationGenerationProposal
 from infrastructure.operator.local import LocalFilesystem
 from infrastructure.operator.local_deployment import initial_generation
-from infrastructure.operator.local_integration import LocalPlatformIntegrationReader
+from infrastructure.operator.local_integration import (
+    LocalPlatformIntegrationReader,
+    PlatformIntegrationReadbackError,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -32,9 +35,13 @@ class FakeStatus:
         self,
         progress_digest: str,
         source_revision: str = "a" * 40,
+        source_authority: str = "accepted",
+        conflicts: tuple[str, ...] = (),
     ) -> None:
         self._progress_digest = progress_digest
         self._source_revision = source_revision
+        self._source_authority = source_authority
+        self._conflicts = conflicts
 
     def status(self, environment: str) -> StatusResult:
         return StatusResult(
@@ -43,10 +50,11 @@ class FakeStatus:
                 "progress_digest": self._progress_digest,
                 "lifecycle_state": "deployed",
                 "profile_digest": "sha256:" + ("1" * 64),
-                "source_authority": "accepted",
+                "source_authority": self._source_authority,
                 "source_revision": self._source_revision,
                 "specification_digest": "sha256:" + ("2" * 64),
-            }
+            },
+            self._conflicts,
         )
 
 
@@ -63,9 +71,10 @@ class FakeGenerations:
 
 
 class RecoverableGenerations:
-    def __init__(self) -> None:
+    def __init__(self, active_platform_source_revision: str = "a" * 40) -> None:
         self.current_proposal: RegistrationGenerationProposal | None = None
-        self.bindings: list[tuple[str, str, int]] = []
+        self.bindings: list[tuple[str, int]] = []
+        self._active_platform_source_revision = active_platform_source_revision
 
     def current(self, environment: str) -> RegistrationGenerationProposal | None:
         del environment
@@ -75,15 +84,16 @@ class RecoverableGenerations:
         self,
         value: RegistrationGenerationProposal,
         *,
-        platform_source_revision: str,
         object_name: str,
         object_generation: int,
     ) -> RegistrationGenerationProposal:
-        self.bindings.append(
-            (platform_source_revision, object_name, object_generation)
-        )
+        self.bindings.append((object_name, object_generation))
         self.current_proposal = value
         return value
+
+    def active_platform_source_revision(self, environment: str) -> str:
+        del environment
+        return self._active_platform_source_revision
 
 
 class LocalPlatformIntegrationReaderTest(unittest.TestCase):
@@ -148,6 +158,7 @@ class LocalPlatformIntegrationReaderTest(unittest.TestCase):
     def test_recovers_verified_deployed_initial_generation_for_first_handoff(self) -> None:
         initial_source_revision = "a" * 40
         platform_source_revision = "b" * 40
+        active_platform_source_revision = "c" * 40
         initial = initial_generation(initial_source_revision)
         progress = {
             "progress_version": 1,
@@ -203,26 +214,48 @@ class LocalPlatformIntegrationReaderTest(unittest.TestCase):
                 + b"\n",
                 replace=False,
             )
-            generations = RecoverableGenerations()
+            generations = RecoverableGenerations(active_platform_source_revision)
             reader = LocalPlatformIntegrationReader(
                 filesystem,
-                FakeStatus(_digest(progress), platform_source_revision),
+                FakeStatus(
+                    _digest(progress),
+                    platform_source_revision,
+                    "candidate",
+                    (
+                        "SOURCE_AUTHORITY_MISMATCH",
+                        "SOURCE_REVISION_MISMATCH",
+                    ),
+                ),
                 generations,
                 initial_generation_binder=generations,
             )
 
             current = reader.read_platform("staging")
+            blocked_reader = LocalPlatformIntegrationReader(
+                filesystem,
+                FakeStatus(
+                    _digest(progress),
+                    platform_source_revision,
+                    "accepted",
+                    ("SOURCE_NOT_CLEAN", "SOURCE_REVISION_MISMATCH"),
+                ),
+                generations,
+                initial_generation_binder=generations,
+            )
+            with self.assertRaisesRegex(
+                PlatformIntegrationReadbackError,
+                "SOURCE_NOT_CLEAN",
+            ):
+                blocked_reader.read_platform("staging")
 
         self.assertEqual(current.generation, 1)
         self.assertEqual(
+            current.platform_source_revision,
+            active_platform_source_revision,
+        )
+        self.assertEqual(
             generations.bindings,
-            [
-                (
-                    platform_source_revision,
-                    "generations/1/compiled.json",
-                    41,
-                )
-            ],
+            [("generations/1/compiled.json", 41)],
         )
         assert generations.current_proposal is not None
         self.assertEqual(

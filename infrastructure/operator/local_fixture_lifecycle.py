@@ -620,6 +620,16 @@ class LocalFixtureOperator:
 
         try:
             source = self._git.inspect()
+        except Exception:
+            return FixtureDeployResult(
+                "blocked",
+                None,
+                (),
+                None,
+                None,
+                ("FIXTURE_SOURCE_READBACK_FAILED",),
+            )
+        try:
             platform = self._platform.read_platform(environment)
         except PlatformIntegrationReadbackError as error:
             return FixtureDeployResult(
@@ -637,7 +647,7 @@ class LocalFixtureOperator:
                 (),
                 None,
                 None,
-                ("FIXTURE_PREFLIGHT_FAILED",),
+                ("PLATFORM_INTEGRATION_READBACK_FAILED",),
             )
         blockers = list(
             source_authority_blockers(
@@ -646,8 +656,6 @@ class LocalFixtureOperator:
                 self._source_authority,
             )
         )
-        if platform.source_authority != self._source_authority:
-            blockers.append("SOURCE_AUTHORITY_MISMATCH")
         if platform.environment != environment or platform.lifecycle_state != "deployed":
             blockers.append("PLATFORM_NOT_DEPLOYED")
         if blockers:
@@ -684,6 +692,18 @@ class LocalFixtureOperator:
 
         try:
             source = self._git.inspect()
+        except Exception:
+            return FixtureHandoffResult(
+                "blocked",
+                application_id,
+                None,
+                None,
+                None,
+                None,
+                None,
+                blockers=("FIXTURE_SOURCE_READBACK_FAILED",),
+            )
+        try:
             platform = self._platform.read_platform(environment)
         except PlatformIntegrationReadbackError as error:
             return FixtureHandoffResult(
@@ -705,7 +725,7 @@ class LocalFixtureOperator:
                 None,
                 None,
                 None,
-                blockers=("FIXTURE_PREFLIGHT_FAILED",),
+                blockers=("PLATFORM_INTEGRATION_READBACK_FAILED",),
             )
         blockers = list(
             source_authority_blockers(
@@ -714,8 +734,6 @@ class LocalFixtureOperator:
                 self._source_authority,
             )
         )
-        if platform.source_authority != self._source_authority:
-            blockers.append("SOURCE_AUTHORITY_MISMATCH")
         if platform.environment != environment or platform.lifecycle_state != "deployed":
             blockers.append("PLATFORM_NOT_DEPLOYED")
         if blockers:
@@ -814,8 +832,6 @@ class LocalFixtureOperator:
                 self._source_authority,
             )
         )
-        if platform.source_authority != self._source_authority:
-            blockers.append("SOURCE_AUTHORITY_MISMATCH")
         if platform.lifecycle_state != "deployed":
             blockers.append("PLATFORM_NOT_DEPLOYED")
         if handoff is None:

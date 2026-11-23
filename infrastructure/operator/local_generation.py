@@ -217,7 +217,6 @@ class LocalRegistrationGenerationControl:
         self,
         proposal: RegistrationGenerationProposal,
         *,
-        platform_source_revision: str,
         object_name: str,
         object_generation: int,
     ) -> RegistrationGenerationProposal:
@@ -239,7 +238,6 @@ class LocalRegistrationGenerationControl:
             or previous is not None
             or registrations != []
             or not isinstance(source_revision, str)
-            or not isinstance(platform_source_revision, str)
             or compiled_digest != proposal.generation_digest
             or object_name != "generations/1/compiled.json"
             or object_generation < 1
@@ -250,7 +248,6 @@ class LocalRegistrationGenerationControl:
         active = self._provider.read_active_binding(proposal.environment)
         if (
             active.environment != proposal.environment
-            or active.platform_source_revision != platform_source_revision
             or active.generation != generation
             or active.generation_digest != proposal.generation_digest
             or active.content_digest != proposal.content_digest
@@ -299,6 +296,23 @@ class LocalRegistrationGenerationControl:
         if current != proposal:
             raise ValueError("deployed initial generation binding mismatch")
         return current
+
+    def active_platform_source_revision(self, environment: str) -> str:
+        """Read the platform source revision serving all active edge traffic."""
+
+        if self._provider is None:
+            raise RuntimeError("generation provider is unavailable")
+        active = self._provider.read_active_binding(environment)
+        if (
+            active.environment != environment
+            or len(active.platform_source_revision) != 40
+            or any(
+                character not in "0123456789abcdef"
+                for character in active.platform_source_revision
+            )
+        ):
+            raise ValueError("active platform source binding mismatch")
+        return active.platform_source_revision
 
     def publish(
         self,

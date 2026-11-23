@@ -15,6 +15,7 @@ from infrastructure.operator.fixture_lifecycle import (
     FixtureCommandError,
     FixtureDeployRequest,
     FixtureDeployResult,
+    FixtureHandoffResult,
     FixtureDestroyRequest,
     FixtureImageReadback,
     FixturePreparation,
@@ -581,6 +582,96 @@ class LocalFixtureOperatorTest(unittest.TestCase):
         self.assertEqual(
             result.blockers,
             ("ACTIVE_REGISTRATION_GENERATION_RECOVERY_FAILED",),
+        )
+
+    def test_distinguishes_untyped_platform_readback_from_source_failure(self) -> None:
+        class Git:
+            def inspect(self):  # type: ignore[no-untyped-def]
+                return GitSnapshot(
+                    repository="comfforts/apps-platform",
+                    revision=SOURCE_REVISION,
+                    branch="main",
+                    clean=True,
+                    main_revision=SOURCE_REVISION,
+                    origin_main_revision=SOURCE_REVISION,
+                )
+
+        class Platform:
+            def read_platform(self, environment):  # type: ignore[no-untyped-def]
+                del environment
+                raise ValueError("internal platform readback detail")
+
+        class Lifecycle:
+            def handoff(self, request):  # type: ignore[no-untyped-def]
+                raise AssertionError(f"unexpected handoff request: {request}")
+
+        result = LocalFixtureOperator(Git(), Platform(), Lifecycle()).handoff(
+            "staging",
+            "fixture-public",
+        )
+
+        self.assertEqual(
+            result.blockers,
+            ("PLATFORM_INTEGRATION_READBACK_FAILED",),
+        )
+
+    def test_accepted_fixture_source_can_consume_candidate_platform(self) -> None:
+        class Git:
+            def inspect(self):  # type: ignore[no-untyped-def]
+                return GitSnapshot(
+                    repository="comfforts/apps-platform",
+                    revision=SOURCE_REVISION,
+                    branch="main",
+                    clean=True,
+                    main_revision=SOURCE_REVISION,
+                    origin_main_revision=SOURCE_REVISION,
+                )
+
+        class Platform:
+            def read_platform(self, environment):  # type: ignore[no-untyped-def]
+                return PlatformIntegrationState(
+                    environment=environment,
+                    lifecycle_state="deployed",
+                    profile_digest=PROFILE_DIGEST,
+                    platform_source_revision=PLATFORM_REVISION,
+                    specification_digest=SPECIFICATION_DIGEST,
+                    progress_digest=PROGRESS_DIGEST,
+                    generation=1,
+                    hostname="apps-staging.comfforts.com",
+                    oauth_client_id="client.apps.googleusercontent.com",
+                    edge_caller_reference=EDGE_CALLER,
+                    qualification_status="unqualified",
+                    source_authority="candidate",
+                )
+
+        class Lifecycle:
+            request = None
+
+            def handoff(self, request):  # type: ignore[no-untyped-def]
+                self.request = request
+                return FixtureHandoffResult(
+                    "prepared",
+                    request.application_id,
+                    IMAGE_REFERENCE,
+                    "/tmp/integration.json",
+                    "/tmp/attachment.json",
+                    "sha256:" + ("6" * 64),
+                    "sha256:" + ("7" * 64),
+                )
+
+        lifecycle = Lifecycle()
+        result = LocalFixtureOperator(
+            Git(),
+            Platform(),
+            lifecycle,
+            source_authority="accepted",
+        ).handoff("staging", "fixture-public")
+
+        self.assertEqual(result.outcome, "prepared")
+        self.assertIsNotNone(lifecycle.request)
+        self.assertEqual(
+            lifecycle.request.expected_platform_source_revision,
+            PLATFORM_REVISION,
         )
 
 

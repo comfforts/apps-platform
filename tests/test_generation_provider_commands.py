@@ -69,13 +69,18 @@ class FakeGcloud:
     revision_created: bool = False
     active: bool = False
     corrupt_revision: bool = False
+    active_source_revision: str = SOURCE_REVISION
+    active_image_digest: str = "d" * 64
+    service_template_image_digest: str = "d" * 64
+    candidate_environment: dict[str, str] | None = None
+    candidate_image: str | None = None
+    candidate_service_account: str | None = None
 
     @property
     def revision_name(self) -> str:
         return f"{SERVICE}-g7-{GENERATION_DIGEST[7:19]}"
 
-    @staticmethod
-    def _service(traffic: list[dict[str, object]]) -> bytes:
+    def _service(self, traffic: list[dict[str, object]]) -> bytes:
         return _canonical(
             {
                 "metadata": {"name": SERVICE},
@@ -91,7 +96,7 @@ class FakeGcloud:
                                     "image": (
                                         f"{REGION}-docker.pkg.dev/{PROJECT_ID}/"
                                         "app-platform/shared-edge@sha256:"
-                                        + ("d" * 64)
+                                        + self.service_template_image_digest
                                     )
                                 }
                             ],
@@ -102,7 +107,7 @@ class FakeGcloud:
             }
         )
 
-    def _revision(self) -> bytes:
+    def _revision(self, revision_name: str) -> bytes:
         object_name = (
             f"generations/{GENERATION_DIGEST[7:]}/compiled-shared-edge.v1.json"
         )
@@ -121,19 +126,29 @@ class FakeGcloud:
                 "cryptoKeys/edge/cryptoKeyVersions/1"
             ),
         }
+        image_digest = self.service_template_image_digest
+        service_account = (
+            f"app-platform-edge-runtime@{PROJECT_ID}.iam.gserviceaccount.com"
+        )
+        if revision_name == f"{SERVICE}-initial":
+            environment["APP_PLATFORM_SOURCE_REVISION"] = (
+                self.active_source_revision
+            )
+            image_digest = self.active_image_digest
+        elif self.candidate_environment is not None:
+            environment = dict(self.candidate_environment)
+            image_digest = self.candidate_image or image_digest
+            service_account = self.candidate_service_account or service_account
         return _canonical(
             {
-                "metadata": {"name": self.revision_name},
+                "metadata": {"name": revision_name},
                 "spec": {
-                    "serviceAccountName": (
-                        f"app-platform-edge-runtime@{PROJECT_ID}."
-                        "iam.gserviceaccount.com"
-                    ),
+                    "serviceAccountName": service_account,
                     "containers": [
                         {
                             "image": (
                                 f"{REGION}-docker.pkg.dev/{PROJECT_ID}/"
-                                "app-platform/shared-edge@sha256:" + ("d" * 64)
+                                "app-platform/shared-edge@sha256:" + image_digest
                             ),
                             "env": [
                                 {"name": name, "value": value}
@@ -168,10 +183,48 @@ class FakeGcloud:
             )
             return ProviderCommandResult(0, self._service(traffic), b"")
         if arguments[:3] == ("run", "revisions", "describe"):
-            if not self.revision_created:
+            revision_name = arguments[3]
+            if (
+                revision_name != f"{SERVICE}-initial"
+                and not self.revision_created
+            ):
                 return ProviderCommandResult(1, b"", b"not found: secret-token")
-            return ProviderCommandResult(0, self._revision(), b"")
+            return ProviderCommandResult(
+                0,
+                self._revision(revision_name),
+                b"",
+            )
         if arguments[:3] == ("run", "services", "update"):
+            bindings = next(
+                (
+                    item.split("=", maxsplit=1)[1]
+                    for item in arguments
+                    if item.startswith("--set-env-vars=")
+                    or item.startswith("--update-env-vars=")
+                ),
+                "",
+            )
+            if bindings:
+                self.candidate_environment = dict(
+                    item.split("=", maxsplit=1)
+                    for item in bindings.split(",")
+                )
+            self.candidate_image = next(
+                (
+                    item.rsplit("@sha256:", maxsplit=1)[1]
+                    for item in arguments
+                    if item.startswith("--image=")
+                ),
+                None,
+            )
+            self.candidate_service_account = next(
+                (
+                    item.split("=", maxsplit=1)[1]
+                    for item in arguments
+                    if item.startswith("--service-account=")
+                ),
+                None,
+            )
             self.revision_created = True
             return ProviderCommandResult(0, b"{}", b"")
         if arguments[:3] == ("run", "services", "update-traffic"):
@@ -246,6 +299,45 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         self.assertIn("--if-generation-match=0", upload.argv)
         self.assertNotIn("HOME", dict(upload.environment))
         self.assertNotIn("GOOGLE_APPLICATION_CREDENTIALS", dict(upload.environment))
+
+    def test_stage_preserves_active_runtime_instead_of_staged_service_template(self) -> None:
+        compiled = _canonical(proposal().compiled_configuration)
+        active_source = "e" * 40
+        active_image = "a" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(
+                compiled,
+                active_source_revision=active_source,
+                active_image_digest=active_image,
+                service_template_image_digest="d" * 64,
+            )
+            provider = self._provider(directory, fake)
+
+            provider.stage(proposal(), compiled)
+
+        mutation = next(
+            request
+            for request in fake.requests
+            if request.argv[1:4] == ("run", "services", "update")
+        )
+        self.assertIn(
+            f"--image={REGION}-docker.pkg.dev/{PROJECT_ID}/"
+            f"app-platform/shared-edge@sha256:{active_image}",
+            mutation.argv,
+        )
+        self.assertIn(
+            f"--service-account=app-platform-edge-runtime@{PROJECT_ID}."
+            "iam.gserviceaccount.com",
+            mutation.argv,
+        )
+        bindings = next(
+            item for item in mutation.argv if item.startswith("--set-env-vars=")
+        )
+        self.assertIn(
+            f"APP_PLATFORM_SOURCE_REVISION={active_source}",
+            bindings,
+        )
+        self.assertNotIn("--update-env-vars=", " ".join(mutation.argv))
 
     def test_stage_resumes_only_when_existing_object_and_revision_match(self) -> None:
         compiled = _canonical(proposal().compiled_configuration)

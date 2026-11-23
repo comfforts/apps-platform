@@ -422,7 +422,7 @@ class GcloudGenerationProvider(GenerationProvider):
     ) -> ProviderGenerationPublication:
         if proposal.environment != "staging":
             raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
-        generation, source_revision = self._generation_values(proposal)
+        generation, _ = self._generation_values(proposal)
         digest_value = proposal.generation_digest.removeprefix("sha256:")
         if len(digest_value) != 64:
             raise GenerationProviderError("GENERATION_PROPOSAL_INVALID")
@@ -442,11 +442,18 @@ class GcloudGenerationProvider(GenerationProvider):
             object_uri,
             compiled_configuration,
         )
-        service = self._describe_service()
-        invariants = self._revision_invariants(service)
+        _, active_revision = self._active_revision(proposal.environment)
+        invariants = self._revision_values(active_revision)
+        active_environment = self._revision_environment(active_revision)
+        active_platform_source = active_environment.get(
+            "APP_PLATFORM_SOURCE_REVISION"
+        )
+        if not isinstance(active_platform_source, str) or not active_platform_source:
+            raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
         revision_name = f"{self._service_name}-g{generation}-{digest_value[:12]}"
         expected_environment = {
-            "APP_PLATFORM_SOURCE_REVISION": source_revision,
+            **active_environment,
+            "APP_PLATFORM_SOURCE_REVISION": active_platform_source,
             "APP_PLATFORM_REGISTRATION_GENERATION": str(generation),
             "APP_PLATFORM_GENERATION_DIGEST": proposal.generation_digest,
             "APP_PLATFORM_CONFIGURATION_BUCKET": self._configuration_bucket,
@@ -458,6 +465,13 @@ class GcloudGenerationProvider(GenerationProvider):
         created = False
         if existing is None:
             suffix = revision_name.removeprefix(f"{self._service_name}-")
+            if any(
+                "," in name or "=" in name or "," in value
+                for name, value in expected_environment.items()
+            ):
+                raise GenerationProviderError(
+                    "GENERATION_REVISION_BINDING_MISMATCH"
+                )
             bindings = ",".join(
                 f"{name}={value}"
                 for name, value in sorted(expected_environment.items())
@@ -471,7 +485,9 @@ class GcloudGenerationProvider(GenerationProvider):
                 f"--region={self._region}",
                 "--no-traffic",
                 f"--revision-suffix={suffix}",
-                f"--update-env-vars={bindings}",
+                f"--image={invariants[1]}",
+                f"--service-account={invariants[0]}",
+                f"--set-env-vars={bindings}",
                 "--format=json",
             )
             created = True

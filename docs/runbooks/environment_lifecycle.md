@@ -213,6 +213,13 @@ independent Application State. It reads back that target before activating a com
 Generation that preserves the other registrations. Run the command separately for every fixture
 needed by qualification.
 
+Do not redeploy the platform merely because the repository revision running a fixture command is
+newer than the deployed platform revision. The command validates its own source admission, reads
+the active platform revision and Registration Generation from provider-backed platform state, and
+binds both revisions independently. Run `platform-deploy` first only when platform-owned desired
+state must change. Accepted qualification is a separate claim and requires an Accepted Source
+platform deployment.
+
 `fixture-deploy` also performs the selected fixture's bundle handoff. It generates the Platform
 Integration Bundle, deploys that fixture, receives and validates its Application Attachment Bundle,
 and registers it. Do not run `platform-outputs` or `platform-register` separately for that fixture.

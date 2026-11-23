@@ -343,6 +343,13 @@ targets are used for applications whose deployment is owned outside this reposit
 `fixture-status` is suite-wide by default, or narrowed with an optional `APPLICATION_ID` during an
 individual deployment or investigation.
 
+A repository revision change alone does not require another `platform-deploy`. Fixture commands
+validate their own current source independently, then consume the provider-verified active
+platform revision and Registration Generation recorded in the Platform Integration Bundle. Run
+`platform-deploy` first only when platform-owned runtime, Terraform, configuration, identity,
+networking, DNS/TLS, or another shared resource must change. An accepted qualification still
+requires the platform itself to have been deployed and qualified from Accepted Source.
+
 To inspect one fixture's generated bundles before registration, insert this optional command before
 that fixture's ordinary deploy:
 
@@ -423,8 +430,10 @@ make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 ```
 
 Candidate Source is refused for production. Its specifications, bundles, status, and evidence are
-kept separate and cannot qualify the accepted environment. After merge, repeat deployment and
-qualification from clean current `main` with the default Accepted Source.
+kept separate and cannot qualify the accepted environment. After merge, use the default Accepted
+Source. A fixture operation may continue against the unchanged provider-verified staging platform;
+repeat `platform-deploy` only when platform-owned desired state must change. Before claiming
+accepted qualification, deploy and qualify the platform from clean current `main`.
 
 ### Command reference
 

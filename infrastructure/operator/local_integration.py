@@ -40,10 +40,11 @@ class InitialGenerationBinder(Protocol):
         self,
         proposal: RegistrationGenerationProposal,
         *,
-        platform_source_revision: str,
         object_name: str,
         object_generation: int,
     ) -> RegistrationGenerationProposal: ...
+
+    def active_platform_source_revision(self, environment: str) -> str: ...
 
 
 class LocalPlatformIntegrationReader:
@@ -255,7 +256,6 @@ class LocalPlatformIntegrationReader:
         try:
             return binder.bind_deployed_initial(
                 proposal,
-                platform_source_revision=source_revision,
                 object_name=expected.object_name,
                 object_generation=reference["object_generation"],
             )
@@ -269,8 +269,14 @@ class LocalPlatformIntegrationReader:
             raise ValueError("platform integration environment is unavailable")
         result: StatusResult = self._status_reader.status(environment)
         status = result.environment_status
-        if result.conflicts or status.get("lifecycle_state") != "deployed":
-            raise ValueError("platform integration state is not deployed")
+        conflicts = set(result.conflicts)
+        conflicts.difference_update(
+            {"SOURCE_AUTHORITY_MISMATCH", "SOURCE_REVISION_MISMATCH"}
+        )
+        if conflicts:
+            raise PlatformIntegrationReadbackError(sorted(conflicts)[0])
+        if status.get("lifecycle_state") != "deployed":
+            raise PlatformIntegrationReadbackError("PLATFORM_NOT_DEPLOYED")
         progress = self._current_progress(environment)
         if self._progress_digest(progress) != status.get("progress_digest"):
             raise ValueError("deployment progress does not match environment status")
@@ -300,11 +306,23 @@ class LocalPlatformIntegrationReader:
         )
         if any(not isinstance(status.get(name), str) for name in required):
             raise ValueError("platform integration state is incomplete")
+        active_source_revision = source_revision
+        if self._initial_generation_binder is not None:
+            try:
+                active_source_revision = (
+                    self._initial_generation_binder.active_platform_source_revision(
+                        environment
+                    )
+                )
+            except Exception as error:
+                raise PlatformIntegrationReadbackError(
+                    "ACTIVE_PLATFORM_SOURCE_READBACK_FAILED"
+                ) from error
         return PlatformIntegrationState(
             environment=environment,
             lifecycle_state="deployed",
             profile_digest=str(status["profile_digest"]),
-            platform_source_revision=str(status["source_revision"]),
+            platform_source_revision=active_source_revision,
             specification_digest=str(status["specification_digest"]),
             progress_digest=str(status["progress_digest"]),
             generation=generation_number,

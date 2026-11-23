@@ -186,21 +186,21 @@ class LocalGenerationControlTest(unittest.TestCase):
 
             first = control.bind_deployed_initial(
                 proposal(),
-                platform_source_revision="b" * 40,
                 object_name="generations/1/compiled.json",
                 object_generation=41,
             )
             second = control.bind_deployed_initial(
                 proposal(),
-                platform_source_revision="b" * 40,
                 object_name="generations/1/compiled.json",
                 object_generation=41,
             )
+            active_source = control.active_platform_source_revision("staging")
             current = control.current("staging")
 
         self.assertEqual(first, proposal())
         self.assertEqual(second, proposal())
         self.assertEqual(current, proposal())
+        self.assertEqual(active_source, "b" * 40)
         self.assertEqual(provider.published, [])
         self.assertEqual(provider.activations, [])
 
@@ -227,7 +227,6 @@ class LocalGenerationControlTest(unittest.TestCase):
             ):
                 control.bind_deployed_initial(
                     proposal(),
-                    platform_source_revision="a" * 40,
                     object_name="generations/1/compiled.json",
                     object_generation=41,
                 )

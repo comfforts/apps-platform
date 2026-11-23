@@ -368,6 +368,41 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             )
         )
 
+    def test_reads_exact_active_generation_binding_without_mutation(self) -> None:
+        compiled = _canonical(proposal().compiled_configuration)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(
+                compiled,
+                object_created=True,
+                revision_created=True,
+                active=True,
+            )
+            provider = self._provider(directory, fake)
+
+            binding = provider.read_active_binding("staging")
+
+        self.assertEqual(binding.environment, "staging")
+        self.assertEqual(binding.revision_name, fake.revision_name)
+        self.assertEqual(binding.platform_source_revision, SOURCE_REVISION)
+        self.assertEqual(binding.generation, 7)
+        self.assertEqual(binding.generation_digest, GENERATION_DIGEST)
+        self.assertEqual(binding.content_digest, CONTENT_DIGEST)
+        self.assertEqual(
+            binding.object_name,
+            f"generations/{GENERATION_DIGEST[7:]}/compiled-shared-edge.v1.json",
+        )
+        self.assertEqual(binding.object_generation, 42)
+        self.assertFalse(
+            any(
+                request.argv[1:4]
+                in {
+                    ("run", "services", "update"),
+                    ("run", "services", "update-traffic"),
+                }
+                for request in fake.requests
+            )
+        )
+
     def test_closed_runner_rejects_credential_override_and_unreviewed_command(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

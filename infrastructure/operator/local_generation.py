@@ -30,6 +30,20 @@ class ProviderGenerationActivation:
     active_generation_digest: str
 
 
+@dataclass(frozen=True, slots=True)
+class ProviderGenerationBinding:
+    """Exact active provider revision and immutable configuration binding."""
+
+    environment: str
+    revision_name: str
+    platform_source_revision: str
+    generation: int
+    generation_digest: str
+    content_digest: str
+    object_name: str
+    object_generation: int
+
+
 class GenerationProvider(Protocol):
     """Create immutable config/revision candidates, then move only traffic."""
 
@@ -46,6 +60,11 @@ class GenerationProvider(Protocol):
         generation_digest: str,
         authority: str,
     ) -> ProviderGenerationActivation: ...
+
+    def read_active_binding(
+        self,
+        environment: str,
+    ) -> ProviderGenerationBinding: ...
 
 
 def _canonical(value: object) -> bytes:
@@ -193,6 +212,93 @@ class LocalRegistrationGenerationControl:
         if proposal is None:
             raise ValueError("stored current generation proposal is missing")
         return proposal
+
+    def bind_deployed_initial(
+        self,
+        proposal: RegistrationGenerationProposal,
+        *,
+        platform_source_revision: str,
+        object_name: str,
+        object_generation: int,
+    ) -> RegistrationGenerationProposal:
+        """Adopt the exact active bootstrap generation without provider mutation."""
+
+        try:
+            generation = proposal.registration_set["generation"]
+            previous = proposal.registration_set["previous_generation_digest"]
+            registrations = proposal.registration_set["registrations"]
+            source_revision = proposal.registration_set["proposal"]["source_revision"]
+            compiled_generation = proposal.compiled_configuration["generation"]
+            compiled_digest = proposal.compiled_configuration["generation_digest"]
+        except (KeyError, TypeError) as error:
+            raise ValueError("deployed initial generation proposal is invalid") from error
+        if (
+            proposal.environment != "staging"
+            or generation != 1
+            or compiled_generation != 1
+            or previous is not None
+            or registrations != []
+            or not isinstance(source_revision, str)
+            or not isinstance(platform_source_revision, str)
+            or compiled_digest != proposal.generation_digest
+            or object_name != "generations/1/compiled.json"
+            or object_generation < 1
+        ):
+            raise ValueError("deployed initial generation proposal is invalid")
+        if self._provider is None:
+            raise RuntimeError("generation provider is unavailable")
+        active = self._provider.read_active_binding(proposal.environment)
+        if (
+            active.environment != proposal.environment
+            or active.platform_source_revision != platform_source_revision
+            or active.generation != generation
+            or active.generation_digest != proposal.generation_digest
+            or active.content_digest != proposal.content_digest
+            or active.object_name != object_name
+            or active.object_generation != object_generation
+            or not active.revision_name
+        ):
+            raise ValueError("deployed initial generation binding mismatch")
+
+        proposal_path = self._proposal_path(
+            proposal.environment,
+            proposal.generation_digest,
+        )
+        self._filesystem.write_state(
+            proposal_path,
+            _canonical(self._value(proposal)) + b"\n",
+            replace=False,
+        )
+        self._filesystem.write_state(
+            self._provider_path(
+                proposal.environment,
+                proposal.generation_digest,
+            ),
+            _canonical(
+                {
+                    "generation_digest": proposal.generation_digest,
+                    "object_generation": object_generation,
+                    "revision_name": active.revision_name,
+                }
+            )
+            + b"\n",
+            replace=False,
+        )
+        self._filesystem.write_state(
+            self._pointer_path(proposal.environment),
+            _canonical(
+                {
+                    "generation_digest": proposal.generation_digest,
+                    "revision_name": active.revision_name,
+                }
+            )
+            + b"\n",
+            replace=False,
+        )
+        current = self.current(proposal.environment)
+        if current != proposal:
+            raise ValueError("deployed initial generation binding mismatch")
+        return current
 
     def publish(
         self,
@@ -406,5 +512,6 @@ __all__ = (
     "LocalRegistrationGenerationControl",
     "LocalReviewedGenerationControl",
     "ProviderGenerationActivation",
+    "ProviderGenerationBinding",
     "ProviderGenerationPublication",
 )

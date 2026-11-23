@@ -43,6 +43,7 @@ from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 from infrastructure.operator.local_fixture_preparations import (
     LocalFixturePreparations,
 )
+from infrastructure.operator.local_integration import PlatformIntegrationReadbackError
 
 
 _GOOGLE_SUBJECT = re.compile(r"[1-9][0-9]{5,63}")
@@ -620,6 +621,15 @@ class LocalFixtureOperator:
         try:
             source = self._git.inspect()
             platform = self._platform.read_platform(environment)
+        except PlatformIntegrationReadbackError as error:
+            return FixtureDeployResult(
+                "blocked",
+                None,
+                (),
+                None,
+                None,
+                (error.code,),
+            )
         except Exception:
             return FixtureDeployResult(
                 "blocked",
@@ -675,6 +685,17 @@ class LocalFixtureOperator:
         try:
             source = self._git.inspect()
             platform = self._platform.read_platform(environment)
+        except PlatformIntegrationReadbackError as error:
+            return FixtureHandoffResult(
+                "blocked",
+                application_id,
+                None,
+                None,
+                None,
+                None,
+                None,
+                blockers=(error.code,),
+            )
         except Exception:
             return FixtureHandoffResult(
                 "blocked",

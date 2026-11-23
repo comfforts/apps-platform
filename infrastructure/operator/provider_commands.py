@@ -14,6 +14,7 @@ from infrastructure.operator.integration import AttachmentTargetReadback
 from infrastructure.operator.local_generation import (
     GenerationProvider,
     ProviderGenerationActivation,
+    ProviderGenerationBinding,
     ProviderGenerationPublication,
 )
 from infrastructure.operator.local_qualification import (
@@ -536,20 +537,7 @@ class GcloudGenerationProvider(GenerationProvider):
             active_generation_digest=generation_digest,
         )
 
-    @staticmethod
-    def _component_digest(value: object) -> str:
-        payload = json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-        return "sha256:" + hashlib.sha256(payload).hexdigest()
-
-    def read_current(self, environment: str) -> ProviderQualificationSnapshot:
-        """Read the one active revision and its closed component bindings."""
-
+    def _active_revision(self, environment: str) -> tuple[str, dict[str, Any]]:
         if environment != "staging":
             raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
         service = self._describe_service()
@@ -570,6 +558,79 @@ class GcloudGenerationProvider(GenerationProvider):
         revision = self._describe_revision(revision_name)
         if revision is None:
             raise GenerationProviderError("GENERATION_REVISION_READBACK_MISSING")
+        if revision.get("metadata", {}).get("name") != revision_name:
+            raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
+        return revision_name, revision
+
+    def read_active_binding(self, environment: str) -> ProviderGenerationBinding:
+        """Read the exact active revision binding without changing provider state."""
+
+        revision_name, revision = self._active_revision(environment)
+        values = self._revision_environment(revision)
+        required = {
+            "APP_PLATFORM_CONFIGURATION_BUCKET",
+            "APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST",
+            "APP_PLATFORM_CONFIGURATION_OBJECT",
+            "APP_PLATFORM_CONFIGURATION_OBJECT_GENERATION",
+            "APP_PLATFORM_GENERATION_DIGEST",
+            "APP_PLATFORM_REGISTRATION_GENERATION",
+            "APP_PLATFORM_SOURCE_REVISION",
+        }
+        if not required <= set(values):
+            raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
+        try:
+            generation = int(values["APP_PLATFORM_REGISTRATION_GENERATION"])
+            object_generation = int(
+                values["APP_PLATFORM_CONFIGURATION_OBJECT_GENERATION"]
+            )
+        except ValueError as error:
+            raise GenerationProviderError(
+                "GENERATION_REVISION_BINDING_MISMATCH"
+            ) from error
+        source_revision = values["APP_PLATFORM_SOURCE_REVISION"]
+        generation_digest = values["APP_PLATFORM_GENERATION_DIGEST"]
+        content_digest = values["APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST"]
+        object_name = values["APP_PLATFORM_CONFIGURATION_OBJECT"]
+        if (
+            values["APP_PLATFORM_CONFIGURATION_BUCKET"]
+            != self._configuration_bucket
+            or generation < 1
+            or object_generation < 1
+            or len(source_revision) != 40
+            or any(character not in "0123456789abcdef" for character in source_revision)
+            or not generation_digest.startswith("sha256:")
+            or len(generation_digest) != 71
+            or not content_digest.startswith("sha256:")
+            or len(content_digest) != 71
+            or not object_name
+        ):
+            raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
+        return ProviderGenerationBinding(
+            environment=environment,
+            revision_name=revision_name,
+            platform_source_revision=source_revision,
+            generation=generation,
+            generation_digest=generation_digest,
+            content_digest=content_digest,
+            object_name=object_name,
+            object_generation=object_generation,
+        )
+
+    @staticmethod
+    def _component_digest(value: object) -> str:
+        payload = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+    def read_current(self, environment: str) -> ProviderQualificationSnapshot:
+        """Read the one active revision and its closed component bindings."""
+
+        revision_name, revision = self._active_revision(environment)
         values = self._revision_environment(revision)
         required = {
             "APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST",

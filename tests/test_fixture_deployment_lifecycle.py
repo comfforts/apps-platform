@@ -40,6 +40,7 @@ from infrastructure.operator.local_fixture_lifecycle import LocalFixtureOperator
 from infrastructure.operator.local_fixture_preparations import (
     LocalFixturePreparations,
 )
+from infrastructure.operator.local_integration import PlatformIntegrationReadbackError
 
 
 SOURCE_REVISION = "a" * 40
@@ -547,6 +548,40 @@ class LocalFixtureOperatorTest(unittest.TestCase):
             PLATFORM_REVISION,
         )
         self.assertEqual(lifecycle.request.expected_platform_generation, 7)
+
+    def test_surfaces_exact_platform_generation_recovery_blocker(self) -> None:
+        class Git:
+            def inspect(self):  # type: ignore[no-untyped-def]
+                return GitSnapshot(
+                    repository="comfforts/apps-platform",
+                    revision=SOURCE_REVISION,
+                    branch="main",
+                    clean=True,
+                    main_revision=SOURCE_REVISION,
+                    origin_main_revision=SOURCE_REVISION,
+                )
+
+        class Platform:
+            def read_platform(self, environment):  # type: ignore[no-untyped-def]
+                del environment
+                raise PlatformIntegrationReadbackError(
+                    "ACTIVE_REGISTRATION_GENERATION_RECOVERY_FAILED"
+                )
+
+        class Lifecycle:
+            def handoff(self, request):  # type: ignore[no-untyped-def]
+                raise AssertionError(f"unexpected handoff request: {request}")
+
+        result = LocalFixtureOperator(Git(), Platform(), Lifecycle()).handoff(
+            "staging",
+            "fixture-public",
+        )
+
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(
+            result.blockers,
+            ("ACTIVE_REGISTRATION_GENERATION_RECOVERY_FAILED",),
+        )
 
 
 @dataclass

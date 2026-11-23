@@ -13,6 +13,7 @@ from infrastructure.operator.local_generation import (
     LocalRegistrationGenerationControl,
     LocalReviewedGenerationControl,
     ProviderGenerationActivation,
+    ProviderGenerationBinding,
     ProviderGenerationPublication,
 )
 
@@ -45,6 +46,7 @@ def proposal(
         compiled_configuration={
             "contract_version": 1,
             "generation": generation,
+            "generation_digest": digest,
             "routes": [],
         },
         ownership_manifest={
@@ -65,6 +67,7 @@ class FakeProvider:
     activations: list[tuple[str, str, str, str]] = field(default_factory=list)
     stage_matches: bool = True
     activation_matches: bool = True
+    active_binding: ProviderGenerationBinding | None = None
 
     def stage(
         self,
@@ -97,6 +100,11 @@ class FakeProvider:
             active_generation_digest=generation_digest,
         )
 
+    def read_active_binding(self, environment: str) -> ProviderGenerationBinding:
+        if self.active_binding is None or self.active_binding.environment != environment:
+            raise RuntimeError("active generation binding is unavailable")
+        return self.active_binding
+
 
 class LocalGenerationControlTest(unittest.TestCase):
     def _control(
@@ -127,7 +135,10 @@ class LocalGenerationControlTest(unittest.TestCase):
         self.assertEqual(len(provider.published), 1)
         self.assertEqual(
             provider.published[0][1],
-            b'{"contract_version":1,"generation":1,"routes":[]}',
+            (
+                b'{"contract_version":1,"generation":1,'
+                b'"generation_digest":"sha256:' + (b"1" * 64) + b'","routes":[]}'
+            ),
         )
 
     def test_activation_moves_only_to_the_bound_staged_revision(self) -> None:
@@ -155,6 +166,73 @@ class LocalGenerationControlTest(unittest.TestCase):
                 )
             ],
         )
+
+    def test_adopts_exact_deployed_initial_generation_without_provider_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            binding = ProviderGenerationBinding(
+                environment="staging",
+                revision_name="app-platform-edge-initial",
+                platform_source_revision="b" * 40,
+                generation=1,
+                generation_digest=proposal().generation_digest,
+                content_digest=proposal().content_digest,
+                object_name="generations/1/compiled.json",
+                object_generation=41,
+            )
+            control, provider = self._control(
+                directory,
+                FakeProvider(active_binding=binding),
+            )
+
+            first = control.bind_deployed_initial(
+                proposal(),
+                platform_source_revision="b" * 40,
+                object_name="generations/1/compiled.json",
+                object_generation=41,
+            )
+            second = control.bind_deployed_initial(
+                proposal(),
+                platform_source_revision="b" * 40,
+                object_name="generations/1/compiled.json",
+                object_generation=41,
+            )
+            current = control.current("staging")
+
+        self.assertEqual(first, proposal())
+        self.assertEqual(second, proposal())
+        self.assertEqual(current, proposal())
+        self.assertEqual(provider.published, [])
+        self.assertEqual(provider.activations, [])
+
+    def test_rejects_deployed_initial_generation_binding_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            binding = ProviderGenerationBinding(
+                environment="staging",
+                revision_name="app-platform-edge-initial",
+                platform_source_revision="a" * 40,
+                generation=1,
+                generation_digest=_digest("e"),
+                content_digest=proposal().content_digest,
+                object_name="generations/1/compiled.json",
+                object_generation=41,
+            )
+            control, _ = self._control(
+                directory,
+                FakeProvider(active_binding=binding),
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "deployed initial generation binding mismatch",
+            ):
+                control.bind_deployed_initial(
+                    proposal(),
+                    platform_source_revision="a" * 40,
+                    object_name="generations/1/compiled.json",
+                    object_generation=41,
+                )
+
+        self.assertIsNone(control.current("staging"))
 
     def test_conflict_or_provider_mismatch_never_advances_current_pointer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

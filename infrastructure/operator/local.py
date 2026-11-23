@@ -763,7 +763,12 @@ def build_local_integration(
     provider = _local_generation_provider(resolved_project, state_root)
     generations = LocalRegistrationGenerationControl(filesystem, provider)
     return ApplicationIntegrationLifecycle(
-        LocalPlatformIntegrationReader(filesystem, operator, generations),
+        LocalPlatformIntegrationReader(
+            filesystem,
+            operator,
+            generations,
+            initial_generation_binder=generations,
+        ),
         attachment_reader=provider,
         generation_control=generations if provider is not None else None,
         terminal=ConsoleTerminal(),
@@ -876,6 +881,7 @@ def build_local_fixture_operator(
         filesystem,
         build_local_operator(resolved_project, resolved_state, source_authority),
         generations,
+        initial_generation_binder=generations,
     )
     terminal = ConsoleTerminal()
     integration = ApplicationIntegrationLifecycle(
@@ -943,6 +949,7 @@ def build_local_fixture_status_operator(
         filesystem,
         build_local_operator(resolved_project, resolved_state, source_authority),
         generations,
+        initial_generation_binder=generations,
     )
     return LocalFixtureStatusOperator(
         ApplicationIntegrationLifecycle(
@@ -1021,6 +1028,7 @@ def build_local_qualification(
         filesystem,
         build_local_operator(resolved_project, resolved_state, source_authority),
         generations,
+        initial_generation_binder=generations,
     )
     terminal = ConsoleTerminal()
     state_reader = LocalQualificationStateReader(

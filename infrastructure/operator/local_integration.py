@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
-from typing import Any
+from typing import Any, Protocol
 
 from contracts.lifecycle import load_lifecycle_document
 from infrastructure.operator._interfaces import StatusResult
@@ -13,6 +13,7 @@ from infrastructure.operator.integration import (
     RegistrationGenerationProposal,
 )
 from infrastructure.operator.local import LocalFilesystem
+from infrastructure.operator.local_deployment import initial_generation
 from infrastructure.operator.local_qualification import (
     EnvironmentStatusReader,
     RegistrationGenerationReader,
@@ -26,6 +27,25 @@ _EDGE_CALLER = (
 )
 
 
+class PlatformIntegrationReadbackError(RuntimeError):
+    """Stable, non-sensitive platform readback blocker for operator output."""
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
+
+
+class InitialGenerationBinder(Protocol):
+    def bind_deployed_initial(
+        self,
+        proposal: RegistrationGenerationProposal,
+        *,
+        platform_source_revision: str,
+        object_name: str,
+        object_generation: int,
+    ) -> RegistrationGenerationProposal: ...
+
+
 class LocalPlatformIntegrationReader:
     """Read exact deployed platform facts without opening any Application State."""
 
@@ -34,10 +54,13 @@ class LocalPlatformIntegrationReader:
         filesystem: LocalFilesystem,
         status_reader: EnvironmentStatusReader,
         generations: RegistrationGenerationReader,
+        *,
+        initial_generation_binder: InitialGenerationBinder | None = None,
     ) -> None:
         self._filesystem = filesystem
         self._status_reader = status_reader
         self._generations = generations
+        self._initial_generation_binder = initial_generation_binder
 
     def _current_progress(self, environment: str) -> dict[str, Any]:
         payload = self._filesystem.read_state(
@@ -143,6 +166,104 @@ class LocalPlatformIntegrationReader:
             else "unqualified"
         )
 
+    def _bind_initial_generation(
+        self,
+        environment: str,
+        source_revision: str,
+        outputs: dict[str, str],
+    ) -> RegistrationGenerationProposal:
+        binder = self._initial_generation_binder
+        if binder is None:
+            raise PlatformIntegrationReadbackError(
+                "ACTIVE_REGISTRATION_GENERATION_UNAVAILABLE"
+            )
+        reference_payload = outputs.get("registration-generation-reference")
+        try:
+            reference = json.loads(reference_payload or "")
+        except json.JSONDecodeError as error:
+            raise PlatformIntegrationReadbackError(
+                "INITIAL_REGISTRATION_GENERATION_REFERENCE_INVALID"
+            ) from error
+        if (
+            not isinstance(reference, dict)
+            or set(reference)
+            != {
+                "content_digest",
+                "generation",
+                "generation_digest",
+                "object_generation",
+                "object_name",
+            }
+            or reference.get("generation") != 1
+            or not isinstance(reference.get("content_digest"), str)
+            or not isinstance(reference.get("generation_digest"), str)
+            or reference.get("object_name") != "generations/1/compiled.json"
+            or not isinstance(reference.get("object_generation"), int)
+            or reference["object_generation"] < 1
+        ):
+            raise PlatformIntegrationReadbackError(
+                "INITIAL_REGISTRATION_GENERATION_REFERENCE_MISMATCH"
+            )
+        source_revisions = {source_revision}
+        progress_directory = self._filesystem.state_path(
+            f"environments/{environment}/progress"
+        )
+        for path in sorted(progress_directory.glob("*.final.v1.json")):
+            try:
+                payload = path.read_bytes()
+                if len(payload) > 4 * 1024 * 1024:
+                    continue
+                progress = json.loads(payload)
+                if (
+                    not isinstance(progress, dict)
+                    or progress.get("environment") != environment
+                    or not isinstance(progress.get("source_revision"), str)
+                    or self._outputs(progress).get(
+                        "registration-generation-reference"
+                    )
+                    != reference_payload
+                ):
+                    continue
+                source_revisions.add(progress["source_revision"])
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+                continue
+        matches = []
+        for candidate_revision in sorted(source_revisions):
+            try:
+                candidate = initial_generation(candidate_revision)
+            except (RuntimeError, ValueError):
+                continue
+            if (
+                candidate.content_digest == reference["content_digest"]
+                and candidate.generation_digest == reference["generation_digest"]
+                and candidate.object_name == reference["object_name"]
+            ):
+                matches.append(candidate)
+        if len(matches) != 1:
+            raise PlatformIntegrationReadbackError(
+                "INITIAL_REGISTRATION_GENERATION_HISTORY_UNAVAILABLE"
+            )
+        expected = matches[0]
+        proposal = RegistrationGenerationProposal(
+            environment=environment,
+            registration_set=expected.registration_set,
+            compiled_configuration=expected.compiled_configuration,
+            ownership_manifest=expected.ownership_manifest,
+            generation_digest=expected.generation_digest,
+            content_digest=expected.content_digest,
+        )
+        try:
+            return binder.bind_deployed_initial(
+                proposal,
+                platform_source_revision=source_revision,
+                object_name=expected.object_name,
+                object_generation=reference["object_generation"],
+            )
+        except Exception as error:
+            raise PlatformIntegrationReadbackError(
+                "ACTIVE_REGISTRATION_GENERATION_RECOVERY_FAILED"
+            ) from error
+
     def read_platform(self, environment: str) -> PlatformIntegrationState:
         if environment != "staging":
             raise ValueError("platform integration environment is unavailable")
@@ -150,13 +271,20 @@ class LocalPlatformIntegrationReader:
         status = result.environment_status
         if result.conflicts or status.get("lifecycle_state") != "deployed":
             raise ValueError("platform integration state is not deployed")
-        generation = self._generations.current(environment)
-        if generation is None:
-            raise ValueError("active registration generation is unavailable")
         progress = self._current_progress(environment)
         if self._progress_digest(progress) != status.get("progress_digest"):
             raise ValueError("deployment progress does not match environment status")
         outputs = self._outputs(progress)
+        source_revision = status.get("source_revision")
+        if not isinstance(source_revision, str):
+            raise ValueError("platform integration state is incomplete")
+        generation = self._generations.current(environment)
+        if generation is None:
+            generation = self._bind_initial_generation(
+                environment,
+                source_revision,
+                outputs,
+            )
         oauth_client_id = outputs.get("oauth-client-id")
         if not oauth_client_id:
             raise ValueError("OAuth client readback is unavailable")
@@ -192,4 +320,7 @@ class LocalPlatformIntegrationReader:
         )
 
 
-__all__ = ("LocalPlatformIntegrationReader",)
+__all__ = (
+    "LocalPlatformIntegrationReader",
+    "PlatformIntegrationReadbackError",
+)

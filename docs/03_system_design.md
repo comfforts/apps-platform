@@ -836,6 +836,12 @@ replaces one private progress record after each successful readback:
     instead of being classified as pending; and
 11. state/provider/ownership readback and status reconciliation.
 
+The first execution of step 8 is dark and leaves TLS disabled until external DNS is verified. On a
+later source-bound reconciliation, the operator reads the exact Platform State addresses before
+planning. If the managed certificate is already state-owned, step 8 preserves the certificate and
+its HTTPS resources instead of rendering the first-deployment TLS-disabled shape. State presence
+does not imply readiness; step 10 still verifies DNS and the provider-managed certificate status.
+
 The operator transcript groups those eleven internal resume checkpoints into seven numbered human
 stages: verification; state and foundation bootstrap; immutable image and generation publication;
 OAuth configuration; Shared Edge creation; DNS and TLS; and final platform readback. Each group is

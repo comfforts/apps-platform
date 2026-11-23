@@ -290,6 +290,13 @@ normal Shared Edge plan reconciles the partial inventory. Any create, update, de
 unexpected address, or unknown type in the refresh-only plan fails policy. Do not disable
 `prevent_destroy`, manually remove the partial resources, or edit state to advance the lifecycle.
 
+That later Shared Edge plan also reads the exact Platform State address inventory. A true first
+deployment keeps TLS disabled until the DNS checkpoint. If the managed-certificate address is
+already in Platform State, reconciliation keeps TLS enabled so Terraform cannot reinterpret the
+existing certificate, HTTPS proxy, or forwarding rule as a return to the dark first-deployment
+phase. This preservation is not certificate readiness: the DNS and TLS stage still verifies the
+record and requires the provider certificate status to become active.
+
 A failed foundation apply can leave the already-created signing key ring marked as tainted in
 Terraform state. On the next deployment, the operator recognizes only the exact protected-key-ring
 diagnostic, removes the unusable failed plan, and reads back the immutable live key-ring identity.

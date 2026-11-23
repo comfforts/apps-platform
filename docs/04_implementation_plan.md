@@ -1807,7 +1807,10 @@ deployment. Before foundation planning, the operator projects exact Platform Sta
 existing Shared Edge selects a refresh-only foundation plan whose policy admits only `no-op` and
 `read` observations; the later normal Shared Edge plan performs the actual reconciliation. This
 prevents a new specification from interpreting already recorded edge resources as foundation-stage
-deletion targets.
+deletion targets. Before that later plan, an existing managed-certificate state address keeps the
+Shared Edge in its TLS-enabled shape; only a genuine first deployment renders the dark
+TLS-disabled phase. DNS and provider certificate readback remain mandatory and independent of the
+state-address observation.
 
 W9 also adds `platform-preflight` as the non-publishing readiness path. It runs the same source,
 profile, tool, authentication, project, ownership, and discovery checks used before preparation,

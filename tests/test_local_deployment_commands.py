@@ -109,6 +109,19 @@ class FakeTerraform:
                 bootstrap_remote,
             )
         self.assert_private(variable_file)
+        variables = json.loads(variable_file.read_text(encoding="utf-8"))
+        if (
+            request.phase == "shared-edge"
+            and (
+                "module.shared_edge[0].google_compute_managed_ssl_certificate."
+                "edge[0]"
+            )
+            in self.state_addresses
+            and not variables["platform_configuration"]["shared_edge"]["tls_enabled"]
+        ):
+            raise DeploymentCommandError(
+                "TERRAFORM_PROTECTED_RESOURCE_DELETE_PROPOSED"
+            )
         self.refresh_only_plans.append(refresh_only)
         plan = terraform_root / "saved.tfplan"
         plan.write_bytes(b"saved plan")
@@ -139,8 +152,8 @@ class FakeTerraform:
         terraform_root: Path,
     ) -> tuple[str, ...]:
         del terraform_root
-        if request.phase != "platform-foundation":
-            raise AssertionError("state projection is only expected for foundation")
+        if request.phase not in {"platform-foundation", "shared-edge"}:
+            raise AssertionError("state projection is only expected for platform phases")
         return self.state_addresses
 
     @staticmethod
@@ -508,6 +521,71 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
 
         self.assertEqual(terraform.refresh_only_plans, [True])
         self.assertEqual(artifact.observation["planning_mode"], "refresh-only")
+
+    def test_shared_edge_redeployment_preserves_existing_tls_resources(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, _, _, work = self._commands(directory)
+            terraform.state_addresses = (
+                "module.shared_edge[0].google_compute_managed_ssl_certificate."
+                "edge[0]",
+                "module.shared_edge[0].google_compute_target_https_proxy.edge[0]",
+                "module.shared_edge[0].google_compute_global_forwarding_rule.https[0]",
+            )
+            foundation = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+            commands.create_terraform_plan(
+                foundation,
+                _request(work, "platform-foundation"),
+            )
+            foundation_result = self._readback(
+                commands,
+                foundation,
+                "platform-foundation",
+            )
+            edge_inputs = (
+                (
+                    "foundation.foundation-reference",
+                    dict(foundation_result.outputs)["foundation-reference"],
+                ),
+                (
+                    "image-publish.shared-edge-image-digest",
+                    "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                    "app-platform-images/shared-edge@sha256:" + "d" * 64,
+                ),
+                (
+                    "oauth-configuration.oauth-client-id",
+                    "123-client.apps.googleusercontent.com",
+                ),
+                (
+                    "oauth-configuration.oauth-secret-version",
+                    "projects/comfforts-platform-non-prod/secrets/"
+                    "app-platform-edge-oauth/versions/1",
+                ),
+                (
+                    "generation-publish.registration-generation-reference",
+                    initial_generation(SOURCE).reference(42),
+                ),
+            )
+            edge = _context(
+                "shared-edge",
+                ("edge-reference", "hostname", "reserved-address"),
+                edge_inputs,
+            )
+
+            commands.create_terraform_plan(edge, _request(work, "shared-edge"))
+            result = self._readback(commands, edge, "shared-edge")
+            variables = json.loads(
+                (work / "shared-edge/terraform.tfvars.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+        self.assertTrue(result.matched)
+        self.assertTrue(
+            variables["platform_configuration"]["shared_edge"]["tls_enabled"]
+        )
 
     def test_signing_key_ring_recovery_verifies_live_identity_before_untaint(
         self,

@@ -371,6 +371,8 @@ class DeploymentConfigurationRenderer:
         self,
         context: StageContext,
         phase: str,
+        *,
+        preserve_shared_edge_tls: bool = False,
     ) -> dict[str, Any]:
         shared_edge: dict[str, Any] | None = None
         if phase == "shared-edge":
@@ -404,7 +406,10 @@ class DeploymentConfigurationRenderer:
                         "source_revision": context.source_revision,
                         **generation,
                     },
-                    "tls_enabled": context.stage["stage_id"] == "tls-readiness",
+                    "tls_enabled": (
+                        context.stage["stage_id"] == "tls-readiness"
+                        or preserve_shared_edge_tls
+                    ),
                 }
             except (KeyError, TypeError) as error:
                 raise LocalDeploymentInputError(
@@ -515,12 +520,21 @@ class DeploymentConfigurationRenderer:
         self,
         context: StageContext,
         request: PhasePlanRequest,
+        *,
+        preserve_shared_edge_tls: bool = False,
     ) -> RenderedTerraformInput:
         if context.environment != "staging" or request.environment != "staging":
             raise LocalDeploymentInputError("OWNERSHIP_TRANSFER_REQUIRED")
         if (
             request.source_revision != context.source_revision
             or request.phase not in _PLATFORM_PHASES
+            or (
+                preserve_shared_edge_tls
+                and (
+                    request.phase != "shared-edge"
+                    or context.stage.get("stage_id") != "shared-edge"
+                )
+            )
         ):
             raise LocalDeploymentInputError("TERRAFORM_CONTEXT_MISMATCH")
         root = self._workspace.prepare_phase(request.phase)
@@ -534,7 +548,11 @@ class DeploymentConfigurationRenderer:
         else:
             kind = "platform"
             variable_name = "platform_configuration"
-            configuration = self._platform(context, request.phase)
+            configuration = self._platform(
+                context,
+                request.phase,
+                preserve_shared_edge_tls=preserve_shared_edge_tls,
+            )
         violations = validate_configuration(configuration, kind)
         if violations:
             raise LocalDeploymentInputError("TERRAFORM_CONFIGURATION_INVALID")

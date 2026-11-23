@@ -60,6 +60,9 @@ _DNS_CONSOLE = "https://account.squarespace.com/domains"
 _CLIENT_ID = re.compile(r"[0-9]+-[a-z0-9-]+\.apps\.googleusercontent\.com")
 _IPV4 = re.compile(r"(?:[0-9]{1,3}\.){3}[0-9]{1,3}")
 _SHARED_EDGE_STATE_PREFIX = "module.shared_edge["
+_SHARED_EDGE_CERTIFICATE_STATE_ADDRESS = (
+    "module.shared_edge[0].google_compute_managed_ssl_certificate.edge[0]"
+)
 
 
 class DeploymentTerraform(Protocol):
@@ -155,6 +158,7 @@ class _RenderedPlan:
     request: PhasePlanRequest
     rendered: RenderedTerraformInput
     initial_bootstrap: bool = False
+    shared_edge_tls_enabled: bool | None = None
 
 
 class LocalDeploymentCommands:
@@ -195,6 +199,7 @@ class LocalDeploymentCommands:
     ) -> TerraformPlanArtifact:
         try:
             rendered = self._renderer.render(context, request)
+            stage_id = self._stage_id(context)
             bootstrap_remote = False
             initial_bootstrap = False
             if request.phase == "bootstrap":
@@ -208,20 +213,40 @@ class LocalDeploymentCommands:
                             "TERRAFORM_BACKEND_BINDING_MISMATCH"
                         )
                     request.backend_path.unlink()
-            plan = _RenderedPlan(request, rendered, initial_bootstrap)
-            stage_id = self._stage_id(context)
-            self._plans_by_stage[stage_id] = plan
-            self._plans_by_request[id(request)] = plan
             refresh_only = False
-            if request.phase == "platform-foundation":
+            shared_edge_tls_enabled: bool | None = None
+            if request.phase in {"platform-foundation", "shared-edge"}:
                 state_addresses = self._terraform.platform_state_addresses(
                     request,
                     rendered.terraform_root,
                 )
+            if request.phase == "platform-foundation":
                 refresh_only = any(
                     address.startswith(_SHARED_EDGE_STATE_PREFIX)
                     for address in state_addresses
                 )
+            elif request.phase == "shared-edge":
+                preserve_shared_edge_tls = (
+                    stage_id == "shared-edge"
+                    and _SHARED_EDGE_CERTIFICATE_STATE_ADDRESS in state_addresses
+                )
+                if preserve_shared_edge_tls:
+                    rendered = self._renderer.render(
+                        context,
+                        request,
+                        preserve_shared_edge_tls=True,
+                    )
+                shared_edge_tls_enabled = (
+                    stage_id == "tls-readiness" or preserve_shared_edge_tls
+                )
+            plan = _RenderedPlan(
+                request,
+                rendered,
+                initial_bootstrap,
+                shared_edge_tls_enabled,
+            )
+            self._plans_by_stage[stage_id] = plan
+            self._plans_by_request[id(request)] = plan
             return self._terraform.create_plan(
                 request,
                 rendered.terraform_root,
@@ -425,7 +450,15 @@ class LocalDeploymentCommands:
                     ),
                 )
             if request.stage_id == "shared-edge":
-                edge, address = self._edge_references(value, tls_enabled=False)
+                if not isinstance(planned.shared_edge_tls_enabled, bool):
+                    return TerraformReadback(
+                        False,
+                        blockers=("TERRAFORM_PLAN_CONTEXT_MISSING",),
+                    )
+                edge, address = self._edge_references(
+                    value,
+                    tls_enabled=planned.shared_edge_tls_enabled,
+                )
                 return TerraformReadback(
                     True,
                     (
@@ -433,6 +466,11 @@ class LocalDeploymentCommands:
                         ("hostname", _HOSTNAME),
                         ("reserved-address", address),
                     ),
+                )
+            if planned.shared_edge_tls_enabled is not True:
+                return TerraformReadback(
+                    False,
+                    blockers=("TERRAFORM_PLAN_CONTEXT_MISSING",),
                 )
             self._edge_references(value, tls_enabled=True)
             certificate = self._provider.certificate_readback()

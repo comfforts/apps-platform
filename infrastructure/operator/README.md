@@ -210,3 +210,9 @@ messages and tracebacks are not operator output.
 Safe `ACTION`, `READBACK`, and `PLAN` narration uses multiline, sorted, two-space-indented JSON for
 operator inspection. Digest binding continues to use canonical compact serialization independently
 of this display-only formatting.
+
+`platform-deploy` presents seven numbered operator stages while retaining eleven internal
+readback-closed resume checkpoints. Related internal actions share one human stage, including DNS
+creation and TLS planning/readiness as `Stage 6/7 · Configure DNS and TLS`. A new process announces
+the stage containing its first pending checkpoint, making resume position visible without
+replaying a completed mutation.

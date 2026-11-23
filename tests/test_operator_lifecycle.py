@@ -97,10 +97,12 @@ class FixedClock:
 class FakeExecutor:
     scripted: list[StageExecution | BaseException] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
+    contexts: list[StageContext] = field(default_factory=list)
 
     def execute(self, context: StageContext) -> StageExecution:
         stage_id = str(context.stage["stage_id"])
         self.calls.append(stage_id)
+        self.contexts.append(context)
         if self.scripted:
             selected = self.scripted.pop(0)
             if isinstance(selected, BaseException):
@@ -483,6 +485,80 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertEqual(terminal_progress["completed"][-1]["stage_id"], "readback")
         self.assertEqual(journal_files, [])
         self.assertEqual(len(executor.calls), 11)
+        tls_context = next(
+            context
+            for context in executor.contexts
+            if context.stage["stage_id"] == "tls-readiness"
+        )
+        self.assertEqual(
+            {name for name, _ in tls_context.inputs},
+            {
+                "foundation.foundation-reference",
+                "image-publish.shared-edge-image-digest",
+                "oauth-configuration.oauth-client-id",
+                "oauth-configuration.oauth-secret-version",
+                "generation-publish.registration-generation-reference",
+                "shared-edge.edge-reference",
+            },
+        )
+
+    def test_operator_stages_are_numbered_and_tls_resume_repeats_stage_six(self) -> None:
+        @dataclass
+        class FailTlsOnceExecutor(FakeExecutor):
+            failed_tls: bool = False
+
+            def execute(self, context: StageContext) -> StageExecution:
+                if context.stage["stage_id"] == "tls-readiness" and not self.failed_tls:
+                    self.calls.append("tls-readiness")
+                    self.contexts.append(context)
+                    self.failed_tls = True
+                    return StageExecution(
+                        "failed",
+                        blockers=("SHARED_EDGE_INPUT_INCOMPLETE",),
+                    )
+                return super().execute(context)
+
+        with tempfile.TemporaryDirectory() as directory:
+            terminal = FakeTerminal([True])
+            executor = FailTlsOnceExecutor()
+            operator, _ = self._operator(
+                Path(directory),
+                terminal=terminal,
+                executor=executor,
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            failed = operator.execute("staging", prepared.specification_digest)
+            first_run_stages = [
+                message for message in terminal.messages if message.startswith("▸ Stage")
+            ]
+            terminal.messages.clear()
+            resumed = operator.execute("staging", prepared.specification_digest)
+            resumed_stages = [
+                message for message in terminal.messages if message.startswith("▸ Stage")
+            ]
+
+        self.assertEqual(failed.outcome, "failed")
+        self.assertEqual(
+            first_run_stages,
+            [
+                "▸ Stage 1/7 · Verify source, tools, identity, and project",
+                "▸ Stage 2/7 · Bootstrap state and platform foundation",
+                "▸ Stage 3/7 · Publish the immutable image and initial generation",
+                "▸ Stage 4/7 · Configure OAuth",
+                "▸ Stage 5/7 · Create the Shared Edge",
+                "▸ Stage 6/7 · Configure DNS and TLS",
+            ],
+        )
+        self.assertEqual(resumed.outcome, "succeeded")
+        self.assertEqual(
+            resumed_stages,
+            [
+                "▸ Stage 6/7 · Configure DNS and TLS",
+                "▸ Stage 7/7 · Verify the deployed platform",
+            ],
+        )
 
     def test_interruption_resumes_after_last_readback_closed_stage(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -215,6 +215,10 @@ _POLLING = {
     "tls-readiness": (30, 10),
 }
 _TERRAFORM_PLAN_GUIDANCE = {
+    "SHARED_EDGE_INPUT_INCOMPLETE": (
+        "a required immutable Shared Edge binding is unavailable; inspect the "
+        "closed predecessor-stage outputs before retrying"
+    ),
     "TERRAFORM_BACKEND_ACCESS_DENIED": (
         "the operator session cannot read the selected Terraform backend"
     ),

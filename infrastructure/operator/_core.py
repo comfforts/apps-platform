@@ -130,7 +130,14 @@ _DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
         "stage_id": "tls-readiness",
         "actions": ["create", "read"],
         "produces": ["certificate-reference"],
-        "consumes": [("shared-edge", "edge-reference")],
+        "consumes": [
+            ("foundation", "foundation-reference"),
+            ("image-publish", "shared-edge-image-digest"),
+            ("oauth-configuration", "oauth-client-id"),
+            ("oauth-configuration", "oauth-secret-version"),
+            ("generation-publish", "registration-generation-reference"),
+            ("shared-edge", "edge-reference"),
+        ],
         "manual_checkpoint": "none",
     },
     {
@@ -143,6 +150,20 @@ _DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
 )
 
 _STAGE_IDS = tuple(str(stage["stage_id"]) for stage in _DEPLOYMENT_STAGES)
+_OPERATOR_STAGE_PRESENTATION = {
+    "preflight": (1, "Verify source, tools, identity, and project"),
+    "bootstrap-services": (2, "Bootstrap state and platform foundation"),
+    "bootstrap": (2, "Bootstrap state and platform foundation"),
+    "foundation": (2, "Bootstrap state and platform foundation"),
+    "image-publish": (3, "Publish the immutable image and initial generation"),
+    "generation-publish": (3, "Publish the immutable image and initial generation"),
+    "oauth-configuration": (4, "Configure OAuth"),
+    "shared-edge": (5, "Create the Shared Edge"),
+    "external-dns": (6, "Configure DNS and TLS"),
+    "tls-readiness": (6, "Configure DNS and TLS"),
+    "readback": (7, "Verify the deployed platform"),
+}
+_OPERATOR_STAGE_COUNT = 7
 _REPLACEABLE_PROGRESS = {"cancelled", "failed", "succeeded"}
 _PROGRESS_STATUSES = {"cancelled", "failed", "running", "succeeded", "waiting"}
 _READINESS_BLOCKER_GUIDANCE = {
@@ -990,11 +1011,19 @@ class LifecycleOperator:
 
         assert self._adapters.executor is not None
         closed, outputs = self._closed_outputs(progress)
+        announced_operator_stages: set[int] = set()
         for index, stage_template in enumerate(_DEPLOYMENT_STAGES):
             stage = dict(stage_template)
             stage_id = str(stage["stage_id"])
             if stage_id in closed:
                 continue
+            operator_stage, operator_title = _OPERATOR_STAGE_PRESENTATION[stage_id]
+            if operator_stage not in announced_operator_stages:
+                self._adapters.terminal.write(
+                    f"▸ Stage {operator_stage}/{_OPERATOR_STAGE_COUNT} · "
+                    f"{operator_title}"
+                )
+                announced_operator_stages.add(operator_stage)
             inputs = self._stage_inputs(stage, outputs)
             context_stage = {
                 **stage,

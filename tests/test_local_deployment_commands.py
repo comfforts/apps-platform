@@ -15,6 +15,7 @@ from infrastructure.backend import (
 )
 from infrastructure.operator import StageContext
 from infrastructure.operator.deployment import (
+    DeploymentCommandError,
     ExactAction,
     ExactTerraformPlan,
     TerraformPlanArtifact,
@@ -414,30 +415,45 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             )
             reference = dict(foundation_result.outputs)["foundation-reference"]
             generation = initial_generation(SOURCE)
+            edge_inputs = (
+                ("foundation.foundation-reference", reference),
+                (
+                    "image-publish.shared-edge-image-digest",
+                    "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                    "app-platform-images/shared-edge@sha256:" + "d" * 64,
+                ),
+                (
+                    "oauth-configuration.oauth-client-id",
+                    "123-client.apps.googleusercontent.com",
+                ),
+                (
+                    "oauth-configuration.oauth-secret-version",
+                    "projects/comfforts-platform-non-prod/secrets/"
+                    "app-platform-edge-oauth/versions/1",
+                ),
+                (
+                    "generation-publish.registration-generation-reference",
+                    generation.reference(42),
+                ),
+            )
             edge = _context(
                 "shared-edge",
                 ("edge-reference", "reserved-address"),
-                (
-                    ("foundation.foundation-reference", reference),
-                    (
-                        "image-publish.shared-edge-image-digest",
-                        "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
-                        "app-platform-images/shared-edge@sha256:" + "d" * 64,
-                    ),
-                    ("oauth-configuration.oauth-client-id", "123-client.apps.googleusercontent.com"),
-                    (
-                        "oauth-configuration.oauth-secret-version",
-                        "projects/comfforts-platform-non-prod/secrets/"
-                        "app-platform-edge-oauth/versions/1",
-                    ),
-                    (
-                        "generation-publish.registration-generation-reference",
-                        generation.reference(42),
-                    ),
-                ),
+                edge_inputs,
             )
             commands.create_terraform_plan(edge, _request(work, "shared-edge"))
             edge_result = self._readback(commands, edge, "shared-edge")
+            tls = _context(
+                "tls-readiness",
+                ("certificate-reference",),
+                (*edge_inputs, ("shared-edge.edge-reference", "verified-edge")),
+            )
+            commands.create_terraform_plan(tls, _request(work, "shared-edge"))
+            variables = json.loads(
+                (work / "shared-edge/terraform.tfvars.json").read_text(
+                    encoding="utf-8"
+                )
+            )
 
         self.assertTrue(foundation_result.matched)
         self.assertIn("signing_key_version", json.loads(reference))
@@ -445,6 +461,26 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             dict(edge_result.outputs)["reserved-address"],
             "34.120.10.20",
         )
+        self.assertTrue(
+            variables["platform_configuration"]["shared_edge"]["tls_enabled"]
+        )
+
+    def test_renderer_blocker_is_not_hidden_as_plan_command_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, _, _, _, work = self._commands(directory)
+            context = _context(
+                "tls-readiness",
+                ("certificate-reference",),
+                (("shared-edge.edge-reference", "verified-edge"),),
+            )
+
+            with self.assertRaises(DeploymentCommandError) as raised:
+                commands.create_terraform_plan(
+                    context,
+                    _request(work, "shared-edge"),
+                )
+
+        self.assertEqual(str(raised.exception), "SHARED_EDGE_INPUT_INCOMPLETE")
 
     def test_foundation_preserves_existing_shared_edge_with_refresh_only_plan(
         self,

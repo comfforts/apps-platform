@@ -835,6 +835,13 @@ replaces one private progress record after each successful readback:
    propagation wait; and
 11. state/provider/ownership readback and status reconciliation.
 
+The operator transcript groups those eleven internal resume checkpoints into seven numbered human
+stages: verification; state and foundation bootstrap; immutable image and generation publication;
+OAuth configuration; Shared Edge creation; DNS and TLS; and final platform readback. Each group is
+announced as `Stage n/7` when first entered in a process. A resumed process announces the group
+containing its first unclosed internal checkpoint, so a resume at certificate planning reports
+`Stage 6/7 · Configure DNS and TLS` without repeating the already closed DNS action.
+
 The local wizard remains active at a manual checkpoint, prints the exact approved values and
 provider destination, and waits for Enter. It never asks for a secret payload. After acknowledgement
 it verifies every provider-readable value; an unreadable field is recorded as operator-attested.

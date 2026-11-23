@@ -32,6 +32,7 @@ from infrastructure.operator.deployment_provider import DeploymentProviderError
 from infrastructure.operator.local_deployment import (
     DeploymentConfigurationRenderer,
     InitialGeneration,
+    LocalDeploymentInputError,
     OperatorSessionFacts,
     RenderedTerraformInput,
     initial_generation,
@@ -227,6 +228,8 @@ class LocalDeploymentCommands:
                 bootstrap_remote=bootstrap_remote,
                 refresh_only=refresh_only,
             )
+        except LocalDeploymentInputError as error:
+            raise DeploymentCommandError(str(error)) from error
         except DeploymentCommandError:
             raise
         except (OSError, RuntimeError, ValueError) as error:

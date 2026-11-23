@@ -210,9 +210,12 @@ class NetworkedFixtureTest(unittest.TestCase):
             PROJECT_ROOT / "infrastructure/images/fixture/Dockerfile"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("ARG UV_BUILD_IMAGE", dockerfile)
+        self.assertIn("ARG UV_IMAGE", dockerfile)
+        self.assertIn("ARG PYTHON_BUILD_IMAGE", dockerfile)
         self.assertIn("ARG PYTHON_RUNTIME_IMAGE", dockerfile)
-        self.assertIn("FROM ${UV_BUILD_IMAGE} AS build", dockerfile)
+        self.assertIn("FROM ${UV_IMAGE} AS uv", dockerfile)
+        self.assertIn("FROM ${PYTHON_BUILD_IMAGE} AS build", dockerfile)
+        self.assertIn("COPY --from=uv /uv /uvx /bin/", dockerfile)
         self.assertIn("FROM ${PYTHON_RUNTIME_IMAGE}", dockerfile)
         self.assertIn("uv sync --frozen", dockerfile)
         self.assertIn("USER 65532:65532", dockerfile)
@@ -227,7 +230,8 @@ class NetworkedFixtureTest(unittest.TestCase):
             PROJECT_ROOT / "infrastructure/images/fixture/cloudbuild.yaml"
         ).read_text(encoding="utf-8")
         self.assertIn("gcr.io/cloud-builders/docker@sha256:", cloudbuild)
-        self.assertIn("UV_BUILD_IMAGE=ghcr.io/astral-sh/uv@sha256:", cloudbuild)
+        self.assertIn("UV_IMAGE=ghcr.io/astral-sh/uv@sha256:", cloudbuild)
+        self.assertIn("PYTHON_BUILD_IMAGE=python@sha256:", cloudbuild)
         self.assertIn("PYTHON_RUNTIME_IMAGE=python@sha256:", cloudbuild)
         self.assertIn("org.opencontainers.image.revision=${_SOURCE_REVISION}", cloudbuild)
         self.assertIn(

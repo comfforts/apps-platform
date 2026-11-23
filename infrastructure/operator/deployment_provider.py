@@ -6,9 +6,11 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
+import stat
 import subprocess
 from typing import Any, Protocol
 
+from infrastructure.operator.diagnostics import capture_private_command_failure
 from infrastructure.operator.local_deployment import (
     InitialGeneration,
     LocalDeploymentInputError,
@@ -77,6 +79,14 @@ _VERSION_REFERENCE = re.compile(
 
 class DeploymentProviderError(RuntimeError):
     """Coarse provider failure that never contains raw command output."""
+
+    def __init__(
+        self,
+        code: str,
+        diagnostic: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(code)
+        self.diagnostic = dict(diagnostic or {})
 
 
 class DeploymentProviderRunner(Protocol):
@@ -169,11 +179,13 @@ class GcloudDeploymentProvider:
         cloud_sdk_configuration: Path,
         working_root: Path,
         runner: DeploymentProviderRunner,
+        private_state_root: Path | None = None,
     ) -> None:
         self._executable = executable.resolve()
         self._cloud_sdk_configuration = cloud_sdk_configuration.resolve()
         self._working_root = working_root.resolve()
         self._runner = runner
+        self._private_state_root: Path | None = None
         if not self._executable.is_file():
             raise ValueError("an absolute Cloud SDK executable is required")
         if (
@@ -183,6 +195,15 @@ class GcloudDeploymentProvider:
             raise ValueError("Cloud SDK configuration must be a real directory")
         if not self._working_root.is_dir() or self._working_root.is_symlink():
             raise ValueError("deployment provider working root must be real")
+        if private_state_root is not None:
+            resolved_state = private_state_root.resolve()
+            if (
+                private_state_root.is_symlink()
+                or not resolved_state.is_dir()
+                or stat.S_IMODE(resolved_state.stat().st_mode) & 0o077
+            ):
+                raise ValueError("deployment diagnostics require private operator state")
+            self._private_state_root = resolved_state
 
     def _environment(self) -> tuple[tuple[str, str], ...]:
         return (
@@ -260,6 +281,7 @@ class GcloudDeploymentProvider:
         self,
         build_failure_code: str,
         config_failure_code: str,
+        phase: str,
         *arguments: str,
     ) -> ProviderCommandResult:
         result = self._try(
@@ -269,6 +291,14 @@ class GcloudDeploymentProvider:
         )
         if result.returncode == 0:
             return result
+        diagnostic_metadata = capture_private_command_failure(
+            self._private_state_root,
+            environment="staging",
+            operation="cloud-build",
+            phase=phase,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
         diagnostic = result.stderr[: 64 * 1024]
         if all(
             marker in diagnostic
@@ -278,8 +308,11 @@ class GcloudDeploymentProvider:
                 b"Expected type <class 'str'> for field value",
             )
         ):
-            raise DeploymentProviderError(config_failure_code)
-        raise DeploymentProviderError(build_failure_code)
+            raise DeploymentProviderError(
+                config_failure_code,
+                diagnostic_metadata,
+            )
+        raise DeploymentProviderError(build_failure_code, diagnostic_metadata)
 
     @staticmethod
     def _json(code: str, payload: bytes) -> Any:
@@ -454,6 +487,7 @@ class GcloudDeploymentProvider:
         self._run_cloud_build(
             "EDGE_IMAGE_BUILD_FAILED",
             "EDGE_IMAGE_BUILD_CONFIG_INVALID",
+            "shared-edge-image",
             "builds",
             "submit",
             str(self._working_root),
@@ -483,6 +517,7 @@ class GcloudDeploymentProvider:
         self._run_cloud_build(
             "FIXTURE_IMAGE_BUILD_FAILED",
             "FIXTURE_IMAGE_BUILD_CONFIG_INVALID",
+            "fixture-image",
             "builds",
             "submit",
             str(self._working_root),

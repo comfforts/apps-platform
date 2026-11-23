@@ -132,6 +132,13 @@ When readiness is blocked, read the named adapter facts and the plain-language g
 with each stable blocker code. The trace never includes credentials, secret values, raw provider
 responses, Terraform state, or saved-plan content.
 
+Read-only gcloud session checks retry once before stopping. A persistent failure distinguishes the
+active account, project, billing reference, identity token, Application Default Credentials,
+Cloud SDK configuration, and required local tools. When a failed session read or image build has
+raw command output, the operator stores it under
+`.platform-operator/diagnostics/<environment>/`, prints its local paths and digest, and keeps it out
+of lifecycle state and terminal output. Inspect those files locally and redact them before sharing.
+
 For local maintenance of preflight behavior, use:
 
 ```bash
@@ -222,7 +229,9 @@ platform deployment.
 
 `fixture-deploy` also performs the selected fixture's bundle handoff. It generates the Platform
 Integration Bundle, deploys that fixture, receives and validates its Application Attachment Bundle,
-and registers it. Do not run `platform-outputs` or `platform-register` separately for that fixture.
+and registers it. Its terminal output identifies the current step as stage 1/3, 2/3, or 3/3:
+resolve the platform handoff, deploy or reuse the fixture application, then register and activate
+the fixture route. Do not run `platform-outputs` or `platform-register` separately for that fixture.
 
 When you want to inspect those exact bundles before registration, use the optional handoff stop for
 that fixture:
@@ -236,7 +245,8 @@ make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 `fixture-handoff` is not read-only preparation. It builds or reuses the immutable image, plans and
 applies the selected fixture's Application State, validates provider posture, and writes the two
 canonical non-secret bundle files beneath `.platform-operator/`; it does not activate a Registration
-Generation or make the route available. Inspect the files without editing them.
+Generation or make the route available. It labels the same first two steps as stage 1/2 and 2/2.
+Inspect the files without editing them.
 
 The subsequent `fixture-deploy` retains its normal complete automation. It rereads the prepared
 pair and proceeds directly to registration only when the environment, fixture identifier, source

@@ -165,10 +165,10 @@ class QualificationDestructionCliTest(unittest.TestCase):
         self.assertEqual(result["last_closed_stage"], "destruction-readback")
         self.assertEqual(destruction.environments, ["staging"])
 
-    def test_live_adapters_fail_closed_without_session_or_partial_artifacts(self) -> None:
+    def test_live_adapters_name_missing_gcloud_without_partial_artifacts(self) -> None:
         for operation, blocker in (
-            ("qualify", "OPERATOR_SESSION_UNAVAILABLE"),
-            ("destroy", "OPERATOR_SESSION_UNAVAILABLE"),
+            ("qualify", "GCLOUD_EXECUTABLE_UNAVAILABLE"),
+            ("destroy", "GCLOUD_EXECUTABLE_UNAVAILABLE"),
         ):
             with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
                 state_root = Path(directory) / "operator"

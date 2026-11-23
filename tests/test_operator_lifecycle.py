@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import base64
 import io
 import json
 import os
@@ -25,6 +26,7 @@ from infrastructure.operator import local as local_adapters
 from infrastructure.operator.cli import main as operator_main
 from infrastructure.operator.local import (
     LocalFilesystem,
+    OperatorSessionError,
     ProfileGcp,
     SystemConsolePageLauncher,
     build_local_operator,
@@ -864,6 +866,134 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertEqual(result.blockers, ("OPERATOR_PROJECT_MISMATCH",))
         self.assertNotIn("discarded-access-token", repr(result))
 
+    def test_operator_session_retries_transient_billing_timeout(self) -> None:
+        claims = base64.urlsafe_b64encode(
+            json.dumps(
+                {
+                    "email": "operator@example.com",
+                    "iss": "https://accounts.google.com",
+                    "sub": "123456789012345678901",
+                }
+            ).encode("utf-8")
+        ).rstrip(b"=").decode("ascii")
+        observed = (
+            subprocess.CompletedProcess([], 0, "operator@example.com\n", ""),
+            subprocess.CompletedProcess([], 0, "comfforts-platform-non-prod\n", ""),
+            subprocess.TimeoutExpired([], 30, stderr="temporary timeout"),
+            subprocess.CompletedProcess(
+                [],
+                0,
+                "billingAccounts/ABCDEF-123456-789ABC\n",
+                "",
+            ),
+            subprocess.CompletedProcess([], 0, f"header.{claims}.signature\n", ""),
+        )
+        profile = {
+            "project_id": "comfforts-platform-non-prod",
+            "project_number": "455651441682",
+            "region": "us-west1",
+        }
+        with mock.patch.object(
+            local_adapters.subprocess,
+            "run",
+            side_effect=observed,
+        ) as run:
+            session = ProfileGcp(
+                Path("/usr/bin/gcloud"),
+                Path("/tmp/gcloud"),
+            ).require_operator_session(profile)
+
+        self.assertEqual(session.active_account, "operator@example.com")
+        self.assertEqual(run.call_count, 5)
+
+    def test_operator_session_reports_persistent_billing_timeout_with_diagnostic(
+        self,
+    ) -> None:
+        profile = {
+            "project_id": "comfforts-platform-non-prod",
+            "project_number": "455651441682",
+            "region": "us-west1",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            configuration = root / "gcloud"
+            configuration.mkdir(mode=0o700)
+            state = root / ".platform-operator"
+            state.mkdir(mode=0o700)
+            observed = (
+                subprocess.CompletedProcess([], 0, "operator@example.com\n", ""),
+                subprocess.CompletedProcess(
+                    [],
+                    0,
+                    "comfforts-platform-non-prod\n",
+                    "",
+                ),
+                subprocess.TimeoutExpired([], 30, stderr="first timeout"),
+                subprocess.TimeoutExpired([], 30, stderr="second timeout"),
+            )
+            with mock.patch.object(
+                local_adapters.subprocess,
+                "run",
+                side_effect=observed,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "^OPERATOR_BILLING_READBACK_TIMEOUT$",
+                ) as raised:
+                    ProfileGcp(
+                        Path("/usr/bin/gcloud"),
+                        configuration,
+                        private_state_root=state,
+                    ).require_operator_session(profile)
+
+            diagnostic_path = Path(raised.exception.diagnostic["diagnostic_path"])
+            self.assertIn(
+                "second timeout",
+                diagnostic_path.read_text(encoding="utf-8"),
+            )
+            self.assertNotIn(
+                "second timeout",
+                json.dumps(raised.exception.diagnostic),
+            )
+
+    def test_application_default_failure_is_exact_and_private(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            configuration = root / "gcloud"
+            configuration.mkdir(mode=0o700)
+            state = root / ".platform-operator"
+            state.mkdir(mode=0o700)
+            failed = subprocess.CompletedProcess(
+                [],
+                1,
+                "",
+                "reauthentication required",
+            )
+            with mock.patch.object(
+                local_adapters.subprocess,
+                "run",
+                side_effect=(failed, failed),
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "^OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE$",
+                ) as raised:
+                    ProfileGcp(
+                        Path("/usr/bin/gcloud"),
+                        configuration,
+                        private_state_root=state,
+                    ).require_application_default()
+
+            diagnostic_path = Path(raised.exception.diagnostic["diagnostic_path"])
+            self.assertIn(
+                "reauthentication required",
+                diagnostic_path.read_text(encoding="utf-8"),
+            )
+            self.assertNotIn(
+                "reauthentication required",
+                json.dumps(raised.exception.diagnostic),
+            )
+
     def test_local_factory_arms_executor_only_for_complete_private_session(self) -> None:
         from infrastructure.operator.local_deployment import OperatorSessionFacts
 
@@ -887,11 +1017,15 @@ class OperatorLifecycleTest(unittest.TestCase):
                     if name in {"gcloud", "dig"}
                     else None,
                 ),
-                mock.patch.object(ProfileGcp, "operator_session", return_value=session),
                 mock.patch.object(
                     ProfileGcp,
-                    "application_default_ready",
-                    return_value=True,
+                    "require_operator_session",
+                    return_value=session,
+                ),
+                mock.patch.object(
+                    ProfileGcp,
+                    "require_application_default",
+                    return_value=None,
                 ),
             ):
                 operator = build_local_operator(PROJECT_ROOT, state)
@@ -901,6 +1035,37 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertIsNotNone(operator._adapters.executor)
         self.assertEqual(state_mode, 0o700)
         self.assertEqual(work_mode, 0o700)
+
+    def test_local_factory_preserves_precise_operator_session_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            configuration = base / "gcloud"
+            configuration.mkdir(mode=0o700)
+            state = base / "state"
+            with (
+                mock.patch.dict(os.environ, {"CLOUDSDK_CONFIG": str(configuration)}),
+                mock.patch.object(
+                    local_adapters.shutil,
+                    "which",
+                    side_effect=lambda name: "/usr/bin/true"
+                    if name in {"gcloud", "dig"}
+                    else None,
+                ),
+                mock.patch.object(
+                    ProfileGcp,
+                    "require_operator_session",
+                    side_effect=OperatorSessionError(
+                        "OPERATOR_BILLING_READBACK_TIMEOUT"
+                    ),
+                ),
+            ):
+                operator = build_local_operator(PROJECT_ROOT, state)
+
+        self.assertIsNone(operator._adapters.executor)
+        self.assertEqual(
+            operator._adapters.execution_blockers,
+            ("OPERATOR_BILLING_READBACK_TIMEOUT",),
+        )
 
 
 if __name__ == "__main__":

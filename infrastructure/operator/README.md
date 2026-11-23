@@ -146,13 +146,14 @@ private operator input; restricted members are never echoed in terminal results.
 no credential, secret payload, Terraform state, saved plan, raw provider response, or browser
 state. Private plans and raw command results never become progress content.
 
-A failed Terraform plan or apply stores its exact stdout and stderr only beneath
-`.platform-operator/diagnostics/<environment>/`. Each event has a mode-`0700` directory, mode-`0600`
-stream files, a timestamp, and a SHA-256 manifest. The terminal reports only the stderr path and
-content digest plus a warning that the local files may contain sensitive provider data. Diagnostic
-files are troubleshooting artifacts: they are never lifecycle documents, progress, evidence,
-qualification output, bundle content, or Git input, and the operator must not commit or share them
-without reviewing and redacting their contents.
+A failed Terraform plan or apply, persistent gcloud session read, or Cloud Build submission stores
+its exact stdout and stderr only beneath `.platform-operator/diagnostics/<environment>/`. Each
+event has a mode-`0700` directory, mode-`0600` stream files, a timestamp, and a SHA-256 manifest.
+The terminal reports only the stdout/stderr paths and content digest plus a warning that the local
+files may contain sensitive provider data. Successful and retry-recovered session reads create no
+diagnostic artifact. Diagnostic files are troubleshooting artifacts: they are never lifecycle
+documents, progress, evidence, qualification output, bundle content, or Git input, and the
+operator must not commit or share them without reviewing and redacting their contents.
 
 The current deployment progress remains the single resume record. Its latest succeeded, failed, or
 cancelled value is also retained once per specification beneath `progress/`; a later terminal

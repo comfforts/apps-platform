@@ -18,11 +18,13 @@ from infrastructure.operator.fixture_lifecycle import (
     FixtureHandoffResult,
     FixtureDestroyRequest,
     FixtureImageReadback,
+    FixtureImageRequest,
     FixturePreparation,
     FixtureRegistrationReadback,
     FixtureStatusResult,
     FixtureSuiteLifecycle,
 )
+from infrastructure.operator.deployment_provider import DeploymentProviderError
 from infrastructure.operator.integration import (
     AttachmentValidationResult,
     IntegrationBundleResult,
@@ -224,6 +226,14 @@ class FakeFixtureCommands:
         )
 
 
+@dataclass
+class RecordingTerminal:
+    messages: list[str] = field(default_factory=list)
+
+    def write(self, message: str) -> None:
+        self.messages.append(message)
+
+
 def _request(
     application_id: str = "fixture-authenticated",
 ) -> FixtureDeployRequest:
@@ -237,6 +247,57 @@ def _request(
 
 
 class FixtureDeploymentLifecycleTest(unittest.TestCase):
+    def test_deploy_narrates_its_three_stages(self) -> None:
+        terminal = RecordingTerminal()
+
+        result = FixtureSuiteLifecycle(
+            FakeFixtureCommands(),
+            terminal=terminal,  # type: ignore[arg-type]
+        ).deploy(_request())
+
+        self.assertEqual(result.outcome, "deployed")
+        self.assertEqual(
+            terminal.messages,
+            [
+                "▸ Stage 1/3 · Resolve the Platform Handoff",
+                "▸ Stage 2/3 · Deploy the Fixture Application",
+                "▸ Stage 3/3 · Register and Activate the Fixture Route",
+            ],
+        )
+
+    def test_handoff_narrates_two_stages_and_deploy_reports_reuse(self) -> None:
+        commands = FakeFixtureCommands()
+        terminal = RecordingTerminal()
+        lifecycle = FixtureSuiteLifecycle(
+            commands,
+            terminal=terminal,  # type: ignore[arg-type]
+        )
+
+        handoff = lifecycle.handoff(_request())
+
+        self.assertEqual(handoff.outcome, "prepared")
+        self.assertEqual(
+            terminal.messages,
+            [
+                "▸ Stage 1/2 · Resolve the Platform Handoff",
+                "▸ Stage 2/2 · Deploy the Fixture Application",
+            ],
+        )
+
+        terminal.messages.clear()
+        deployed = lifecycle.deploy(_request())
+
+        self.assertEqual(deployed.outcome, "deployed")
+        self.assertTrue(deployed.preparation_reused)
+        self.assertEqual(
+            terminal.messages,
+            [
+                "▸ Stage 1/3 · Resolve the Platform Handoff",
+                "▸ Stage 2/3 · Reuse the Verified Fixture Application",
+                "▸ Stage 3/3 · Register and Activate the Fixture Route",
+            ],
+        )
+
     def test_complete_journey_deploys_only_the_selected_fixture(self) -> None:
         commands = FakeFixtureCommands()
 
@@ -418,6 +479,49 @@ class FakeFixtureExecutor:
 
 
 class LocalFixtureLifecycleCompositionTest(unittest.TestCase):
+    def test_image_build_failure_prints_only_private_diagnostic_reference(self) -> None:
+        class FailingImageProvider:
+            def publish_fixture_image(self, source_revision: str) -> str:
+                del source_revision
+                raise DeploymentProviderError(
+                    "FIXTURE_IMAGE_BUILD_FAILED",
+                    {
+                        "diagnostic_digest": "sha256:" + ("9" * 64),
+                        "diagnostic_path": "/private/diagnostics/stderr.log",
+                    },
+                )
+
+            def read_fixture_image(self, source_revision: str) -> str | None:
+                del source_revision
+                return None
+
+        @dataclass
+        class RecordingTerminal:
+            messages: list[str] = field(default_factory=list)
+
+            def write(self, message: str) -> None:
+                self.messages.append(message)
+
+        terminal = RecordingTerminal()
+        commands = LocalFixtureLifecycleCommands(
+            FakeIntegrationLifecycle(),  # type: ignore[arg-type]
+            FailingImageProvider(),
+            FakeFixtureExecutor(),
+            ("https://accounts.google.com", "123456789012345678901"),
+            terminal=terminal,
+        )
+
+        with self.assertRaisesRegex(
+            FixtureCommandError,
+            "^FIXTURE_IMAGE_BUILD_FAILED$",
+        ):
+            commands.build_image(FixtureImageRequest("staging", SOURCE_REVISION))
+
+        displayed = "\n".join(terminal.messages)
+        self.assertIn("FIXTURE IMAGE BUILD ERROR", displayed)
+        self.assertIn("/private/diagnostics/stderr.log", displayed)
+        self.assertIn("do not commit or share", displayed)
+
     def test_deep_composition_completes_only_the_selected_fixture(self) -> None:
         integration = FakeIntegrationLifecycle()
         image = FakeImageProvider()

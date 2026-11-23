@@ -26,6 +26,7 @@ from infrastructure.operator._interfaces import (
     OperatorAdapters,
     StageExecutor,
 )
+from infrastructure.operator.diagnostics import capture_private_command_failure
 from infrastructure.tools.terraform_setup import (
     GOOGLE_PROVIDER_VERSION,
     MANIFEST,
@@ -225,10 +226,24 @@ class LocalGitHub:
         )
 
 
+class OperatorSessionError(RuntimeError):
+    """Precise safe blocker with optional private command diagnostics."""
+
+    def __init__(
+        self,
+        code: str,
+        diagnostic: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(code)
+        self.diagnostic = dict(diagnostic or {})
+
+
 @dataclass(frozen=True, slots=True)
 class ProfileGcp:
     executable: Path | None = None
     cloud_sdk_configuration: Path | None = None
+    private_state_root: Path | None = None
+    environment: str = "staging"
 
     def _environment(self) -> dict[str, str]:
         environment = {
@@ -242,62 +257,148 @@ class ProfileGcp:
             environment["CLOUDSDK_CONFIG"] = str(self.cloud_sdk_configuration)
         return environment
 
-    def _read(self, *arguments: str) -> str | None:
+    @staticmethod
+    def _bytes(value: bytes | str | None) -> bytes:
+        if value is None:
+            return b""
+        return value if isinstance(value, bytes) else value.encode("utf-8")
+
+    def _diagnostic(
+        self,
+        phase: str,
+        stdout: bytes | str | None,
+        stderr: bytes | str | None,
+    ) -> dict[str, str]:
+        return capture_private_command_failure(
+            self.private_state_root,
+            environment=self.environment,
+            operation="gcloud-read",
+            phase=phase,
+            stdout=self._bytes(stdout),
+            stderr=self._bytes(stderr),
+        )
+
+    def _read(
+        self,
+        *arguments: str,
+        phase: str,
+        failure_code: str,
+        timeout_code: str,
+    ) -> str:
         if self.executable is None:
-            return None
-        try:
-            completed = subprocess.run(
-                [str(self.executable), *arguments],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=30,
-                env=self._environment(),
+            raise OperatorSessionError("GCLOUD_EXECUTABLE_UNAVAILABLE")
+        for attempt in range(2):
+            try:
+                completed = subprocess.run(
+                    [str(self.executable), *arguments],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    env=self._environment(),
+                )
+            except subprocess.TimeoutExpired as error:
+                if attempt == 0:
+                    continue
+                raise OperatorSessionError(
+                    timeout_code,
+                    self._diagnostic(phase, error.stdout, error.stderr),
+                ) from error
+            except (OSError, subprocess.SubprocessError) as error:
+                if attempt == 0:
+                    continue
+                raise OperatorSessionError(
+                    failure_code,
+                    self._diagnostic(phase, None, str(error)),
+                ) from error
+            value = completed.stdout.strip()
+            if completed.returncode == 0 and value:
+                return value
+            if attempt == 0:
+                continue
+            raise OperatorSessionError(
+                failure_code,
+                self._diagnostic(
+                    phase,
+                    completed.stdout,
+                    completed.stderr,
+                ),
             )
-        except (OSError, subprocess.SubprocessError):
-            return None
-        if completed.returncode != 0:
-            return None
-        return completed.stdout.strip()
+        raise AssertionError("bounded gcloud read loop did not return")
+
+    def _discovery_read(
+        self,
+        *arguments: str,
+        phase: str,
+        failure_code: str,
+        timeout_code: str,
+    ) -> tuple[str | None, str | None]:
+        try:
+            return (
+                self._read(
+                    *arguments,
+                    phase=phase,
+                    failure_code=failure_code,
+                    timeout_code=timeout_code,
+                ),
+                None,
+            )
+        except OperatorSessionError as error:
+            return None, str(error)
 
     def inspect(self, profile: dict[str, object]) -> DiscoverySnapshot:
-        active_account = self._read(
+        active_account, account_blocker = self._discovery_read(
             "auth",
             "list",
             "--filter=status:ACTIVE",
             "--format=value(account)",
+            phase="active-account",
+            failure_code="OPERATOR_ACTIVE_ACCOUNT_READBACK_FAILED",
+            timeout_code="OPERATOR_ACTIVE_ACCOUNT_READBACK_TIMEOUT",
         )
-        active_project = self._read("config", "get-value", "project")
-        application_default_ready = bool(
-            self._read("auth", "application-default", "print-access-token")
+        active_project, project_blocker = self._discovery_read(
+            "config",
+            "get-value",
+            "project",
+            phase="active-project",
+            failure_code="OPERATOR_PROJECT_READBACK_FAILED",
+            timeout_code="OPERATOR_PROJECT_READBACK_TIMEOUT",
         )
-        blockers: list[str] = []
-        if not active_account or not active_project:
-            blockers.append("OPERATOR_SESSION_UNAVAILABLE")
-        elif active_project != profile.get("project_id"):
+        application_default, adc_blocker = self._discovery_read(
+            "auth",
+            "application-default",
+            "print-access-token",
+            phase="application-default-credentials",
+            failure_code="OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE",
+            timeout_code="OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_TIMEOUT",
+        )
+        blockers = [
+            blocker
+            for blocker in (account_blocker, project_blocker, adc_blocker)
+            if blocker is not None
+        ]
+        if active_project is not None and active_project != profile.get("project_id"):
             blockers.append("OPERATOR_PROJECT_MISMATCH")
-        if not application_default_ready:
-            blockers.append("OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE")
         return DiscoverySnapshot(
             "gcp",
             (
                 ("active_account", active_account or "unavailable"),
                 (
                     "application_default_credentials",
-                    "ready" if application_default_ready else "unavailable",
+                    "ready" if application_default is not None else "unavailable",
                 ),
                 ("project_id", active_project or "unavailable"),
                 ("project_number", str(profile.get("project_number", ""))),
                 ("region", str(profile.get("region", ""))),
             ),
-            tuple(blockers),
+            tuple(sorted(set(blockers))),
         )
 
-    def operator_session(
+    def require_operator_session(
         self,
         profile: dict[str, object],
-    ) -> OperatorSessionFacts | None:
-        """Derive immutable session facts without persisting the identity token."""
+    ) -> OperatorSessionFacts:
+        """Read one exact verified session with one retry per read-only command."""
 
         from infrastructure.operator.local_deployment import OperatorSessionFacts
 
@@ -306,27 +407,41 @@ class ProfileGcp:
             "list",
             "--filter=status:ACTIVE",
             "--format=value(account)",
+            phase="active-account",
+            failure_code="OPERATOR_ACTIVE_ACCOUNT_READBACK_FAILED",
+            timeout_code="OPERATOR_ACTIVE_ACCOUNT_READBACK_TIMEOUT",
         )
-        active_project = self._read("config", "get-value", "project")
+        active_project = self._read(
+            "config",
+            "get-value",
+            "project",
+            phase="active-project",
+            failure_code="OPERATOR_PROJECT_READBACK_FAILED",
+            timeout_code="OPERATOR_PROJECT_READBACK_TIMEOUT",
+        )
+        if active_project != profile.get("project_id"):
+            raise OperatorSessionError("OPERATOR_PROJECT_MISMATCH")
         billing_account = self._read(
             "billing",
             "projects",
             "describe",
             str(profile.get("project_id", "")),
             "--format=value(billingAccountName)",
+            phase="billing-readback",
+            failure_code="OPERATOR_BILLING_READBACK_FAILED",
+            timeout_code="OPERATOR_BILLING_READBACK_TIMEOUT",
         )
-        identity_token = self._read("auth", "print-identity-token")
-        if (
-            not active_account
-            or active_project != profile.get("project_id")
-            or not billing_account
-            or not identity_token
-        ):
-            return None
+        identity_token = self._read(
+            "auth",
+            "print-identity-token",
+            phase="identity-token",
+            failure_code="OPERATOR_IDENTITY_TOKEN_FAILED",
+            timeout_code="OPERATOR_IDENTITY_TOKEN_TIMEOUT",
+        )
         try:
             segments = identity_token.split(".")
             if len(segments) != 3:
-                return None
+                raise ValueError("identity token is not a JWT")
             encoded = segments[1] + "=" * (-len(segments[1]) % 4)
             claims = json.loads(base64.urlsafe_b64decode(encoded).decode("utf-8"))
             if (
@@ -335,20 +450,44 @@ class ProfileGcp:
                 or claims.get("email") != active_account
                 or not isinstance(claims.get("sub"), str)
             ):
-                return None
+                raise ValueError("identity token claims are invalid")
             return OperatorSessionFacts(
                 active_account=active_account,
                 billing_account_reference=billing_account,
                 operator_issuer="https://accounts.google.com",
                 operator_subject=claims["sub"],
             )
-        except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
+            raise OperatorSessionError("OPERATOR_IDENTITY_TOKEN_INVALID") from error
+
+    def operator_session(
+        self,
+        profile: dict[str, object],
+    ) -> OperatorSessionFacts | None:
+        """Derive immutable session facts without persisting the identity token."""
+
+        try:
+            return self.require_operator_session(profile)
+        except OperatorSessionError:
             return None
+
+    def require_application_default(self) -> None:
+        self._read(
+            "auth",
+            "application-default",
+            "print-access-token",
+            phase="application-default-credentials",
+            failure_code="OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE",
+            timeout_code="OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_TIMEOUT",
+        )
 
     def application_default_ready(self) -> bool:
         """Verify Terraform-compatible user ADC without retaining its access token."""
-
-        return bool(self._read("auth", "application-default", "print-access-token"))
+        try:
+            self.require_application_default()
+        except OperatorSessionError:
+            return False
+        return True
 
 
 @dataclass(frozen=True, slots=True)
@@ -452,6 +591,89 @@ class ConsoleTerminal:
         input(prompt)
 
 
+def _report_private_command_diagnostic(
+    terminal: ConsoleTerminal,
+    title: str,
+    error: OperatorSessionError,
+) -> None:
+    if not error.diagnostic:
+        return
+    terminal.write(
+        title
+        + "\n"
+        + json.dumps(
+            {"blocker": str(error), **error.diagnostic},
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    if "diagnostic_path" in error.diagnostic:
+        terminal.write(
+            "Private command diagnostics may contain sensitive provider data. "
+            "Inspect locally; do not commit or share them unredacted."
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _VerifiedGcpSession:
+    executable: Path
+    configuration: Path
+    state_root: Path
+    facts: OperatorSessionFacts
+
+
+def _verified_gcp_session(
+    gcp: ProfileGcp,
+    state_root: Path,
+    terminal: ConsoleTerminal,
+) -> _VerifiedGcpSession:
+    executable = gcp.executable
+    configuration = gcp.cloud_sdk_configuration
+    if executable is None or not executable.is_file():
+        raise RuntimeError("GCLOUD_EXECUTABLE_UNAVAILABLE")
+    if (
+        configuration is None
+        or not configuration.is_dir()
+        or configuration.is_symlink()
+    ):
+        raise RuntimeError("CLOUD_SDK_CONFIGURATION_UNAVAILABLE")
+    try:
+        if state_root.is_symlink():
+            raise ValueError("operator state root is a symlink")
+        resolved_state = state_root.resolve()
+        resolved_state.mkdir(mode=0o700, parents=True, exist_ok=True)
+        resolved_state.chmod(0o700)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise RuntimeError("OPERATOR_STATE_DIRECTORY_UNAVAILABLE") from error
+    checked = ProfileGcp(
+        executable,
+        configuration,
+        private_state_root=resolved_state,
+    )
+    try:
+        facts = checked.require_operator_session(
+            {
+                "project_id": "comfforts-platform-non-prod",
+                "project_number": "455651441682",
+                "region": "us-west1",
+            }
+        )
+        checked.require_application_default()
+    except OperatorSessionError as error:
+        _report_private_command_diagnostic(
+            terminal,
+            "OPERATOR SESSION ERROR",
+            error,
+        )
+        raise RuntimeError(str(error)) from error
+    return _VerifiedGcpSession(
+        executable,
+        configuration,
+        resolved_state,
+        facts,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class SystemClock:
     def now(self) -> str:
@@ -535,37 +757,19 @@ def _local_deployment_executor(
     if blockers:
         return _DeploymentExecutorResult(None, tuple(sorted(blockers)))
 
-    session = gcp.operator_session(
-        {
-            "project_id": "comfforts-platform-non-prod",
-            "project_number": "455651441682",
-            "region": "us-west1",
-        }
-    )
-    if session is None:
-        blockers.append("OPERATOR_IDENTITY_SESSION_UNAVAILABLE")
-    if not gcp.application_default_ready():
-        blockers.append("OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE")
-    if blockers:
-        return _DeploymentExecutorResult(None, tuple(sorted(blockers)))
-
     try:
-        resolved_state = state_root.resolve()
-        if state_root.is_symlink():
-            return _DeploymentExecutorResult(
-                None,
-                ("OPERATOR_STATE_DIRECTORY_UNAVAILABLE",),
-            )
-        resolved_state.mkdir(mode=0o700, parents=True, exist_ok=True)
-        resolved_state.chmod(0o700)
+        verified = _verified_gcp_session(gcp, state_root, terminal)
+        gcloud = verified.executable
+        configuration = verified.configuration
+        resolved_state = verified.state_root
+        session = verified.facts
         working_root = resolved_state / "work/deployment"
         working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         working_root.chmod(0o700)
-    except (OSError, RuntimeError, ValueError):
-        return _DeploymentExecutorResult(
-            None,
-            ("OPERATOR_STATE_DIRECTORY_UNAVAILABLE",),
-        )
+    except RuntimeError as error:
+        return _DeploymentExecutorResult(None, (str(error),))
+    except (OSError, ValueError):
+        return _DeploymentExecutorResult(None, ("OPERATOR_STATE_DIRECTORY_UNAVAILABLE",))
 
     try:
         terraform_runner = ClosedSubprocessRunner((TERRAFORM,), working_root)
@@ -596,6 +800,7 @@ def _local_deployment_executor(
                 project_root,
                 configuration,
             ),
+            private_state_root=resolved_state,
         )
     except (OSError, RuntimeError, ValueError):
         return _DeploymentExecutorResult(
@@ -813,7 +1018,7 @@ def build_local_fixture_operator(
     )
 
     resolved_project = project_root.resolve()
-    resolved_state = state_root.resolve()
+    terminal = ConsoleTerminal()
     executable_name = shutil.which("gcloud")
     configured = os.environ.get("CLOUDSDK_CONFIG")
     configuration = (
@@ -821,29 +1026,22 @@ def build_local_fixture_operator(
         if configured
         else Path.home() / ".config" / "gcloud"
     ).resolve()
-    if executable_name is None:
-        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
-    gcloud = Path(executable_name).resolve()
-    gcp = ProfileGcp(gcloud, configuration)
-    session = gcp.operator_session(
-        {
-            "project_id": "comfforts-platform-non-prod",
-            "project_number": "455651441682",
-            "region": "us-west1",
-        }
+    if not TERRAFORM.is_file():
+        raise RuntimeError("TERRAFORM_EXECUTABLE_UNAVAILABLE")
+    if not OFFLINE_CLI_CONFIG.is_file():
+        raise RuntimeError("TERRAFORM_CLI_CONFIGURATION_UNAVAILABLE")
+    verified = _verified_gcp_session(
+        ProfileGcp(
+            Path(executable_name).resolve() if executable_name else None,
+            configuration,
+        ),
+        state_root,
+        terminal,
     )
-    if (
-        not gcloud.is_file()
-        or not configuration.is_dir()
-        or configuration.is_symlink()
-        or session is None
-        or not gcp.application_default_ready()
-        or not TERRAFORM.is_file()
-        or not OFFLINE_CLI_CONFIG.is_file()
-    ):
-        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
-    resolved_state.mkdir(mode=0o700, parents=True, exist_ok=True)
-    resolved_state.chmod(0o700)
+    gcloud = verified.executable
+    configuration = verified.configuration
+    resolved_state = verified.state_root
+    session = verified.facts
     working_root = resolved_state / "work/fixtures"
     working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
     working_root.chmod(0o700)
@@ -868,10 +1066,11 @@ def build_local_fixture_operator(
             resolved_project,
             configuration,
         ),
+        private_state_root=resolved_state,
     )
     generation_provider = _local_generation_provider(resolved_project, resolved_state)
     if generation_provider is None:
-        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+        raise RuntimeError("GCLOUD_COMMAND_ADAPTER_UNAVAILABLE")
     filesystem = LocalFilesystem(resolved_project, resolved_state)
     generations = LocalRegistrationGenerationControl(
         filesystem,
@@ -883,7 +1082,6 @@ def build_local_fixture_operator(
         generations,
         initial_generation_binder=generations,
     )
-    terminal = ConsoleTerminal()
     integration = ApplicationIntegrationLifecycle(
         platform,
         attachment_reader=generation_provider,
@@ -909,7 +1107,8 @@ def build_local_fixture_operator(
             LocalApplicationHandoffs(filesystem),
             terminal,
             LocalFixturePreparations(filesystem),
-        )
+        ),
+        terminal=terminal,
     )
     return LocalFixtureOperator(
         LocalGit(resolved_project),
@@ -942,7 +1141,7 @@ def build_local_fixture_status_operator(
     resolved_state = state_root.resolve()
     provider = _local_generation_provider(resolved_project, resolved_state)
     if provider is None:
-        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+        raise RuntimeError("GCLOUD_COMMAND_ADAPTER_UNAVAILABLE")
     filesystem = LocalFilesystem(resolved_project, resolved_state)
     generations = LocalRegistrationGenerationControl(filesystem, provider)
     platform = LocalPlatformIntegrationReader(
@@ -991,7 +1190,7 @@ def build_local_qualification(
     )
 
     resolved_project = project_root.resolve()
-    resolved_state = state_root.resolve()
+    terminal = ConsoleTerminal()
     executable_name = shutil.which("gcloud")
     configured = os.environ.get("CLOUDSDK_CONFIG")
     configuration = (
@@ -999,28 +1198,18 @@ def build_local_qualification(
         if configured
         else Path.home() / ".config" / "gcloud"
     ).resolve()
-    if executable_name is None:
-        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
-    gcloud = Path(executable_name).resolve()
-    gcp = ProfileGcp(gcloud, configuration)
-    session = gcp.operator_session(
-        {
-            "project_id": "comfforts-platform-non-prod",
-            "project_number": "455651441682",
-            "region": "us-west1",
-        }
+    verified = _verified_gcp_session(
+        ProfileGcp(
+            Path(executable_name).resolve() if executable_name else None,
+            configuration,
+        ),
+        state_root,
+        terminal,
     )
-    if (
-        not gcloud.is_file()
-        or not configuration.is_dir()
-        or configuration.is_symlink()
-        or session is None
-        or not gcp.application_default_ready()
-    ):
-        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+    resolved_state = verified.state_root
     provider = _local_generation_provider(resolved_project, resolved_state)
     if provider is None:
-        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+        raise RuntimeError("GCLOUD_COMMAND_ADAPTER_UNAVAILABLE")
 
     filesystem = LocalFilesystem(resolved_project, resolved_state)
     generations = LocalRegistrationGenerationControl(filesystem, provider)
@@ -1030,7 +1219,6 @@ def build_local_qualification(
         generations,
         initial_generation_binder=generations,
     )
-    terminal = ConsoleTerminal()
     state_reader = LocalQualificationStateReader(
         build_local_operator(resolved_project, resolved_state, source_authority),
         generations,
@@ -1074,7 +1262,7 @@ def build_local_destruction(
     )
 
     resolved_project = project_root.resolve()
-    resolved_state = state_root.resolve()
+    terminal = ConsoleTerminal()
     executable_name = shutil.which("gcloud")
     dig_name = shutil.which("dig")
     configured = os.environ.get("CLOUDSDK_CONFIG")
@@ -1083,35 +1271,30 @@ def build_local_destruction(
         if configured
         else Path.home() / ".config" / "gcloud"
     ).resolve()
-    if executable_name is None or dig_name is None:
-        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
-    gcloud = Path(executable_name).resolve()
-    dig = Path(dig_name).resolve()
-    gcp = ProfileGcp(gcloud, configuration)
-    session = gcp.operator_session(
-        {
-            "project_id": "comfforts-platform-non-prod",
-            "project_number": "455651441682",
-            "region": "us-west1",
-        }
+    if not TERRAFORM.is_file():
+        raise RuntimeError("TERRAFORM_EXECUTABLE_UNAVAILABLE")
+    if not OFFLINE_CLI_CONFIG.is_file():
+        raise RuntimeError("TERRAFORM_CLI_CONFIGURATION_UNAVAILABLE")
+    verified = _verified_gcp_session(
+        ProfileGcp(
+            Path(executable_name).resolve() if executable_name else None,
+            configuration,
+        ),
+        state_root,
+        terminal,
     )
-    if (
-        not gcloud.is_file()
-        or not dig.is_file()
-        or not configuration.is_dir()
-        or configuration.is_symlink()
-        or session is None
-        or not gcp.application_default_ready()
-        or not TERRAFORM.is_file()
-        or not OFFLINE_CLI_CONFIG.is_file()
-    ):
-        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+    configuration = verified.configuration
+    resolved_state = verified.state_root
+    session = verified.facts
+    if dig_name is None:
+        raise RuntimeError("DNS_EXECUTABLE_UNAVAILABLE")
+    dig = Path(dig_name).resolve()
+    if not dig.is_file():
+        raise RuntimeError("DNS_EXECUTABLE_UNAVAILABLE")
     provider = _local_generation_provider(resolved_project, resolved_state)
     if provider is None:
-        raise RuntimeError("OPERATOR_SESSION_UNAVAILABLE")
+        raise RuntimeError("GCLOUD_COMMAND_ADAPTER_UNAVAILABLE")
 
-    resolved_state.mkdir(mode=0o700, parents=True, exist_ok=True)
-    resolved_state.chmod(0o700)
     working_root = resolved_state / "work/destruction"
     working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
     working_root.chmod(0o700)
@@ -1133,7 +1316,6 @@ def build_local_destruction(
         session,
     )
     generations = LocalRegistrationGenerationControl(filesystem, provider)
-    terminal = ConsoleTerminal()
     dns = DigDnsReadback(
         dig,
         resolved_project,

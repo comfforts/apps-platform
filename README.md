@@ -148,7 +148,9 @@ required `APPLICATION_ID`: it generates that fixture's Platform Integration Bund
 independent Application State, receives and validates its Application Attachment Bundle, and
 activates a complete immutable Registration Generation while preserving other registrations. The
 operator runs it once for each fixture to be deployed and does not run `platform-outputs` or
-`platform-register` separately for that fixture.
+`platform-register` separately for that fixture. The command narrates this work as three numbered
+stages: resolve the platform handoff, deploy or reuse the fixture application, and register and
+activate the fixture route.
 
 For an optional inspection stop, `fixture-handoff` performs the same selected-fixture journey only
 through validated Application Attachment Bundle generation. It deploys or reconciles that
@@ -201,6 +203,13 @@ Operator narration is written to standard error. The final compact JSON result r
 standard-output record, so a human receives a readable execution trace while automation can parse
 stdout without filtering progress messages. Traces never include access tokens, secret values,
 raw provider responses, Terraform state, or saved-plan content.
+
+Read-only gcloud account, project, billing, identity-token, and Application Default Credential
+checks retry once when the command times out or returns a failure. A persistent failure names the
+exact read boundary instead of collapsing every prerequisite into one session error. Failed
+session reads and Cloud Build submissions retain their exact command streams only under the
+ignored private diagnostics directory and print the local paths and digest; successful or recovered
+reads create no diagnostic artifact.
 
 `platform-prepare` is a separate optional specification-review command. It performs the readiness
 checks, writes the complete private specification, prints its digest, and requests approval, but
@@ -362,7 +371,8 @@ make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 `fixture-handoff` is mutating: it deploys or reconciles only the selected fixture's Application
 State, but stops before Registration Generation activation. If every recorded binding is still
 current, the following `fixture-deploy` reports `preparation_reused: true` and proceeds directly to
-registration. The normal staging journey does not require this optional inspection command.
+registration. Its output uses the corresponding first two numbered stages. The normal staging
+journey does not require this optional inspection command.
 
 `platform-deploy` remains active across OAuth and DNS checkpoints. Ordinary reviewed plans use one
 `y/N` confirmation. Typed confirmation is reserved for destruction, retirement, ownership

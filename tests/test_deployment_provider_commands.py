@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 
@@ -39,6 +40,7 @@ class FakeGcloud:
     oauth_secret_project: str = PROJECT
     certificate_status: str = "ACTIVE"
     certificate_domain_status: str = "ACTIVE"
+    build_stdout: bytes = b""
     build_stderr: bytes | None = None
 
     def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
@@ -114,7 +116,11 @@ class FakeGcloud:
             return ProviderCommandResult(0, b"sha256:" + b"d" * 64 + b"\n", b"")
         if arguments[:2] == ("builds", "submit"):
             if self.build_stderr is not None:
-                return ProviderCommandResult(1, b"", self.build_stderr)
+                return ProviderCommandResult(
+                    1,
+                    self.build_stdout,
+                    self.build_stderr,
+                )
             self.image_built = True
             return ProviderCommandResult(0, b"{}", b"")
         return ProviderCommandResult(2, b"", b"unexpected secret output")
@@ -446,6 +452,60 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
                 "^FIXTURE_IMAGE_BUILD_CONFIG_INVALID$",
             ):
                 provider.publish_fixture_image("f" * 40)
+
+    def test_fixture_build_failure_persists_private_diagnostics(self) -> None:
+        generation = initial_generation("d" * 40)
+        stdout = b"remote build identifier\n"
+        stderr = b"client_secret=must-remain-private\nremote build failed\n"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / "infrastructure/images/fixture/cloudbuild.yaml"
+            config.parent.mkdir(parents=True)
+            config.write_text("steps: []\n", encoding="utf-8")
+            state = root / ".platform-operator"
+            state.mkdir(mode=0o700)
+            fake = FakeGcloud(
+                generation.contents,
+                build_stdout=stdout,
+                build_stderr=stderr,
+            )
+            executable = root / "gcloud"
+            executable.write_bytes(b"binary")
+            executable.chmod(0o700)
+            configuration = root / "cloud-sdk"
+            configuration.mkdir(mode=0o700)
+            provider = GcloudDeploymentProvider(
+                executable=executable,
+                cloud_sdk_configuration=configuration,
+                working_root=root,
+                runner=fake,
+                private_state_root=state,
+            )
+
+            with self.assertRaisesRegex(
+                DeploymentProviderError,
+                "^FIXTURE_IMAGE_BUILD_FAILED$",
+            ) as raised:
+                provider.publish_fixture_image("f" * 40)
+
+            diagnostic_path = Path(raised.exception.diagnostic["diagnostic_path"])
+            stdout_path = Path(
+                raised.exception.diagnostic["diagnostic_stdout_path"]
+            )
+            event = diagnostic_path.parent
+            manifest = json.loads(
+                (event / "manifest.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(diagnostic_path.read_bytes(), stderr)
+            self.assertEqual(stdout_path.read_bytes(), stdout)
+            self.assertEqual(stat.S_IMODE(event.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE(diagnostic_path.stat().st_mode), 0o600)
+            self.assertEqual(manifest["operation"], "cloud-build")
+            self.assertEqual(manifest["phase"], "fixture-image")
+            self.assertNotIn(
+                "must-remain-private",
+                json.dumps(raised.exception.diagnostic),
+            )
 
     def test_closed_runner_rejects_session_switch_and_unapproved_commands(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

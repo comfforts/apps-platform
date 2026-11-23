@@ -5,7 +5,8 @@ steps:
       - --file=infrastructure/images/fixture/Dockerfile
       - --tag=${_IMAGE}
       - --label=org.opencontainers.image.revision=${_SOURCE_REVISION}
-      - --build-arg=UV_BUILD_IMAGE=ghcr.io/astral-sh/uv@sha256:e85be844203885286c60ffad8a858d48afb6c5a5c237ca0e67f12e74b8f174b1
+      - --build-arg=UV_IMAGE=ghcr.io/astral-sh/uv@sha256:e85be844203885286c60ffad8a858d48afb6c5a5c237ca0e67f12e74b8f174b1
+      - --build-arg=PYTHON_BUILD_IMAGE=python@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
       - --build-arg=PYTHON_RUNTIME_IMAGE=python@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
       - .
 images:

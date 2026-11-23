@@ -160,6 +160,20 @@ class LocalFixtureLifecycleCommands:
             )
             observed = self._image_provider.read_fixture_image(request.source_revision)
         except DeploymentProviderError as error:
+            if self._terminal is not None and error.diagnostic:
+                self._terminal.write(
+                    "FIXTURE IMAGE BUILD ERROR\n"
+                    + json.dumps(
+                        {"blocker": str(error), **error.diagnostic},
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+                if "diagnostic_path" in error.diagnostic:
+                    self._terminal.write(
+                        "Private command diagnostics may contain sensitive provider "
+                        "data. Inspect locally; do not commit or share them unredacted."
+                    )
             raise FixtureCommandError(str(error) or "FIXTURE_IMAGE_FAILED") from error
         if observed != reference:
             raise FixtureCommandError("FIXTURE_IMAGE_READBACK_MISMATCH")

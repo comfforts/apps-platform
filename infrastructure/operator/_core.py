@@ -210,9 +210,39 @@ _READINESS_BLOCKER_GUIDANCE = {
     "OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE": (
         "Application Default Credentials are unavailable or cannot mint an access token"
     ),
+    "OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_TIMEOUT": (
+        "Application Default Credentials did not mint an access token within the bounded retry"
+    ),
+    "OPERATOR_ACTIVE_ACCOUNT_READBACK_FAILED": (
+        "gcloud could not read the active human account after one retry"
+    ),
+    "OPERATOR_ACTIVE_ACCOUNT_READBACK_TIMEOUT": (
+        "gcloud timed out reading the active human account after one retry"
+    ),
+    "OPERATOR_BILLING_READBACK_FAILED": (
+        "gcloud could not read the selected project's billing reference after one retry"
+    ),
+    "OPERATOR_BILLING_READBACK_TIMEOUT": (
+        "gcloud timed out reading the selected project's billing reference after one retry"
+    ),
     "OPERATOR_IDENTITY_SESSION_UNAVAILABLE": (
         "the active account, project, billing reference, or identity-token session could not be "
         "verified"
+    ),
+    "OPERATOR_IDENTITY_TOKEN_FAILED": (
+        "gcloud could not mint the human operator identity token after one retry"
+    ),
+    "OPERATOR_IDENTITY_TOKEN_INVALID": (
+        "the minted operator identity token did not match the active human account"
+    ),
+    "OPERATOR_IDENTITY_TOKEN_TIMEOUT": (
+        "gcloud timed out minting the human operator identity token after one retry"
+    ),
+    "OPERATOR_PROJECT_READBACK_FAILED": (
+        "gcloud could not read the active project after one retry"
+    ),
+    "OPERATOR_PROJECT_READBACK_TIMEOUT": (
+        "gcloud timed out reading the active project after one retry"
     ),
     "OPERATOR_STATE_DIRECTORY_UNAVAILABLE": (
         "the private operator state directory is unavailable or unsafe"

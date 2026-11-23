@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
-import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import secrets
@@ -19,6 +16,7 @@ from infrastructure.operator.deployment import (
     DeploymentCommandError,
     TerraformPlanArtifact,
 )
+from infrastructure.operator.diagnostics import capture_private_command_failure
 
 
 _ALLOWED_ENVIRONMENT = {
@@ -264,114 +262,22 @@ class TerraformCliAdapter:
             )
         )
 
-    @staticmethod
-    def _write_private_file(path: Path, contents: bytes) -> None:
-        descriptor = os.open(
-            path,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-            0o600,
-        )
-        try:
-            os.fchmod(descriptor, 0o600)
-            with os.fdopen(descriptor, "wb") as stream:
-                descriptor = -1
-                stream.write(contents)
-        finally:
-            if descriptor >= 0:
-                os.close(descriptor)
-
-    def _ensure_private_diagnostic_directory(self, path: Path) -> Path:
-        if self._private_state_root is None or path.is_symlink():
-            raise ValueError("private diagnostic directory is not bounded")
-        path.mkdir(mode=0o700, exist_ok=True)
-        if path.is_symlink() or not path.is_dir():
-            raise ValueError("private diagnostic directory is unavailable")
-        resolved = path.resolve()
-        if (
-            resolved == self._private_state_root
-            or self._private_state_root not in resolved.parents
-        ):
-            raise ValueError("private diagnostic directory escapes operator state")
-        resolved.chmod(0o700)
-        return resolved
-
     def _capture_failure(
         self,
         request: PhasePlanRequest,
         operation: str,
         result: CommandResult,
     ) -> dict[str, str]:
-        if self._private_state_root is None:
-            return {}
-        if (
-            operation not in {"plan", "apply"}
-            or re.fullmatch(r"[a-z][a-z0-9-]{1,31}", request.environment) is None
-            or re.fullmatch(r"[a-z][a-z0-9-]{1,63}", request.phase) is None
-        ):
+        if operation not in {"plan", "apply"}:
             return {"diagnostic_capture": "failed"}
-
-        try:
-            captured_at = datetime.now(UTC)
-            digest = hashlib.sha256()
-            digest.update(len(result.stdout).to_bytes(8, "big"))
-            digest.update(result.stdout)
-            digest.update(len(result.stderr).to_bytes(8, "big"))
-            digest.update(result.stderr)
-            raw_digest = digest.hexdigest()
-            diagnostic_digest = f"sha256:{raw_digest}"
-            diagnostics = self._ensure_private_diagnostic_directory(
-                self._private_state_root / "diagnostics"
-            )
-            environment_root = self._ensure_private_diagnostic_directory(
-                diagnostics / request.environment
-            )
-            event_name = (
-                captured_at.strftime("%Y%m%dT%H%M%S.%fZ")
-                + f"-{operation}-{request.phase}-{raw_digest[:12]}"
-            )
-            event_root = environment_root / event_name
-            event_root.mkdir(mode=0o700)
-            event_root.chmod(0o700)
-
-            stdout_path = event_root / "stdout.log"
-            stderr_path = event_root / "stderr.log"
-            self._write_private_file(stdout_path, result.stdout)
-            self._write_private_file(stderr_path, result.stderr)
-            manifest = {
-                "captured_at": captured_at.isoformat().replace("+00:00", "Z"),
-                "diagnostic_digest": diagnostic_digest,
-                "diagnostic_version": 1,
-                "environment": request.environment,
-                "operation": operation,
-                "phase": request.phase,
-                "stderr": {
-                    "bytes": len(result.stderr),
-                    "filename": stderr_path.name,
-                    "sha256": "sha256:" + hashlib.sha256(result.stderr).hexdigest(),
-                },
-                "stdout": {
-                    "bytes": len(result.stdout),
-                    "filename": stdout_path.name,
-                    "sha256": "sha256:" + hashlib.sha256(result.stdout).hexdigest(),
-                },
-            }
-            manifest_contents = (
-                json.dumps(
-                    manifest,
-                    ensure_ascii=False,
-                    indent=2,
-                    sort_keys=True,
-                    allow_nan=False,
-                )
-                + "\n"
-            ).encode("utf-8")
-            self._write_private_file(event_root / "manifest.json", manifest_contents)
-            return {
-                "diagnostic_digest": diagnostic_digest,
-                "diagnostic_path": str(stderr_path),
-            }
-        except (OSError, RuntimeError, ValueError):
-            return {"diagnostic_capture": "failed"}
+        return capture_private_command_failure(
+            self._private_state_root,
+            environment=request.environment,
+            operation=operation,
+            phase=request.phase,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
 
     @staticmethod
     def _apply_failure_code(stderr: bytes) -> str:

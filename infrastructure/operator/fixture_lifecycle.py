@@ -11,6 +11,7 @@ from contracts.lifecycle import (
     validate_lifecycle_document,
     validate_lifecycle_relationships,
 )
+from infrastructure.operator._interfaces import OperatorTerminal
 
 
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
@@ -234,8 +235,17 @@ class FixtureCommands(Protocol):
 class FixtureSuiteLifecycle:
     """Operate one selected fixture while preserving suite-wide qualification."""
 
-    def __init__(self, commands: FixtureCommands) -> None:
+    def __init__(
+        self,
+        commands: FixtureCommands,
+        terminal: OperatorTerminal | None = None,
+    ) -> None:
         self._commands = commands
+        self._terminal = terminal
+
+    def _announce_stage(self, index: int, total: int, title: str) -> None:
+        if self._terminal is not None:
+            self._terminal.write(f"▸ Stage {index}/{total} · {title}")
 
     @staticmethod
     def _blocked(*blockers: str) -> FixtureDeployResult:
@@ -376,7 +386,10 @@ class FixtureSuiteLifecycle:
         self,
         request: FixtureDeployRequest,
         definition: FixtureDefinition,
+        *,
+        total_stages: int,
     ) -> tuple[FixturePreparation | None, bool, tuple[str, ...]]:
+        self._announce_stage(1, total_stages, "Resolve the Platform Handoff")
         try:
             prepared = self._commands.prepared_handoff(request)
             if prepared is not None:
@@ -387,6 +400,11 @@ class FixtureSuiteLifecycle:
                 )
                 if not matched:
                     return None, False, (blocker,)
+                self._announce_stage(
+                    2,
+                    total_stages,
+                    "Reuse the Verified Fixture Application",
+                )
                 return prepared, True, ()
 
             bundle = self._commands.integration_bundle(
@@ -406,6 +424,11 @@ class FixtureSuiteLifecycle:
             if not self._bundle_matches(bundle, definition, request):
                 return None, False, ("INTEGRATION_BUNDLE_MISMATCH",)
 
+            self._announce_stage(
+                2,
+                total_stages,
+                "Deploy the Fixture Application",
+            )
             image = self._commands.build_image(
                 FixtureImageRequest(
                     environment=request.environment,
@@ -483,7 +506,11 @@ class FixtureSuiteLifecycle:
                 request,
                 blocker or "FIXTURE_REQUEST_INVALID",
             )
-        preparation, reused, blockers = self._prepare(request, definition)
+        preparation, reused, blockers = self._prepare(
+            request,
+            definition,
+            total_stages=2,
+        )
         if preparation is None:
             return self._handoff_blocked(request, *blockers)
         return FixtureHandoffResult(
@@ -503,9 +530,14 @@ class FixtureSuiteLifecycle:
         definition, blocker = self._definition(request)
         if definition is None:
             return self._blocked(blocker or "FIXTURE_REQUEST_INVALID")
-        preparation, reused, blockers = self._prepare(request, definition)
+        preparation, reused, blockers = self._prepare(
+            request,
+            definition,
+            total_stages=3,
+        )
         if preparation is None:
             return self._blocked(*blockers)
+        self._announce_stage(3, 3, "Register and Activate the Fixture Route")
         try:
             registration = self._commands.register(
                 FixtureRegistrationRequest(

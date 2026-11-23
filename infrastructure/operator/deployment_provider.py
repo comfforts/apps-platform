@@ -256,6 +256,31 @@ class GcloudDeploymentProvider:
             timeout_seconds=timeout_seconds,
         )
 
+    def _run_cloud_build(
+        self,
+        build_failure_code: str,
+        config_failure_code: str,
+        *arguments: str,
+    ) -> ProviderCommandResult:
+        result = self._try(
+            *arguments,
+            *self._common(),
+            timeout_seconds=900,
+        )
+        if result.returncode == 0:
+            return result
+        diagnostic = result.stderr[: 64 * 1024]
+        if all(
+            marker in diagnostic
+            for marker in (
+                b"interpreting ",
+                b" as build config:",
+                b"Expected type <class 'str'> for field value",
+            )
+        ):
+            raise DeploymentProviderError(config_failure_code)
+        raise DeploymentProviderError(build_failure_code)
+
     @staticmethod
     def _json(code: str, payload: bytes) -> Any:
         if len(payload) > 4 * 1024 * 1024:
@@ -426,14 +451,14 @@ class GcloudDeploymentProvider:
         ):
             raise DeploymentProviderError("EDGE_IMAGE_BUILD_CONFIG_INVALID")
         tagged_image = f"{_IMAGE_PACKAGE}:source-{source_revision}"
-        self._run_common(
+        self._run_cloud_build(
             "EDGE_IMAGE_BUILD_FAILED",
+            "EDGE_IMAGE_BUILD_CONFIG_INVALID",
             "builds",
             "submit",
             str(self._working_root),
             f"--config={config}",
             f"--substitutions=_IMAGE={tagged_image}",
-            timeout_seconds=900,
         )
         observed = self.read_shared_edge_image(source_revision)
         if observed is None:
@@ -455,8 +480,9 @@ class GcloudDeploymentProvider:
         ):
             raise DeploymentProviderError("FIXTURE_IMAGE_BUILD_CONFIG_INVALID")
         tagged_image = f"{_FIXTURE_IMAGE_PACKAGE}:source-{source_revision}"
-        self._run_common(
+        self._run_cloud_build(
             "FIXTURE_IMAGE_BUILD_FAILED",
+            "FIXTURE_IMAGE_BUILD_CONFIG_INVALID",
             "builds",
             "submit",
             str(self._working_root),
@@ -465,7 +491,6 @@ class GcloudDeploymentProvider:
                 f"--substitutions=_IMAGE={tagged_image},"
                 f"_SOURCE_REVISION={source_revision}"
             ),
-            timeout_seconds=900,
         )
         observed = self.read_fixture_image(source_revision)
         if observed is None:

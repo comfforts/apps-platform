@@ -230,6 +230,10 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertIn("UV_BUILD_IMAGE=ghcr.io/astral-sh/uv@sha256:", cloudbuild)
         self.assertIn("PYTHON_RUNTIME_IMAGE=python@sha256:", cloudbuild)
         self.assertIn("org.opencontainers.image.revision=${_SOURCE_REVISION}", cloudbuild)
+        self.assertIn(
+            '_SOURCE_REVISION: "0000000000000000000000000000000000000000"',
+            cloudbuild,
+        )
         self.assertNotIn("latest", cloudbuild.lower())
 
         upload_allowlist = (PROJECT_ROOT / ".gcloudignore").read_text(

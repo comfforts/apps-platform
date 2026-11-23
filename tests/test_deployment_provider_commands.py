@@ -39,6 +39,7 @@ class FakeGcloud:
     oauth_secret_project: str = PROJECT
     certificate_status: str = "ACTIVE"
     certificate_domain_status: str = "ACTIVE"
+    build_stderr: bytes | None = None
 
     def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
         self.requests.append(request)
@@ -112,6 +113,8 @@ class FakeGcloud:
                 return ProviderCommandResult(1, b"", b"not found")
             return ProviderCommandResult(0, b"sha256:" + b"d" * 64 + b"\n", b"")
         if arguments[:2] == ("builds", "submit"):
+            if self.build_stderr is not None:
+                return ProviderCommandResult(1, b"", self.build_stderr)
             self.image_built = True
             return ProviderCommandResult(0, b"{}", b"")
         return ProviderCommandResult(2, b"", b"unexpected secret output")
@@ -423,6 +426,26 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
             + ("f" * 40),
             builds[0].argv,
         )
+
+    def test_fixture_build_reports_local_config_type_failure_exactly(self) -> None:
+        generation = initial_generation("d" * 40)
+        diagnostic = (
+            b"interpreting cloudbuild.yaml as build config: "
+            b"Expected type <class 'str'> for field value, found 0"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / "infrastructure/images/fixture/cloudbuild.yaml"
+            config.parent.mkdir(parents=True)
+            config.write_text("steps: []\n", encoding="utf-8")
+            fake = FakeGcloud(generation.contents, build_stderr=diagnostic)
+            provider = self._provider(directory, fake)
+
+            with self.assertRaisesRegex(
+                DeploymentProviderError,
+                "^FIXTURE_IMAGE_BUILD_CONFIG_INVALID$",
+            ):
+                provider.publish_fixture_image("f" * 40)
 
     def test_closed_runner_rejects_session_switch_and_unapproved_commands(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

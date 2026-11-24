@@ -7,6 +7,7 @@ from infrastructure.backend._integration import (
     prepare_phase_plan,
 )
 from infrastructure.backend._lifecycle import (
+    BackendDeclarationConflictError,
     BackendDeclaration,
     EnvironmentUnavailableError,
     RenderedBackend,
@@ -23,6 +24,7 @@ from infrastructure.backend._plans import (
 
 __all__ = (
     "BackendDeclaration",
+    "BackendDeclarationConflictError",
     "EnvironmentUnavailableError",
     "PhasePlanRequest",
     "PhasePlanResult",

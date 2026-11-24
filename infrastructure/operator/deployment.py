@@ -11,6 +11,7 @@ from typing import Any, Protocol
 
 from contracts.lifecycle import validate_lifecycle_material
 from infrastructure.backend import (
+    BackendDeclarationConflictError,
     EnvironmentUnavailableError,
     PhasePlanRequest,
     PlanViolation,
@@ -928,6 +929,8 @@ class DeploymentExecutor:
             )
         except EnvironmentUnavailableError as error:
             return self._failure(str(error))
+        except BackendDeclarationConflictError:
+            return self._failure("TERRAFORM_BACKEND_DECLARATION_CONFLICT")
         except DeploymentCommandError as error:
             if (
                 str(error) != "TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED"
@@ -1128,6 +1131,11 @@ class DeploymentExecutor:
             )
         except EnvironmentUnavailableError as error:
             return StageCheck("blocked", blockers=(str(error),))
+        except BackendDeclarationConflictError:
+            return StageCheck(
+                "blocked",
+                blockers=("TERRAFORM_BACKEND_DECLARATION_CONFLICT",),
+            )
         except DeploymentCommandError as error:
             failed = self._terraform_plan_failure(error)
             return StageCheck("blocked", blockers=failed.blockers)

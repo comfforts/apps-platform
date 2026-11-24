@@ -19,6 +19,7 @@ from infrastructure.operator.deployment import (
     DeploymentExecutor,
     TerraformPlanArtifact,
 )
+from infrastructure.operator.local import _fixture_working_root
 from infrastructure.operator.local_deployment import LocalDeploymentInputError
 from infrastructure.operator.local_fixture_deployment import (
     FixtureConfigurationRenderer,
@@ -160,6 +161,48 @@ def _request(root: Path, application_id: str) -> PhasePlanRequest:
 
 
 class FixtureConfigurationRendererTest(unittest.TestCase):
+    def test_fixture_workspace_isolated_from_predecessor_project_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            state_root = Path(temporary_directory) / "operator"
+            predecessor = state_root / "work/fixtures/fixture-public/backend.tf"
+            predecessor.parent.mkdir(mode=0o700, parents=True)
+            predecessor.write_text(
+                'terraform {\n  backend "gcs" {\n'
+                '    bucket = "legacy-platform-fixture-state"\n'
+                '    prefix = "fixtures/fixture-public"\n'
+                "  }\n}\n",
+                encoding="utf-8",
+            )
+            predecessor.chmod(0o600)
+
+            working_root = _fixture_working_root(
+                state_root,
+                FIXTURES_PROJECT_ID,
+            )
+            declaration = next(
+                item
+                for item in backend_declarations("staging")
+                if item.phase == "fixture-public"
+            )
+            rendered = render_backend_declaration(
+                declaration,
+                working_root,
+                "fixture-public/backend.tf",
+            )
+
+            self.assertEqual(
+                working_root,
+                state_root.resolve() / "work/fixtures" / FIXTURES_PROJECT_ID,
+            )
+            self.assertIn(
+                f'bucket = "{FIXTURES_PROJECT_ID}-state"',
+                rendered.path.read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                'bucket = "legacy-platform-fixture-state"',
+                predecessor.read_text(encoding="utf-8"),
+            )
+
     def test_renders_complete_private_inputs_for_all_three_roots(self) -> None:
         profiles = (
             ("fixture-public", "public", None),
@@ -440,6 +483,38 @@ class FixtureExactPlanExecutionTest(unittest.TestCase):
                 self.assertEqual(result.outcome, outcome)
                 self.assertEqual(terraform.applied, [])
                 self.assertEqual(terraform.outputs, [])
+
+    def test_backend_conflict_is_a_precise_operator_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            working_root = Path(temporary_directory) / "private"
+            backend = working_root / "fixture-authenticated/backend.tf"
+            backend.parent.mkdir(mode=0o700, parents=True)
+            backend.write_text(
+                'terraform { backend "gcs" {} }\n',
+                encoding="utf-8",
+            )
+            backend.chmod(0o600)
+            terminal = FakeTerminal()
+            terraform = FakeTerraform()
+            executor = DeploymentExecutor(
+                working_root,
+                terminal,
+                LocalFixtureDeploymentCommands(
+                    FixtureConfigurationRenderer(PROJECT_ROOT, working_root),
+                    terraform,
+                ),  # type: ignore[arg-type]
+            )
+
+            result = executor.execute(
+                _context("fixture-authenticated", "authenticated")
+            )
+
+        self.assertEqual(result.outcome, "failed")
+        self.assertEqual(
+            result.blockers,
+            ("TERRAFORM_BACKEND_DECLARATION_CONFLICT",),
+        )
+        self.assertEqual(terraform.applied, [])
 
     def test_unlock_then_destroy_uses_separate_exact_plans_and_empty_readback(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

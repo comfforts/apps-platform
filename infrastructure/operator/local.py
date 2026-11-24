@@ -1109,6 +1109,20 @@ def build_local_integration(
     )
 
 
+def _fixture_working_root(state_root: Path, project_id: str) -> Path:
+    """Select a project-scoped private workspace without moving prior state."""
+
+    if re.fullmatch(r"[a-z][a-z0-9-]{4,28}[a-z0-9]", project_id) is None:
+        raise ValueError("fixture project ID is invalid")
+    boundary = (state_root.resolve() / "work/fixtures").resolve()
+    working_root = (boundary / project_id).resolve()
+    if working_root.parent != boundary:
+        raise ValueError("fixture workspace escapes its approved root")
+    working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    working_root.chmod(0o700)
+    return working_root
+
+
 def build_local_fixture_operator(
     project_root: Path,
     state_root: Path,
@@ -1174,9 +1188,8 @@ def build_local_fixture_operator(
     configuration = verified.configuration
     resolved_state = verified.state_root
     session = verified.facts
-    working_root = resolved_state / "work/fixtures"
-    working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
-    working_root.chmod(0o700)
+    fixture_project = fixtures_project_id()
+    working_root = _fixture_working_root(resolved_state, fixture_project)
 
     terraform = TerraformCliAdapter(
         TERRAFORM,
@@ -1198,7 +1211,7 @@ def build_local_fixture_operator(
             resolved_project,
             configuration,
         ),
-        fixture_project_id=fixtures_project_id(),
+        fixture_project_id=fixture_project,
         private_state_root=resolved_state,
     )
     generation_provider = _local_generation_provider(resolved_project, resolved_state)

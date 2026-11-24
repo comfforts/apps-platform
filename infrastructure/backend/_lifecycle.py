@@ -25,6 +25,10 @@ class EnvironmentUnavailableError(ValueError):
     """The requested environment has no deployment authority."""
 
 
+class BackendDeclarationConflictError(FileExistsError):
+    """A private workspace already names a different state lineage."""
+
+
 @dataclass(frozen=True, slots=True)
 class BackendDeclaration:
     """One phase-to-lineage binding with no credential or backend contents."""
@@ -149,7 +153,9 @@ def render_backend_declaration(
     digest = f"sha256:{hashlib.sha256(contents).hexdigest()}"
     if destination.exists():
         if not destination.is_file() or destination.read_bytes() != contents:
-            raise FileExistsError("refusing to replace a different backend declaration")
+            raise BackendDeclarationConflictError(
+                "refusing to replace a different backend declaration"
+            )
         return RenderedBackend(destination, digest, False)
 
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)

@@ -52,7 +52,11 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
 
                 self.assertEqual(
                     re.findall(r'^variable "([^"]+)"', variables, re.MULTILINE),
-                    ["fixture_configuration", "platform_reference"],
+                    [
+                        "fixture_configuration",
+                        "destruction_enabled",
+                        "platform_reference",
+                    ],
                 )
                 self.assertEqual(
                     re.findall(r'^output "([^"]+)"', outputs, re.MULTILINE),
@@ -140,12 +144,16 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
                 ("google_service_account", "runtime"),
                 ("google_cloud_run_v2_service", "runtime"),
                 ("google_cloud_run_v2_service_iam_member", "edge_invoker"),
+                ("google_cloud_run_v2_service_iam_member", "edge_metadata_reader"),
             ],
         )
         for required_control in (
-            'deletion_policy = "PREVENT"',
-            "deletion_protection  = true",
+            'destruction_enabled ? "DELETE" : "PREVENT"',
+            "deletion_protection  = !var.runtime_configuration.destruction_enabled",
             'ingress              = "INGRESS_TRAFFIC_INTERNAL_ONLY"',
+            'egress = "ALL_TRAFFIC"',
+            "shared_network_reference",
+            "application_subnet_reference",
             "invoker_iam_disabled = false",
             "max_instance_request_concurrency = 10",
             "min_instance_count = 0",
@@ -153,9 +161,11 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
             'cpu    = "1"',
             'memory = "512Mi"',
             'role     = "roles/run.invoker"',
+            'role     = "roles/run.viewer"',
             "APP_PLATFORM_ISSUER",
             "APP_PLATFORM_PUBLIC_KEY_REFERENCE",
             "APP_PLATFORM_ASSERTION_AUDIENCE",
+            '"comfforts.com/identity-audience"',
         ):
             self.assertIn(required_control, module)
 

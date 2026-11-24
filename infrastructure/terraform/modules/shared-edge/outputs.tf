@@ -1,10 +1,11 @@
 output "edge_reference" {
   description = "Closed non-secret Shared Edge phase references."
   value = {
-    hostname         = var.edge_configuration.qualification_hostname
-    reserved_address = google_compute_global_address.edge.address
-    service_name     = google_cloud_run_v2_service.edge.name
-    tls_enabled      = var.edge_configuration.tls_enabled
+    candidate_revision = var.edge_configuration.candidate_revision
+    hostname           = var.edge_configuration.qualification_hostname
+    reserved_address   = google_compute_global_address.edge.address
+    service_name       = google_cloud_run_v2_service.edge.name
+    tls_enabled        = var.edge_configuration.tls_enabled
   }
 }
 
@@ -20,9 +21,15 @@ output "policy_summary" {
     binding_versions        = var.edge_configuration.binding_versions
     configuration_bucket    = var.edge_configuration.configuration_bucket
     operator_identity       = var.edge_configuration.operator_identity
+    caller_identity = {
+      iam_credentials_service = "iamcredentials.googleapis.com"
+      runtime_principal       = "serviceAccount:${var.edge_configuration.runtime_identity_email}"
+      caller_service_account  = var.edge_configuration.edge_caller_service_account_id
+      impersonation_role      = "roles/iam.serviceAccountTokenCreator"
+    }
     runtime = {
       region                       = var.edge_configuration.region
-      ingress                      = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+      ingress                      = var.destruction_enabled ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
       default_uri_disabled         = true
       invoker_iam_disabled         = false
       invoker_role                 = "roles/run.invoker"
@@ -35,7 +42,8 @@ output "policy_summary" {
       concurrency                  = 20
       provider_timeout_seconds     = 3600
       runtime_stream_limit_seconds = 3300
-      deletion_protection          = true
+      deletion_protection          = !var.destruction_enabled
+      deletion_policy              = var.destruction_enabled ? "DELETE" : "PREVENT"
       traffic_type                 = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
       traffic_revision             = var.edge_configuration.candidate_revision
       traffic_percent              = 100

@@ -4,7 +4,7 @@ resource "google_service_account" "runtime" {
   display_name = "${var.runtime_configuration.application_id} runtime"
   description  = "Application-owned qualification runtime identity for ${var.runtime_configuration.application_id}."
 
-  deletion_policy = "PREVENT"
+  deletion_policy = var.runtime_configuration.destruction_enabled ? "DELETE" : "PREVENT"
 }
 
 resource "google_cloud_run_v2_service" "runtime" {
@@ -12,14 +12,26 @@ resource "google_cloud_run_v2_service" "runtime" {
   location = var.runtime_configuration.region
   name     = var.runtime_configuration.service_name
   labels   = var.runtime_configuration.labels
+  annotations = var.runtime_configuration.assertion_audience == "" ? {} : {
+    "comfforts.com/identity-audience" = var.runtime_configuration.assertion_audience
+  }
 
-  deletion_protection  = true
+  deletion_protection  = !var.runtime_configuration.destruction_enabled
   ingress              = "INGRESS_TRAFFIC_INTERNAL_ONLY"
   invoker_iam_disabled = false
 
   template {
     service_account                  = google_service_account.runtime.email
     max_instance_request_concurrency = 10
+
+    vpc_access {
+      egress = "ALL_TRAFFIC"
+
+      network_interfaces {
+        network    = var.runtime_configuration.shared_network_reference
+        subnetwork = var.runtime_configuration.application_subnet_reference
+      }
+    }
 
     scaling {
       min_instance_count = 0
@@ -75,5 +87,13 @@ resource "google_cloud_run_v2_service_iam_member" "edge_invoker" {
   location = var.runtime_configuration.region
   name     = google_cloud_run_v2_service.runtime.name
   role     = "roles/run.invoker"
+  member   = var.edge_caller_principal
+}
+
+resource "google_cloud_run_v2_service_iam_member" "edge_metadata_reader" {
+  project  = var.runtime_configuration.project_id
+  location = var.runtime_configuration.region
+  name     = google_cloud_run_v2_service.runtime.name
+  role     = "roles/run.viewer"
   member   = var.edge_caller_principal
 }

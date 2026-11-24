@@ -1,4 +1,4 @@
-"""AP-M9-W6 exact staged deployment through deterministic command fakes."""
+"""AP-M9-W6 exact multi-stage deployment through deterministic command fakes."""
 
 from __future__ import annotations
 
@@ -107,12 +107,21 @@ class FakeWaiter:
 
 
 @dataclass
+class FakeCheckpointPageLauncher:
+    opened: list[str] = field(default_factory=list)
+
+    def open(self, url: str) -> bool:
+        self.opened.append(url)
+        return True
+
+
+@dataclass
 class FakeCommands:
     working_root: Path
     actions: tuple[str, ...] = ("create",)
     wrong_project: bool = False
     readback_matches: bool = True
-    apply_error: str | None = None
+    apply_error: str | DeploymentCommandError | None = None
     planned: list[object] = field(default_factory=list)
     applied: list[tuple[object, ExactTerraformPlan]] = field(default_factory=list)
     readbacks: list[object] = field(default_factory=list)
@@ -126,6 +135,9 @@ class FakeCommands:
     ] = field(default_factory=list)
     checkpoint_outcomes: list[str] = field(default_factory=lambda: ["succeeded"])
     terraform_readiness: list[bool] = field(default_factory=list)
+    plan_errors: list[str | DeploymentCommandError] = field(default_factory=list)
+    recovered_taints: list[str] = field(default_factory=list)
+    readback_error: str | None = None
 
     def create_terraform_plan(
         self,
@@ -134,6 +146,11 @@ class FakeCommands:
     ) -> TerraformPlanArtifact:
         del context
         self.planned.append(request)
+        if self.plan_errors:
+            error = self.plan_errors.pop(0)
+            if isinstance(error, DeploymentCommandError):
+                raise error
+            raise DeploymentCommandError(error)
         phase = str(getattr(request, "phase"))
         path = self.working_root / f"{phase}-{len(self.planned):04d}.tfplan"
         path.write_bytes(b"private saved plan")
@@ -170,6 +187,26 @@ class FakeCommands:
             },
         )
 
+    def signing_key_ring_recovery_identity(
+        self,
+        context: StageContext,
+        request: object,
+    ) -> str:
+        del context, request
+        return (
+            "projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
+            "app-platform"
+        )
+
+    def clear_signing_key_ring_taint(
+        self,
+        context: StageContext,
+        request: object,
+        identity: str,
+    ) -> None:
+        del context, request
+        self.recovered_taints.append(identity)
+
     def apply_terraform_plan(
         self,
         request: object,
@@ -177,10 +214,14 @@ class FakeCommands:
     ) -> None:
         self.applied.append((request, plan))
         if self.apply_error is not None:
+            if isinstance(self.apply_error, DeploymentCommandError):
+                raise self.apply_error
             raise DeploymentCommandError(self.apply_error)
 
     def readback_terraform(self, request: object) -> TerraformReadback:
         self.readbacks.append(request)
+        if self.readback_error is not None:
+            raise DeploymentCommandError(self.readback_error)
         stage_id = str(getattr(request, "stage_id"))
         outputs = {
             "bootstrap": (
@@ -192,6 +233,7 @@ class FakeCommands:
             ),
             "shared-edge": (
                 ("edge-reference", "verified-edge"),
+                ("hostname", "apps-staging.comfforts.com"),
                 ("reserved-address", "192.0.2.10"),
             ),
             "tls-readiness": (
@@ -215,8 +257,8 @@ class FakeCommands:
     def read_stage(self, context: StageContext) -> StageReadback:
         stage_id = str(context.stage["stage_id"])
         outputs = {
-            "preflight": (("preflight-attestation", "verified-preflight"),),
-            "readback": (("deployment-attestation", "verified-deployment"),),
+            "preflight": (),
+            "readback": (),
         }[stage_id]
         return StageReadback(
             matched=self.stage_readback_matches,
@@ -233,6 +275,7 @@ class FakeCommands:
                     "services": [
                         "serviceusage.googleapis.com",
                         "storage.googleapis.com",
+                        "cloudresourcemanager.googleapis.com",
                     ]
                 },
             )
@@ -242,6 +285,14 @@ class FakeCommands:
                 summary={
                     "generation": 1,
                     "generation_digest": "sha256:" + "b" * 64,
+                },
+            )
+        if context.stage["stage_id"] == "runtime-activation":
+            return ActionProposal(
+                action="activate-source-bound-shared-edge-runtime",
+                summary={
+                    "generation": 2,
+                    "revision_name": "app-platform-edge-g2-current",
                 },
             )
         return ActionProposal(
@@ -260,12 +311,17 @@ class FakeCommands:
         if context.stage["stage_id"] == "bootstrap-services":
             return StageReadback(
                 matched=True,
-                outputs=(("bootstrap-services-attestation", "verified-services"),),
+                outputs=(),
             )
         if context.stage["stage_id"] == "generation-publish":
             return StageReadback(
                 matched=True,
                 outputs=(("registration-generation-reference", "verified-generation"),),
+            )
+        if context.stage["stage_id"] == "runtime-activation":
+            return StageReadback(
+                matched=True,
+                outputs=(("active-runtime-binding", "verified-runtime"),),
             )
         return StageReadback(
             matched=True,
@@ -279,17 +335,49 @@ class FakeCommands:
             return ManualCheckpoint(
                 checkpoint="provider-console",
                 instructions=(
+                    ("project_id", "comfforts-platform-non-prod"),
+                    (
+                        "branding_console_url",
+                        "https://console.cloud.google.com/auth/branding?"
+                        "project=comfforts-platform-non-prod",
+                    ),
+                    (
+                        "clients_console_url",
+                        "https://console.cloud.google.com/auth/clients?"
+                        "project=comfforts-platform-non-prod",
+                    ),
+                    (
+                        "oauth_store_console_url",
+                        "https://console.cloud.google.com/security/secret-manager/"
+                        "secret/app-platform-edge-oauth/versions?"
+                        "project=comfforts-platform-non-prod",
+                    ),
                     ("application_name", "Comfforts Apps Staging"),
+                    ("application_type", "Web application"),
+                    ("audience", "External"),
+                    ("publishing_status", "Testing"),
+                    ("support_email", "operator@example.com"),
+                    ("homepage_url", "https://apps-staging.comfforts.com"),
+                    ("authorized_domain", "comfforts.com"),
+                    ("authorized_origin", "https://apps-staging.comfforts.com"),
                     ("redirect_uri", "https://apps-staging.comfforts.com/oauth/callback"),
-                    ("secret_manager_target", "projects/example/secrets/oauth-client"),
+                    (
+                        "oauth_store_target",
+                        "projects/example/secrets/oauth-client",
+                    ),
                 ),
             )
         return ManualCheckpoint(
             checkpoint="external-dns",
             instructions=(
+                ("provider", "Squarespace"),
+                ("dns_console_url", "https://account.squarespace.com/domains"),
+                ("dns_zone", "comfforts.com"),
                 ("record_type", "A"),
-                ("hostname", "apps-staging.comfforts.com"),
+                ("record_name", "apps-staging"),
+                ("hostname", dict(context.inputs)["shared-edge.hostname"]),
                 ("address", dict(context.inputs)["shared-edge.reserved-address"]),
+                ("record_status", "reconcile"),
                 ("ttl_seconds", "300"),
             ),
         )
@@ -329,7 +417,7 @@ class FakeCommands:
             )
         return CheckpointVerification(
             outcome="succeeded",
-            outputs=(("dns-attestation", "authoritative-and-recursive-verified"),),
+            outputs=(),
             acknowledgement="provider-verified",
         )
 
@@ -421,7 +509,7 @@ class PlatformDeploymentTest(unittest.TestCase):
         )
         displayed = "\n".join(terminal.messages)
         self.assertIn(result.plan_digest or "", displayed)
-        self.assertIn('"phase":"platform-foundation"', displayed)
+        self.assertIn('"phase": "platform-foundation"', displayed)
         self.assertNotIn("private saved plan", displayed)
         self.assertNotIn(str(applied_plan.saved_plan_path), displayed)
 
@@ -442,6 +530,97 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(commands.applied, [])
         self.assertEqual(len(commands.readbacks), 1)
 
+    def test_deployment_check_plans_and_reads_without_confirmation_or_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(root)
+            terminal = FakeTerminal([])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.check(
+                _context("bootstrap", ("backend-reference",))
+            )
+
+            self.assertEqual(result.outcome, "would-change")
+            self.assertRegex(result.plan_digest or "", r"^sha256:[0-9a-f]{64}$")
+            self.assertEqual(result.outputs, (("backend-reference", "verified-backend"),))
+            self.assertEqual(commands.applied, [])
+            self.assertEqual(terminal.confirmations, [])
+            self.assertEqual(len(commands.readbacks), 1)
+            self.assertEqual(list(root.glob("*.tfplan")), [])
+
+    def test_deployment_check_preserves_specific_readback_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                actions=(),
+                readback_error="TERRAFORM_OUTPUT_PHASE_MISMATCH",
+            )
+            executor = DeploymentExecutor(root, FakeTerminal([]), commands)
+
+            result = executor.check(
+                _context(
+                    "shared-edge",
+                    ("edge-reference", "hostname", "reserved-address"),
+                )
+            )
+
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(
+            result.blockers,
+            ("TERRAFORM_OUTPUT_PHASE_MISMATCH",),
+        )
+
+    def test_deployment_check_classifies_foundation_readback_drift_as_reconciliation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                actions=(),
+                readback_error="FOUNDATION_READBACK_INVALID",
+            )
+            executor = DeploymentExecutor(root, FakeTerminal([]), commands)
+
+            result = executor.check(
+                _context(
+                    "foundation",
+                    ("foundation-reference", "oauth-secret-container"),
+                )
+            )
+
+        self.assertEqual(result.outcome, "would-change")
+        self.assertEqual(result.blockers, ("FOUNDATION_READBACK_INVALID",))
+
+    def test_deployment_check_passes_matching_runtime_activation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(root)
+            executor = DeploymentExecutor(root, FakeTerminal([]), commands)
+
+            result = executor.check(
+                _context("runtime-activation", ("active-runtime-binding",))
+            )
+
+        self.assertEqual(result.outcome, "pass")
+        self.assertEqual(
+            result.outputs,
+            (("active-runtime-binding", "verified-runtime"),),
+        )
+
+    def test_state_forget_is_a_real_apply_change(self) -> None:
+        self.assertTrue(
+            DeploymentExecutor._requires_apply(
+                {"changes": [{"actions": ["forget"]}]}
+            )
+        )
+
     def test_policy_refusal_never_confirms_applies_or_reads_back(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "work"
@@ -451,11 +630,56 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor = DeploymentExecutor(root, terminal, commands)
 
             result = executor.execute(
-                _context("shared-edge", ("edge-reference", "reserved-address"))
+                _context(
+                    "shared-edge",
+                    ("edge-reference", "hostname", "reserved-address"),
+                )
             )
 
         self.assertEqual(result.outcome, "failed")
         self.assertIn("PROJECT_MISMATCH", result.blockers)
+        self.assertEqual(terminal.confirmations, [])
+        self.assertEqual(commands.applied, [])
+        self.assertEqual(commands.readbacks, [])
+
+    def test_policy_refusal_displays_only_safe_resource_details(self) -> None:
+        class ProhibitedResourceCommands(FakeCommands):
+            def create_terraform_plan(
+                self,
+                context: StageContext,
+                request: object,
+            ) -> TerraformPlanArtifact:
+                artifact = super().create_terraform_plan(context, request)
+                change = artifact.observation["changes"][0]  # type: ignore[index]
+                change["resource_type"] = "google_dns_record_set"
+                change["address"] = "module.unexpected.google_dns_record_set.edge"
+                return artifact
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = ProhibitedResourceCommands(root)
+            terminal = FakeTerminal([])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.execute(
+                _context(
+                    "shared-edge",
+                    ("edge-reference", "hostname", "reserved-address"),
+                )
+            )
+
+        displayed = "\n".join(terminal.messages)
+        self.assertEqual(result.outcome, "failed")
+        self.assertEqual(result.blockers, ("RESOURCE_PROHIBITED",))
+        self.assertIn("PLAN POLICY ERROR\n[", displayed)
+        self.assertIn('"resource_type": "google_dns_record_set"', displayed)
+        self.assertIn(
+            '"address": "module.unexpected.google_dns_record_set.edge"',
+            displayed,
+        )
+        self.assertIn('"actions": [', displayed)
+        self.assertNotIn("private saved plan", displayed)
         self.assertEqual(terminal.confirmations, [])
         self.assertEqual(commands.applied, [])
         self.assertEqual(commands.readbacks, [])
@@ -477,9 +701,81 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(commands.applied, [])
         self.assertEqual(commands.readbacks, [])
 
+    def test_protected_signing_key_ring_taint_is_confirmed_repaired_and_replanned(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                plan_errors=["TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED"],
+            )
+            terminal = FakeTerminal(approvals=[True, True])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.execute(
+                _context(
+                    "foundation",
+                    ("foundation-reference", "oauth-secret-container"),
+                )
+            )
+
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertEqual(len(commands.planned), 2)
+        self.assertEqual(len(commands.recovered_taints), 1)
+        self.assertEqual(len(commands.applied), 1)
+        self.assertIn("Clear only its Terraform taint marker", terminal.confirmations[0][0])
+        self.assertIn(commands.recovered_taints[0], "\n".join(terminal.messages))
+
+    def test_declined_signing_key_ring_recovery_preserves_tainted_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                plan_errors=["TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED"],
+            )
+            terminal = FakeTerminal(approvals=[False])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.execute(
+                _context(
+                    "foundation",
+                    ("foundation-reference", "oauth-secret-container"),
+                )
+            )
+
+        self.assertEqual(result.outcome, "cancelled")
+        self.assertEqual(
+            result.blockers,
+            ("TERRAFORM_PROTECTED_RESOURCE_RECOVERY_NOT_CONFIRMED",),
+        )
+        self.assertEqual(commands.recovered_taints, [])
+        self.assertEqual(commands.applied, [])
+
     def test_apply_failure_and_readback_discrepancy_stop_the_stage(self) -> None:
         cases = {
-            "apply": ("PROVIDER_APPLY_FAILED", True, "PROVIDER_APPLY_FAILED"),
+            "apply": (
+                DeploymentCommandError(
+                    "TERRAFORM_APPLY_INVALID_ARGUMENT",
+                    diagnostic={
+                        "diagnostic_digest": "sha256:" + "b" * 64,
+                        "diagnostic_path": (
+                            "/private/operator/diagnostics/staging/"
+                            "failure/stderr.log"
+                        ),
+                        "http_status": 400,
+                        "operation": "creating Budget",
+                        "resource_address": (
+                            "module.platform_controls.google_billing_budget."
+                            "qualification[0]"
+                        ),
+                    },
+                ),
+                True,
+                "TERRAFORM_APPLY_INVALID_ARGUMENT",
+            ),
             "readback": (None, False, "TERRAFORM_READBACK_MISMATCH"),
         }
         for label, (apply_error, matches, blocker) in cases.items():
@@ -491,7 +787,8 @@ class PlatformDeploymentTest(unittest.TestCase):
                     apply_error=apply_error,
                     readback_matches=matches,
                 )
-                executor = DeploymentExecutor(root, FakeTerminal(), commands)
+                terminal = FakeTerminal()
+                executor = DeploymentExecutor(root, terminal, commands)
 
                 result = executor.execute(
                     _context("foundation", ("foundation-reference", "oauth-secret-container"))
@@ -499,6 +796,85 @@ class PlatformDeploymentTest(unittest.TestCase):
 
                 self.assertEqual(result.outcome, "failed")
                 self.assertIn(blocker, result.blockers)
+                if label == "apply":
+                    displayed = "\n".join(terminal.messages)
+                    self.assertIn("TERRAFORM APPLY ERROR\n{", displayed)
+                    self.assertIn('"http_status": 400', displayed)
+                    self.assertIn(
+                        '"resource_address": '
+                        '"module.platform_controls.google_billing_budget.'
+                        'qualification[0]"',
+                        displayed,
+                    )
+                    self.assertIn(
+                        "Private Terraform diagnostics may contain sensitive",
+                        displayed,
+                    )
+
+    def test_plan_failure_reports_safe_operator_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                plan_errors=["TERRAFORM_STATE_LOCKED"],
+            )
+            terminal = FakeTerminal([])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.execute(
+                _context(
+                    "foundation",
+                    ("foundation-reference", "oauth-secret-container"),
+                )
+            )
+
+        self.assertEqual(result.outcome, "failed")
+        self.assertEqual(result.blockers, ("TERRAFORM_STATE_LOCKED",))
+        self.assertIn(
+            "Terraform plan blocker TERRAFORM_STATE_LOCKED:",
+            "\n".join(terminal.messages),
+        )
+
+    def test_plan_failure_reports_private_diagnostic_reference_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                plan_errors=[
+                    DeploymentCommandError(
+                        "TERRAFORM_PLAN_FAILED_UNKNOWN",
+                        diagnostic={
+                            "diagnostic_digest": "sha256:" + "a" * 64,
+                            "diagnostic_path": (
+                                "/private/operator/diagnostics/staging/"
+                                "failure/stderr.log"
+                            ),
+                        },
+                    )
+                ],
+            )
+            terminal = FakeTerminal([])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.execute(
+                _context(
+                    "foundation",
+                    ("foundation-reference", "oauth-secret-container"),
+                )
+            )
+
+        displayed = "\n".join(terminal.messages)
+        self.assertEqual(result.outcome, "failed")
+        self.assertEqual(result.blockers, ("TERRAFORM_PLAN_FAILED_UNKNOWN",))
+        self.assertIn("TERRAFORM PLAN ERROR\n{", displayed)
+        self.assertIn('"diagnostic_digest": "sha256:', displayed)
+        self.assertIn('"diagnostic_path": "/private/operator/', displayed)
+        self.assertIn(
+            "Private Terraform diagnostics may contain sensitive",
+            displayed,
+        )
 
     def test_saved_plan_must_be_private_and_bounded(self) -> None:
         class UnsafeCommands(FakeCommands):
@@ -559,7 +935,8 @@ class PlatformDeploymentTest(unittest.TestCase):
                 _context("foundation", ("foundation-reference", "oauth-secret-container"))
             )
 
-        summary = json.loads(terminal.messages[0].split(" ", maxsplit=1)[1])
+        self.assertTrue(terminal.messages[0].startswith("PLAN\n{\n  \"changes\":"))
+        summary = json.loads(terminal.messages[0].removeprefix("PLAN\n"))
         self.assertEqual(summary["phase"], "platform-foundation")
         self.assertNotIn("before", summary)
         self.assertNotIn("after", summary)
@@ -569,10 +946,10 @@ class PlatformDeploymentTest(unittest.TestCase):
             executor, _, commands = self._executor(Path(directory) / "work")
 
             preflight = executor.execute(
-                _context("preflight", ("preflight-attestation",))
+                _context("preflight", ())
             )
             final = executor.execute(
-                _context("readback", ("deployment-attestation",))
+                _context("readback", ())
             )
 
         self.assertEqual(preflight.outcome, "succeeded")
@@ -595,11 +972,52 @@ class PlatformDeploymentTest(unittest.TestCase):
             terminal.confirmations[0][1],
             "yes",
         )
+        self.assertTrue(
+            terminal.messages[0].startswith("ACTION\n{\n  \"action\":")
+        )
         self.assertIn("publish-immutable-image", "\n".join(terminal.messages))
+
+    def test_bootstrap_service_readback_displays_verified_services(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            executor, terminal, _ = self._executor(Path(directory) / "work")
+
+            result = executor.execute(_context("bootstrap-services", ()))
+
+        self.assertEqual(result.outcome, "succeeded")
+        readback = next(
+            message for message in terminal.messages if message.startswith("READBACK\n")
+        )
+        self.assertEqual(
+            json.loads(readback.removeprefix("READBACK\n")),
+            {
+                "services": [
+                    {
+                        "name": "serviceusage.googleapis.com",
+                        "state": "enabled",
+                    },
+                    {"name": "storage.googleapis.com", "state": "enabled"},
+                    {
+                        "name": "cloudresourcemanager.googleapis.com",
+                        "state": "enabled",
+                    },
+                ],
+                "stage": "bootstrap-services",
+            },
+        )
 
     def test_oauth_checkpoint_displays_exact_values_pauses_and_never_receives_a_secret(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            executor, terminal, commands = self._executor(Path(directory) / "work")
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            terminal = FakeTerminal()
+            commands = FakeCommands(root)
+            launcher = FakeCheckpointPageLauncher()
+            executor = DeploymentExecutor(
+                root,
+                terminal,
+                commands,
+                checkpoint_page_launcher=launcher,
+            )
 
             result = executor.execute(
                 _context(
@@ -610,12 +1028,39 @@ class PlatformDeploymentTest(unittest.TestCase):
 
         self.assertEqual(result.outcome, "succeeded")
         self.assertEqual(result.manual_acknowledgement, "operator-attested")
-        self.assertEqual(len(terminal.pauses), 1)
-        self.assertIn("Press Enter", terminal.pauses[0])
+        self.assertEqual(len(terminal.pauses), 3)
+        self.assertIn("step 1 of 3", terminal.pauses[0])
+        self.assertIn("step 2 of 3", terminal.pauses[1])
+        self.assertIn("step 3 of 3", terminal.pauses[2])
         transcript = "\n".join([*terminal.messages, *terminal.pauses])
+        checkpoint = next(
+            message for message in terminal.messages if message.startswith("CHECKPOINT\n")
+        )
+        self.assertEqual(
+            json.loads(checkpoint.removeprefix("CHECKPOINT\n"))["checkpoint"],
+            "provider-console",
+        )
+        self.assertIn("OAUTH STEP 1 OF 3: Review application branding", transcript)
+        self.assertIn("OAUTH STEP 2 OF 3: Review the Web OAuth client", transcript)
+        self.assertIn(
+            "OAUTH STEP 3 OF 3: Verify the OAuth client secret in Secret Manager",
+            transcript,
+        )
+        self.assertIn("Application type: Web application", transcript)
+        self.assertIn("Audience: External", transcript)
+        self.assertIn("Publishing status for staging: Testing", transcript)
+        self.assertIn("add every Google account that will test staging", transcript)
+        self.assertIn("Consumer Google and Google Workspace accounts", transcript)
+        self.assertIn("exactly one ENABLED version", transcript)
+        self.assertIn("Do not create a second secret", transcript)
+        self.assertIn("accepts only the client ID", transcript)
         self.assertIn("Comfforts Apps Staging", transcript)
-        self.assertIn("Secret Manager directly", transcript)
+        self.assertIn("existing Secret Manager target", transcript)
         self.assertNotIn("client_secret", transcript)
+        self.assertEqual(len(launcher.opened), 3)
+        self.assertIn("/auth/branding?", launcher.opened[0])
+        self.assertIn("/auth/clients?", launcher.opened[1])
+        self.assertIn("/security/secret-manager/", launcher.opened[2])
         self.assertEqual(
             terminal.questions,
             ["Paste the OAuth client ID (never the client secret): "],
@@ -636,19 +1081,24 @@ class PlatformDeploymentTest(unittest.TestCase):
             )
             terminal = FakeTerminal()
             waiter = FakeWaiter()
+            launcher = FakeCheckpointPageLauncher()
             executor = DeploymentExecutor(
                 root,
                 terminal,
                 commands,
                 waiter=waiter,
+                checkpoint_page_launcher=launcher,
             )
-            context = _context("external-dns", ("dns-attestation",))
+            context = _context("external-dns", ())
             context = StageContext(
                 environment=context.environment,
                 source_revision=context.source_revision,
                 specification_digest=context.specification_digest,
                 stage=context.stage,
-                inputs=(("shared-edge.reserved-address", "192.0.2.10"),),
+                inputs=(
+                    ("shared-edge.hostname", "apps-staging.comfforts.com"),
+                    ("shared-edge.reserved-address", "192.0.2.10"),
+                ),
             )
 
             result = executor.execute(context)
@@ -661,6 +1111,11 @@ class PlatformDeploymentTest(unittest.TestCase):
             [1, 2, 3],
         )
         transcript = "\n".join(terminal.messages)
+        self.assertIn("MANUAL ACTION REQUIRED: Reconcile the external DNS record", transcript)
+        self.assertIn("Open Squarespace DNS management", transcript)
+        self.assertIn("Add or update only this record", transcript)
+        self.assertIn("EXTERNAL DNS VERIFIED", transcript)
+        self.assertEqual(launcher.opened, ["https://account.squarespace.com/domains"])
         self.assertIn("apps-staging.comfforts.com", transcript)
         self.assertIn("192.0.2.10", transcript)
 
@@ -675,13 +1130,16 @@ class PlatformDeploymentTest(unittest.TestCase):
                 commands,
                 waiter=FakeWaiter(),
             )
-            context = _context("external-dns", ("dns-attestation",))
+            context = _context("external-dns", ())
             context = StageContext(
                 environment=context.environment,
                 source_revision=context.source_revision,
                 specification_digest=context.specification_digest,
                 stage=context.stage,
-                inputs=(("shared-edge.reserved-address", "192.0.2.10"),),
+                inputs=(
+                    ("shared-edge.hostname", "apps-staging.comfforts.com"),
+                    ("shared-edge.reserved-address", "192.0.2.10"),
+                ),
             )
 
             result = executor.execute(context)
@@ -689,6 +1147,54 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(result.outcome, "waiting")
         self.assertIn("CHECKPOINT_POLL_EXHAUSTED", result.blockers)
         self.assertEqual(len(commands.manual_verifications), 12)
+
+    def test_dns_checkpoint_reports_existing_verified_record_without_creation_language(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(root)
+            terminal = FakeTerminal()
+            launcher = FakeCheckpointPageLauncher()
+            executor = DeploymentExecutor(
+                root,
+                terminal,
+                commands,
+                checkpoint_page_launcher=launcher,
+            )
+            context = _context("external-dns", ())
+            context = StageContext(
+                environment=context.environment,
+                source_revision=context.source_revision,
+                specification_digest=context.specification_digest,
+                stage=context.stage,
+                inputs=(
+                    ("shared-edge.hostname", "apps-staging.comfforts.com"),
+                    ("shared-edge.reserved-address", "192.0.2.10"),
+                ),
+            )
+            original = commands.prepare_manual_checkpoint
+
+            def prepared(selected: StageContext) -> ManualCheckpoint:
+                checkpoint = original(selected)
+                return ManualCheckpoint(
+                    checkpoint.checkpoint,
+                    tuple(
+                        (name, "verified" if name == "record_status" else value)
+                        for name, value in checkpoint.instructions
+                    ),
+                )
+
+            commands.prepare_manual_checkpoint = prepared  # type: ignore[method-assign]
+
+            result = executor.execute(context)
+
+        transcript = "\n".join(terminal.messages)
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertIn("EXTERNAL DNS RECORD ALREADY VERIFIED", transcript)
+        self.assertNotIn("Create the external DNS record", transcript)
+        self.assertIn("No DNS change is required", transcript)
 
     def test_tls_readiness_is_bounded_and_closes_only_after_provider_readback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -699,9 +1205,10 @@ class PlatformDeploymentTest(unittest.TestCase):
                 terraform_readiness=[False, False, True],
             )
             waiter = FakeWaiter()
+            terminal = FakeTerminal()
             executor = DeploymentExecutor(
                 root,
-                FakeTerminal(),
+                terminal,
                 commands,
                 waiter=waiter,
             )
@@ -711,8 +1218,34 @@ class PlatformDeploymentTest(unittest.TestCase):
             )
 
         self.assertEqual(result.outcome, "succeeded")
-        self.assertEqual(waiter.delays, [10, 10])
+        self.assertEqual(waiter.delays, [30, 30])
         self.assertEqual(len(commands.readbacks), 3)
+        self.assertIn(
+            "Managed certificate is still provisioning (attempt 1 of 120)",
+            "\n".join(terminal.messages),
+        )
+
+    def test_tls_readiness_waits_for_one_hour_before_returning_waiting(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(root, terraform_readiness=[False] * 120)
+            waiter = FakeWaiter()
+            terminal = FakeTerminal()
+            executor = DeploymentExecutor(root, terminal, commands, waiter=waiter)
+
+            result = executor.execute(
+                _context("tls-readiness", ("certificate-reference",))
+            )
+
+        self.assertEqual(result.outcome, "waiting")
+        self.assertEqual(len(commands.readbacks), 120)
+        self.assertEqual(waiter.delays, [30] * 119)
+        self.assertIn("TERRAFORM_READINESS_PENDING", result.blockers)
+        self.assertIn(
+            "Certificate is still provisioning after 60 minutes",
+            "\n".join(terminal.messages),
+        )
 
     def test_prohibited_checkpoint_or_action_material_is_never_displayed(self) -> None:
         class UnsafeActionCommands(FakeCommands):
@@ -745,7 +1278,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             working_root.mkdir(mode=0o700)
             state_root = base / "state"
             terminal = FakeTerminal(
-                approvals=[True] * 8,
+                approvals=[True] * 9,
             )
             commands = FakeCommands(working_root)
             executor = DeploymentExecutor(
@@ -771,9 +1304,9 @@ class PlatformDeploymentTest(unittest.TestCase):
             unchanged = operator.execute("staging", prepared.specification_digest)
 
         self.assertEqual(deployed.outcome, "succeeded")
-        assert deployed.journal is not None
+        assert deployed.progress is not None
         self.assertEqual(
-            [entry["stage_id"] for entry in deployed.journal["entries"]],
+            [entry["stage_id"] for entry in deployed.progress["completed"]],
             [
                 "preflight",
                 "bootstrap-services",
@@ -783,12 +1316,13 @@ class PlatformDeploymentTest(unittest.TestCase):
                 "generation-publish",
                 "oauth-configuration",
                 "shared-edge",
+                "runtime-activation",
                 "external-dns",
                 "tls-readiness",
                 "readback",
             ],
         )
-        self.assertEqual(call_counts, (4, 3, 2))
+        self.assertEqual(call_counts, (4, 4, 2))
         self.assertEqual(unchanged.outcome, "unchanged")
         self.assertEqual(
             (
@@ -825,7 +1359,7 @@ class PlatformDeploymentTest(unittest.TestCase):
             working_root = base / "work"
             working_root.mkdir(mode=0o700)
             terminal = InterruptOnceTerminal(
-                approvals=[True] * 8,
+                approvals=[True] * 9,
             )
             commands = FakeCommands(working_root)
             executor = DeploymentExecutor(
@@ -855,7 +1389,7 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(closed_action_count, 3)
         self.assertEqual(resumed.outcome, "succeeded")
         self.assertEqual(len(commands.planned), 4)
-        self.assertEqual(len(commands.executed_actions), 3)
+        self.assertEqual(len(commands.executed_actions), 4)
         self.assertEqual(last_closed_stage, "readback")
 
 

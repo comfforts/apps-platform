@@ -10,6 +10,7 @@
     "configuration_kind",
     "configuration_class",
     "phase",
+    "destruction_mode",
     "repository",
     "environment",
     "foundation",
@@ -21,6 +22,9 @@
     "configuration_kind": {"const": "platform"},
     "configuration_class": {"enum": ["operator", "synthetic"]},
     "phase": {"enum": ["foundation", "shared-edge"]},
+    "destruction_mode": {
+      "enum": ["none", "shared-edge-unlock", "shared-edge-remove", "platform-unlock", "retained"]
+    },
     "repository": {"const": "comfforts/apps-platform"},
     "environment": {"const": "staging"},
     "foundation": {"$ref": "#/$defs/foundation"},
@@ -131,7 +135,7 @@
           "type": "string",
           "minLength": 27,
           "maxLength": 128,
-          "pattern": "^generations/[1-9][0-9]{0,9}/compiled\\.json$"
+          "pattern": "^(?:generations/[1-9][0-9]{0,9}/compiled\\.json|generations/[0-9a-f]{64}/compiled-shared-edge\\.v1\\.json|environments/(?:staging|production)/generations/[1-9][0-9]{0,9}/compiled-shared-edge\\.v1\\.json)$"
         },
         "object_generation": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}
       }

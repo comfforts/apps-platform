@@ -4,38 +4,33 @@
   "generations": [
     {
       "generation": 1,
-      "path": "generation-1-staged.v1.json",
-      "expected_digest": "sha256:b8e092913c22c0d2322728d0f279b22b34162e22d8108335d3e8fee940a70458"
+      "path": "generation-1-active.v1.json",
+      "expected_digest": "sha256:4eab4d0f3f618cb1faaa1737cec466ecb3b02d9a3538f114f20400c4d6919143"
     },
     {
       "generation": 2,
-      "path": "generation-2-active.v1.json",
-      "expected_digest": "sha256:4ee7b0a94d583d380cc42520b3cf78925144ada6a879e17246a55f474347a89d"
+      "path": "generation-2-registration-update.v1.json",
+      "expected_digest": "sha256:7f95948dbd84d3f17aa5ddcf5939dc810acfbc66521d1a924c5382872cc6d925"
     },
     {
       "generation": 3,
-      "path": "generation-3-registration-update.v1.json",
-      "expected_digest": "sha256:5febf14e338d709eb3759360697e16c197801dadeed90775da82c7688eec4eec"
+      "path": "generation-3-public-suspended.v1.json",
+      "expected_digest": "sha256:e7640ea003c56aba34eec9d63b4f8006de6f04f61e43b610b09fd4cb9dc68948"
     },
     {
       "generation": 4,
-      "path": "generation-4-public-suspended.v1.json",
-      "expected_digest": "sha256:97fcb285526adef89123d12b2adcb1d6855d40917af72de47d993aa1332ac054"
+      "path": "generation-4-public-reactivated.v1.json",
+      "expected_digest": "sha256:6d48263c88c85772e27ddbea3df4fe5bc1c8326b5472d2e5f85e6494f2fb5681"
     },
     {
       "generation": 5,
-      "path": "generation-5-public-reactivated.v1.json",
-      "expected_digest": "sha256:1af1e0811ff0f80eeee7492b07614cb1e2fca8e9ffa4bab05165d94600992f87"
+      "path": "generation-5-public-attachment-replaced.v1.json",
+      "expected_digest": "sha256:7551615de0ce448e9031cd18706f4725792bdb5a6f27fa6bc029085a9ef0456f"
     },
     {
       "generation": 6,
-      "path": "generation-6-public-attachment-replaced.v1.json",
-      "expected_digest": "sha256:a24306c3a00b3d4364edd3ad2d82bd7b872cd377e28935a8d3d86aa21672f497"
-    },
-    {
-      "generation": 7,
-      "path": "generation-7-authenticated-retired.v1.json",
-      "expected_digest": "sha256:51bd2981aa9620c91c070687d6ef1297a037226efa017cc182283e13cbb1d4dd"
+      "path": "generation-6-authenticated-retired.v1.json",
+      "expected_digest": "sha256:79707b568767ccaf2e4d953e261e65a7ab4b0da1aae27660673673aa2b8ad3b8"
     }
   ]
 }

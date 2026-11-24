@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from authlib.deprecate import AuthlibDeprecationWarning
+from google.cloud.firestore_v1 import async_transactional
 
 with warnings.catch_warnings():
     warnings.filterwarnings(
@@ -249,13 +250,17 @@ class FirestoreIdentityStore:
         try:
             document = self._flow_document(flow_id)
             transaction = self._client.transaction()
-            snapshot = await document.get(transaction=transaction)
-            if not snapshot.exists:
-                await transaction.commit()
-                return None
-            data = snapshot.to_dict()
-            transaction.delete(document)
-            await transaction.commit()
+
+            @async_transactional
+            async def read_and_delete(active_transaction: Any) -> object:
+                snapshot = await document.get(transaction=active_transaction)
+                if not snapshot.exists:
+                    return None
+                data = snapshot.to_dict()
+                active_transaction.delete(document)
+                return data
+
+            data = await read_and_delete(transaction)
             if not isinstance(data, dict):
                 return None
             return LoginFlow(

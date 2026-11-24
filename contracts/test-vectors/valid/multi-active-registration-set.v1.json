@@ -1,7 +1,7 @@
 {
   "contract_version": 1,
-  "generation": 2,
-  "previous_generation_digest": "sha256:d5776860560c1bdd7b321fa21ba4d2e866c1076ecb47480a0fa5a198b8e38ac4",
+  "generation": 1,
+  "previous_generation_digest": null,
   "proposal": {
     "source_revision": "bbbbbbb",
     "change_summary": "Activate synthetic public, authenticated, and restricted applications"
@@ -10,7 +10,7 @@
     {
       "contract_version": 1,
       "application_id": "gamma-app",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/gamma",
       "catalogue": {
         "visibility": "listed",
@@ -49,7 +49,7 @@
     {
       "contract_version": 1,
       "application_id": "alpha-app",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/alpha",
       "catalogue": {
         "visibility": "listed",
@@ -90,7 +90,7 @@
     {
       "contract_version": 1,
       "application_id": "beta-app",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/beta",
       "catalogue": {
         "visibility": "unlisted",

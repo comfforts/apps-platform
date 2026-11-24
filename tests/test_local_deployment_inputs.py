@@ -95,7 +95,7 @@ class LocalDeploymentInputsTest(unittest.TestCase):
         self.assertEqual(reference["generation_digest"], generation.generation_digest)
         self.assertEqual(reference["content_digest"], generation.content_digest)
 
-    def test_bootstrap_input_derives_all_four_exclusive_buckets(self) -> None:
+    def test_platform_bootstrap_input_manages_only_platform_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             working_root = Path(directory) / "work"
             renderer = DeploymentConfigurationRenderer(
@@ -114,15 +114,10 @@ class LocalDeploymentInputsTest(unittest.TestCase):
             variable_mode = os.stat(rendered.variable_file).st_mode & 0o777
 
         self.assertEqual(value["configuration_class"], "operator")
-        self.assertEqual(len(value["state_buckets"]), 4)
+        self.assertEqual(len(value["state_buckets"]), 1)
         self.assertEqual(
             {item["owner_id"] for item in value["state_buckets"]},
-            {
-                "app-platform",
-                "fixture-authenticated",
-                "fixture-public",
-                "fixture-restricted",
-            },
+            {"app-platform"},
         )
         self.assertEqual(variable_mode, 0o600)
 
@@ -220,6 +215,82 @@ class LocalDeploymentInputsTest(unittest.TestCase):
                 "source_revision"
             ],
             SOURCE_REVISION,
+        )
+
+    def test_shared_edge_accepts_an_existing_content_addressed_generation(self) -> None:
+        generation_digest = (
+            "sha256:44080cfd4ef038237c33f3c2a883cf9ad63646e9f33adf44379b64055983cd25"
+        )
+        generation_reference = json.dumps(
+            {
+                "content_digest": (
+                    "sha256:d5917d35a3190f314a5be589ea59c6808cd58790262b942f6916adba11218c8a"
+                ),
+                "generation": 2,
+                "generation_digest": generation_digest,
+                "object_generation": 84,
+                "object_name": (
+                    f"generations/{generation_digest[7:]}/"
+                    "compiled-shared-edge.v1.json"
+                ),
+            },
+            separators=(",", ":"),
+        )
+        inputs = (
+            (
+                "foundation.foundation-reference",
+                json.dumps(
+                    {
+                        "signing_key_version": (
+                            "projects/comfforts-platform-non-prod/locations/us-west1/"
+                            "keyRings/app-platform/cryptoKeys/edge-signing/"
+                            "cryptoKeyVersions/1"
+                        )
+                    },
+                    separators=(",", ":"),
+                ),
+            ),
+            (
+                "image-publish.shared-edge-image-digest",
+                "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                "app-platform-images/shared-edge@sha256:" + ("3" * 64),
+            ),
+            (
+                "oauth-configuration.oauth-client-id",
+                "client.apps.googleusercontent.com",
+            ),
+            (
+                "oauth-configuration.oauth-secret-version",
+                "projects/comfforts-platform-non-prod/secrets/"
+                "app-platform-edge-oauth/versions/1",
+            ),
+            (
+                "generation-publish.registration-generation-reference",
+                generation_reference,
+            ),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            working_root = Path(directory) / "work"
+            renderer = DeploymentConfigurationRenderer(
+                PROJECT_ROOT,
+                working_root,
+                _session(),
+            )
+
+            rendered = renderer.render(
+                _context("shared-edge", inputs),
+                _request(working_root, "shared-edge"),
+            )
+            configuration = json.loads(rendered.variable_file.read_bytes())[
+                "platform_configuration"
+            ]
+
+        self.assertEqual(
+            configuration["shared_edge"]["registration_generation"]["object_name"],
+            (
+                f"generations/{generation_digest[7:]}/"
+                "compiled-shared-edge.v1.json"
+            ),
         )
 
     def test_cross_environment_and_missing_generated_inputs_fail_before_plan(self) -> None:

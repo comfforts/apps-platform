@@ -1,7 +1,7 @@
 {
   "contract_version": 1,
-  "generation": 3,
-  "previous_generation_digest": "sha256:dbbf3a48ddfa7457bb5260bf4060958f31c2485317a255d51b7adca86c9f9224",
+  "generation": 2,
+  "previous_generation_digest": "sha256:68037a002b4334ab1ad0a0a2d983a9c60835327ec8c5ecea812a207e4d83dc29",
   "proposal": {
     "source_revision": "ccccccc",
     "change_summary": "Record no platform-facing change for a synthetic application release"
@@ -10,7 +10,7 @@
     {
       "contract_version": 1,
       "application_id": "alpha-app",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/alpha",
       "catalogue": {
         "visibility": "listed",

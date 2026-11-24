@@ -400,17 +400,27 @@ class RequestGateTest(unittest.IsolatedAsyncioTestCase):
 class ProductionTransportTest(unittest.IsolatedAsyncioTestCase):
     async def test_google_identity_adapter_is_inert_until_token_request(self) -> None:
         auth_request = object()
-        source = GoogleAuthServiceIdentityTokenSource(auth_request)
+        target_credentials = object()
+        source = GoogleAuthServiceIdentityTokenSource(
+            auth_request,
+            target_credentials,
+        )
 
         with patch(
-            "edge._proxy.google_id_token.fetch_id_token",
-            return_value="test-only.service.identity.token",
-        ) as fetch:
-            fetch.assert_not_called()
+            "edge._proxy.impersonated_credentials.IDTokenCredentials",
+        ) as credentials_type:
+            credentials = credentials_type.return_value
+            credentials.token = "test-only.service.identity.token"
+            credentials_type.assert_not_called()
             token = await source.token("https://service.run.app")
 
         self.assertEqual(token, "test-only.service.identity.token")
-        fetch.assert_called_once_with(auth_request, "https://service.run.app")
+        credentials_type.assert_called_once_with(
+            target_credentials,
+            target_audience="https://service.run.app",
+            include_email=True,
+        )
+        credentials.refresh.assert_called_once_with(auth_request)
 
     async def test_httpx_transport_uses_loopback_and_preserves_path_query_upload(self) -> None:
         observed: dict[str, Any] = {}

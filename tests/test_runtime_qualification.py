@@ -759,6 +759,7 @@ class GateIntegrityTest(unittest.TestCase):
                 extracted_root,
                 ignore=shutil.ignore_patterns(
                     ".git",
+                    ".platform-operator",
                     ".venv",
                     "__pycache__",
                     "*.pyc",

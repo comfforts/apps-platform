@@ -5,13 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from infrastructure.operator._interfaces import StatusResult
+from infrastructure.operator._interfaces import OperatorTerminal, StatusResult
 from infrastructure.operator.integration import RegistrationGenerationProposal
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 from infrastructure.operator.qualification import (
     ComponentRevision,
     QualificationReadback,
 )
+from infrastructure.operator.rollback import (
+    GenerationRollbackLifecycle,
+    ReviewedGenerationControl,
+    RollbackRequest,
+)
+from infrastructure.operator.integration import PlatformIntegrationReader
 
 
 _REQUIRED_FIXTURES = {
@@ -72,8 +78,9 @@ class LocalQualificationStateReader:
         ):
             raise ValueError("environment is not deployed")
         required_status = (
-            "journal_digest",
+            "progress_digest",
             "profile_digest",
+            "source_authority",
             "source_revision",
             "specification_digest",
         )
@@ -128,15 +135,96 @@ class LocalQualificationStateReader:
             source_revision=str(status["source_revision"]),
             profile_digest=str(status["profile_digest"]),
             specification_digest=str(status["specification_digest"]),
-            deployment_journal_digest=str(status["journal_digest"]),
+            deployment_progress_digest=str(status["progress_digest"]),
             registration_generation_digest=proposal.generation_digest,
             component_revisions=tuple(sorted(provider.component_revisions)),
             fixture_revisions=tuple(sorted(fixtures)),
+            source_authority=str(status["source_authority"]),
+        )
+
+
+class LiveGenerationRollbackExercise:
+    """Review one predecessor activation and restore the exact original generation."""
+
+    def __init__(
+        self,
+        platform: PlatformIntegrationReader,
+        generations: ReviewedGenerationControl,
+        terminal: OperatorTerminal,
+    ) -> None:
+        self._platform = platform
+        self._generations = generations
+        self._terminal = terminal
+
+    def verify_rollback(self, environment: str, generation_digest: str) -> bool:
+        try:
+            platform = self._platform.read_platform(environment)
+            original = self._generations.current(environment)
+        except Exception:
+            return False
+        if (
+            original is None
+            or original.proposal.generation_digest != generation_digest
+        ):
+            return False
+        predecessor_digest = original.proposal.registration_set.get(
+            "previous_generation_digest"
+        )
+        if not isinstance(predecessor_digest, str):
+            return False
+        rollback = GenerationRollbackLifecycle(
+            self._platform,
+            self._generations,
+            self._terminal,
+        ).rollback(
+            RollbackRequest(
+                environment=environment,
+                expected_platform_source_revision=(
+                    platform.platform_source_revision
+                ),
+                expected_active_generation_digest=generation_digest,
+                target_generation_digest=predecessor_digest,
+            )
+        )
+        if rollback.outcome != "activated":
+            return False
+
+        generation = original.proposal.registration_set.get("generation")
+        if not isinstance(generation, int):
+            return False
+        expected = f"RESTORE {environment} GENERATION {generation} {generation_digest}"
+        self._terminal.write(
+            f"RESTORE_GENERATION {generation} {generation_digest}"
+        )
+        try:
+            confirmed = self._terminal.confirm_exact(
+                f"Type {expected!r} to restore the reviewed generation: ",
+                expected,
+            )
+        except Exception:
+            return False
+        if not confirmed:
+            return False
+        try:
+            restored = self._generations.activate(
+                environment,
+                original.publication_reference,
+                generation_digest,
+            )
+            current = self._generations.current(environment)
+        except Exception:
+            return False
+        return (
+            restored.activated
+            and restored.active_generation_digest == generation_digest
+            and current is not None
+            and current.proposal.generation_digest == generation_digest
         )
 
 
 __all__ = (
     "EnvironmentStatusReader",
+    "LiveGenerationRollbackExercise",
     "LocalQualificationStateReader",
     "ProviderQualificationSnapshot",
     "QualificationProviderReader",

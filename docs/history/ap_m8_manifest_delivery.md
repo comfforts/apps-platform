@@ -5,7 +5,7 @@ Status: historical; superseded by AP-M9
 At source revision `7b6678a7f0b3036d427517dad6bc3bec876d1a44`:
 
 - AP-M8-W1 had been owner-accepted and merged. It described protected environments, operation
-  identities, state lineages, staged deployment, DNS/TLS, and evidence checkpoints.
+  identities, state lineages, multi-stage deployment, DNS/TLS, and evidence checkpoints.
 - AP-M8-W2 had implemented the closed operator-input-manifest schema, pure loader, canonical
   digest, append-only predecessor validation, a read-only command, and synthetic tests.
 - no real operator manifest had been accepted;
@@ -16,7 +16,7 @@ At source revision `7b6678a7f0b3036d427517dad6bc3bec876d1a44`:
 The hand-authored manifest required too many operator-supplied derived and provider-owned facts and
 did not provide the intended human-operable product. ADR-010 retired that interface. AP-M9 replaces
 it with small environment profiles and an interactive lifecycle that discovers read-only facts,
-presents exact changes, obtains bounded approvals, performs staged operations, and records
+presents exact changes, obtains bounded approvals, performs ordered operations, and records
 readbacks.
 
 AP-M9-W2 removed the schema, example, command, validator, loader, exports, and dedicated tests from

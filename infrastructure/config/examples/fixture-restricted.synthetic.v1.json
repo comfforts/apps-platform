@@ -13,6 +13,10 @@
   "assertion_audience": "urn:comfforts:app-platform:audience:fixture-restricted",
   "platform_issuer": "https://apps.example.invalid/_platform",
   "edge_caller_principal": "serviceAccount:synthetic-edge-caller@synthetic-platform.iam.gserviceaccount.com",
+  "network_host_project_id": "synthetic-platform",
+  "shared_network_reference": "projects/synthetic-platform/global/networks/synthetic-shared",
+  "application_subnet_reference": "projects/synthetic-platform/regions/us-west1/subnetworks/synthetic-applications",
+  "vpc_egress": "all-traffic",
   "labels": {
     "environment": "qualification",
     "managed_by": "terraform",

@@ -1,9 +1,9 @@
 {
   "contract_version": 1,
   "compiler_version": 1,
-  "generation": 2,
-  "generation_digest": "sha256:3e9ba7044ee12998bcc21d79700a0a1dba4ab55480442f604a12b3e0dcf0a66f",
-  "previous_generation_digest": "sha256:d5776860560c1bdd7b321fa21ba4d2e866c1076ecb47480a0fa5a198b8e38ac4",
+  "generation": 1,
+  "generation_digest": "sha256:52052cce30e088ca264adfb0ca88c926812a263aecbe11d8f2e6e6b51b5ca235",
+  "previous_generation_digest": null,
   "reserved_paths": [
     "/",
     "/.well-known",
@@ -16,19 +16,19 @@
   "application_states": [
     {
       "application_id": "alpha-app",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/alpha",
       "lifecycle": "active"
     },
     {
       "application_id": "beta-app",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/beta",
       "lifecycle": "active"
     },
     {
       "application_id": "gamma-app",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/gamma",
       "lifecycle": "active"
     }

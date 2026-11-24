@@ -5,6 +5,7 @@ variable "platform_configuration" {
     configuration_kind  = string
     configuration_class = string
     phase               = string
+    destruction_mode    = string
     repository          = string
     environment         = string
     foundation = object({
@@ -55,10 +56,15 @@ variable "platform_configuration" {
       var.platform_configuration.configuration_kind == "platform" &&
       contains(["operator", "synthetic"], var.platform_configuration.configuration_class) &&
       contains(["foundation", "shared-edge"], var.platform_configuration.phase) &&
+      contains(["none", "shared-edge-unlock", "shared-edge-remove", "platform-unlock", "retained"], var.platform_configuration.destruction_mode) &&
       var.platform_configuration.repository == "comfforts/apps-platform" &&
       var.platform_configuration.environment == "staging" &&
       var.platform_configuration.foundation.state_owner == "platform" &&
       (
+        contains(["shared-edge-remove", "platform-unlock", "retained"], var.platform_configuration.destruction_mode) ?
+        var.platform_configuration.phase == "foundation" && var.platform_configuration.shared_edge == null :
+        var.platform_configuration.destruction_mode == "shared-edge-unlock" ?
+        var.platform_configuration.phase == "shared-edge" && var.platform_configuration.shared_edge != null :
         var.platform_configuration.phase == "foundation" ?
         var.platform_configuration.shared_edge == null :
         var.platform_configuration.shared_edge != null
@@ -134,7 +140,11 @@ variable "platform_configuration" {
       var.platform_configuration.shared_edge.registration_generation.generation <= 2147483647 &&
       can(regex("^sha256:[0-9a-f]{64}$", var.platform_configuration.shared_edge.registration_generation.generation_digest)) &&
       can(regex("^sha256:[0-9a-f]{64}$", var.platform_configuration.shared_edge.registration_generation.content_digest)) &&
-      var.platform_configuration.shared_edge.registration_generation.object_name == "generations/${var.platform_configuration.shared_edge.registration_generation.generation}/compiled.json" &&
+      contains([
+        var.platform_configuration.shared_edge.registration_generation.generation == 1 ? "generations/1/compiled.json" : "",
+        "generations/${trimprefix(var.platform_configuration.shared_edge.registration_generation.generation_digest, "sha256:")}/compiled-shared-edge.v1.json",
+        "environments/${var.platform_configuration.environment}/generations/${var.platform_configuration.shared_edge.registration_generation.generation}/compiled-shared-edge.v1.json",
+      ], var.platform_configuration.shared_edge.registration_generation.object_name) &&
       var.platform_configuration.shared_edge.registration_generation.object_generation >= 1 &&
       var.platform_configuration.shared_edge.registration_generation.object_generation <= 9223372036854775807,
       false,

@@ -9,6 +9,7 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping, Protocol, Sequence
+from urllib.parse import urlsplit
 
 import google_crc32c
 from cryptography.exceptions import InvalidSignature
@@ -372,10 +373,24 @@ class AssertionIssuer:
         signer: AssertionSigner,
         clock: Clock,
         correlation_ids: TokenSource,
+        *,
+        issuer: str,
     ) -> None:
+        parsed_issuer = urlsplit(issuer)
+        if (
+            parsed_issuer.scheme != "https"
+            or not parsed_issuer.netloc
+            or parsed_issuer.path != "/_platform"
+            or parsed_issuer.query
+            or parsed_issuer.fragment
+            or parsed_issuer.username is not None
+            or parsed_issuer.password is not None
+        ):
+            raise ValueError("assertion issuer must be the exact HTTPS platform issuer")
         self._signer = signer
         self._clock = clock
         self._correlation_ids = correlation_ids
+        self._issuer = issuer
 
     async def issue(
         self,
@@ -388,7 +403,7 @@ class AssertionIssuer:
         issued_at = _clock_value(self._clock)
         context = VerifiedIdentityContext(
             contract_version=1,
-            issuer=identity.issuer,
+            issuer=self._issuer,
             subject=identity.subject,
             audience=audience,
             issued_at=issued_at,

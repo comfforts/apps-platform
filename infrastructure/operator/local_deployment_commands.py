@@ -32,9 +32,14 @@ from infrastructure.operator.deployment_provider import DeploymentProviderError
 from infrastructure.operator.local_deployment import (
     DeploymentConfigurationRenderer,
     InitialGeneration,
+    LocalDeploymentInputError,
     OperatorSessionFacts,
     RenderedTerraformInput,
     initial_generation,
+)
+from infrastructure.operator.local_generation import (
+    ProviderGenerationActivation,
+    ProviderGenerationBinding,
 )
 
 
@@ -42,9 +47,28 @@ _PROJECT_ID = "comfforts-platform-non-prod"
 _REGION = "us-west1"
 _HOSTNAME = "apps-staging.comfforts.com"
 _CONFIGURATION_BUCKET = "comfforts-ap-stg-455651441682-configuration"
-_OAUTH_SECRET = f"projects/{_PROJECT_ID}/secrets/app-platform-edge-oauth"
+_APPLICATION_ROUTER = "app-platform-applications-us-west1-router"
+_APPLICATION_NAT = "app-platform-applications-us-west1-nat"
+_OAUTH_STORE_TARGET = (
+    f"projects/{_PROJECT_ID}/secrets/app-platform-edge-oauth"
+)
+_OAUTH_BRANDING_CONSOLE = (
+    f"https://console.cloud.google.com/auth/branding?project={_PROJECT_ID}"
+)
+_OAUTH_CLIENTS_CONSOLE = (
+    f"https://console.cloud.google.com/auth/clients?project={_PROJECT_ID}"
+)
+_OAUTH_STORE_CONSOLE = (
+    "https://console.cloud.google.com/security/secret-manager/secret/"
+    f"app-platform-edge-oauth/versions?project={_PROJECT_ID}"
+)
+_DNS_CONSOLE = "https://account.squarespace.com/domains"
 _CLIENT_ID = re.compile(r"[0-9]+-[a-z0-9-]+\.apps\.googleusercontent\.com")
 _IPV4 = re.compile(r"(?:[0-9]{1,3}\.){3}[0-9]{1,3}")
+_SHARED_EDGE_STATE_PREFIX = "module.shared_edge["
+_SHARED_EDGE_CERTIFICATE_STATE_ADDRESS = (
+    "module.shared_edge[0].google_compute_managed_ssl_certificate.edge[0]"
+)
 
 
 class DeploymentTerraform(Protocol):
@@ -55,6 +79,7 @@ class DeploymentTerraform(Protocol):
         variable_file: Path,
         *,
         bootstrap_remote: bool = False,
+        refresh_only: bool = False,
     ) -> TerraformPlanArtifact: ...
 
     def apply_plan(
@@ -69,6 +94,18 @@ class DeploymentTerraform(Protocol):
         request: PhasePlanRequest,
         terraform_root: Path,
     ) -> None: ...
+
+    def clear_signing_key_ring_taint(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> None: ...
+
+    def platform_state_addresses(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> tuple[str, ...]: ...
 
     def read_output(
         self,
@@ -85,9 +122,11 @@ class DeploymentProvider(Protocol):
 
     def bootstrap_backend_ready(self) -> bool: ...
 
-    def publish_initial_generation(self, generation: InitialGeneration) -> int: ...
+    def signing_key_ring_identity(self) -> str: ...
 
-    def read_initial_generation(self, generation: InitialGeneration) -> int: ...
+    def publish_initial_generation(self, generation: InitialGeneration) -> str: ...
+
+    def read_initial_generation(self) -> str: ...
 
     def publish_shared_edge_image(self, source_revision: str) -> str: ...
 
@@ -104,6 +143,33 @@ class DeploymentDns(Protocol):
     def read(self, expected_address: str) -> DnsReadback: ...
 
 
+class RuntimeGenerationProvider(Protocol):
+    def shared_edge_exists(self, environment: str) -> bool: ...
+
+    def read_revision_binding(
+        self,
+        environment: str,
+        revision_name: str,
+    ) -> ProviderGenerationBinding: ...
+
+    def activate(
+        self,
+        environment: str,
+        revision_name: str,
+        generation_digest: str,
+        authority: str,
+    ) -> ProviderGenerationActivation: ...
+
+    def read_active_binding(
+        self,
+        environment: str,
+    ) -> ProviderGenerationBinding: ...
+
+
+class RuntimeGenerationRecorder(Protocol):
+    def record_active_runtime(self, binding: ProviderGenerationBinding) -> None: ...
+
+
 def _canonical(value: object) -> str:
     return json.dumps(
         value,
@@ -114,14 +180,18 @@ def _canonical(value: object) -> str:
     )
 
 
-def _attestation(value: object) -> str:
-    return "sha256:" + hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
-
-
 def _dict(value: object, code: str) -> dict[str, object]:
     if not isinstance(value, dict):
         raise DeploymentCommandError(code)
     return value
+
+
+def _object(value: str, code: str) -> dict[str, object]:
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise DeploymentCommandError(code) from error
+    return _dict(parsed, code)
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +199,8 @@ class _RenderedPlan:
     request: PhasePlanRequest
     rendered: RenderedTerraformInput
     initial_bootstrap: bool = False
+    shared_edge_tls_enabled: bool | None = None
+    foundation_egress_required: bool = True
 
 
 class LocalDeploymentCommands:
@@ -141,14 +213,108 @@ class LocalDeploymentCommands:
         provider: DeploymentProvider,
         dns: DeploymentDns,
         session: OperatorSessionFacts,
+        *,
+        runtime_provider: RuntimeGenerationProvider | None = None,
+        runtime_recorder: RuntimeGenerationRecorder | None = None,
     ) -> None:
         self._renderer = renderer
         self._terraform = terraform
         self._provider = provider
         self._dns = dns
         self._session = session
+        self._runtime_provider = runtime_provider
+        self._runtime_recorder = runtime_recorder
         self._plans_by_stage: dict[str, _RenderedPlan] = {}
         self._plans_by_request: dict[int, _RenderedPlan] = {}
+
+    @staticmethod
+    def _generation_reference(binding: ProviderGenerationBinding) -> str:
+        return _canonical(
+            {
+                "content_digest": binding.content_digest,
+                "generation": binding.generation,
+                "generation_digest": binding.generation_digest,
+                "object_generation": binding.object_generation,
+                "object_name": binding.object_name,
+            }
+        )
+
+    def _active_generation_binding(self) -> ProviderGenerationBinding | None:
+        if self._runtime_provider is None:
+            return None
+        if not self._runtime_provider.shared_edge_exists("staging"):
+            return None
+        return self._runtime_provider.read_active_binding("staging")
+
+    def _active_generation_reference(self) -> str | None:
+        binding = self._active_generation_binding()
+        return None if binding is None else self._generation_reference(binding)
+
+    def _expected_runtime_binding(
+        self,
+        context: StageContext,
+    ) -> ProviderGenerationBinding:
+        inputs = self._inputs(context)
+        try:
+            generation = _object(
+                inputs["generation-publish.registration-generation-reference"],
+                "REGISTRATION_GENERATION_REFERENCE_INVALID",
+            )
+            edge_reference = _object(
+                inputs["shared-edge.edge-reference"],
+                "SHARED_EDGE_READBACK_INVALID",
+            )
+            edge = _dict(
+                edge_reference["edge"],
+                "SHARED_EDGE_READBACK_INVALID",
+            )
+            binding = ProviderGenerationBinding(
+                environment=context.environment,
+                revision_name=str(edge["candidate_revision"]),
+                platform_source_revision=context.source_revision,
+                image_reference=inputs[
+                    "image-publish.shared-edge-image-digest"
+                ],
+                generation=int(generation["generation"]),
+                generation_digest=str(generation["generation_digest"]),
+                content_digest=str(generation["content_digest"]),
+                object_name=str(generation["object_name"]),
+                object_generation=int(generation["object_generation"]),
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise DeploymentCommandError(
+                "RUNTIME_ACTIVATION_INPUT_INVALID"
+            ) from error
+        if (
+            binding.environment != "staging"
+            or not binding.revision_name.startswith(
+                f"app-platform-edge-g{binding.generation}-"
+            )
+            or not binding.image_reference.startswith(
+                f"{_REGION}-docker.pkg.dev/{_PROJECT_ID}/"
+                "app-platform-images/shared-edge@sha256:"
+            )
+            or len(binding.generation_digest) != 71
+            or len(binding.content_digest) != 71
+            or binding.object_generation < 1
+        ):
+            raise DeploymentCommandError("RUNTIME_ACTIVATION_INPUT_INVALID")
+        return binding
+
+    @staticmethod
+    def _runtime_binding_value(
+        binding: ProviderGenerationBinding,
+    ) -> dict[str, object]:
+        return {
+            "content_digest": binding.content_digest,
+            "generation": binding.generation,
+            "generation_digest": binding.generation_digest,
+            "image_reference": binding.image_reference,
+            "object_generation": binding.object_generation,
+            "object_name": binding.object_name,
+            "platform_source_revision": binding.platform_source_revision,
+            "revision_name": binding.revision_name,
+        }
 
     @staticmethod
     def _stage_id(context: StageContext) -> str:
@@ -169,6 +335,7 @@ class LocalDeploymentCommands:
     ) -> TerraformPlanArtifact:
         try:
             rendered = self._renderer.render(context, request)
+            stage_id = self._stage_id(context)
             bootstrap_remote = False
             initial_bootstrap = False
             if request.phase == "bootstrap":
@@ -182,8 +349,39 @@ class LocalDeploymentCommands:
                             "TERRAFORM_BACKEND_BINDING_MISMATCH"
                         )
                     request.backend_path.unlink()
-            plan = _RenderedPlan(request, rendered, initial_bootstrap)
-            stage_id = self._stage_id(context)
+            refresh_only = False
+            shared_edge_tls_enabled: bool | None = None
+            if request.phase in {"platform-foundation", "shared-edge"}:
+                state_addresses = self._terraform.platform_state_addresses(
+                    request,
+                    rendered.terraform_root,
+                )
+            if request.phase == "platform-foundation":
+                refresh_only = any(
+                    address.startswith(_SHARED_EDGE_STATE_PREFIX)
+                    for address in state_addresses
+                )
+            elif request.phase == "shared-edge":
+                preserve_shared_edge_tls = (
+                    stage_id == "shared-edge"
+                    and _SHARED_EDGE_CERTIFICATE_STATE_ADDRESS in state_addresses
+                )
+                if preserve_shared_edge_tls:
+                    rendered = self._renderer.render(
+                        context,
+                        request,
+                        preserve_shared_edge_tls=True,
+                    )
+                shared_edge_tls_enabled = (
+                    stage_id == "tls-readiness" or preserve_shared_edge_tls
+                )
+            plan = _RenderedPlan(
+                request,
+                rendered,
+                initial_bootstrap,
+                shared_edge_tls_enabled,
+                foundation_egress_required=not refresh_only,
+            )
             self._plans_by_stage[stage_id] = plan
             self._plans_by_request[id(request)] = plan
             return self._terraform.create_plan(
@@ -191,11 +389,62 @@ class LocalDeploymentCommands:
                 rendered.terraform_root,
                 rendered.variable_file,
                 bootstrap_remote=bootstrap_remote,
+                refresh_only=refresh_only,
             )
+        except LocalDeploymentInputError as error:
+            raise DeploymentCommandError(str(error)) from error
         except DeploymentCommandError:
             raise
         except (OSError, RuntimeError, ValueError) as error:
             raise DeploymentCommandError("TERRAFORM_PLAN_COMMAND_FAILED") from error
+
+    @staticmethod
+    def _validate_signing_key_ring_recovery(
+        context: StageContext,
+        request: PhasePlanRequest,
+    ) -> None:
+        if (
+            context.environment != "staging"
+            or context.stage.get("stage_id") != "foundation"
+            or request.phase != "platform-foundation"
+            or request.project_id != _PROJECT_ID
+        ):
+            raise DeploymentCommandError("TERRAFORM_RECOVERY_SCOPE_MISMATCH")
+
+    def signing_key_ring_recovery_identity(
+        self,
+        context: StageContext,
+        request: PhasePlanRequest,
+    ) -> str:
+        self._validate_signing_key_ring_recovery(context, request)
+        try:
+            return self._provider.signing_key_ring_identity()
+        except DeploymentProviderError as error:
+            raise self._provider_error(error) from error
+
+    def clear_signing_key_ring_taint(
+        self,
+        context: StageContext,
+        request: PhasePlanRequest,
+        identity: str,
+    ) -> None:
+        self._validate_signing_key_ring_recovery(context, request)
+        try:
+            if self._provider.signing_key_ring_identity() != identity:
+                raise DeploymentCommandError("SIGNING_KEY_RING_READBACK_MISMATCH")
+            rendered_plan = self._plans_by_request[id(request)]
+            self._terraform.clear_signing_key_ring_taint(
+                request,
+                rendered_plan.rendered.terraform_root,
+            )
+        except KeyError as error:
+            raise DeploymentCommandError("TERRAFORM_PLAN_CONTEXT_MISSING") from error
+        except DeploymentProviderError as error:
+            raise self._provider_error(error) from error
+        except DeploymentCommandError:
+            raise
+        except (OSError, RuntimeError, ValueError) as error:
+            raise DeploymentCommandError("TERRAFORM_STATE_RECOVERY_FAILED") from error
 
     def apply_terraform_plan(
         self,
@@ -255,7 +504,12 @@ class LocalDeploymentCommands:
             raise DeploymentCommandError("BOOTSTRAP_READBACK_INVALID")
         return _canonical(output)
 
-    def _foundation_references(self, value: object) -> tuple[str, str]:
+    def _foundation_references(
+        self,
+        value: object,
+        *,
+        require_application_egress: bool = True,
+    ) -> tuple[str, str]:
         output = _dict(value, "FOUNDATION_READBACK_INVALID")
         foundation = output.get("foundation")
         if (
@@ -267,7 +521,16 @@ class LocalDeploymentCommands:
             or output.get("hostname") != _HOSTNAME
             or not isinstance(foundation, dict)
             or foundation.get("configuration_bucket") != _CONFIGURATION_BUCKET
-            or foundation.get("oauth_secret_id") != _OAUTH_SECRET
+            or foundation.get("oauth_secret_id") != _OAUTH_STORE_TARGET
+            or (
+                require_application_egress
+                and (
+                    foundation.get("application_egress_mode") != "all-traffic"
+                    or foundation.get("application_router_name")
+                    != _APPLICATION_ROUTER
+                    or foundation.get("application_nat_name") != _APPLICATION_NAT
+                )
+            )
         ):
             raise DeploymentCommandError("FOUNDATION_READBACK_INVALID")
         try:
@@ -275,7 +538,7 @@ class LocalDeploymentCommands:
         except DeploymentProviderError as error:
             raise self._provider_error(error) from error
         reference = {**output, "signing_key_version": signing_version}
-        return _canonical(reference), _OAUTH_SECRET
+        return _canonical(reference), _OAUTH_STORE_TARGET
 
     @staticmethod
     def _edge_references(value: object, *, tls_enabled: bool) -> tuple[str, str]:
@@ -290,6 +553,10 @@ class LocalDeploymentCommands:
             or not isinstance(edge, dict)
             or edge.get("hostname") != _HOSTNAME
             or edge.get("service_name") != "app-platform-edge"
+            or not isinstance(edge.get("candidate_revision"), str)
+            or not str(edge["candidate_revision"]).startswith(
+                "app-platform-edge-g"
+            )
             or edge.get("tls_enabled") is not tls_enabled
             or not isinstance(edge.get("reserved_address"), str)
             or _IPV4.fullmatch(str(edge["reserved_address"])) is None
@@ -329,19 +596,47 @@ class LocalDeploymentCommands:
                     (("backend-reference", self._bootstrap_reference(value)),),
                 )
             if request.stage_id == "foundation":
-                foundation, secret = self._foundation_references(value)
+                foundation, oauth_store_target = self._foundation_references(
+                    value,
+                    require_application_egress=(
+                        planned.foundation_egress_required
+                    ),
+                )
                 return TerraformReadback(
                     True,
                     (
                         ("foundation-reference", foundation),
-                        ("oauth-secret-container", secret),
+                        ("oauth-secret-container", oauth_store_target),
                     ),
                 )
             if request.stage_id == "shared-edge":
-                edge, address = self._edge_references(value, tls_enabled=False)
+                if not isinstance(planned.shared_edge_tls_enabled, bool):
+                    return TerraformReadback(
+                        False,
+                        blockers=("TERRAFORM_PLAN_CONTEXT_MISSING",),
+                    )
+                foundation_value = self._terraform.read_output(
+                    planned.request,
+                    planned.rendered.terraform_root,
+                    "foundation_phase_output",
+                )
+                self._foundation_references(foundation_value)
+                edge, address = self._edge_references(
+                    value,
+                    tls_enabled=planned.shared_edge_tls_enabled,
+                )
                 return TerraformReadback(
                     True,
-                    (("edge-reference", edge), ("reserved-address", address)),
+                    (
+                        ("edge-reference", edge),
+                        ("hostname", _HOSTNAME),
+                        ("reserved-address", address),
+                    ),
+                )
+            if planned.shared_edge_tls_enabled is not True:
+                return TerraformReadback(
+                    False,
+                    blockers=("TERRAFORM_PLAN_CONTEXT_MISSING",),
                 )
             self._edge_references(value, tls_enabled=True)
             certificate = self._provider.certificate_readback()
@@ -361,31 +656,35 @@ class LocalDeploymentCommands:
     def read_stage(self, context: StageContext) -> StageReadback:
         stage_id = self._stage_id(context)
         if stage_id == "preflight":
-            return StageReadback(
-                True,
-                (("preflight-attestation", _attestation({
-                    "environment": context.environment,
-                    "operator": self._session.active_account,
-                    "source_revision": context.source_revision,
-                    "specification_digest": context.specification_digest,
-                })),),
-            )
+            return StageReadback(True)
         if stage_id == "readback":
             try:
                 certificate = self._provider.certificate_readback()
-            except DeploymentProviderError as error:
+                if self._runtime_provider is None:
+                    raise DeploymentCommandError(
+                        "RUNTIME_ACTIVATION_ADAPTER_UNAVAILABLE"
+                    )
+                expected = _object(
+                    self._inputs(context)[
+                        "runtime-activation.active-runtime-binding"
+                    ],
+                    "ACTIVE_RUNTIME_BINDING_INVALID",
+                )
+                observed = self._runtime_provider.read_active_binding(
+                    context.environment
+                )
+            except DeploymentCommandError:
+                raise
+            except (KeyError, DeploymentProviderError, RuntimeError, ValueError) as error:
                 raise self._provider_error(error) from error
             if not certificate.ready:
                 return StageReadback(False, blockers=("CERTIFICATE_READINESS_PENDING",))
-            return StageReadback(
-                True,
-                (("deployment-attestation", _attestation({
-                    "certificate": certificate.reference,
-                    "inputs": list(context.inputs),
-                    "source_revision": context.source_revision,
-                    "specification_digest": context.specification_digest,
-                })),),
-            )
+            if expected != self._runtime_binding_value(observed):
+                return StageReadback(
+                    False,
+                    blockers=("ACTIVE_RUNTIME_BINDING_MISMATCH",),
+                )
+            return StageReadback(True)
         raise DeploymentCommandError("READBACK_STAGE_UNAVAILABLE")
 
     def prepare_action(self, context: StageContext) -> ActionProposal:
@@ -396,6 +695,7 @@ class LocalDeploymentCommands:
                 {"services": [
                     "serviceusage.googleapis.com",
                     "storage.googleapis.com",
+                    "cloudresourcemanager.googleapis.com",
                 ]},
             )
         if stage_id == "image-publish":
@@ -410,15 +710,32 @@ class LocalDeploymentCommands:
                 },
             )
         if stage_id == "generation-publish":
+            active = self._active_generation_binding()
+            if active is not None:
+                return ActionProposal(
+                    "preserve-active-registration-generation",
+                    {
+                        "generation": active.generation,
+                        "generation_digest": active.generation_digest,
+                        "object_generation": active.object_generation,
+                        "object_name": active.object_name,
+                        "purpose": "bind-current-runtime-to-active-generation",
+                    },
+                )
             generation = initial_generation(context.source_revision)
             return ActionProposal(
                 "publish-initial-registration-generation",
                 {
-                    "content_digest": generation.content_digest,
                     "generation": 1,
-                    "generation_digest": generation.generation_digest,
                     "object_name": generation.object_name,
+                    "purpose": "ensure-empty-registration-generation",
                 },
+            )
+        if stage_id == "runtime-activation":
+            expected = self._expected_runtime_binding(context)
+            return ActionProposal(
+                "activate-source-bound-shared-edge-runtime",
+                self._runtime_binding_value(expected),
             )
         raise DeploymentCommandError("DEPLOYMENT_ACTION_UNAVAILABLE")
 
@@ -435,9 +752,45 @@ class LocalDeploymentCommands:
                 self._provider.publish_initial_generation(
                     initial_generation(context.source_revision)
                 )
+            elif action.action == "preserve-active-registration-generation":
+                if self._active_generation_binding() is None:
+                    raise DeploymentCommandError(
+                        "ACTIVE_REGISTRATION_GENERATION_UNAVAILABLE"
+                    )
+            elif action.action == "activate-source-bound-shared-edge-runtime":
+                if self._runtime_provider is None:
+                    raise DeploymentCommandError(
+                        "RUNTIME_ACTIVATION_ADAPTER_UNAVAILABLE"
+                    )
+                expected = self._expected_runtime_binding(context)
+                candidate = self._runtime_provider.read_revision_binding(
+                    context.environment,
+                    expected.revision_name,
+                )
+                if candidate != expected:
+                    raise DeploymentCommandError(
+                        "RUNTIME_ACTIVATION_CANDIDATE_MISMATCH"
+                    )
+                activated = self._runtime_provider.activate(
+                    context.environment,
+                    expected.revision_name,
+                    expected.generation_digest,
+                    "apply",
+                )
+                if (
+                    not activated.activated
+                    or activated.active_revision_name != expected.revision_name
+                    or activated.active_generation_digest
+                    != expected.generation_digest
+                ):
+                    raise DeploymentCommandError(
+                        "RUNTIME_ACTIVATION_FAILED"
+                    )
             else:
                 raise DeploymentCommandError("DEPLOYMENT_ACTION_UNAVAILABLE")
-        except DeploymentProviderError as error:
+        except DeploymentCommandError:
+            raise
+        except (DeploymentProviderError, RuntimeError, ValueError) as error:
             raise self._provider_error(error) from error
 
     def readback_action(self, context: StageContext) -> StageReadback:
@@ -447,9 +800,7 @@ class LocalDeploymentCommands:
                 ready = self._provider.bootstrap_services_ready()
                 return StageReadback(
                     ready,
-                    (("bootstrap-services-attestation", _attestation(
-                        ["serviceusage.googleapis.com", "storage.googleapis.com"]
-                    )),) if ready else (),
+                    (),
                     () if ready else ("BOOTSTRAP_SERVICES_READBACK_MISMATCH",),
                 )
             if stage_id == "image-publish":
@@ -460,16 +811,42 @@ class LocalDeploymentCommands:
                     () if image else ("EDGE_IMAGE_READBACK_MISSING",),
                 )
             if stage_id == "generation-publish":
-                generation = initial_generation(context.source_revision)
-                object_generation = self._provider.read_initial_generation(generation)
+                reference = self._active_generation_reference()
+                if reference is None:
+                    reference = self._provider.read_initial_generation()
                 return StageReadback(
                     True,
                     ((
                         "registration-generation-reference",
-                        generation.reference(object_generation),
+                        reference,
                     ),),
                 )
-        except DeploymentProviderError as error:
+            if stage_id == "runtime-activation":
+                if self._runtime_provider is None:
+                    raise DeploymentCommandError(
+                        "RUNTIME_ACTIVATION_ADAPTER_UNAVAILABLE"
+                    )
+                expected = self._expected_runtime_binding(context)
+                observed = self._runtime_provider.read_active_binding(
+                    context.environment
+                )
+                if observed != expected:
+                    return StageReadback(
+                        False,
+                        blockers=("ACTIVE_RUNTIME_BINDING_MISMATCH",),
+                    )
+                if self._runtime_recorder is not None:
+                    self._runtime_recorder.record_active_runtime(observed)
+                return StageReadback(
+                    True,
+                    ((
+                        "active-runtime-binding",
+                        _canonical(self._runtime_binding_value(observed)),
+                    ),),
+                )
+        except DeploymentCommandError:
+            raise
+        except (DeploymentProviderError, RuntimeError, ValueError) as error:
             raise self._provider_error(error) from error
         raise DeploymentCommandError("DEPLOYMENT_ACTION_UNAVAILABLE")
 
@@ -479,36 +856,60 @@ class LocalDeploymentCommands:
             return ManualCheckpoint(
                 "provider-console",
                 (
+                    ("project_id", _PROJECT_ID),
+                    ("branding_console_url", _OAUTH_BRANDING_CONSOLE),
+                    ("clients_console_url", _OAUTH_CLIENTS_CONSOLE),
+                    (
+                        "oauth_store_console_url",
+                        _OAUTH_STORE_CONSOLE,
+                    ),
                     ("application_name", "Comfforts Apps Staging"),
+                    ("application_type", "Web application"),
+                    ("audience", "External"),
+                    ("publishing_status", "Testing"),
                     ("support_email", self._session.active_account),
                     ("homepage_url", f"https://{_HOSTNAME}"),
+                    ("authorized_domain", "comfforts.com"),
                     ("authorized_origin", f"https://{_HOSTNAME}"),
                     (
                         "redirect_uri",
                         f"https://{_HOSTNAME}/_platform/auth/callback",
                     ),
-                    ("secret_manager_target", _OAUTH_SECRET),
                     (
-                        "secret_instruction",
-                        "Add the client secret as one enabled Secret Manager version",
+                        "oauth_store_target",
+                        _OAUTH_STORE_TARGET,
                     ),
                 ),
             )
         if stage_id == "external-dns":
             try:
-                address = self._inputs(context)["shared-edge.reserved-address"]
+                inputs = self._inputs(context)
+                address = inputs["shared-edge.reserved-address"]
+                hostname = inputs["shared-edge.hostname"]
             except KeyError as error:
-                raise DeploymentCommandError("DNS_ADDRESS_MISSING") from error
+                raise DeploymentCommandError("DNS_INPUT_MISSING") from error
+            if hostname != _HOSTNAME:
+                raise DeploymentCommandError("DNS_HOSTNAME_INVALID")
             if _IPV4.fullmatch(address) is None:
                 raise DeploymentCommandError("DNS_ADDRESS_INVALID")
+            try:
+                existing = self._dns.read(address)
+            except DnsReadbackError as error:
+                raise DeploymentCommandError(str(error)) from error
             return ManualCheckpoint(
                 "external-dns",
                 (
                     ("provider", "Squarespace"),
+                    ("dns_console_url", _DNS_CONSOLE),
+                    ("dns_zone", "comfforts.com"),
                     ("record_type", "A"),
                     ("record_name", "apps-staging"),
-                    ("hostname", _HOSTNAME),
+                    ("hostname", hostname),
                     ("address", address),
+                    (
+                        "record_status",
+                        "verified" if existing.ready else "reconcile",
+                    ),
                     ("ttl_seconds", "1800"),
                 ),
             )
@@ -561,10 +962,9 @@ class LocalDeploymentCommands:
                     "waiting",
                     blockers=("DNS_PROPAGATION_PENDING",),
                 )
-            assert result.attestation is not None
             return CheckpointVerification(
                 "succeeded",
-                (("dns-attestation", result.attestation),),
+                (),
                 "provider-verified",
             )
         raise DeploymentCommandError("MANUAL_CHECKPOINT_UNAVAILABLE")

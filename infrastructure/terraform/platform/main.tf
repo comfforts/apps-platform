@@ -26,8 +26,20 @@ locals {
   edge_candidate_revision = var.platform_configuration.phase == "shared-edge" ? "${local.edge_service_name}-g${local.shared_edge.registration_generation.generation}-${substr(local.edge_revision_binding_digest, 0, 12)}" : null
 }
 
+moved {
+  from = module.platform_foundation.google_project_service.platform["iamcredentials.googleapis.com"]
+  to   = module.shared_edge[0].google_project_service.iam_credentials
+}
+
+moved {
+  from = module.platform_foundation.google_service_account_iam_member.edge_caller_token_creator[0]
+  to   = module.shared_edge[0].google_service_account_iam_member.edge_caller_token_creator
+}
+
 module "platform_foundation" {
   source = "../modules/platform-foundation"
+
+  destruction_mode = var.platform_configuration.destruction_mode
 
   foundation_configuration = {
     project_id           = local.foundation.project_id
@@ -60,6 +72,8 @@ module "platform_foundation" {
 module "platform_controls" {
   source = "../modules/platform-controls"
 
+  destruction_mode = var.platform_configuration.destruction_mode
+
   depends_on = [module.platform_foundation]
 
   controls_configuration = {
@@ -74,9 +88,6 @@ module "platform_controls" {
     owner_principal           = "user:${local.foundation.notification_email}"
     labels                    = var.platform_configuration.labels
     artifact_packages = [
-      "fixture-authenticated",
-      "fixture-public",
-      "fixture-restricted",
       "shared-edge",
     ]
   }
@@ -88,18 +99,24 @@ module "shared_edge" {
 
   depends_on = [module.platform_foundation]
 
+  destruction_enabled = var.platform_configuration.destruction_mode == "shared-edge-unlock"
+
   edge_configuration = {
-    project_id              = local.foundation.project_id
-    region                  = local.foundation.region
-    qualification_hostname  = local.foundation.hostname
-    labels                  = var.platform_configuration.labels
-    service_name            = local.edge_service_name
-    candidate_revision      = local.edge_candidate_revision
-    runtime_identity_email  = module.platform_foundation.foundation_reference.edge_runtime_email
-    edge_caller_principal   = module.platform_foundation.foundation_reference.edge_caller_principal
-    image_digest            = local.shared_edge.edge_image_digest
-    configuration_bucket    = local.foundation.configuration_bucket
-    registration_generation = local.shared_edge.registration_generation
+    project_id                     = local.foundation.project_id
+    project_number                 = local.foundation.project_number
+    region                         = local.foundation.region
+    qualification_hostname         = local.foundation.hostname
+    labels                         = var.platform_configuration.labels
+    service_name                   = local.edge_service_name
+    candidate_revision             = local.edge_candidate_revision
+    runtime_identity_email         = module.platform_foundation.foundation_reference.edge_runtime_email
+    edge_caller_principal          = module.platform_foundation.foundation_reference.edge_caller_principal
+    edge_caller_service_account_id = module.platform_foundation.foundation_reference.edge_caller_service_account_id
+    image_digest                   = local.shared_edge.edge_image_digest
+    configuration_bucket           = local.foundation.configuration_bucket
+    shared_network_reference       = module.platform_foundation.foundation_reference.shared_network_reference
+    application_subnet_reference   = module.platform_foundation.foundation_reference.application_subnet_reference
+    registration_generation        = local.shared_edge.registration_generation
     binding_versions = {
       compiler               = 1
       identity_contract      = 1

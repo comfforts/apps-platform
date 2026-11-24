@@ -1,29 +1,39 @@
-"""Deep AP-M9 lifecycle orchestration behind the small operator interface."""
+"""Small, fixed operator workflow for one Apps Platform environment.
+
+Preparation records one source/profile-bound operation fingerprint. Deployment
+follows the fixed stage order below and atomically replaces one private progress
+file after each successful readback. Exact plan creation, confirmation, apply,
+and provider readback remain in ``deployment.py``; this module does not model a
+generic lifecycle graph or journal chain.
+"""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import hashlib
 import json
 from types import MappingProxyType
 from typing import Any
 
-from contracts.lifecycle import (
-    canonical_lifecycle_bytes,
-    lifecycle_digest,
-    load_lifecycle_document,
-    validate_lifecycle_document,
-    validate_lifecycle_relationships,
-)
+from contracts.lifecycle import load_lifecycle_document, validate_lifecycle_material
 from infrastructure.operator._interfaces import (
+    DeploymentCheckResult,
     DiscoverySnapshot,
+    ActivePlatformSourceReader,
     ExecutionResult,
     GitSnapshot,
     OperatorInterrupted,
     OperatorAdapters,
+    PreflightResult,
     PrepareResult,
     StageContext,
+    StageCheck,
     StageExecution,
     StatusResult,
+)
+from infrastructure.operator.source_authority import (
+    source_authority_blockers,
+    validate_source_authority,
 )
 
 
@@ -31,6 +41,10 @@ _PROFILE_PATHS = {
     "production": "infrastructure/config/profiles/production.v1.json",
     "staging": "infrastructure/config/profiles/staging.v1.json",
 }
+
+_CURRENT_SPECIFICATION_VERSION = 2
+_CURRENT_WORKFLOW = "platform-deploy-v2"
+_HISTORICAL_WORKFLOW = "platform-deploy-v1"
 
 
 def _canonical_bytes(value: object) -> bytes:
@@ -43,209 +57,499 @@ def _canonical_bytes(value: object) -> bytes:
     ).encode("utf-8")
 
 
-def _digest_bytes(contents: bytes) -> str:
-    return f"sha256:{hashlib.sha256(contents).hexdigest()}"
+def _digest(value: object) -> str:
+    return f"sha256:{hashlib.sha256(_canonical_bytes(value)).hexdigest()}"
 
 
-def _deployment_stages() -> list[dict[str, object]]:
-    return [
-        {
-            "stage_id": "preflight",
-            "actions": ["read"],
-            "resource_types": [
-                "dns-hostname",
-                "environment-profile",
-                "provider-project",
-                "repository",
-                "source",
-                "toolchain",
-            ],
-            "consumes": [],
-            "produces": ["preflight-attestation"],
-            "manual_checkpoint": "none",
-            "readback": "not-applicable",
-        },
-        {
-            "stage_id": "bootstrap-services",
-            "actions": ["read", "update"],
-            "resource_types": ["provider-service"],
-            "consumes": [
-                {"stage_id": "preflight", "output_name": "preflight-attestation"}
-            ],
-            "produces": ["bootstrap-services-attestation"],
-            "manual_checkpoint": "none",
-            "readback": "provider-verified",
-        },
-        {
-            "stage_id": "bootstrap",
-            "actions": ["create", "read"],
-            "resource_types": ["backend-bucket"],
-            "consumes": [
-                {
-                    "stage_id": "bootstrap-services",
-                    "output_name": "bootstrap-services-attestation",
-                }
-            ],
-            "produces": ["backend-reference"],
-            "manual_checkpoint": "none",
-            "readback": "provider-verified",
-        },
-        {
-            "stage_id": "foundation",
-            "actions": ["create", "read", "update"],
-            "resource_types": [
-                "artifact-registry",
-                "budget",
-                "configuration-bucket",
-                "evidence-bucket",
-                "logging",
-                "platform-identity",
-                "secret-container",
-                "session-store",
-                "signing-key",
-            ],
-            "consumes": [
-                {"stage_id": "bootstrap", "output_name": "backend-reference"},
-            ],
-            "produces": ["foundation-reference", "oauth-secret-container"],
-            "manual_checkpoint": "none",
-            "readback": "provider-verified",
-        },
-        {
-            "stage_id": "image-publish",
-            "actions": ["create", "read"],
-            "resource_types": ["shared-edge-image"],
-            "consumes": [
-                {"stage_id": "foundation", "output_name": "foundation-reference"}
-            ],
-            "produces": ["shared-edge-image-digest"],
-            "manual_checkpoint": "none",
-            "readback": "provider-verified",
-        },
-        {
-            "stage_id": "generation-publish",
-            "actions": ["create", "read"],
-            "resource_types": ["compiled-registration-generation"],
-            "consumes": [
-                {"stage_id": "foundation", "output_name": "foundation-reference"}
-            ],
-            "produces": ["registration-generation-reference"],
-            "manual_checkpoint": "none",
-            "readback": "provider-verified",
-        },
-        {
-            "stage_id": "oauth-configuration",
-            "actions": ["create", "read", "update"],
-            "resource_types": ["oauth-client", "oauth-secret-version"],
-            "consumes": [
-                {"stage_id": "foundation", "output_name": "oauth-secret-container"}
-            ],
-            "produces": ["oauth-client-id", "oauth-secret-version"],
-            "manual_checkpoint": "provider-console",
-            "readback": "operator-attested",
-        },
-        {
-            "stage_id": "shared-edge",
-            "actions": ["create", "read", "update"],
-            "resource_types": ["load-balancer", "reserved-address", "shared-edge"],
-            "consumes": [
-                {"stage_id": "foundation", "output_name": "foundation-reference"},
-                {
-                    "stage_id": "image-publish",
-                    "output_name": "shared-edge-image-digest",
-                },
-                {
-                    "stage_id": "oauth-configuration",
-                    "output_name": "oauth-client-id",
-                },
-                {
-                    "stage_id": "oauth-configuration",
-                    "output_name": "oauth-secret-version",
-                },
-                {
-                    "stage_id": "generation-publish",
-                    "output_name": "registration-generation-reference",
-                },
-            ],
-            "produces": ["edge-reference", "reserved-address"],
-            "manual_checkpoint": "none",
-            "readback": "provider-verified",
-        },
-        {
-            "stage_id": "external-dns",
-            "actions": ["create", "read"],
-            "resource_types": ["dns-a-record"],
-            "consumes": [
-                {"stage_id": "shared-edge", "output_name": "reserved-address"}
-            ],
-            "produces": ["dns-attestation"],
-            "manual_checkpoint": "external-dns",
-            "readback": "provider-verified",
-        },
-        {
-            "stage_id": "tls-readiness",
-            "actions": ["create", "read"],
-            "resource_types": ["managed-certificate"],
-            "consumes": [
-                {"stage_id": "external-dns", "output_name": "dns-attestation"},
-                {"stage_id": "shared-edge", "output_name": "edge-reference"},
-            ],
-            "produces": ["certificate-reference"],
-            "manual_checkpoint": "none",
-            "readback": "provider-verified",
-        },
-        {
-            "stage_id": "readback",
-            "actions": ["read"],
-            "resource_types": ["ownership-inventory", "platform-environment"],
-            "consumes": [
-                {
-                    "stage_id": "tls-readiness",
-                    "output_name": "certificate-reference",
-                }
-            ],
-            "produces": ["deployment-attestation"],
-            "manual_checkpoint": "none",
-            "readback": "provider-verified",
-        },
-    ]
+# Executable product flow, not a data-driven extension point. The exact-plan
+# executor uses this private metadata for readback output and checkpoint checks.
+_DEPLOYMENT_STAGES: tuple[dict[str, object], ...] = (
+    {
+        "stage_id": "preflight",
+        "actions": ["read"],
+        "produces": [],
+        "consumes": [],
+        "manual_checkpoint": "none",
+    },
+    {
+        "stage_id": "bootstrap-services",
+        "actions": ["read", "update"],
+        "produces": [],
+        "consumes": [],
+        "manual_checkpoint": "none",
+    },
+    {
+        "stage_id": "bootstrap",
+        "actions": ["create", "read"],
+        "produces": ["backend-reference"],
+        "consumes": [],
+        "manual_checkpoint": "none",
+    },
+    {
+        "stage_id": "foundation",
+        "actions": ["create", "read", "update"],
+        "produces": ["foundation-reference", "oauth-secret-container"],
+        "consumes": [("bootstrap", "backend-reference")],
+        "manual_checkpoint": "none",
+    },
+    {
+        "stage_id": "image-publish",
+        "actions": ["create", "read"],
+        "produces": ["shared-edge-image-digest"],
+        "consumes": [("foundation", "foundation-reference")],
+        "manual_checkpoint": "none",
+    },
+    {
+        "stage_id": "generation-publish",
+        "actions": ["create", "read"],
+        "produces": ["registration-generation-reference"],
+        "consumes": [("foundation", "foundation-reference")],
+        "manual_checkpoint": "none",
+    },
+    {
+        "stage_id": "oauth-configuration",
+        "actions": ["create", "read", "update"],
+        "produces": ["oauth-client-id", "oauth-secret-version"],
+        "consumes": [("foundation", "oauth-secret-container")],
+        "manual_checkpoint": "provider-console",
+    },
+    {
+        "stage_id": "shared-edge",
+        "actions": ["create", "read", "update"],
+        "produces": ["edge-reference", "hostname", "reserved-address"],
+        "consumes": [
+            ("foundation", "foundation-reference"),
+            ("image-publish", "shared-edge-image-digest"),
+            ("oauth-configuration", "oauth-client-id"),
+            ("oauth-configuration", "oauth-secret-version"),
+            ("generation-publish", "registration-generation-reference"),
+        ],
+        "manual_checkpoint": "none",
+    },
+    {
+        "stage_id": "runtime-activation",
+        "actions": ["create", "read", "update"],
+        "produces": ["active-runtime-binding"],
+        "consumes": [
+            ("image-publish", "shared-edge-image-digest"),
+            ("generation-publish", "registration-generation-reference"),
+            ("shared-edge", "edge-reference"),
+        ],
+        "manual_checkpoint": "none",
+    },
+    {
+        "stage_id": "external-dns",
+        "actions": ["create", "read"],
+        "produces": [],
+        "consumes": [
+            ("shared-edge", "hostname"),
+            ("shared-edge", "reserved-address"),
+            ("runtime-activation", "active-runtime-binding"),
+        ],
+        "manual_checkpoint": "external-dns",
+    },
+    {
+        "stage_id": "tls-readiness",
+        "actions": ["create", "read"],
+        "produces": ["certificate-reference"],
+        "consumes": [
+            ("foundation", "foundation-reference"),
+            ("image-publish", "shared-edge-image-digest"),
+            ("oauth-configuration", "oauth-client-id"),
+            ("oauth-configuration", "oauth-secret-version"),
+            ("generation-publish", "registration-generation-reference"),
+            ("shared-edge", "edge-reference"),
+            ("runtime-activation", "active-runtime-binding"),
+        ],
+        "manual_checkpoint": "none",
+    },
+    {
+        "stage_id": "readback",
+        "actions": ["read"],
+        "produces": [],
+        "consumes": [
+            ("tls-readiness", "certificate-reference"),
+            ("runtime-activation", "active-runtime-binding"),
+        ],
+        "manual_checkpoint": "none",
+    },
+)
+
+# Progress is private operator state, but its completed-stage shape is still a
+# persisted interface. Keep the exact predecessor schema readable so a valid
+# terminal operation remains evidence after the executable workflow advances.
+# Historical progress is never resumed or rewritten as current progress.
+_HISTORICAL_PROGRESS_STAGES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("preflight", (), "none"),
+    ("bootstrap-services", (), "none"),
+    ("bootstrap", ("backend-reference",), "none"),
+    (
+        "foundation",
+        ("foundation-reference", "oauth-secret-container"),
+        "none",
+    ),
+    ("image-publish", ("shared-edge-image-digest",), "none"),
+    (
+        "generation-publish",
+        ("registration-generation-reference",),
+        "none",
+    ),
+    (
+        "oauth-configuration",
+        ("oauth-client-id", "oauth-secret-version"),
+        "provider-console",
+    ),
+    (
+        "shared-edge",
+        ("edge-reference", "hostname", "reserved-address"),
+        "none",
+    ),
+    ("external-dns", (), "external-dns"),
+    ("tls-readiness", ("certificate-reference",), "none"),
+    ("readback", (), "none"),
+)
+_CURRENT_PROGRESS_STAGES: tuple[tuple[str, tuple[str, ...], str], ...] = tuple(
+    (
+        str(stage["stage_id"]),
+        tuple(str(name) for name in stage["produces"]),
+        str(stage["manual_checkpoint"]),
+    )
+    for stage in _DEPLOYMENT_STAGES
+)
+_PLATFORM_READINESS_STAGES = frozenset(
+    {
+        "preflight",
+        "bootstrap-services",
+        "bootstrap",
+        "foundation",
+        "image-publish",
+        "generation-publish",
+        "shared-edge",
+        "runtime-activation",
+        "tls-readiness",
+        "readback",
+    }
+)
+_PROGRESS_STAGES_BY_WORKFLOW = {
+    _HISTORICAL_WORKFLOW: _HISTORICAL_PROGRESS_STAGES,
+    _CURRENT_WORKFLOW: _CURRENT_PROGRESS_STAGES,
+}
+
+_OPERATOR_STAGE_PRESENTATION = {
+    "preflight": (1, "Verify source, tools, identity, and project"),
+    "bootstrap-services": (2, "Bootstrap state and platform foundation"),
+    "bootstrap": (2, "Bootstrap state and platform foundation"),
+    "foundation": (2, "Bootstrap state and platform foundation"),
+    "image-publish": (3, "Publish the immutable image and initial generation"),
+    "generation-publish": (3, "Publish the immutable image and initial generation"),
+    "oauth-configuration": (4, "Configure OAuth"),
+    "shared-edge": (5, "Create the Shared Edge"),
+    "runtime-activation": (5, "Activate the Shared Edge Runtime"),
+    "external-dns": (6, "Configure DNS and TLS"),
+    "tls-readiness": (6, "Configure DNS and TLS"),
+    "readback": (7, "Verify the deployed platform"),
+}
+_OPERATOR_STAGE_COUNT = 7
+_REPLACEABLE_PROGRESS = {"cancelled", "failed", "succeeded"}
+_PROGRESS_STATUSES = {"cancelled", "failed", "running", "succeeded", "waiting"}
+_READINESS_BLOCKER_GUIDANCE = {
+    "ACTIVE_OPERATION_CONFLICT": (
+        "another non-terminal specification owns current progress; inspect platform-status and "
+        "cancel it explicitly only when replacement is intended"
+    ),
+    "CANDIDATE_BASE_STALE": (
+        "the candidate branch does not contain current origin/main; update the branch before "
+        "retrying"
+    ),
+    "CANDIDATE_BRANCH_REQUIRED": (
+        "Candidate Source requires a non-main branch for staging"
+    ),
+    "CANDIDATE_NOT_PUSHED": (
+        "Candidate Source requires HEAD to match the configured upstream revision"
+    ),
+    "CANDIDATE_SOURCE_PRODUCTION_PROHIBITED": (
+        "Candidate Source is staging-only and cannot authorize production"
+    ),
+    "CANDIDATE_UPSTREAM_MISMATCH": (
+        "the branch must track its matching origin/<branch> upstream"
+    ),
+    "DISCOVERY_CONFLICT": (
+        "discovered repository, project, region, DNS, or tool facts do not match the "
+        "environment profile"
+    ),
+    "DNS_TOOL_UNAVAILABLE": "the required local dig executable is unavailable",
+    "CLOUD_SDK_CONFIGURATION_UNAVAILABLE": (
+        "the selected Cloud SDK configuration directory is unavailable or unsafe"
+    ),
+    "DEPLOYMENT_EXECUTOR_CONSTRUCTION_FAILED": (
+        "the bounded deployment executor could not be assembled"
+    ),
+    "DNS_COMMAND_ADAPTER_UNAVAILABLE": (
+        "the bounded DNS command adapter could not be constructed"
+    ),
+    "DNS_EXECUTABLE_UNAVAILABLE": "the required local dig executable is unavailable",
+    "GCLOUD_COMMAND_ADAPTER_UNAVAILABLE": (
+        "the bounded Google Cloud command adapter could not be constructed"
+    ),
+    "GCLOUD_EXECUTABLE_UNAVAILABLE": (
+        "the gcloud executable is unavailable"
+    ),
+    "OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_UNAVAILABLE": (
+        "Application Default Credentials are unavailable or cannot mint an access token"
+    ),
+    "OPERATOR_APPLICATION_DEFAULT_CREDENTIALS_TIMEOUT": (
+        "Application Default Credentials did not mint an access token within the bounded retry"
+    ),
+    "OPERATOR_ACTIVE_ACCOUNT_READBACK_FAILED": (
+        "gcloud could not read the active human account after one retry"
+    ),
+    "OPERATOR_ACTIVE_ACCOUNT_READBACK_TIMEOUT": (
+        "gcloud timed out reading the active human account after one retry"
+    ),
+    "OPERATOR_BILLING_READBACK_FAILED": (
+        "gcloud could not read the selected project's billing reference after one retry"
+    ),
+    "OPERATOR_BILLING_READBACK_TIMEOUT": (
+        "gcloud timed out reading the selected project's billing reference after one retry"
+    ),
+    "OPERATOR_IDENTITY_SESSION_UNAVAILABLE": (
+        "the active account, project, billing reference, or identity-token session could not be "
+        "verified"
+    ),
+    "OPERATOR_IDENTITY_TOKEN_FAILED": (
+        "gcloud could not mint the human operator identity token after one retry"
+    ),
+    "OPERATOR_IDENTITY_TOKEN_INVALID": (
+        "the minted operator identity token did not match the active human account"
+    ),
+    "OPERATOR_IDENTITY_TOKEN_TIMEOUT": (
+        "gcloud timed out minting the human operator identity token after one retry"
+    ),
+    "OPERATOR_PROJECT_READBACK_FAILED": (
+        "gcloud could not read the active project after one retry"
+    ),
+    "OPERATOR_PROJECT_READBACK_TIMEOUT": (
+        "gcloud timed out reading the active project after one retry"
+    ),
+    "OPERATOR_STATE_DIRECTORY_UNAVAILABLE": (
+        "the private operator state directory is unavailable or unsafe"
+    ),
+    "OPERATOR_PROJECT_MISMATCH": (
+        "the active gcloud project does not match the environment profile"
+    ),
+    "OPERATOR_SESSION_UNAVAILABLE": (
+        "an active gcloud account and project are required"
+    ),
+    "OWNERSHIP_TRANSFER_REQUIRED": (
+        "the environment remains disabled until its documented ownership transfer"
+    ),
+    "HISTORICAL_PROGRESS_SUPERSESSION_DECLINED": (
+        "the historical deployment record and current pointers were left unchanged"
+    ),
+    "HISTORICAL_WORKFLOW_NOT_EXECUTABLE": (
+        "the retained predecessor workflow is read-only history; prepare current intent before "
+        "deploying"
+    ),
+    "EXECUTION_ADAPTER_UNAVAILABLE": (
+        "the bounded deployment executor is unavailable; resolve its reported construction "
+        "blocker before retrying"
+    ),
+    "PINNED_TOOL_INVALID": (
+        "the project-local Terraform binary or provider package failed version or checksum "
+        "validation"
+    ),
+    "PINNED_TOOL_UNAVAILABLE": (
+        "the pinned project-local Terraform binary or provider mirror is unavailable"
+    ),
+    "REPOSITORY_MISMATCH": (
+        "the Git origin is not the canonical comfforts/apps-platform repository"
+    ),
+    "PROGRESS_READBACK_FAILED": (
+        "private deployment progress is malformed, digest-mismatched, or not bound to a "
+        "recognized workflow"
+    ),
+    "PROFILE_DIGEST_MISMATCH": (
+        "the approved specification profile no longer matches the selected environment profile"
+    ),
+    "SPECIFICATION_READBACK_FAILED": (
+        "the current private specification pointer or canonical specification is invalid"
+    ),
+    "SPECIFICATION_NOT_APPROVED": (
+        "the selected specification has no current matching operator approval"
+    ),
+    "SPECIFICATION_NOT_CURRENT": (
+        "the requested specification is not the current private specification pointer"
+    ),
+    "SOURCE_AUTHORITY_MISMATCH": (
+        "the selected specification authority differs from this operator invocation"
+    ),
+    "SOURCE_REVISION_MISMATCH": (
+        "the checkout revision differs from the approved specification revision"
+    ),
+    "SOURCE_NOT_CLEAN": (
+        "the repository has modified or untracked files; inspect git status --short"
+    ),
+    "SOURCE_NOT_CURRENT": (
+        "Accepted Source requires HEAD, local main, and origin/main to be the same revision"
+    ),
+    "SOURCE_NOT_MAIN": (
+        "Accepted Source requires main; for a pushed staging branch rerun with "
+        "SOURCE_AUTHORITY=candidate"
+    ),
+    "TERRAFORM_CLI_CONFIGURATION_UNAVAILABLE": (
+        "the pinned Terraform CLI configuration is unavailable"
+    ),
+    "TERRAFORM_COMMAND_ADAPTER_UNAVAILABLE": (
+        "the bounded Terraform command adapter could not be constructed"
+    ),
+    "TERRAFORM_EXECUTABLE_UNAVAILABLE": (
+        "the pinned project-local Terraform executable is unavailable"
+    ),
+}
+
+
+@dataclass(frozen=True, slots=True)
+class _CancellationResult:
+    outcome: str
+    progress: dict[str, Any] | None
+    progress_digest: str | None
+    blockers: tuple[str, ...] = ()
 
 
 class LifecycleOperator:
-    """Prepare and approve exact lifecycle intent without external mutation."""
+    """Prepare, approve, execute, resume, and inspect the platform workflow."""
 
-    def __init__(self, adapters: OperatorAdapters) -> None:
+    def __init__(
+        self,
+        adapters: OperatorAdapters,
+        *,
+        source_authority: str = "accepted",
+        active_source_reader: ActivePlatformSourceReader | None = None,
+    ) -> None:
         self._adapters = adapters
+        self._source_authority = validate_source_authority(source_authority)
+        self._active_source_reader = active_source_reader
+
+    @staticmethod
+    def _state_directory(environment: str) -> str:
+        return f"environments/{environment}"
+
+    def _read_json_state(self, relative_path: str) -> dict[str, Any] | None:
+        payload = self._adapters.filesystem.read_state(relative_path)
+        if payload is None:
+            return None
+        try:
+            value = json.loads(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError(f"invalid generated operator state {relative_path}") from error
+        if not isinstance(value, dict):
+            raise ValueError(f"invalid generated operator state {relative_path}")
+        return value
 
     def _load_profile(self, environment: str) -> tuple[dict[str, Any], str]:
         try:
             profile_path = _PROFILE_PATHS[environment]
         except KeyError as error:
             raise ValueError(f"unsupported environment {environment!r}") from error
+        self._adapters.terminal.write(
+            f"Environment profile path: {profile_path}"
+        )
         loaded = load_lifecycle_document(
             self._adapters.filesystem.project_path(profile_path),
             "environment-profile",
         )
         if loaded.violations or loaded.value is None or loaded.digest is None:
             raise ValueError(f"invalid committed environment profile: {loaded.violations!r}")
+        self._adapters.terminal.write(
+            "Environment profile loaded: "
+            f"environment={environment} lifecycle_state={loaded.value['lifecycle_state']} "
+            f"digest={loaded.digest}"
+        )
         return loaded.value, loaded.digest
 
-    @staticmethod
-    def _source_blockers(snapshot: GitSnapshot) -> list[str]:
-        blockers: list[str] = []
-        if snapshot.repository != "comfforts/apps-platform":
-            blockers.append("REPOSITORY_MISMATCH")
-        if not snapshot.clean:
-            blockers.append("SOURCE_NOT_CLEAN")
-        if snapshot.branch != "main":
-            blockers.append("SOURCE_NOT_MAIN")
-        if not (
-            snapshot.revision
-            == snapshot.main_revision
-            == snapshot.origin_main_revision
-        ):
-            blockers.append("SOURCE_NOT_CURRENT")
-        return blockers
+    def _report_source(self, snapshot: GitSnapshot) -> None:
+        self._adapters.terminal.write("Source snapshot:")
+        values: tuple[tuple[str, object], ...] = (
+            ("repository", snapshot.repository),
+            ("branch", snapshot.branch),
+            ("revision", snapshot.revision),
+            ("clean", snapshot.clean),
+            ("main_revision", snapshot.main_revision),
+            ("origin_main_revision", snapshot.origin_main_revision),
+            ("upstream_branch", snapshot.upstream_branch),
+            ("upstream_revision", snapshot.upstream_revision),
+            ("origin_main_ancestor", snapshot.origin_main_ancestor),
+            ("working_tree_digest", snapshot.working_tree_digest),
+            ("untracked_path_count", snapshot.untracked_path_count),
+        )
+        for name, value in values:
+            self._adapters.terminal.write(
+                f"  {name}: {json.dumps(value, sort_keys=True)}"
+            )
+
+    def _report_discovery(self, discovery: DiscoverySnapshot) -> None:
+        outcome = "blocked" if discovery.blockers else "ready"
+        self._adapters.terminal.write(
+            f"Discovery {discovery.name}: {outcome}"
+        )
+        for name, value in discovery.facts:
+            self._adapters.terminal.write(
+                f"  {name}: {json.dumps(value, sort_keys=True)}"
+            )
+        if discovery.blockers:
+            self._adapters.terminal.write(
+                "  blockers: " + ", ".join(discovery.blockers)
+            )
+
+    def _report_blockers(self, blockers: tuple[str, ...]) -> None:
+        for blocker in blockers:
+            guidance = _READINESS_BLOCKER_GUIDANCE.get(
+                blocker,
+                "inspect the preceding source and discovery facts",
+            )
+            self._adapters.terminal.write(
+                f"Readiness blocker {blocker}: {guidance}."
+            )
+
+    def _report_development_source_diagnostics(
+        self,
+        blockers: tuple[str, ...],
+    ) -> None:
+        for blocker in blockers:
+            guidance = _READINESS_BLOCKER_GUIDANCE.get(
+                blocker,
+                "inspect the preceding source facts",
+            )
+            self._adapters.terminal.write(
+                f"Development source diagnostic {blocker}: {guidance}. "
+                "This does not block development preflight and cannot authorize an operation."
+            )
+
+    def _source_blockers(
+        self,
+        snapshot: GitSnapshot,
+        environment: str,
+    ) -> list[str]:
+        return list(
+            source_authority_blockers(snapshot, environment, self._source_authority)
+        )
+
+    def _check_source_blockers(
+        self,
+        snapshot: GitSnapshot,
+        environment: str,
+    ) -> tuple[str, ...]:
+        """Return source diagnostics relevant to a non-authoritative check."""
+
+        return tuple(
+            sorted(
+                {
+                    blocker
+                    for blocker in self._source_blockers(snapshot, environment)
+                    if blocker != "SOURCE_NOT_CLEAN"
+                }
+            )
+        )
 
     @staticmethod
     def _discovery_conflicts(
@@ -274,42 +578,123 @@ class LifecycleOperator:
             return ["DISCOVERY_CONFLICT"]
         return []
 
-    @staticmethod
+    def _discoveries(
+        self,
+        profile: dict[str, Any],
+    ) -> tuple[DiscoverySnapshot, ...]:
+        discoveries = (
+            self._adapters.github.inspect(profile),
+            self._adapters.gcp.inspect(profile),
+            self._adapters.terraform.inspect(),
+            self._adapters.dns.inspect(profile),
+        )
+        for discovery in discoveries:
+            self._report_discovery(discovery)
+        return discoveries
+
+    def _freshness_blockers(
+        self,
+        environment: str,
+        profile: dict[str, Any],
+        git: GitSnapshot,
+        discoveries: tuple[DiscoverySnapshot, ...],
+    ) -> tuple[str, ...]:
+        blockers = self._source_blockers(git, environment)
+        blockers.extend(
+            blocker for discovery in discoveries for blocker in discovery.blockers
+        )
+        blockers.extend(self._discovery_conflicts(profile, discoveries))
+        return tuple(sorted(set(blockers)))
+
+    def _readiness(
+        self,
+        environment: str,
+        *,
+        report_blockers: bool = True,
+    ) -> tuple[
+        dict[str, Any],
+        str,
+        GitSnapshot | None,
+        tuple[DiscoverySnapshot, ...],
+        tuple[str, ...],
+    ]:
+        profile, profile_digest = self._load_profile(environment)
+        profile_blockers = tuple(profile.get("blockers", ()))
+        if profile.get("lifecycle_state") != "enabled":
+            if report_blockers:
+                self._report_blockers(profile_blockers)
+            return profile, profile_digest, None, (), profile_blockers
+        git = self._adapters.git.inspect()
+        self._report_source(git)
+        discoveries = self._discoveries(profile)
+        blockers = self._freshness_blockers(environment, profile, git, discoveries)
+        if report_blockers:
+            self._report_blockers(blockers)
+        return profile, profile_digest, git, discoveries, blockers
+
+    def _report_verified_session(
+        self,
+        discoveries: tuple[DiscoverySnapshot, ...],
+    ) -> None:
+        gcp_facts = dict(discoveries[1].facts)
+        active_account = gcp_facts.get("active_account")
+        active_project = gcp_facts.get("project_id")
+        if active_account and active_project:
+            self._adapters.terminal.write(
+                f"Verified operator session {active_account} for {active_project}."
+            )
+
     def _specification(
+        self,
         environment: str,
         profile_digest: str,
         revision: str,
     ) -> dict[str, Any]:
         return {
-            "contract_version": 1,
-            "document_kind": "deployment-specification",
+            "specification_version": _CURRENT_SPECIFICATION_VERSION,
             "environment": environment,
             "operation": "deploy",
+            "workflow": _CURRENT_WORKFLOW,
             "profile_digest": profile_digest,
             "source": {
+                "authority": self._source_authority,
                 "repository": "comfforts/apps-platform",
                 "revision": revision,
             },
-            "stages": _deployment_stages(),
-            "failure_behavior": "stop",
-            "destructive_boundary": {"allowed": False, "resource_types": []},
         }
 
     @staticmethod
-    def _state_directory(environment: str) -> str:
-        return f"environments/{environment}"
-
-    def _read_json_state(self, relative_path: str) -> dict[str, Any] | None:
-        payload = self._adapters.filesystem.read_state(relative_path)
-        if payload is None:
-            return None
-        try:
-            value = json.loads(payload)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ValueError(f"invalid generated operator state {relative_path}") from error
-        if not isinstance(value, dict):
-            raise ValueError(f"invalid generated operator state {relative_path}")
-        return value
+    def _valid_specification(value: dict[str, Any]) -> bool:
+        source = value.get("source")
+        specification_version = value.get("specification_version")
+        workflow = value.get("workflow")
+        workflow_version_valid = (
+            specification_version == 1 and workflow == _HISTORICAL_WORKFLOW
+        ) or (
+            specification_version == _CURRENT_SPECIFICATION_VERSION
+            and workflow == _CURRENT_WORKFLOW
+        )
+        return (
+            set(value)
+            == {
+                "specification_version",
+                "environment",
+                "operation",
+                "workflow",
+                "profile_digest",
+                "source",
+            }
+            and workflow_version_valid
+            and value.get("environment") in _PROFILE_PATHS
+            and value.get("operation") == "deploy"
+            and isinstance(value.get("profile_digest"), str)
+            and isinstance(source, dict)
+            and set(source) == {"authority", "repository", "revision"}
+            and source.get("authority") in {"accepted", "candidate"}
+            and source.get("repository") == "comfforts/apps-platform"
+            and isinstance(source.get("revision"), str)
+            and len(source["revision"]) == 40
+        )
 
     def _current_specification_digest(self, environment: str) -> str | None:
         pointer = self._read_json_state(
@@ -318,8 +703,12 @@ class LifecycleOperator:
         if pointer is None:
             return None
         digest = pointer.get("specification_digest")
-        if not isinstance(digest, str):
-            raise ValueError("current specification pointer has no digest")
+        if (
+            set(pointer) != {"specification_digest"}
+            or not isinstance(digest, str)
+            or not digest.startswith("sha256:")
+        ):
+            raise ValueError("current specification pointer is invalid")
         return digest
 
     def _load_specification(
@@ -327,17 +716,22 @@ class LifecycleOperator:
         environment: str,
         digest: str,
     ) -> dict[str, Any]:
-        path = (
+        base = (
             f"{self._state_directory(environment)}/specifications/"
-            f"{digest[7:]}.v1.json"
+            f"{digest[7:]}"
         )
-        loaded = load_lifecycle_document(
-            self._adapters.filesystem.state_path(path),
-            "deployment-specification",
+        candidates = tuple(
+            value
+            for version in (_CURRENT_SPECIFICATION_VERSION, 1)
+            if (value := self._read_json_state(f"{base}.v{version}.json"))
+            is not None
         )
-        if loaded.value is None or loaded.digest != digest or loaded.violations:
+        if len(candidates) != 1:
             raise ValueError("stored deployment specification is invalid or digest-mismatched")
-        return loaded.value
+        value = candidates[0]
+        if not self._valid_specification(value) or _digest(value) != digest:
+            raise ValueError("stored deployment specification is invalid or digest-mismatched")
+        return value
 
     def _approved(
         self,
@@ -347,94 +741,17 @@ class LifecycleOperator:
         profile_digest: str | None = None,
         source_revision: str | None = None,
     ) -> bool:
-        payload = self._adapters.filesystem.read_state(
+        approval = self._read_json_state(
             f"{self._state_directory(environment)}/approvals/{digest[7:]}.v1.json"
         )
-        if payload is None:
-            return False
-        try:
-            approval = json.loads(payload)
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            return False
         return (
-            isinstance(approval, dict)
+            approval is not None
             and approval.get("approved") is True
             and approval.get("environment") == environment
             and approval.get("specification_digest") == digest
-            and (
-                profile_digest is None
-                or approval.get("profile_digest") == profile_digest
-            )
-            and (
-                source_revision is None
-                or approval.get("source_revision") == source_revision
-            )
+            and (profile_digest is None or approval.get("profile_digest") == profile_digest)
+            and (source_revision is None or approval.get("source_revision") == source_revision)
         )
-
-    def _current_journal_pointer(self, environment: str) -> dict[str, Any] | None:
-        return self._read_json_state(
-            f"{self._state_directory(environment)}/current-journal.v1.json"
-        )
-
-    def _load_current_journal(
-        self,
-        environment: str,
-        specification_digest: str,
-    ) -> tuple[dict[str, Any], str] | None:
-        pointer = self._current_journal_pointer(environment)
-        if pointer is None or pointer.get("specification_digest") != specification_digest:
-            return None
-        revision = pointer.get("journal_revision")
-        pointer_digest = pointer.get("journal_digest")
-        if not isinstance(revision, int) or not isinstance(pointer_digest, str):
-            raise ValueError("current journal pointer is invalid")
-        specification = self._load_specification(environment, specification_digest)
-        previous: dict[str, Any] | None = None
-        current: dict[str, Any] | None = None
-        current_digest: str | None = None
-        for expected_revision in range(1, revision + 1):
-            relative_path = (
-                f"{self._state_directory(environment)}/journals/"
-                f"{specification_digest[7:]}/{expected_revision:08d}.v1.json"
-            )
-            loaded = load_lifecycle_document(
-                self._adapters.filesystem.state_path(relative_path),
-                "execution-journal",
-            )
-            if loaded.value is None or loaded.digest is None or loaded.violations:
-                raise ValueError("stored journal chain contains an invalid revision")
-            if loaded.value.get("journal_revision") != expected_revision:
-                raise ValueError("stored journal chain has a reordered revision")
-            relationships = validate_lifecycle_relationships(
-                specification=specification,
-                journal=loaded.value,
-                previous_journal=previous,
-            )
-            if relationships:
-                raise ValueError("stored journal chain is not append-only or digest-bound")
-            previous = loaded.value
-            current = loaded.value
-            current_digest = loaded.digest
-        if current is None or current_digest != pointer_digest:
-            raise ValueError("stored journal chain does not match its current pointer")
-        return current, current_digest
-
-    def _has_conflicting_journal(
-        self,
-        environment: str,
-        specification_digest: str,
-    ) -> bool:
-        pointer = self._current_journal_pointer(environment)
-        if pointer is None or pointer.get("specification_digest") == specification_digest:
-            return False
-        other_digest = pointer.get("specification_digest")
-        if not isinstance(other_digest, str):
-            raise ValueError("current journal pointer is invalid")
-        loaded = self._load_current_journal(environment, other_digest)
-        if loaded is None:
-            raise ValueError("current journal pointer does not resolve")
-        journal, _ = loaded
-        return journal.get("status") not in {"cancelled", "succeeded"}
 
     def _store_specification(
         self,
@@ -443,9 +760,13 @@ class LifecycleOperator:
         digest: str,
     ) -> None:
         directory = self._state_directory(environment)
+        specification_version = int(specification["specification_version"])
         self._adapters.filesystem.write_state(
-            f"{directory}/specifications/{digest[7:]}.v1.json",
-            canonical_lifecycle_bytes(specification, "deployment-specification") + b"\n",
+            (
+                f"{directory}/specifications/{digest[7:]}"
+                f".v{specification_version}.json"
+            ),
+            _canonical_bytes(specification) + b"\n",
             replace=False,
         )
         self._adapters.filesystem.write_state(
@@ -479,105 +800,528 @@ class LifecycleOperator:
             replace=False,
         )
 
-    def _store_journal(
+    def _progress_path(self, environment: str) -> str:
+        return f"{self._state_directory(environment)}/current-progress.v1.json"
+
+    def _terminal_progress_path(
         self,
-        specification: dict[str, Any],
-        journal: dict[str, Any],
-        previous_journal: dict[str, Any] | None,
+        environment: str,
+        specification_digest: str,
     ) -> str:
-        violations = validate_lifecycle_document(journal, "execution-journal")
-        relationship_violations = validate_lifecycle_relationships(
-            specification=specification,
-            journal=journal,
-            previous_journal=previous_journal,
+        return (
+            f"{self._state_directory(environment)}/progress/"
+            f"{specification_digest[7:]}.final.v1.json"
         )
-        if violations or relationship_violations:
-            raise ValueError(
-                "generated invalid execution journal: "
-                f"{(*violations, *relationship_violations)!r}"
+
+    def _load_progress(self, environment: str) -> dict[str, Any] | None:
+        value = self._read_json_state(self._progress_path(environment))
+        if value is None:
+            return None
+        value = self._normalize_progress(value, environment)
+        specification_digest = (
+            value.get("specification_digest") if isinstance(value, dict) else None
+        )
+        if not isinstance(specification_digest, str):
+            raise ValueError("stored deployment progress is invalid")
+        try:
+            specification = self._load_specification(
+                environment,
+                specification_digest,
             )
-        digest = lifecycle_digest(journal, "execution-journal")
-        environment = str(journal["environment"])
-        specification_digest = str(journal["specification_digest"])
-        revision = int(journal["journal_revision"])
-        directory = self._state_directory(environment)
-        self._adapters.filesystem.write_state(
-            (
-                f"{directory}/journals/{specification_digest[7:]}/"
-                f"{revision:08d}.v1.json"
-            ),
-            canonical_lifecycle_bytes(journal, "execution-journal") + b"\n",
-            replace=False,
-        )
-        pointer = {
-            "journal_digest": digest,
-            "journal_revision": revision,
-            "specification_digest": specification_digest,
+        except ValueError as error:
+            raise ValueError("stored deployment progress is invalid") from error
+        workflow = str(specification["workflow"])
+        if (
+            value is None
+            or not self._valid_progress(value, environment, workflow)
+            or validate_lifecycle_material(value)
+        ):
+            raise ValueError("stored deployment progress is invalid")
+        return value
+
+    @staticmethod
+    def _normalize_progress(
+        value: dict[str, Any],
+        environment: str,
+    ) -> dict[str, Any] | None:
+        """Upgrade the one pre-hostname private progress shape in memory."""
+
+        normalized = json.loads(json.dumps(value))
+        completed = normalized.get("completed")
+        if not isinstance(completed, list):
+            return normalized
+        expected_hostname = {
+            "staging": "apps-staging.comfforts.com",
+            "production": "apps.comfforts.com",
+        }.get(environment)
+        for entry in completed:
+            if not isinstance(entry, dict) or entry.get("stage_id") != "shared-edge":
+                continue
+            outputs = entry.get("outputs")
+            if not isinstance(outputs, list):
+                return None
+            names = [
+                output.get("name") if isinstance(output, dict) else None
+                for output in outputs
+            ]
+            if names != ["edge-reference", "reserved-address"]:
+                return normalized
+            edge_reference = outputs[0].get("value")
+            if not isinstance(edge_reference, str):
+                return None
+            try:
+                edge = json.loads(edge_reference)
+                hostname = edge["edge"]["hostname"]
+            except (KeyError, TypeError, json.JSONDecodeError):
+                return None
+            if hostname != expected_hostname:
+                return None
+            outputs.insert(1, {"name": "hostname", "value": hostname})
+        return normalized
+
+    def _valid_progress(
+        self,
+        value: dict[str, Any],
+        environment: str,
+        workflow: str = _CURRENT_WORKFLOW,
+    ) -> bool:
+        stage_schema = _PROGRESS_STAGES_BY_WORKFLOW.get(workflow)
+        if stage_schema is None:
+            self._print_progress_error(
+                f"stage schema is not defined for workflow {workflow!r}"
+            )
+            return False
+        expected_fields = {
+            "progress_version",
+            "environment",
+            "operation",
+            "source_revision",
+            "specification_digest",
+            "status",
+            "completed",
+            "active_stage",
+            "blockers",
         }
+        if set(value) != expected_fields:
+            missing = sorted(expected_fields - set(value))
+            unexpected = sorted(set(value) - expected_fields)
+            self._print_progress_error(
+                "invalid progress field set; "
+                f"missing={missing!r} unexpected={unexpected!r}"
+            )
+            return False
+        completed = value.get("completed")
+        if value.get("progress_version") != 1:
+            self._print_progress_error("progress_version must be 1")
+            return False
+        if value.get("environment") != environment:
+            self._print_progress_error(
+                "environment does not match the selected environment"
+            )
+            return False
+        if value.get("operation") != "deploy":
+            self._print_progress_error("operation must be deploy")
+            return False
+        if not isinstance(value.get("source_revision"), str):
+            self._print_progress_error("source_revision must be a string")
+            return False
+        if not isinstance(value.get("specification_digest"), str):
+            self._print_progress_error("specification_digest must be a string")
+            return False
+        if value.get("status") not in _PROGRESS_STATUSES:
+            self._print_progress_error("status is not recognized")
+            return False
+        if not isinstance(completed, list):
+            self._print_progress_error("completed must be a list")
+            return False
+        if not isinstance(value.get("active_stage"), (str, type(None))):
+            self._print_progress_error("active_stage must be a string or null")
+            return False
+        if not isinstance(value.get("blockers"), list):
+            self._print_progress_error("blockers must be a list")
+            return False
+        if not all(isinstance(item, str) for item in value["blockers"]):
+            self._print_progress_error("every blocker must be a string")
+            return False
+        source_revision = value["source_revision"]
+        specification_digest = value["specification_digest"]
+        if len(source_revision) != 40 or any(
+            character not in "0123456789abcdef" for character in source_revision
+        ):
+            self._print_progress_error(
+                "source_revision must be a 40-character lowercase hexadecimal commit"
+            )
+            return False
+        if (
+            len(specification_digest) != 71
+            or not specification_digest.startswith("sha256:")
+            or any(
+                character not in "0123456789abcdef"
+                for character in specification_digest[7:]
+            )
+        ):
+            self._print_progress_error(
+                "specification_digest must be a canonical SHA-256 digest"
+            )
+            return False
+        completed_ids: list[str] = []
+        for index, item in enumerate(completed):
+            if index >= len(stage_schema):
+                self._print_progress_error(
+                    f"completed stage index {index} exceeds the workflow schema"
+                )
+                return False
+            if not isinstance(item, dict):
+                self._print_progress_error(
+                    f"completed stage index {index} must be an object"
+                )
+                return False
+            expected_stage_fields = {
+                "stage_id",
+                "outputs",
+                "plan_digest",
+                "manual_acknowledgement",
+            }
+            if set(item) != expected_stage_fields:
+                self._print_progress_error(
+                    f"completed stage index {index} has an invalid field set"
+                )
+                return False
+            if not isinstance(item.get("stage_id"), str):
+                self._print_progress_error(
+                    f"completed stage index {index} stage_id must be a string"
+                )
+                return False
+            if not isinstance(item.get("outputs"), list):
+                self._print_progress_error(
+                    f"completed stage index {index} outputs must be a list"
+                )
+                return False
+            if not isinstance(item.get("plan_digest"), (str, type(None))):
+                self._print_progress_error(
+                    f"completed stage index {index} plan_digest must be a string or null"
+                )
+                return False
+            if not isinstance(item.get("manual_acknowledgement"), str):
+                self._print_progress_error(
+                    f"completed stage index {index} manual_acknowledgement must be a string"
+                )
+                return False
+            if item["plan_digest"] is not None and (
+                len(item["plan_digest"]) != 71
+                or not item["plan_digest"].startswith("sha256:")
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in item["plan_digest"][7:]
+                )
+            ):
+                self._print_progress_error(
+                    f"completed stage index {index} plan_digest must be a canonical "
+                    "SHA-256 digest"
+                )
+                return False
+            expected_stage_id, expected_outputs, manual_checkpoint = stage_schema[index]
+            outputs = item["outputs"]
+            if any(
+                not isinstance(output, dict)
+                or set(output) != {"name", "value"}
+                or not isinstance(output.get("name"), str)
+                or not isinstance(output.get("value"), str)
+                for output in outputs
+            ):
+                self._print_progress_error(
+                    f"completed stage index {index} contains an invalid output record"
+                )
+                return False
+            if tuple(output["name"] for output in outputs) != expected_outputs:
+                self._print_progress_error(
+                    f"completed stage index {index} output names do not match stage schema"
+                )
+                return False
+            expected_acknowledgement = {
+                "external-dns": "provider-verified",
+                "provider-console": "operator-attested",
+            }.get(manual_checkpoint, "not-required")
+            if item["manual_acknowledgement"] != expected_acknowledgement:
+                self._print_progress_error(
+                    f"completed stage index {index} has an invalid manual acknowledgement"
+                )
+                return False
+            if item["stage_id"] != expected_stage_id:
+                self._print_progress_error(
+                    f"completed stage index {index} must be {expected_stage_id!r}"
+                )
+                return False
+            completed_ids.append(str(item["stage_id"]))
+        stage_ids = tuple(stage[0] for stage in stage_schema)
+        if completed_ids != list(stage_ids[: len(completed_ids)]):
+            self._print_progress_error(
+                "completed stages do not form the workflow prefix"
+            )
+            return False
+        expected_active_stage = (
+            stage_ids[len(completed_ids)]
+            if len(completed_ids) < len(stage_ids)
+            else None
+        )
+        if value["active_stage"] != expected_active_stage:
+            self._print_progress_error(
+                "active_stage does not identify the next workflow stage"
+            )
+            return False
+        if (value["status"] == "succeeded") != (expected_active_stage is None):
+            self._print_progress_error(
+                "succeeded status does not match workflow completion"
+            )
+            return False
+        if value["status"] in {"running", "succeeded"} and value["blockers"]:
+            self._print_progress_error(
+                "running or succeeded progress cannot contain blockers"
+            )
+            return False
+        return True
+
+    def _print_progress_error(self, message: str) -> None:
+        self._adapters.terminal.write(f"Progress validation failed: {message}.")
+
+    def _store_progress(self, progress: dict[str, Any]) -> str:
+        environment = str(progress["environment"])
+        if not self._valid_progress(progress, environment, _CURRENT_WORKFLOW):
+            raise ValueError("generated invalid deployment progress")
+        if validate_lifecycle_material(progress):
+            raise ValueError("generated deployment progress contains prohibited material")
+        contents = _canonical_bytes(progress) + b"\n"
         self._adapters.filesystem.write_state(
-            f"{directory}/current-journal.v1.json",
-            _canonical_bytes(pointer) + b"\n",
+            self._progress_path(environment),
+            contents,
             replace=True,
         )
-        return digest
+        if progress["status"] in _REPLACEABLE_PROGRESS:
+            self._adapters.filesystem.write_state(
+                self._terminal_progress_path(
+                    environment,
+                    str(progress["specification_digest"]),
+                ),
+                contents,
+                replace=True,
+            )
+        return _digest(progress)
+
+    def _conflicting_progress(
+        self,
+        environment: str,
+        specification_digest: str,
+    ) -> dict[str, Any] | None:
+        progress = self._load_progress(environment)
+        if (
+            progress is not None
+            and progress.get("specification_digest") != specification_digest
+            and progress.get("status") not in _REPLACEABLE_PROGRESS
+        ):
+            return progress
+        return None
+
+    def _progress_workflow(
+        self,
+        environment: str,
+        progress: dict[str, Any],
+    ) -> str:
+        specification = self._load_specification(
+            environment,
+            str(progress["specification_digest"]),
+        )
+        return str(specification["workflow"])
+
+    def _historical_terminal_progress(
+        self,
+        environment: str,
+        requested_digest: str,
+    ) -> dict[str, Any] | None:
+        progress = self._load_progress(environment)
+        if (
+            progress is None
+            or progress["specification_digest"] == requested_digest
+            or progress["status"] not in _REPLACEABLE_PROGRESS
+            or self._progress_workflow(environment, progress) != _HISTORICAL_WORKFLOW
+        ):
+            return None
+        return progress
+
+    def _confirm_historical_supersession(
+        self,
+        environment: str,
+        progress: dict[str, Any],
+    ) -> bool:
+        completed_count = len(progress["completed"])
+        self._adapters.terminal.write(
+            "\n".join(
+                (
+                    "Historical deployment progress detected:",
+                    f"  environment: {environment}",
+                    f"  workflow: {_HISTORICAL_WORKFLOW}",
+                    f"  status: {progress['status']}",
+                    f"  source revision: {progress['source_revision']}",
+                    f"  specification digest: {progress['specification_digest']}",
+                    f"  {completed_count} completed stages",
+                    (
+                        f"This is a valid {completed_count}-stage predecessor result. It is "
+                        "readable history, not resumable current progress."
+                    ),
+                    (
+                        f"Continuing will move the private current pointers to the "
+                        f"{len(_DEPLOYMENT_STAGES)}-stage {_CURRENT_WORKFLOW} workflow."
+                    ),
+                    (
+                        "The historical specification and terminal progress snapshot are "
+                        "retained unchanged."
+                    ),
+                    "No Terraform plan or cloud resource is changed by this confirmation.",
+                )
+            )
+        )
+        return self._adapters.terminal.confirm(
+            f"Supersede the historical {_HISTORICAL_WORKFLOW} current pointers with "
+            f"{_CURRENT_WORKFLOW}? [y/N] "
+        )
+
+    def _confirm_cancelled_resume(
+        self,
+        environment: str,
+        progress: dict[str, Any],
+    ) -> bool:
+        completed = progress["completed"]
+        last_closed_stage = (
+            str(completed[-1]["stage_id"]) if completed else "none"
+        )
+        blockers = ", ".join(progress["blockers"]) or "none recorded"
+        active_stage = str(progress["active_stage"])
+        specification_digest = str(progress["specification_digest"])
+        self._adapters.terminal.write(
+            "\n".join(
+                (
+                    "Cancelled deployment progress detected:",
+                    f"  environment: {environment}",
+                    f"  source revision: {progress['source_revision']}",
+                    f"  specification digest: {specification_digest}",
+                    f"  last closed stage: {last_closed_stage}",
+                    f"  stage to retry: {active_stage}",
+                    f"  cancellation blocker: {blockers}",
+                    "Resuming keeps the completed-stage readbacks and retries only the "
+                    "open stage. Every remaining plan and action still requires its "
+                    "normal confirmation.",
+                )
+            )
+        )
+        return self._adapters.terminal.confirm(
+            f"Resume cancelled deployment {specification_digest} from stage "
+            f"{active_stage}? [y/N] "
+        )
+
+    def _report_active_operation_conflict(
+        self,
+        environment: str,
+        progress: dict[str, Any],
+        *,
+        requested_revision: str,
+        requested_digest: str,
+    ) -> None:
+        completed = progress["completed"]
+        last_closed_stage = completed[-1]["stage_id"] if completed else "none"
+        authority = self._source_authority
+        try:
+            specification = self._load_specification(
+                environment,
+                str(progress["specification_digest"]),
+            )
+            authority = str(specification["source"]["authority"])
+        except (KeyError, TypeError, ValueError):
+            pass
+        self._adapters.terminal.write(
+            "\n".join(
+                (
+                    "Active deployment conflict:",
+                    f"  environment: {environment}",
+                    f"  source authority: {authority}",
+                    f"  source revision: {progress['source_revision']}",
+                    f"  specification digest: {progress['specification_digest']}",
+                    f"  status: {progress['status']}",
+                    f"  last closed stage: {last_closed_stage}",
+                    f"  active stage: {progress['active_stage']}",
+                    f"  requested source revision: {requested_revision}",
+                    f"  requested specification digest: {requested_digest}",
+                    "Close only the private active operation before preparing new intent:",
+                    "  make platform-cancel "
+                    f"ENVIRONMENT={environment} SOURCE_AUTHORITY={authority}",
+                    "Cancellation does not change Terraform state or cloud resources.",
+                )
+            )
+        )
 
     @staticmethod
-    def _new_journal(
+    def _new_progress(
         environment: str,
-        specification: dict[str, Any],
+        source_revision: str,
         specification_digest: str,
     ) -> dict[str, Any]:
-        source = specification["source"]
-        assert isinstance(source, dict)
         return {
-            "contract_version": 1,
-            "document_kind": "execution-journal",
+            "progress_version": 1,
             "environment": environment,
-            "operation": specification["operation"],
-            "source_revision": source["revision"],
+            "operation": "deploy",
+            "source_revision": source_revision,
             "specification_digest": specification_digest,
-            "journal_revision": 1,
-            "previous_journal_digest": None,
             "status": "running",
-            "entries": [],
-        }
-
-    @staticmethod
-    def _advance_journal(
-        journal: dict[str, Any],
-        journal_digest: str,
-        *,
-        status: str,
-        entry: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        entries = list(journal["entries"])
-        if entry is not None:
-            entries.append(entry)
-        return {
-            **journal,
-            "journal_revision": int(journal["journal_revision"]) + 1,
-            "previous_journal_digest": journal_digest,
-            "status": status,
-            "entries": entries,
+            "completed": [],
+            "active_stage": "preflight",
+            "blockers": [],
         }
 
     @staticmethod
     def _closed_outputs(
-        journal: dict[str, Any],
+        progress: dict[str, Any],
     ) -> tuple[set[str], dict[tuple[str, str], str]]:
         closed: set[str] = set()
         outputs: dict[tuple[str, str], str] = {}
-        entries = journal.get("entries", [])
-        assert isinstance(entries, list)
-        for entry in entries:
-            if not isinstance(entry, dict) or entry.get("outcome") != "succeeded":
-                continue
-            stage_id = str(entry["stage_id"])
+        for completed in progress["completed"]:
+            stage_id = str(completed["stage_id"])
             closed.add(stage_id)
-            for output in entry.get("outputs", []):
-                if isinstance(output, dict):
-                    outputs[(stage_id, str(output["name"]))] = str(output["value"])
+            for output in completed["outputs"]:
+                outputs[(stage_id, str(output["name"]))] = str(output["value"])
         return closed, outputs
+
+    def _latest_successful_outputs(
+        self,
+        environment: str,
+    ) -> dict[tuple[str, str], str]:
+        directory = f"{self._state_directory(environment)}/progress"
+        for relative_path in self._adapters.filesystem.list_state(
+            directory,
+            suffix=".final.v1.json",
+        ):
+            value = self._read_json_state(relative_path)
+            if value is None:
+                continue
+            normalized = self._normalize_progress(value, environment)
+            if normalized is None or normalized.get("status") != "succeeded":
+                continue
+            specification_digest = normalized.get("specification_digest")
+            if not isinstance(specification_digest, str):
+                continue
+            try:
+                specification = self._load_specification(
+                    environment,
+                    specification_digest,
+                )
+            except ValueError:
+                continue
+            workflow = str(specification["workflow"])
+            if (
+                not self._valid_progress(normalized, environment, workflow)
+                or validate_lifecycle_material(normalized)
+            ):
+                continue
+            _, outputs = self._closed_outputs(normalized)
+            return outputs
+        return {}
 
     @staticmethod
     def _stage_inputs(
@@ -585,44 +1329,33 @@ class LifecycleOperator:
         outputs: dict[tuple[str, str], str],
     ) -> tuple[tuple[str, str], ...]:
         resolved: list[tuple[str, str]] = []
-        for binding in stage["consumes"]:
-            stage_id = str(binding["stage_id"])
-            output_name = str(binding["output_name"])
-            key = (stage_id, output_name)
+        for producer, output_name in stage["consumes"]:
+            key = (str(producer), str(output_name))
             if key not in outputs:
-                raise ValueError(f"closed stage output is unavailable: {stage_id}/{output_name}")
-            resolved.append((f"{stage_id}.{output_name}", outputs[key]))
+                raise ValueError(
+                    f"closed stage output is unavailable: {producer}/{output_name}"
+                )
+            resolved.append((f"{producer}.{output_name}", outputs[key]))
         return tuple(resolved)
 
     @staticmethod
-    def _stage_input_digest(
-        specification_digest: str,
+    def _completed_stage(
         stage: dict[str, Any],
-        inputs: tuple[tuple[str, str], ...],
-    ) -> str:
-        value = {
-            "inputs": [{"name": name, "value": value} for name, value in inputs],
-            "specification_digest": specification_digest,
-            "stage": stage,
-        }
-        return _digest_bytes(_canonical_bytes(value))
-
-    @staticmethod
-    def _entry(
-        sequence: int,
-        stage: dict[str, Any],
-        stage_input_digest: str,
         result: StageExecution,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
+        expected = tuple(str(item) for item in stage["produces"])
+        actual = tuple(name for name, _ in result.outputs)
+        outputs = [{"name": name, "value": value} for name, value in result.outputs]
+        if (
+            actual != expected
+            or len(set(actual)) != len(actual)
+            or validate_lifecycle_material(outputs)
+        ):
+            return None
         return {
-            "sequence": sequence,
             "stage_id": stage["stage_id"],
-            "stage_input_digest": stage_input_digest,
-            "outcome": result.outcome,
+            "outputs": outputs,
             "plan_digest": result.plan_digest,
-            "outputs": [
-                {"name": name, "value": value} for name, value in result.outputs
-            ],
             "manual_acknowledgement": result.manual_acknowledgement,
         }
 
@@ -631,140 +1364,151 @@ class LifecycleOperator:
         environment: str,
         blockers: tuple[str, ...],
     ) -> ExecutionResult:
-        return ExecutionResult(
-            "blocked",
-            None,
-            None,
-            self.status(environment),
-            blockers,
+        self._adapters.terminal.write(
+            "Execution blocked: " + ", ".join(blockers) + "."
         )
+        self._report_blockers(blockers)
+        return ExecutionResult("blocked", None, None, self.status(environment), blockers)
 
     def status(self, environment: str) -> StatusResult:
-        """Reconcile local lifecycle intent and progress without writing state."""
+        """Read source/profile binding and private progress without mutation."""
 
         profile, profile_digest = self._load_profile(environment)
         profile_blockers = tuple(profile.get("blockers", ()))
+        empty = {
+            "environment": environment,
+            "profile_digest": profile_digest,
+            "source_authority": None,
+            "source_revision": None,
+            "checkout_source_authority": self._source_authority,
+            "checkout_source_revision": None,
+            "recorded_deployment_source_authority": None,
+            "recorded_deployment_source_revision": None,
+            "active_runtime_source_revision": None,
+            "source_diagnostics": [],
+            "specification_digest": None,
+            "progress_digest": None,
+            "workflow": None,
+            "workflow_compatibility": None,
+            "last_closed_stage": None,
+            "qualification_status": "not-run",
+        }
         if profile.get("lifecycle_state") != "enabled":
             value = {
-                "contract_version": 1,
-                "document_kind": "environment-status",
-                "environment": environment,
-                "profile_digest": profile_digest,
-                "source_revision": None,
-                "specification_digest": None,
-                "journal_digest": None,
+                **empty,
                 "lifecycle_state": "blocked",
-                "last_closed_stage": None,
                 "blockers": list(profile_blockers),
-                "qualification_status": "not-run",
             }
-            if validate_lifecycle_document(value, "environment-status"):
-                raise ValueError("generated invalid disabled-environment status")
             return StatusResult(value, profile_blockers)
 
-        specification_digest = self._current_specification_digest(environment)
-        if specification_digest is None:
-            value = {
-                "contract_version": 1,
-                "document_kind": "environment-status",
-                "environment": environment,
-                "profile_digest": profile_digest,
-                "source_revision": None,
-                "specification_digest": None,
-                "journal_digest": None,
-                "lifecycle_state": "absent",
-                "last_closed_stage": None,
-                "blockers": [],
-                "qualification_status": "not-run",
-            }
-            if validate_lifecycle_document(value, "environment-status"):
-                raise ValueError("generated invalid absent-environment status")
-            return StatusResult(value)
-
-        specification = self._load_specification(environment, specification_digest)
-        source = specification["source"]
-        assert isinstance(source, dict)
-        source_revision = str(source["revision"])
-        git = self._adapters.git.inspect()
-        conflicts = self._source_blockers(git)
-        if git.revision != source_revision:
-            conflicts.append("SOURCE_REVISION_MISMATCH")
-        if specification.get("profile_digest") != profile_digest:
-            conflicts.append("PROFILE_DIGEST_MISMATCH")
-
-        loaded_journal = self._load_current_journal(environment, specification_digest)
-        ordered_conflicts = tuple(sorted(set(conflicts)))
-        if loaded_journal is None:
-            value = {
-                "contract_version": 1,
-                "document_kind": "environment-status",
-                "environment": environment,
-                "profile_digest": profile_digest,
-                "source_revision": None,
-                "specification_digest": None,
-                "journal_digest": None,
-                "lifecycle_state": "absent",
-                "last_closed_stage": None,
-                "blockers": list(ordered_conflicts),
-                "qualification_status": "not-run",
-            }
-            violations = validate_lifecycle_document(value, "environment-status")
-            relationships = validate_lifecycle_relationships(
-                profile=profile,
-                status=value,
+        try:
+            specification_digest = self._current_specification_digest(environment)
+        except ValueError:
+            blockers = ("SPECIFICATION_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return StatusResult(
+                {**empty, "lifecycle_state": "blocked", "blockers": list(blockers)},
+                blockers,
             )
-            if violations or relationships:
-                raise ValueError(
-                    "generated invalid prepared-environment status: "
-                    f"{(*violations, *relationships)!r}"
-                )
-            return StatusResult(value, ordered_conflicts)
+        try:
+            progress = self._load_progress(environment)
+        except ValueError:
+            blockers = ("PROGRESS_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return StatusResult(
+                {**empty, "lifecycle_state": "blocked", "blockers": list(blockers)},
+                blockers,
+            )
+        if specification_digest is None or progress is None:
+            return StatusResult({**empty, "lifecycle_state": "absent", "blockers": []})
 
-        journal: dict[str, Any] | None = None
-        journal_digest: str | None = None
-        lifecycle_state = "absent"
-        last_closed_stage: str | None = None
-        qualification_status = "not-run"
-        journal, journal_digest = loaded_journal
-        mapping = {
+        try:
+            specification = self._load_specification(environment, specification_digest)
+        except ValueError:
+            blockers = ("SPECIFICATION_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return StatusResult(
+                {**empty, "lifecycle_state": "blocked", "blockers": list(blockers)},
+                blockers,
+            )
+        if progress["specification_digest"] != specification_digest:
+            if progress["status"] not in _REPLACEABLE_PROGRESS:
+                blockers = ("ACTIVE_OPERATION_CONFLICT",)
+                self._report_blockers(blockers)
+                return StatusResult(
+                    {
+                        **empty,
+                        "lifecycle_state": "blocked",
+                        "blockers": list(blockers),
+                    },
+                    blockers,
+                )
+            return StatusResult({**empty, "lifecycle_state": "absent", "blockers": []})
+
+        source = specification["source"]
+        workflow = str(specification["workflow"])
+        git = self._adapters.git.inspect()
+        source_diagnostics = self._source_blockers(git, environment)
+        if source["authority"] != self._source_authority:
+            source_diagnostics.append("CHECKOUT_AUTHORITY_DIFFERS_FROM_DEPLOYMENT")
+        if git.revision != source["revision"]:
+            source_diagnostics.append("CHECKOUT_DIFFERS_FROM_DEPLOYMENT")
+        active_runtime_source_revision = None
+        if self._active_source_reader is not None:
+            try:
+                active_runtime_source_revision = (
+                    self._active_source_reader.active_platform_source_revision(
+                        environment
+                    )
+                )
+            except Exception:
+                source_diagnostics.append("ACTIVE_RUNTIME_SOURCE_UNAVAILABLE")
+        if (
+            active_runtime_source_revision is not None
+            and git.revision != active_runtime_source_revision
+        ):
+            source_diagnostics.append("CHECKOUT_DIFFERS_FROM_ACTIVE_RUNTIME")
+        if (
+            active_runtime_source_revision is not None
+            and source["revision"] != active_runtime_source_revision
+        ):
+            source_diagnostics.append("DEPLOYMENT_DIFFERS_FROM_ACTIVE_RUNTIME")
+        conflicts = []
+        if specification["profile_digest"] != profile_digest:
+            conflicts.append("PROFILE_DIGEST_MISMATCH")
+        ordered_conflicts = tuple(sorted(set(conflicts)))
+        state = {
             "cancelled": "cancelled",
             "failed": "failed",
             "running": "deploying",
             "succeeded": "deployed",
             "waiting": "waiting",
-        }
-        lifecycle_state = mapping[str(journal["status"])]
-        entries = journal["entries"]
-        assert isinstance(entries, list)
-        for entry in entries:
-            if isinstance(entry, dict) and entry.get("outcome") == "succeeded":
-                last_closed_stage = str(entry["stage_id"])
-        if lifecycle_state == "deployed":
-            qualification_status = "unqualified"
+        }[str(progress["status"])]
+        completed = progress["completed"]
         value = {
-            "contract_version": 1,
-            "document_kind": "environment-status",
             "environment": environment,
             "profile_digest": profile_digest,
-            "source_revision": source_revision,
+            "source_authority": source["authority"],
+            "source_revision": source["revision"],
+            "checkout_source_authority": self._source_authority,
+            "checkout_source_revision": git.revision,
+            "recorded_deployment_source_authority": source["authority"],
+            "recorded_deployment_source_revision": source["revision"],
+            "active_runtime_source_revision": active_runtime_source_revision,
+            "source_diagnostics": sorted(set(source_diagnostics)),
             "specification_digest": specification_digest,
-            "journal_digest": journal_digest,
-            "lifecycle_state": lifecycle_state,
-            "last_closed_stage": last_closed_stage,
+            "progress_digest": _digest(progress),
+            "workflow": workflow,
+            "workflow_compatibility": (
+                "current" if workflow == _CURRENT_WORKFLOW else "historical"
+            ),
+            "lifecycle_state": state,
+            "last_closed_stage": (
+                str(completed[-1]["stage_id"]) if completed else None
+            ),
             "blockers": list(ordered_conflicts),
-            "qualification_status": qualification_status,
+            "qualification_status": "unqualified" if state == "deployed" else "not-run",
         }
-        violations = validate_lifecycle_document(value, "environment-status")
-        relationships = validate_lifecycle_relationships(
-            profile=profile,
-            specification=specification,
-            journal=journal,
-            status=value,
-        )
-        if violations or relationships:
-            raise ValueError(
-                f"generated invalid environment status: {(*violations, *relationships)!r}"
-            )
         return StatusResult(value, ordered_conflicts)
 
     def execute(
@@ -772,24 +1516,39 @@ class LifecycleOperator:
         environment: str,
         specification_digest: str,
     ) -> ExecutionResult:
-        """Advance only the exact approved specification through an injected executor."""
+        """Execute or resume the fixed workflow for the approved preparation."""
 
-        profile, profile_digest = self._load_profile(environment)
-        current_digest = self._current_specification_digest(environment)
-        if current_digest != specification_digest:
+        _, profile_digest = self._load_profile(environment)
+        try:
+            current_digest = self._current_specification_digest(environment)
+        except ValueError:
             return self._blocked_execution(
                 environment,
-                ("SPECIFICATION_NOT_CURRENT",),
+                ("SPECIFICATION_READBACK_FAILED",),
             )
-        specification = self._load_specification(environment, specification_digest)
+        if current_digest != specification_digest:
+            return self._blocked_execution(environment, ("SPECIFICATION_NOT_CURRENT",))
+        try:
+            specification = self._load_specification(environment, specification_digest)
+        except ValueError:
+            return self._blocked_execution(
+                environment,
+                ("SPECIFICATION_READBACK_FAILED",),
+            )
+        if specification["workflow"] != _CURRENT_WORKFLOW:
+            return self._blocked_execution(
+                environment,
+                ("HISTORICAL_WORKFLOW_NOT_EXECUTABLE",),
+            )
         source = specification["source"]
-        assert isinstance(source, dict)
         source_revision = str(source["revision"])
         git = self._adapters.git.inspect()
-        blockers = self._source_blockers(git)
+        blockers = self._source_blockers(git, environment)
+        if source["authority"] != self._source_authority:
+            blockers.append("SOURCE_AUTHORITY_MISMATCH")
         if git.revision != source_revision:
             blockers.append("SOURCE_REVISION_MISMATCH")
-        if specification.get("profile_digest") != profile_digest:
+        if specification["profile_digest"] != profile_digest:
             blockers.append("PROFILE_DIGEST_MISMATCH")
         if not self._approved(
             environment,
@@ -799,160 +1558,158 @@ class LifecycleOperator:
         ):
             blockers.append("SPECIFICATION_NOT_APPROVED")
         if self._adapters.executor is None:
-            blockers.append("EXECUTION_ADAPTER_UNAVAILABLE")
+            blockers.extend(
+                self._adapters.execution_blockers
+                or ("EXECUTION_ADAPTER_UNAVAILABLE",)
+            )
         if blockers:
             return self._blocked_execution(environment, tuple(sorted(set(blockers))))
 
-        loaded = self._load_current_journal(environment, specification_digest)
-        if loaded is None:
-            journal = self._new_journal(
-                environment,
-                specification,
-                specification_digest,
+        try:
+            progress = self._load_progress(environment)
+        except ValueError:
+            return self._blocked_execution(environment, ("PROGRESS_READBACK_FAILED",))
+        if progress is None or (
+            progress["specification_digest"] != specification_digest
+            and progress["status"] in _REPLACEABLE_PROGRESS
+        ):
+            progress = self._new_progress(environment, source_revision, specification_digest)
+            progress_digest = self._store_progress(progress)
+        elif progress["specification_digest"] != specification_digest:
+            return self._blocked_execution(environment, ("ACTIVE_OPERATION_CONFLICT",))
+        elif progress["status"] == "succeeded":
+            return ExecutionResult(
+                "unchanged", progress, _digest(progress), self.status(environment)
             )
-            journal_digest = self._store_journal(specification, journal, None)
-        else:
-            journal, journal_digest = loaded
-            if journal["status"] == "succeeded":
-                return ExecutionResult(
-                    "unchanged",
-                    journal,
-                    journal_digest,
-                    self.status(environment),
+        elif progress["status"] == "cancelled":
+            if not self._confirm_cancelled_resume(environment, progress):
+                blockers = ("CANCELLED_OPERATION_RESUME_DECLINED",)
+                self._adapters.terminal.write(
+                    "Cancelled deployment progress remains unchanged."
                 )
-            if journal["status"] == "cancelled":
                 return ExecutionResult(
                     "cancelled",
-                    journal,
-                    journal_digest,
+                    progress,
+                    _digest(progress),
                     self.status(environment),
+                    blockers,
                 )
-            if journal["status"] in {"failed", "waiting"}:
-                previous = journal
-                journal = self._advance_journal(
-                    previous,
-                    journal_digest,
-                    status="running",
-                )
-                journal_digest = self._store_journal(
-                    specification,
-                    journal,
-                    previous,
-                )
+            progress = {**progress, "status": "running", "blockers": []}
+            progress_digest = self._store_progress(progress)
+            self._adapters.terminal.write(
+                f"Resuming cancelled deployment from stage "
+                f"{progress['active_stage']}."
+            )
+        else:
+            progress = {**progress, "status": "running", "blockers": []}
+            progress_digest = self._store_progress(progress)
 
         assert self._adapters.executor is not None
-        stages = specification["stages"]
-        assert isinstance(stages, list)
-        closed, outputs = self._closed_outputs(journal)
-        for stage in stages:
-            assert isinstance(stage, dict)
+        closed, outputs = self._closed_outputs(progress)
+        announced_operator_stages: set[int] = set()
+        for index, stage_template in enumerate(_DEPLOYMENT_STAGES):
+            stage = dict(stage_template)
             stage_id = str(stage["stage_id"])
             if stage_id in closed:
                 continue
-            inputs = self._stage_inputs(stage, outputs)
-            stage_digest = self._stage_input_digest(
-                specification_digest,
-                stage,
-                inputs,
-            )
-            try:
-                context = StageContext(
-                    environment=environment,
-                    source_revision=source_revision,
-                    specification_digest=specification_digest,
-                    stage=MappingProxyType(dict(stage)),
-                    inputs=inputs,
+            operator_stage, operator_title = _OPERATOR_STAGE_PRESENTATION[stage_id]
+            if operator_stage not in announced_operator_stages:
+                self._adapters.terminal.write(
+                    f"▸ Stage {operator_stage}/{_OPERATOR_STAGE_COUNT} · "
+                    f"{operator_title}"
                 )
-                result = self._adapters.executor.execute(context)
+                announced_operator_stages.add(operator_stage)
+            inputs = self._stage_inputs(stage, outputs)
+            context_stage = {
+                **stage,
+                "consumes": [
+                    {"stage_id": producer, "output_name": name}
+                    for producer, name in stage["consumes"]
+                ],
+            }
+            try:
+                result = self._adapters.executor.execute(
+                    StageContext(
+                        environment=environment,
+                        source_revision=source_revision,
+                        specification_digest=specification_digest,
+                        stage=MappingProxyType(context_stage),
+                        inputs=inputs,
+                    )
+                )
             except OperatorInterrupted:
                 self._adapters.terminal.write(
                     f"Interrupted before stage {stage_id} closed; safe to resume."
                 )
                 return ExecutionResult(
-                    "interrupted",
-                    journal,
-                    journal_digest,
-                    self.status(environment),
+                    "interrupted", progress, progress_digest, self.status(environment)
                 )
 
-            entry = self._entry(
-                len(journal["entries"]) + 1,
-                stage,
-                stage_digest,
-                result,
-            )
-            candidate_status = (
-                "succeeded"
-                if result.outcome == "succeeded" and stage is stages[-1]
-                else "running"
+            completed_stage = (
+                self._completed_stage(stage, result)
                 if result.outcome == "succeeded"
-                else result.outcome
+                else None
             )
-            candidate = self._advance_journal(
-                journal,
-                journal_digest,
-                status=candidate_status,
-                entry=entry,
-            )
-            candidate_violations = validate_lifecycle_document(
-                candidate,
-                "execution-journal",
-            )
-            relationship_violations = validate_lifecycle_relationships(
-                specification=specification,
-                journal=candidate,
-                previous_journal=journal,
-            )
-            if candidate_violations or relationship_violations:
-                prohibited = any(
-                    violation.code == "PROHIBITED_MATERIAL"
-                    for violation in (*candidate_violations, *relationship_violations)
-                )
-                safe_result = StageExecution(outcome="failed")
-                entry = self._entry(
-                    len(journal["entries"]) + 1,
-                    stage,
-                    stage_digest,
-                    safe_result,
-                )
-                candidate = self._advance_journal(
-                    journal,
-                    journal_digest,
-                    status="failed",
-                    entry=entry,
-                )
+            blocker: str | None = None
+            if result.outcome == "succeeded" and completed_stage is None:
+                observed_outputs = [
+                    {"name": name, "value": value}
+                    for name, value in result.outputs
+                ]
                 blocker = (
                     "PROHIBITED_STAGE_OUTPUT"
-                    if prohibited
+                    if validate_lifecycle_material(observed_outputs)
                     else "STAGE_RESULT_INVALID"
                 )
-            else:
-                blocker = None
 
-            previous = journal
-            journal = candidate
-            journal_digest = self._store_journal(
-                specification,
-                journal,
-                previous,
-            )
-            displayed_outcome = "failed" if blocker is not None else result.outcome
+            if blocker is not None:
+                progress = {
+                    **progress,
+                    "status": "failed",
+                    "active_stage": stage_id,
+                    "blockers": [blocker],
+                }
+            elif result.outcome == "succeeded":
+                assert completed_stage is not None
+                completed = [*progress["completed"], completed_stage]
+                next_stage = (
+                    str(_DEPLOYMENT_STAGES[index + 1]["stage_id"])
+                    if index + 1 < len(_DEPLOYMENT_STAGES)
+                    else None
+                )
+                progress = {
+                    **progress,
+                    "status": "succeeded" if next_stage is None else "running",
+                    "completed": completed,
+                    "active_stage": next_stage,
+                    "blockers": [],
+                }
+            else:
+                progress = {
+                    **progress,
+                    "status": result.outcome,
+                    "active_stage": stage_id,
+                    "blockers": list(result.blockers),
+                }
+
+            progress_digest = self._store_progress(progress)
+            displayed = "failed" if blocker is not None else result.outcome
             self._adapters.terminal.write(
-                f"Stage {stage_id} closed with outcome {displayed_outcome}."
+                f"Stage {stage_id} closed with outcome {displayed}."
             )
             if blocker is not None:
                 return ExecutionResult(
                     "failed",
-                    journal,
-                    journal_digest,
+                    progress,
+                    progress_digest,
                     self.status(environment),
                     (blocker,),
                 )
             if result.outcome != "succeeded":
                 return ExecutionResult(
                     result.outcome,
-                    journal,
-                    journal_digest,
+                    progress,
+                    progress_digest,
                     self.status(environment),
                     result.blockers,
                 )
@@ -961,87 +1718,483 @@ class LifecycleOperator:
                 outputs[(stage_id, name)] = value
 
         return ExecutionResult(
-            "succeeded",
-            journal,
-            journal_digest,
-            self.status(environment),
+            "succeeded", progress, progress_digest, self.status(environment)
         )
 
-    def prepare(self, environment: str) -> PrepareResult:
-        """Read source and bounded discoveries, then request exact digest approval."""
+    def current_approved_specification(
+        self,
+        environment: str,
+    ) -> PrepareResult | None:
+        """Reuse current approved preparation only after fresh read-only checks."""
 
         profile, profile_digest = self._load_profile(environment)
-        profile_blockers = tuple(profile.get("blockers", ()))
         if profile.get("lifecycle_state") != "enabled":
+            return None
+        try:
+            digest = self._current_specification_digest(environment)
+            if digest is None:
+                return None
+            specification = self._load_specification(environment, digest)
+        except ValueError:
             return PrepareResult(
-                "blocked", False, False, None, None, profile_blockers
+                "blocked", False, False, None, None, ("SPECIFICATION_READBACK_FAILED",)
             )
-
         git = self._adapters.git.inspect()
-        discoveries = (
-            self._adapters.github.inspect(profile),
-            self._adapters.gcp.inspect(profile),
-            self._adapters.terraform.inspect(),
-            self._adapters.dns.inspect(profile),
-        )
-        blockers = self._source_blockers(git)
-        blockers.extend(
-            blocker for discovery in discoveries for blocker in discovery.blockers
-        )
-        blockers.extend(self._discovery_conflicts(profile, discoveries))
-        ordered_blockers = tuple(sorted(set(blockers)))
-        if ordered_blockers:
+        discoveries = self._discoveries(profile)
+        blockers = self._freshness_blockers(environment, profile, git, discoveries)
+        if blockers:
+            return PrepareResult("blocked", False, False, None, digest, blockers)
+        source = specification["source"]
+        source_revision = str(source["revision"])
+        if (
+            specification["environment"] != environment
+            or specification["profile_digest"] != profile_digest
+            or specification["workflow"] != _CURRENT_WORKFLOW
+            or source["authority"] != self._source_authority
+            or source_revision != git.revision
+        ):
+            return None
+        if not self._approved(
+            environment,
+            digest,
+            profile_digest=profile_digest,
+            source_revision=source_revision,
+        ):
+            return None
+        try:
+            conflict = self._conflicting_progress(environment, digest)
+        except ValueError:
             return PrepareResult(
-                "blocked", False, False, None, None, ordered_blockers
+                "blocked", False, False, None, digest, ("PROGRESS_READBACK_FAILED",)
             )
+        if conflict:
+            self._report_active_operation_conflict(
+                environment,
+                conflict,
+                requested_revision=git.revision,
+                requested_digest=digest,
+            )
+            return PrepareResult(
+                "blocked", False, False, None, digest, ("ACTIVE_OPERATION_CONFLICT",)
+            )
+        self._adapters.terminal.write(
+            f"Reusing current approved specification {digest} for {environment}."
+        )
+        return PrepareResult("unchanged", True, True, specification, digest, ())
 
-        gcp_facts = dict(discoveries[1].facts)
-        active_account = gcp_facts.get("active_account")
-        active_project = gcp_facts.get("project_id")
-        if active_account and active_project:
+    def preflight(
+        self,
+        environment: str,
+        *,
+        mode: str = "operational",
+    ) -> PreflightResult:
+        """Check readiness without writing, approving, planning, or mutating."""
+
+        if mode not in {"development", "operational"}:
+            raise ValueError(f"unsupported preflight mode {mode!r}")
+        _, _, git, discoveries, all_blockers = self._readiness(
+            environment,
+            report_blockers=False,
+        )
+        all_source_blockers = (
+            tuple(sorted(set(self._source_blockers(git, environment))))
+            if git is not None
+            else ()
+        )
+        source_blockers = (
+            self._check_source_blockers(git, environment)
+            if mode == "development" and git is not None
+            else all_source_blockers
+        )
+        source_codes = set(all_source_blockers)
+        readiness_blockers = tuple(
+            blocker for blocker in all_blockers if blocker not in source_codes
+        )
+        operational_ready = not all_blockers
+        if mode == "development":
+            blockers = readiness_blockers
+            self._report_development_source_diagnostics(source_blockers)
+            self._report_blockers(readiness_blockers)
+        else:
+            blockers = all_blockers
+            self._report_blockers(all_blockers)
+        if blockers:
+            return PreflightResult(
+                "blocked",
+                False,
+                blockers,
+                source_blockers,
+                operational_ready,
+            )
+        assert git is not None
+        self._report_verified_session(discoveries)
+        if mode == "development" and source_blockers:
             self._adapters.terminal.write(
-                f"Verified operator session {active_account} for {active_project}."
+                f"Development preflight ready for {environment}; source remains "
+                "operationally unadmitted."
+            )
+        else:
+            self._adapters.terminal.write(f"Preflight ready for {environment}.")
+        return PreflightResult(
+            "ready",
+            True,
+            (),
+            source_blockers,
+            operational_ready,
+        )
+
+    def deploy_check(self, environment: str) -> DeploymentCheckResult:
+        """Rehearse current working-tree deployment boundaries without mutation."""
+
+        profile, profile_digest, git, discoveries, all_blockers = self._readiness(
+            environment,
+            report_blockers=False,
+        )
+        if git is None:
+            blockers = tuple(sorted(set(all_blockers or ("ENVIRONMENT_DISABLED",))))
+            self._report_blockers(blockers)
+            return DeploymentCheckResult("blocked", False, (), (), blockers)
+
+        all_source_blockers = tuple(
+            sorted(set(self._source_blockers(git, environment)))
+        )
+        source_blockers = self._check_source_blockers(git, environment)
+        source_codes = set(all_source_blockers)
+        readiness_blockers = tuple(
+            blocker for blocker in all_blockers if blocker not in source_codes
+        )
+        self._report_development_source_diagnostics(source_blockers)
+        self._report_blockers(readiness_blockers)
+        if readiness_blockers:
+            return DeploymentCheckResult(
+                "blocked",
+                False,
+                source_blockers,
+                (),
+                readiness_blockers,
+            )
+        self._report_verified_session(discoveries)
+        if self._adapters.checker is None:
+            blockers = self._adapters.check_blockers or (
+                "DEPLOYMENT_CHECK_ADAPTER_UNAVAILABLE",
+            )
+            self._report_blockers(blockers)
+            return DeploymentCheckResult(
+                "blocked",
+                not all_source_blockers,
+                source_blockers,
+                (),
+                blockers,
             )
 
-        specification = self._specification(
+        try:
+            current_digest = self._current_specification_digest(environment)
+            if current_digest is not None:
+                self._load_specification(environment, current_digest)
+            progress = self._load_progress(environment)
+        except ValueError as error:
+            message = str(error)
+            blocker = (
+                "PROGRESS_READBACK_FAILED"
+                if "progress" in message
+                else "SPECIFICATION_READBACK_FAILED"
+            )
+            self._report_blockers((blocker,))
+            return DeploymentCheckResult(
+                "blocked",
+                not all_source_blockers,
+                source_blockers,
+                (),
+                (blocker,),
+            )
+
+        outputs = self._latest_successful_outputs(environment)
+        if progress is not None:
+            _, current_outputs = self._closed_outputs(progress)
+            outputs.update(current_outputs)
+        prospective = self._specification(
             environment,
             profile_digest,
             git.revision,
         )
-        violations = validate_lifecycle_document(
-            specification,
-            "deployment-specification",
-        )
-        if violations:
-            raise ValueError(f"generated invalid deployment specification: {violations!r}")
-        digest = lifecycle_digest(specification, "deployment-specification")
-        if self._has_conflicting_journal(environment, digest):
-            return PrepareResult(
-                "blocked",
-                False,
-                False,
-                None,
-                None,
-                ("ACTIVE_JOURNAL_CONFLICT",),
+        specification_digest = _digest(prospective)
+        checked: list[tuple[str, StageCheck]] = []
+        blockers: list[str] = []
+        fresh_outputs: set[tuple[str, str]] = set()
+        announced_operator_stages: set[int] = set()
+        for stage_template in _DEPLOYMENT_STAGES:
+            stage = dict(stage_template)
+            stage_id = str(stage["stage_id"])
+            operator_stage, operator_title = _OPERATOR_STAGE_PRESENTATION[stage_id]
+            if operator_stage not in announced_operator_stages:
+                self._adapters.terminal.write(
+                    f"▸ Check {operator_stage}/{_OPERATOR_STAGE_COUNT} · "
+                    f"{operator_title}"
+                )
+                announced_operator_stages.add(operator_stage)
+
+            missing = [
+                f"{producer}.{name}"
+                for producer, name in stage["consumes"]
+                if (str(producer), str(name)) not in outputs
+            ]
+            if missing:
+                result = StageCheck(
+                    "deferred",
+                    summary={"missing_inputs": missing},
+                )
+                checked.append((stage_id, result))
+                self._adapters.terminal.write(
+                    f"Deployment check {stage_id}: deferred; missing "
+                    + ", ".join(missing)
+                    + "."
+                )
+                continue
+
+            if stage_id in {"runtime-activation", "external-dns", "readback"}:
+                stale = [
+                    f"{producer}.{name}"
+                    for producer, name in stage["consumes"]
+                    if (str(producer), str(name)) not in fresh_outputs
+                ]
+                if stale:
+                    result = StageCheck(
+                        "deferred",
+                        summary={"requires_fresh_inputs": stale},
+                    )
+                    checked.append((stage_id, result))
+                    self._adapters.terminal.write(
+                        f"Deployment check {stage_id}: deferred; current-source "
+                        "outputs are not yet available for "
+                        + ", ".join(stale)
+                        + "."
+                    )
+                    continue
+
+            inputs = self._stage_inputs(stage, outputs)
+            context_stage = {
+                **stage,
+                "consumes": [
+                    {"stage_id": producer, "output_name": name}
+                    for producer, name in stage["consumes"]
+                ],
+            }
+            result = self._adapters.checker.check(
+                StageContext(
+                    environment=environment,
+                    source_revision=git.revision,
+                    specification_digest=specification_digest,
+                    stage=MappingProxyType(context_stage),
+                    inputs=inputs,
+                )
             )
+            expected_outputs = tuple(str(name) for name in stage["produces"])
+            actual_outputs = tuple(name for name, _ in result.outputs)
+            if result.outputs and actual_outputs != expected_outputs:
+                result = StageCheck(
+                    "blocked",
+                    plan_digest=result.plan_digest,
+                    summary=result.summary,
+                    blockers=("STAGE_CHECK_OUTPUT_MISMATCH",),
+                )
+            checked.append((stage_id, result))
+            self._adapters.terminal.write(
+                f"Deployment check {stage_id}: {result.outcome}."
+            )
+            if result.outcome == "blocked":
+                blockers.extend(result.blockers or ("DEPLOYMENT_CHECK_FAILED",))
+            for name, value in result.outputs:
+                outputs[(stage_id, name)] = value
+                if result.outcome == "pass":
+                    fresh_outputs.add((stage_id, name))
+
+        unique_blockers = tuple(sorted(set(blockers)))
+        readiness_results = {
+            stage_id: result
+            for stage_id, result in checked
+            if stage_id in _PLATFORM_READINESS_STAGES
+        }
+        missing_readiness = _PLATFORM_READINESS_STAGES - readiness_results.keys()
+        reconciliation_required = any(
+            result.outcome == "would-change"
+            for result in readiness_results.values()
+        )
+        incomplete = bool(missing_readiness) or any(
+            result.outcome not in {"pass", "would-change", "blocked"}
+            for result in readiness_results.values()
+        )
+        platform_ready = (
+            not unique_blockers
+            and not reconciliation_required
+            and not incomplete
+            and all(
+                result.outcome == "pass"
+                for result in readiness_results.values()
+            )
+        )
+        outcome = (
+            "blocked"
+            if unique_blockers
+            else (
+                "reconciliation-required"
+                if reconciliation_required
+                else ("incomplete" if incomplete else "ready")
+            )
+        )
+        return DeploymentCheckResult(
+            outcome,
+            not all_source_blockers,
+            source_blockers,
+            tuple(checked),
+            unique_blockers,
+            git.revision,
+            git.working_tree_digest,
+            git.untracked_path_count,
+            platform_ready,
+            reconciliation_required,
+        )
+
+    def prepare(self, environment: str) -> PrepareResult:
+        """Discover readiness, display one operation fingerprint, and approve it."""
+
+        _, profile_digest, git, discoveries, blockers = self._readiness(environment)
+        if blockers:
+            return PrepareResult("blocked", False, False, None, None, blockers)
+        assert git is not None
+        self._report_verified_session(discoveries)
+        specification = self._specification(environment, profile_digest, git.revision)
+        digest = _digest(specification)
+        try:
+            conflict = self._conflicting_progress(environment, digest)
+            historical = self._historical_terminal_progress(environment, digest)
+        except ValueError:
+            blockers = ("PROGRESS_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return PrepareResult("blocked", False, False, None, None, blockers)
+        if conflict:
+            self._report_active_operation_conflict(
+                environment,
+                conflict,
+                requested_revision=git.revision,
+                requested_digest=digest,
+            )
+            return PrepareResult(
+                "blocked", False, False, None, None, ("ACTIVE_OPERATION_CONFLICT",)
+            )
+        if historical is not None and not self._confirm_historical_supersession(
+            environment,
+            historical,
+        ):
+            blockers = ("HISTORICAL_PROGRESS_SUPERSESSION_DECLINED",)
+            self._report_blockers(blockers)
+            return PrepareResult("cancelled", False, False, None, None, blockers)
         self._store_specification(environment, specification, digest)
-        if self._approved(environment, digest):
+        if self._approved(
+            environment,
+            digest,
+            profile_digest=profile_digest,
+            source_revision=git.revision,
+        ):
             self._adapters.terminal.write(
                 f"Unchanged approved specification {digest} for {environment}."
             )
-            return PrepareResult(
-                "unchanged", True, True, specification, digest, ()
-            )
-
+            return PrepareResult("unchanged", True, True, specification, digest, ())
         self._adapters.terminal.write(
-            f"Complete deployment specification {digest} for {environment}."
+            f"Deployment specification {digest} for {environment}."
         )
         approved = self._adapters.terminal.confirm(
             f"Approve exact deployment specification {digest}? [y/N] "
         )
         if not approved:
-            return PrepareResult(
-                "cancelled", True, False, specification, digest, ()
-            )
+            return PrepareResult("cancelled", True, False, specification, digest, ())
         self._store_approval(environment, profile_digest, git.revision, digest)
         return PrepareResult("prepared", True, True, specification, digest, ())
+
+    def cancel(self, environment: str) -> _CancellationResult:
+        """Close one private active deployment without any external operation."""
+
+        self._load_profile(environment)
+        try:
+            progress = self._load_progress(environment)
+            current_digest = self._current_specification_digest(environment)
+        except ValueError:
+            blockers = ("PROGRESS_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return _CancellationResult("blocked", None, None, blockers)
+        if progress is None or progress["status"] in _REPLACEABLE_PROGRESS:
+            if progress is None:
+                self._adapters.terminal.write(
+                    f"No deployment operation exists for {environment}; nothing to cancel."
+                )
+                return _CancellationResult("unchanged", None, None, ())
+            self._adapters.terminal.write(
+                f"Deployment operation {progress['specification_digest']} is already "
+                f"{progress['status']}; nothing to cancel."
+            )
+            return _CancellationResult(
+                "unchanged",
+                progress,
+                _digest(progress),
+                (),
+            )
+
+        specification_digest = str(progress["specification_digest"])
+        if current_digest != specification_digest:
+            blockers = ("PROGRESS_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return _CancellationResult("blocked", progress, _digest(progress), blockers)
+        try:
+            specification = self._load_specification(
+                environment,
+                specification_digest,
+            )
+        except ValueError:
+            blockers = ("SPECIFICATION_READBACK_FAILED",)
+            self._report_blockers(blockers)
+            return _CancellationResult("blocked", progress, _digest(progress), blockers)
+        source = specification["source"]
+        authority = str(source["authority"])
+        if authority != self._source_authority:
+            self._adapters.terminal.write(
+                "Active deployment source authority does not match this invocation. "
+                f"Rerun with SOURCE_AUTHORITY={authority}."
+            )
+            blockers = ("SOURCE_AUTHORITY_MISMATCH",)
+            return _CancellationResult("blocked", progress, _digest(progress), blockers)
+
+        completed = progress["completed"]
+        last_closed_stage = completed[-1]["stage_id"] if completed else "none"
+        self._adapters.terminal.write(
+            "\n".join(
+                (
+                    "Cancel private deployment operation:",
+                    f"  environment: {environment}",
+                    f"  source authority: {authority}",
+                    f"  source revision: {progress['source_revision']}",
+                    f"  specification digest: {specification_digest}",
+                    f"  status: {progress['status']}",
+                    f"  last closed stage: {last_closed_stage}",
+                    f"  active stage: {progress['active_stage']}",
+                    "This closes only private resume state. Terraform state and cloud "
+                    "resources remain unchanged.",
+                )
+            )
+        )
+        confirmed = self._adapters.terminal.confirm(
+            f"Cancel private deployment operation {specification_digest}? [y/N] "
+        )
+        if not confirmed:
+            return _CancellationResult(
+                "declined",
+                progress,
+                _digest(progress),
+                ("CANCELLATION_DECLINED",),
+            )
+
+        cancelled = {**progress, "status": "cancelled", "blockers": []}
+        progress_digest = self._store_progress(cancelled)
+        self._adapters.terminal.write(
+            f"Cancelled private deployment operation {specification_digest}. "
+            "Terraform state and cloud resources were not changed."
+        )
+        return _CancellationResult("cancelled", cancelled, progress_digest, ())

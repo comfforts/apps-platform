@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import json
 import re
 import tomllib
@@ -10,6 +11,15 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _repository_files() -> Iterator[Path]:
+    """Yield repository files without ignored private operator runtime state."""
+
+    for path in PROJECT_ROOT.rglob("*"):
+        relative = path.relative_to(PROJECT_ROOT)
+        if path.is_file() and relative.parts[0] != ".platform-operator":
+            yield path
 
 
 class ProjectAuthorityTest(unittest.TestCase):
@@ -42,8 +52,6 @@ class ProjectAuthorityTest(unittest.TestCase):
             "contracts/lifecycle/schemas/application-attachment-bundle.v1.schema.json",
             "contracts/lifecycle/schemas/deployment-specification.v1.schema.json",
             "contracts/lifecycle/schemas/environment-profile.v1.schema.json",
-            "contracts/lifecycle/schemas/environment-status.v1.schema.json",
-            "contracts/lifecycle/schemas/execution-journal.v1.schema.json",
             "contracts/lifecycle/schemas/platform-integration-bundle.v1.schema.json",
             "contracts/validation.py",
             "contracts/test-vectors/manifest.v1.json",
@@ -244,16 +252,16 @@ class ProjectAuthorityTest(unittest.TestCase):
 
     def test_agent_instructions_route_to_platform_authority(self) -> None:
         instructions = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        normalized_instructions = " ".join(instructions.split())
 
         self.assertIn("docs/README.md", instructions)
-        self.assertIn("GLOSSARY.md", instructions)
-        self.assertIn("docs/01_product_requirements.md", instructions)
-        self.assertIn("docs/02_architecture_decision_records.md", instructions)
-        self.assertIn("docs/03_system_design.md", instructions)
-        self.assertIn("docs/06_threat_model.md", instructions)
-        self.assertIn("contracts/README.md", instructions)
-        self.assertIn("docs/repository_layout.md", instructions)
-        self.assertIn("Run `make check` from the dedicated repository root", instructions)
+        self.assertIn("canonical router to that authority", instructions)
+        self.assertIn("Do not recreate them in this file", instructions)
+        self.assertIn(
+            "Keep each project-specific rule in its authoritative project document",
+            instructions,
+        )
+        self.assertIn("run `make check` from the dedicated", instructions)
         self.assertNotIn("make -C apps-platform check", instructions)
         self.assertIn("one bounded slice per pull request", instructions)
         self.assertIn("leave each change uncommitted until approval", instructions)
@@ -266,17 +274,46 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("`chore/` for small maintenance", instructions)
         self.assertIn("never substitute an author or tool name such as `codex/`", instructions)
         self.assertIn(
-            "AP-M5 selects infrastructure and Live-qualification planning boundaries only",
-            instructions,
+            "Trace every claimed operator or user journey to an executable entry point and deterministic tests",
+            normalized_instructions,
         )
         self.assertIn(
-            "AP-M6 authorizes only repository implementation of the networked Shared Edge",
-            instructions,
+            "Treat absent authority as unresolved rather than inferred",
+            normalized_instructions,
         )
         self.assertIn(
-            "AP-M7 authorizes only reviewed Terraform configuration",
-            instructions,
+            "An approved implementation slice does not implicitly authorize an external mutation",
+            normalized_instructions,
         )
+        self.assertNotRegex(instructions, r"AP-M\d")
+        self.assertNotIn("Finance Assistant", instructions)
+        self.assertNotIn("platform-deploy", instructions)
+        self.assertNotIn("operator-manifest", instructions)
+
+    def test_operator_authorization_and_fixture_readiness_are_unambiguous(self) -> None:
+        requirements = (PROJECT_ROOT / "docs/01_product_requirements.md").read_text(
+            encoding="utf-8"
+        )
+        decisions = (PROJECT_ROOT / "docs/02_architecture_decision_records.md").read_text(
+            encoding="utf-8"
+        )
+        design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
+            encoding="utf-8"
+        )
+        glossary = (PROJECT_ROOT / "GLOSSARY.md").read_text(encoding="utf-8")
+
+        for document in (requirements, decisions, design):
+            normalized = " ".join(document.split())
+            self.assertIn("no separate out-of-band approval", normalized)
+            self.assertIn("Destruction, purge, ownership transfer", normalized)
+        self.assertIn("## Operator Invocation", glossary)
+        self.assertIn("separate Application State", requirements)
+        self.assertIn("Static Terraform, process-local loopback", requirements)
+        self.assertIn("`fixture-handoff`", design)
+        self.assertIn("`fixture-project-bootstrap`", design)
+        self.assertIn("`platform-connect-project`", design)
+        self.assertIn("`fixture-status`", design)
+        self.assertIn("`fixture-destroy`", design)
 
     def test_documentation_truthfully_records_planning_and_evidence_status(self) -> None:
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
@@ -290,19 +327,103 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_overview = " ".join(overview.split())
 
         self.assertIn(
-            "AP-M9-W8 qualification and safe-destruction lifecycle implemented",
+            "AP-M9-W9 fixture deployment lifecycle cross-project correction in progress",
             normalized_index,
         )
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
         self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
         self.assertIn("AP-M8 | historical", index)
         self.assertIn("AP-M9-W1 — governance rebaseline", index)
-        self.assertIn("AP-M9-W10 — production readiness", index)
-        self.assertIn("AP-M8-W3 through AP-M8-W12 never began", normalized_overview)
-        self.assertIn("no platform environment is deployed or qualified", normalized_overview)
+        self.assertIn("AP-M9-W11 — production readiness", index)
+        self.assertIn("candidate staging platform resources have been exercised", normalized_overview.lower())
+        self.assertIn("not accepted qualification", normalized_overview.lower())
         self.assertIn("Platform Integration Bundle", overview)
         self.assertIn("Application Attachment Bundle", overview)
         self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", overview)
+        for section in (
+            "## What the platform owns",
+            "## Application categories",
+            "## How the platform works",
+            "## Repository structure",
+            "## Set up the repository",
+            "## Prepare for an operator session",
+            "## Operate a platform environment",
+            "## Integrate and manage applications",
+            "## Maintain the project",
+            "## Operational readiness",
+        ):
+            self.assertIn(section, overview)
+        self.assertIn("uv sync --frozen --python 3.12", overview)
+        self.assertIn("make terraform-setup", overview)
+        self.assertIn("make check", overview)
+        self.assertIn("SOURCE_AUTHORITY=candidate", overview)
+        for application_category in (
+            "### Admission mode",
+            "`public`",
+            "`authenticated`",
+            "`restricted`",
+            "### Catalogue visibility",
+            "`listed`",
+            "`unlisted`",
+            "### Lifecycle state",
+            "`active`",
+            "`suspended` / detached",
+            "`retired`",
+            "### Fixture and adopted applications",
+            "`fixture-public`",
+            "`fixture-authenticated`",
+            "`fixture-restricted`",
+        ):
+            self.assertIn(application_category, overview)
+        self.assertIn("Admission decides whether a request may reach", overview)
+        self.assertIn("application still decides its own principals", overview)
+        self.assertIn("`public` describes only the platform's admission decision", overview)
+        self.assertIn("including a separate\nOAuth client", overview)
+        self.assertIn(
+            "Applications registered as `authenticated` or `restricted` rely on platform admission",
+            overview,
+        )
+        self.assertIn("application-specific audience, time bounds, and contract", overview)
+        self.assertIn("it must verify that platform assertion by the same rules", overview)
+        self.assertIn("receives neither the platform OAuth client", overview)
+        self.assertIn("Applications using\n`authenticated` or `restricted` admission", overview)
+        self.assertIn("including a public one, accepts traffic only from the Shared Edge", overview)
+        self.assertNotIn("Protected applications", overview)
+        self.assertIn("There is intentionally no\ncombined `fixture-deploy` command", overview)
+        self.assertIn(
+            "make fixture-handoff \\\n  ENVIRONMENT=staging \\\n  APPLICATION_ID=fixture-public",
+            overview,
+        )
+        self.assertIn("writes the canonical bundle pair and registration intent", normalized_overview)
+        self.assertIn("It never registers or routes the fixture", overview)
+        self.assertIn("FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod", overview)
+        self.assertIn('FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"', overview)
+        self.assertIn("APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod", overview)
+        for fixture_application_id in (
+            "fixture-public",
+            "fixture-authenticated",
+            "fixture-restricted",
+        ):
+            self.assertIn(fixture_application_id, overview)
+        self.assertIn(
+            "`fixture-status` is suite-wide by default, or narrowed with an optional `APPLICATION_ID`",
+            overview,
+        )
+        self.assertIn("keeping `platform-outputs`, fixture runtime deployment, and", overview)
+        self.assertIn("There is no App Platform Make target for deploying a real application", overview)
+        self.assertIn("The complete handoff sequence is", overview)
+        self.assertIn("Readiness preflight", overview)
+        self.assertIn("Optional specification preparation and review", overview)
+        self.assertIn("make platform-preflight ENVIRONMENT=staging", overview)
+        self.assertIn("without creating lifecycle state", overview)
+        self.assertIn("not a required predecessor to `platform-deploy`", overview)
+        self.assertIn("The operator does not need to copy its digest", overview)
+        self.assertIn("No digest copy-and-paste is required", overview)
+        self.assertIn("SPECIFICATION_DIGEST=sha256:<digest>", overview)
+        self.assertIn("ordinary one-command deployment sequence starts with `platform-deploy`", overview)
+        self.assertIn("fixture-destroy", overview)
+        self.assertNotIn("## Current authority and status", overview)
+        self.assertNotIn("AP-M8-W3 through AP-M8-W12", overview)
         self.assertIn("canonical dedicated repository", normalized_layout)
         self.assertIn("docs/history/", layout)
         self.assertIn("AP-M9 capability locations", layout)
@@ -454,8 +575,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Application State",
             "Platform State",
             "Fixture Applications",
-            "Integration Draft",
-            "Finance Assistant migration",
+            "Application Adoption",
+            "real-application migration",
             "does not change a consuming",
         ):
             self.assertIn(boundary, requirements)
@@ -482,9 +603,10 @@ class ProjectAuthorityTest(unittest.TestCase):
                 "ADR-011",
                 "ADR-012",
                 "ADR-013",
+                "ADR-014",
             ],
         )
-        self.assertEqual(decisions.count("Status: Accepted"), 13)
+        self.assertEqual(decisions.count("Status: Accepted"), 14)
         normalized_decisions = " ".join(decisions.split())
         for identifier in (
             "AP-PR-001",
@@ -532,7 +654,7 @@ class ProjectAuthorityTest(unittest.TestCase):
 
         for state_and_operator_decision in (
             "remote GCS backend with native state locking and object versioning",
-            "Each Fixture Application uses a separate state bucket",
+            "fixtures use separate prefixes in one versioned bucket owned by their dedicated fixture application project",
             "at least 90 days old",
             "at least 20 newer generations",
             "No platform root uses `terraform_remote_state`",
@@ -545,7 +667,9 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(state_and_operator_decision, normalized_decisions)
 
         for activation_and_rollback_decision in (
-            "content-addressed, immutable compiled configuration object",
+            "immutable compiled configuration object is published as an inactive candidate",
+            "environment-and-generation path",
+            "generation digest, content digest, and exact GCS object generation",
             "traffic assignment to one immutable edge revision",
             "There is no separate registration endpoint or database",
             "100 percent of edge traffic",
@@ -625,22 +749,23 @@ class ProjectAuthorityTest(unittest.TestCase):
         decisions = (PROJECT_ROOT / "docs/02_architecture_decision_records.md").read_text(
             encoding="utf-8"
         )
+        normalized_decisions = " ".join(decisions.split())
         glossary = (PROJECT_ROOT / "GLOSSARY.md").read_text(encoding="utf-8")
         layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(encoding="utf-8")
 
         for boundary in (
             "before any real application may be adopted",
-            "remain outside\nPlatform State",
+            "remain outside Platform State",
             "no Finance Assistant code",
             "is not platform acceptance evidence",
             "A cutover must leave each resource with one active state owner",
             "Finance Assistant-owned slice and evidence",
         ):
-            self.assertIn(boundary, decisions)
+            self.assertIn(boundary, normalized_decisions)
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("independent synthetic Application State roots", layout)
 
-    def test_ap_m9_w8_handoff_loads_authority_without_granting_operations(
+    def test_ap_m9_w10_handoff_loads_exact_staging_operation_authority(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -650,32 +775,36 @@ class ProjectAuthorityTest(unittest.TestCase):
         for authority in (
             "AGENTS.md",
             "docs/README.md",
-            "AP-M9-W8",
+            "AP-M9-W10",
             "AP-PR-001 through AP-PR-012",
             "AP-QR-001 through AP-QR-009",
-            "ADR-001 through ADR-013",
+            "ADR-001 through ADR-014",
             "AP-EVAL-M9-09",
             "AP-TM-001",
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the AP-M9-W7 application-lifecycle pull request has merged",
-            "Implement only the qualification and safe-destruction repository slice",
-            "platform-qualify",
-            "platform-destroy",
-            "qualification-evidence contract",
-            "complete-generation rollback",
-            "deterministic contract, command, transcript, evidence, qualification, rollback, destruction",
-            "Do not authenticate or run a real",
-            "Run `make check` from the repository root",
-            "Do not change repository settings",
-            "Finance Assistant",
+            "after the AP-M9-W9 fixture-application lifecycle pull request has merged",
+            "AP-M9-W10 is the first accepted external staging operation",
+            "fixture-handoff",
+            "fixture-project-bootstrap",
+            "platform-connect-project",
+            "application-handoff-check",
+            "platform-register",
+            "fixture-status",
+            "fixture-destroy",
+            "independent Application State lineages",
+            "same-process specification and exact-plan confirmations",
+            "Run the complete credential-free `make check` gate",
+            "separately named owner approval for the destructive rehearsal",
+            "Leave staging deployed and qualified",
+            "any real application",
         ):
             self.assertIn(boundary, normalized_prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W8 qualification and safe destruction handoff](starting_prompt.md)",
+            "[AP-M9-W10 staging operation handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -685,14 +814,14 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_index = " ".join(index.split())
         normalized_prompt = " ".join(prompt.split())
 
-        for work_package in range(1, 11):
+        for work_package in range(1, 12):
             self.assertIn(f"AP-M9-W{work_package}", index)
         self.assertIn("Each work package is one bounded branch and pull request", normalized_index)
-        self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W10"))
-        self.assertIn("AP-M9-W8", normalized_prompt)
-        self.assertIn("qualification and safe destruction", normalized_prompt)
-        self.assertIn("Do not authenticate", normalized_prompt)
-        self.assertIn("AP-M9-W9 staging-operation handoff", normalized_prompt)
+        self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W11"))
+        self.assertIn("AP-M9-W10", normalized_prompt)
+        self.assertIn("first accepted external staging operation", normalized_prompt)
+        self.assertIn("Do not request a duplicate", normalized_prompt)
+        self.assertIn("Do not mutate `apps.comfforts.com`, production, or any real application", normalized_prompt)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
@@ -824,7 +953,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertEqual(
             lifecycle_packages,
-            [f"AP-M9-W{index}" for index in range(1, 11)],
+            [f"AP-M9-W{index}" for index in range(1, 12)],
         )
         self.assertEqual(len(work_packages), len(set(work_packages)))
         self.assertEqual(
@@ -1007,9 +1136,10 @@ class ProjectAuthorityTest(unittest.TestCase):
             sorted(item.name for item in workflow_root.iterdir() if item.is_file()),
             ["check.yml"],
         )
-        self.assertFalse(any(PROJECT_ROOT.rglob("*.tfvars")))
-        self.assertFalse(any(PROJECT_ROOT.rglob("*.tfstate")))
-        self.assertFalse(any(PROJECT_ROOT.rglob("*.tfplan")))
+        repository_files = tuple(_repository_files())
+        self.assertFalse(any(path.name.endswith(".tfvars") for path in repository_files))
+        self.assertFalse(any(path.name.endswith(".tfstate") for path in repository_files))
+        self.assertFalse(any(path.name.endswith(".tfplan") for path in repository_files))
 
     def test_ap_m9_w2_removes_the_retired_manifest_implementation(self) -> None:
         config_root = PROJECT_ROOT / "infrastructure/config"
@@ -1275,8 +1405,8 @@ class ProjectAuthorityTest(unittest.TestCase):
 
         terraform_files = sorted(
             path.relative_to(PROJECT_ROOT).as_posix()
-            for path in PROJECT_ROOT.rglob("*")
-            if path.is_file() and path.name.endswith((".tf", ".tf.json"))
+            for path in _repository_files()
+            if path.name.endswith((".tf", ".tf.json"))
         )
         self.assertEqual(
             terraform_files,
@@ -1327,9 +1457,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         prohibited_files = sorted(
             path.relative_to(PROJECT_ROOT).as_posix()
-            for path in PROJECT_ROOT.rglob("*")
-            if path.is_file()
-            and path.name.endswith((".tfvars", ".tfstate", ".tfplan"))
+            for path in _repository_files()
+            if path.name.endswith((".tfvars", ".tfstate", ".tfplan"))
         )
         self.assertEqual(prohibited_files, [])
         self.assertTrue((PROJECT_ROOT / ".github/workflows/check.yml").is_file())
@@ -1450,12 +1579,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("operator-attested", threat_model)
         self.assertIn("No current result proves", threat_model)
 
-    def test_ap_m9_w8_status_and_w9_handoff_are_bounded(self) -> None:
+    def test_ap_m9_w9_status_and_w10_operation_handoff_are_bounded(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         docs_index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         runbook = (
             PROJECT_ROOT / "docs/runbooks/environment_lifecycle.md"
         ).read_text(encoding="utf-8")
+        normalized_runbook = " ".join(runbook.split())
         layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(
             encoding="utf-8"
         )
@@ -1464,28 +1594,55 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         normalized_prompt = " ".join(prompt.split())
 
-        for document in (overview, docs_index, runbook, layout):
-            self.assertIn("AP-M9-W8", document)
+        for document in (docs_index, layout):
+            self.assertIn("AP-M9-W9", document)
             self.assertIn("implemented", document.lower())
+        self.assertIn(
+            "AP-M9-W9 remains open for the cross-project fixture correction",
+            overview,
+        )
         self.assertIn("platform-prepare", overview)
+        self.assertIn("platform-cancel", overview)
         self.assertIn("platform-status", overview)
         self.assertIn("platform-deploy", overview)
-        self.assertIn("W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED", runbook)
-        self.assertIn("W9_DESTRUCTION_AUTHORITY_REQUIRED", runbook)
+        self.assertNotIn("W9_LIVE_QUALIFICATION_AUTHORITY_REQUIRED", runbook)
+        self.assertNotIn("W9_DESTRUCTION_AUTHORITY_REQUIRED", runbook)
+        self.assertIn("never issues a blind root destroy", normalized_runbook)
+        self.assertIn("one isolated staging or production deployment", normalized_runbook)
+        self.assertIn("## Normal staging lifecycle", runbook)
+        self.assertIn("## Resume an interrupted operation", runbook)
+        self.assertIn("make platform-cancel", runbook)
+        self.assertIn("does not run Terraform", normalized_runbook)
+        self.assertIn("## Destroy a platform environment", runbook)
+        self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", runbook)
+        for governance_identifier in (
+            "AP-M",
+            "AP-PR-",
+            "AP-QR-",
+            "ADR-",
+            "AP-TM-",
+            "AP-EVAL-",
+        ):
+            self.assertNotIn(governance_identifier, runbook)
         self.assertIn("`infrastructure/operator/`", layout)
 
         for required in (
-            "AP-M9-W8",
+            "AP-M9-W10",
             "AP-EVAL-M9-09",
-            "feat/ap-m9-qualification-safe-destruction",
-            "qualification and safe destruction",
-            "platform-qualify",
-            "platform-destroy",
-            "Do not authenticate",
-            "Do not commit",
+            "first accepted external staging operation",
+            "platform-deploy",
+            "fixture-handoff",
+            "fixture-project-bootstrap",
+            "platform-connect-project",
+            "application-handoff-check",
+            "platform-register",
+            "fixture-status",
+            "fixture-destroy",
+            "Do not request a duplicate",
+            "Do not mutate `apps.comfforts.com`, production, or any real application",
         ):
             self.assertIn(required, normalized_prompt)
-        self.assertNotIn("AP-M9-W7 application integration lifecycle handoff", prompt)
+        self.assertNotIn("AP-M9-W8 qualification and safe destruction handoff", prompt)
 
 
 if __name__ == "__main__":

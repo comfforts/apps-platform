@@ -10,6 +10,7 @@ import unittest
 
 from contracts.lifecycle import lifecycle_digest
 from infrastructure.operator.integration import (
+    ApplicationProjectConnection,
     ApplicationIntegrationLifecycle,
     AttachmentTargetReadback,
     GenerationActivationReadback,
@@ -19,8 +20,10 @@ from infrastructure.operator.integration import (
     OperatorInterrupted,
     PlatformIntegrationState,
     RegistrationGenerationProposal,
+    RegistrationEntry,
     RegistrationIntent,
 )
+from tests.environment import FIXTURES_PROJECT_ID
 
 
 SOURCE_REVISION = "a" * 40
@@ -38,7 +41,7 @@ class FakePlatformReader:
             profile_digest="sha256:" + ("1" * 64),
             platform_source_revision=SOURCE_REVISION,
             specification_digest="sha256:" + ("2" * 64),
-            journal_digest="sha256:" + ("3" * 64),
+            progress_digest="sha256:" + ("3" * 64),
             generation=4,
             hostname="apps-staging.comfforts.com",
             oauth_client_id="1234567890-appsplatform.apps.googleusercontent.com",
@@ -49,6 +52,29 @@ class FakePlatformReader:
     def read_platform(self, environment: str) -> PlatformIntegrationState:
         del environment
         return self.state
+
+    def read_connection(
+        self,
+        environment: str,
+        project_id: str,
+    ) -> ApplicationProjectConnection:
+        return ApplicationProjectConnection(
+            environment=environment,
+            project_id=project_id,
+            project_number="123456789012",
+            host_project_id="comfforts-platform-non-prod",
+            host_project_number="455651441682",
+            region="us-west1",
+            network_reference=(
+                "projects/comfforts-platform-non-prod/global/networks/"
+                "app-platform-shared"
+            ),
+            subnetwork_reference=(
+                "projects/comfforts-platform-non-prod/regions/us-west1/subnetworks/"
+                "app-platform-applications-us-west1"
+            ),
+            egress_mode="all-traffic",
+        )
 
 
 class FakeAttachmentReader:
@@ -71,6 +97,7 @@ class FakeTerminal:
     ) -> None:
         self.confirmations = list(confirmations or [True] * 16)
         self.prompts: list[tuple[str, str]] = []
+        self.review_prompts: list[str] = []
         self.messages: list[str] = []
 
     def write(self, message: str) -> None:
@@ -78,6 +105,13 @@ class FakeTerminal:
 
     def confirm_exact(self, prompt: str, expected: str) -> bool:
         self.prompts.append((prompt, expected))
+        result = self.confirmations.pop(0)
+        if isinstance(result, BaseException):
+            raise result
+        return result
+
+    def confirm(self, prompt: str) -> bool:
+        self.review_prompts.append(prompt)
         result = self.confirmations.pop(0)
         if isinstance(result, BaseException):
             raise result
@@ -189,7 +223,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
     ) -> dict[str, object]:
         application_id = str(bundle["application_id"])
         resource_reference = (
-            "urn:comfforts:app-platform:gcp:cloud-run:455651441682:"
+            "urn:comfforts:app-platform:gcp:cloud-run:123456789012:"
             f"us-west1:{application_id}{suffix}"
         )
         identity = bundle["identity"]
@@ -209,6 +243,10 @@ class RegistrationLifecycleTest(unittest.TestCase):
                 "owner_application_id": application_id,
                 "adapter_kind": "gcp-cloud-run-v1",
                 "resource_reference": resource_reference,
+                "application_project_id": FIXTURES_PROJECT_ID,
+                "network_reference": bundle["network"]["network_reference"],
+                "subnetwork_reference": bundle["network"]["subnetwork_reference"],
+                "egress_mode": "all-traffic",
                 "ingress_mode": "shared_edge_only",
                 "caller_grant": EDGE_CALLER,
                 "audience": identity["audience"],
@@ -223,6 +261,10 @@ class RegistrationLifecycleTest(unittest.TestCase):
             ingress_mode="shared_edge_only",
             caller_grant=EDGE_CALLER,
             audience=identity["audience"],
+            application_project_id=FIXTURES_PROJECT_ID,
+            network_reference=bundle["network"]["network_reference"],
+            subnetwork_reference=bundle["network"]["subnetwork_reference"],
+            egress_mode="all-traffic",
         )
         return attachment
 
@@ -241,7 +283,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
             restricted_members=restricted_members,
         )
 
-    def test_new_application_stages_then_activates_two_complete_generations(self) -> None:
+    def test_new_application_activates_one_complete_generation(self) -> None:
         bundle = self._bundle("fixture-authenticated", "authenticated")
         attachment = self._attachment(bundle)
 
@@ -249,27 +291,19 @@ class RegistrationLifecycleTest(unittest.TestCase):
 
         self.assertEqual(result.outcome, "activated")
         self.assertEqual(result.blockers, ())
-        self.assertEqual(len(self.generations.publications), 2)
-        staged, active = self.generations.publications
-        self.assertEqual(staged.registration_set["generation"], 1)
-        self.assertEqual(
-            staged.registration_set["registrations"][0]["lifecycle"],
-            "staged",
-        )
-        self.assertEqual(active.registration_set["generation"], 2)
+        self.assertEqual(len(self.generations.publications), 1)
+        active = self.generations.publications[0]
+        self.assertEqual(active.registration_set["generation"], 1)
         self.assertEqual(
             active.registration_set["registrations"][0]["lifecycle"],
             "active",
         )
-        self.assertEqual(
-            active.registration_set["previous_generation_digest"],
-            staged.generation_digest,
-        )
+        self.assertIsNone(active.registration_set["previous_generation_digest"])
         self.assertEqual(
             [proposal.generation_digest for proposal in self.generations.publications],
             self.generations.activations,
         )
-        self.assertEqual(len(self.terminal.prompts), 2)
+        self.assertEqual(len(self.terminal.prompts), 1)
         for proposal, (_, expected) in zip(
             self.generations.publications,
             self.terminal.prompts,
@@ -287,6 +321,68 @@ class RegistrationLifecycleTest(unittest.TestCase):
                 proposal.content_digest,
                 _canonical_digest(proposal.compiled_configuration),
             )
+
+    def test_fixture_suite_activates_one_complete_generation_with_one_review(self) -> None:
+        entries = []
+        for application_id, access_mode in (
+            ("fixture-public", "public"),
+            ("fixture-authenticated", "authenticated"),
+            ("fixture-restricted", "restricted"),
+        ):
+            bundle = self._bundle(application_id, access_mode)
+            attachment = self._attachment(bundle)
+            members = (
+                (("https://accounts.google.com", "synthetic-subject"),)
+                if access_mode == "restricted"
+                else ()
+            )
+            entries.append(
+                RegistrationEntry(
+                    bundle,
+                    attachment,
+                    self._intent(restricted_members=members),
+                )
+            )
+
+        result = self.lifecycle.register_complete(tuple(entries))
+
+        self.assertEqual(result.outcome, "activated")
+        self.assertEqual(len(self.generations.publications), 1)
+        active = self.generations.publications[0]
+        registration_set = active.registration_set
+        self.assertEqual(
+            [item["application_id"] for item in registration_set["registrations"]],
+            [
+                "fixture-authenticated",
+                "fixture-public",
+                "fixture-restricted",
+            ],
+        )
+        self.assertTrue(
+            all(item["lifecycle"] == "active" for item in registration_set["registrations"])
+        )
+        self.assertIsNone(active.registration_set["previous_generation_digest"])
+        self.assertEqual(self.generations.activations, [active.generation_digest])
+        self.assertEqual(len(self.terminal.review_prompts), 1)
+        self.assertEqual(self.terminal.prompts, [])
+
+        status = self.lifecycle.status_applications(
+            "staging",
+            (
+                "fixture-public",
+                "fixture-authenticated",
+                "fixture-restricted",
+            ),
+        )
+        self.assertEqual(status.outcome, "read")
+        self.assertEqual(status.generation_digest, result.generation_digest)
+        self.assertTrue(all(item.target_ready for item in status.applications))
+
+        publications = len(self.generations.publications)
+        repeated = self.lifecycle.register_complete(tuple(entries))
+        self.assertEqual(repeated.outcome, "unchanged")
+        self.assertEqual(len(self.generations.publications), publications)
+        self.assertEqual(len(self.terminal.review_prompts), 1)
 
     def test_public_and_restricted_admission_are_compiled_without_bundle_members(self) -> None:
         public_bundle = self._bundle("fixture-public", "public")
@@ -356,10 +452,10 @@ class RegistrationLifecycleTest(unittest.TestCase):
         result = self.lifecycle.register(bundle, replacement, self._intent())
 
         self.assertEqual(result.outcome, "activated")
-        self.assertEqual(len(self.generations.publications), 3)
+        self.assertEqual(len(self.generations.publications), 2)
         successor = self.generations.publications[-1]
-        self.assertEqual(successor.registration_set["generation"], 3)
-        self.assertEqual(original["generation"], 2)
+        self.assertEqual(successor.registration_set["generation"], 2)
+        self.assertEqual(original["generation"], 1)
         self.assertNotEqual(
             original["registrations"][0]["attachments"][0]["resource_reference"],
             successor.registration_set["registrations"][0]["attachments"][0][
@@ -419,8 +515,8 @@ class RegistrationLifecycleTest(unittest.TestCase):
             ("GENERATION_ACTIVATION_INTERRUPTED",),
         )
         self.assertEqual(resumed.outcome, "activated")
-        self.assertEqual(len(self.generations.history), 2)
-        self.assertEqual(len(self.generations.publications), 3)
+        self.assertEqual(len(self.generations.history), 1)
+        self.assertEqual(len(self.generations.publications), 2)
         self.assertEqual(
             self.generations.publications[0].generation_digest,
             self.generations.publications[1].generation_digest,

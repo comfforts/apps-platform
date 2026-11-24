@@ -26,7 +26,7 @@ def request() -> DestructionRequest:
         source_revision="a" * 40,
         profile_digest=_digest("1"),
         deployed_specification_digest=_digest("2"),
-        deployment_journal_digest=_digest("3"),
+        deployment_progress_digest=_digest("3"),
         registration_generation_digest=_digest("4"),
         qualification_evidence_digest=_digest("5"),
     )
@@ -40,7 +40,7 @@ def snapshot() -> DestructionSnapshot:
         source_revision=expected.source_revision,
         profile_digest=expected.profile_digest,
         deployed_specification_digest=expected.deployed_specification_digest,
-        deployment_journal_digest=expected.deployment_journal_digest,
+        deployment_progress_digest=expected.deployment_progress_digest,
         registration_generation_digest=expected.registration_generation_digest,
         qualification_evidence_digest=expected.qualification_evidence_digest,
         active_application_ids=(),

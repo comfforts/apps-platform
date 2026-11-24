@@ -11,12 +11,20 @@ from typing import Any, Protocol
 
 from contracts.lifecycle import validate_lifecycle_material
 from infrastructure.backend import (
+    BackendDeclarationConflictError,
     EnvironmentUnavailableError,
     PhasePlanRequest,
+    PlanViolation,
     TerraformPlanCommands,
     prepare_phase_plan,
 )
-from infrastructure.operator._interfaces import StageContext, StageExecution
+from infrastructure.operator._interfaces import (
+    OperatorTerminal,
+    StageCheck,
+    StageContext,
+    StageExecution,
+    Waiter,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,21 +114,14 @@ class CheckpointVerification:
 class DeploymentCommandError(RuntimeError):
     """A safe blocker code returned by the external command boundary."""
 
-
-class DeploymentTerminal(Protocol):
-    def ask(self, prompt: str) -> str: ...
-
-    def confirm(self, prompt: str) -> bool: ...
-
-    def confirm_exact(self, prompt: str, expected: str) -> bool: ...
-
-    def write(self, message: str) -> None: ...
-
-    def pause(self, prompt: str) -> None: ...
-
-
-class WaitAdapter(Protocol):
-    def wait(self, seconds: int) -> None: ...
+    def __init__(
+        self,
+        code: str,
+        *,
+        diagnostic: dict[str, str | int] | None = None,
+    ) -> None:
+        super().__init__(code)
+        self.diagnostic = dict(diagnostic or {})
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +143,19 @@ class DeploymentCommands(Protocol):
         self,
         request: PhasePlanRequest,
         plan: ExactTerraformPlan,
+    ) -> None: ...
+
+    def signing_key_ring_recovery_identity(
+        self,
+        context: StageContext,
+        request: PhasePlanRequest,
+    ) -> str: ...
+
+    def clear_signing_key_ring_taint(
+        self,
+        context: StageContext,
+        request: PhasePlanRequest,
+        identity: str,
     ) -> None: ...
 
     def readback_terraform(
@@ -167,6 +181,12 @@ class DeploymentCommands(Protocol):
     ) -> CheckpointVerification: ...
 
 
+class CheckpointPageLauncher(Protocol):
+    """Open one reviewed provider-console page for an interactive checkpoint."""
+
+    def open(self, url: str) -> bool: ...
+
+
 @dataclass
 class _ArtifactObserver(TerraformPlanCommands):
     commands: DeploymentCommands
@@ -185,13 +205,125 @@ _TERRAFORM_PHASES = {
     "foundation": "platform-foundation",
     "shared-edge": "shared-edge",
     "tls-readiness": "shared-edge",
+    "fixture-public": "fixture-public",
+    "fixture-authenticated": "fixture-authenticated",
+    "fixture-restricted": "fixture-restricted",
 }
 _READ_ONLY_STAGES = {"preflight", "readback"}
-_ACTION_STAGES = {"bootstrap-services", "generation-publish", "image-publish"}
+_ACTION_STAGES = {
+    "bootstrap-services",
+    "generation-publish",
+    "image-publish",
+    "runtime-activation",
+}
 _MANUAL_STAGES = {"oauth-configuration", "external-dns"}
 _POLLING = {
     "external-dns": (12, 10),
-    "tls-readiness": (30, 10),
+    "tls-readiness": (120, 30),
+}
+_RECONCILABLE_TERRAFORM_READBACK = {
+    "BOOTSTRAP_READBACK_INVALID",
+    "FOUNDATION_READBACK_INVALID",
+    "SHARED_EDGE_READBACK_INVALID",
+}
+_TERRAFORM_PLAN_GUIDANCE = {
+    "SHARED_EDGE_INPUT_INCOMPLETE": (
+        "a required immutable Shared Edge binding is unavailable; inspect the "
+        "closed predecessor-stage outputs before retrying"
+    ),
+    "TERRAFORM_BACKEND_ACCESS_DENIED": (
+        "the operator session cannot read the selected Terraform backend"
+    ),
+    "TERRAFORM_CONFIGURATION_INVALID": (
+        "the rendered Terraform configuration or variables are invalid"
+    ),
+    "TERRAFORM_INIT_AUTHENTICATION_FAILED": (
+        "Terraform could not authenticate while initializing the selected state lineage"
+    ),
+    "TERRAFORM_INIT_BACKEND_FAILED": (
+        "Terraform could not initialize the selected remote state lineage"
+    ),
+    "TERRAFORM_INIT_FAILED": (
+        "Terraform initialization failed outside the safe classifier; inspect the "
+        "private diagnostic"
+    ),
+    "TERRAFORM_INIT_MODULE_UNREADABLE": (
+        "a reviewed Terraform module path is absent or unreadable in the "
+        "private workspace"
+    ),
+    "TERRAFORM_INIT_PROVIDER_FAILED": (
+        "Terraform could not install or load the pinned provider during initialization"
+    ),
+    "TERRAFORM_OPERATOR_AUTHENTICATION_FAILED": (
+        "the operator credentials are unavailable, expired, or require reauthentication"
+    ),
+    "TERRAFORM_PLAN_FAILED_UNKNOWN": (
+        "Terraform returned a diagnostic outside the safe classifier"
+    ),
+    "TERRAFORM_PROTECTED_RESOURCE_DELETE_PROPOSED": (
+        "the selected phase would delete a protected resource; preserve the resource "
+        "and inspect phase progression before retrying"
+    ),
+    "TERRAFORM_PROVIDER_PERMISSION_DENIED": (
+        "the provider denied a read required to produce the plan"
+    ),
+    "TERRAFORM_PROVIDER_PLUGIN_FAILED": (
+        "Terraform could not start or negotiate with the pinned provider plugin"
+    ),
+    "TERRAFORM_PROVIDER_QUOTA_EXCEEDED": (
+        "the provider rejected planning because a quota was exhausted"
+    ),
+    "TERRAFORM_STATE_LOCKED": (
+        "another operation or stale lock currently owns the selected state lineage"
+    ),
+    "TERRAFORM_STATE_READ_FAILED": (
+        "Terraform could not read the selected state lineage"
+    ),
+}
+_TERRAFORM_APPLY_GUIDANCE = {
+    "TERRAFORM_APPLY_AUTHENTICATION_FAILED": (
+        "the operator credentials are unavailable, expired, or require reauthentication"
+    ),
+    "TERRAFORM_APPLY_CONFLICT": (
+        "the provider reported a conflicting concurrent or existing operation"
+    ),
+    "TERRAFORM_APPLY_DEPENDENCY_PROPAGATION_PENDING": (
+        "a newly created provider dependency is not readable yet; wait briefly and replan"
+    ),
+    "TERRAFORM_APPLY_FAILED_UNKNOWN": (
+        "Terraform returned an apply diagnostic outside the safe classifier"
+    ),
+    "TERRAFORM_APPLY_IAM_CONFLICT": (
+        "the provider reported concurrent IAM policy changes; replan after they settle"
+    ),
+    "TERRAFORM_APPLY_IDENTITY_PROPAGATION_PENDING": (
+        "a newly created service identity is not readable yet; wait briefly and replan"
+    ),
+    "TERRAFORM_APPLY_IMMUTABLE_REVISION_CONFLICT": (
+        "the provider rejected a changed Cloud Run configuration under an existing "
+        "immutable revision name; create a newly bound candidate revision"
+    ),
+    "TERRAFORM_APPLY_INVALID_ARGUMENT": (
+        "the provider rejected the rendered resource request as invalid"
+    ),
+    "TERRAFORM_APPLY_PERMISSION_DENIED": (
+        "the provider denied a mutation required by the reviewed plan"
+    ),
+    "TERRAFORM_APPLY_PLUGIN_FAILED": (
+        "Terraform could not continue through the pinned provider plugin"
+    ),
+    "TERRAFORM_APPLY_PROVIDER_INCONSISTENT_RESULT": (
+        "the provider returned a resource value inconsistent with the reviewed plan"
+    ),
+    "TERRAFORM_APPLY_QUOTA_EXCEEDED": (
+        "the provider rejected the mutation because a quota was exhausted"
+    ),
+    "TERRAFORM_APPLY_SERVICE_DISABLED": (
+        "the named provider API is disabled in the quota project"
+    ),
+    "TERRAFORM_APPLY_STATE_LOCKED": (
+        "another operation or stale lock currently owns the selected state lineage"
+    ),
 }
 
 
@@ -201,15 +333,17 @@ class DeploymentExecutor:
     def __init__(
         self,
         working_root: Path,
-        terminal: DeploymentTerminal,
+        terminal: OperatorTerminal,
         commands: DeploymentCommands,
         *,
-        waiter: WaitAdapter | None = None,
+        waiter: Waiter | None = None,
+        checkpoint_page_launcher: CheckpointPageLauncher | None = None,
     ) -> None:
         self._working_root = working_root.resolve()
         self._terminal = terminal
         self._commands = commands
         self._waiter = waiter or _ImmediateWaiter()
+        self._checkpoint_page_launcher = checkpoint_page_launcher
         self._seen_saved_plans: set[Path] = set()
         if not self._working_root.is_dir():
             raise ValueError("deployment working root must already exist")
@@ -222,6 +356,76 @@ class DeploymentExecutor:
             outcome="failed",
             blockers=tuple(sorted(set(blockers))),
         )
+
+    def _terraform_plan_failure(
+        self,
+        error: str | DeploymentCommandError,
+    ) -> StageExecution:
+        blocker = str(error)
+        if isinstance(error, DeploymentCommandError) and error.diagnostic:
+            value: dict[str, object] = {
+                "blocker": blocker,
+                **error.diagnostic,
+            }
+            if self._safe_canonical(value) is not None:
+                self._terminal.write(self._pretty_json("TERRAFORM PLAN ERROR", value))
+            if "diagnostic_path" in error.diagnostic:
+                self._terminal.write(
+                    "Private Terraform diagnostics may contain sensitive provider "
+                    "data. Inspect locally; do not commit or share them unredacted."
+                )
+        guidance = _TERRAFORM_PLAN_GUIDANCE.get(
+            blocker,
+            "inspect the named Terraform planning boundary before retrying",
+        )
+        self._terminal.write(f"Terraform plan blocker {blocker}: {guidance}.")
+        return self._failure(blocker)
+
+    def _terraform_apply_failure(
+        self,
+        error: DeploymentCommandError,
+    ) -> StageExecution:
+        blocker = str(error)
+        if error.diagnostic:
+            value: dict[str, object] = {
+                "blocker": blocker,
+                **error.diagnostic,
+            }
+            if self._safe_canonical(value) is not None:
+                self._terminal.write(self._pretty_json("TERRAFORM APPLY ERROR", value))
+            if "diagnostic_path" in error.diagnostic:
+                self._terminal.write(
+                    "Private Terraform diagnostics may contain sensitive provider "
+                    "data. Inspect locally; do not commit or share them unredacted."
+                )
+        guidance = _TERRAFORM_APPLY_GUIDANCE.get(
+            blocker,
+            "inspect the named Terraform apply boundary before replanning",
+        )
+        self._terminal.write(f"Terraform apply blocker {blocker}: {guidance}.")
+        return self._failure(blocker)
+
+    def _plan_policy_failure(
+        self,
+        violations: tuple[PlanViolation, ...],
+    ) -> StageExecution:
+        details: list[dict[str, object]] = []
+        for violation in violations:
+            value: dict[str, object] = {
+                "code": violation.code,
+                "message": violation.message,
+                "path": violation.path,
+            }
+            if violation.address is not None:
+                value["address"] = violation.address
+            if violation.resource_type is not None:
+                value["resource_type"] = violation.resource_type
+            if violation.actions:
+                value["actions"] = list(violation.actions)
+            details.append(value)
+        if self._safe_canonical(details) is not None:
+            self._terminal.write(self._pretty_json("PLAN POLICY ERROR", details))
+        return self._failure(*(violation.code for violation in violations))
 
     def _bind_saved_plan(
         self,
@@ -260,9 +464,21 @@ class DeploymentExecutor:
             isinstance(change, dict)
             and isinstance(change.get("actions"), list)
             and any(
-                action in {"create", "delete", "update"}
+                action in {"create", "delete", "forget", "update"}
                 for action in change["actions"]
             )
+            for change in changes
+        )
+
+    @staticmethod
+    def _plan_changes(summary: dict[str, Any]) -> bool:
+        changes = summary.get("changes")
+        if not isinstance(changes, list):
+            return True
+        return any(
+            isinstance(change, dict)
+            and isinstance(change.get("actions"), list)
+            and tuple(change["actions"]) not in {("no-op",), ("read",)}
             for change in changes
         )
 
@@ -332,6 +548,199 @@ class DeploymentExecutor:
             allow_nan=False,
         )
 
+    @staticmethod
+    def _pretty_json(label: str, value: object) -> str:
+        return label + "\n" + json.dumps(
+            value,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+
+    @staticmethod
+    def _manual_checkpoint_guidance(
+        stage_id: str,
+        instructions: dict[str, str],
+    ) -> tuple[tuple[str, str], ...] | None:
+        if stage_id == "oauth-configuration":
+            required = {
+                "application_name",
+                "application_type",
+                "audience",
+                "authorized_domain",
+                "authorized_origin",
+                "branding_console_url",
+                "clients_console_url",
+                "homepage_url",
+                "project_id",
+                "publishing_status",
+                "redirect_uri",
+                "oauth_store_console_url",
+                "oauth_store_target",
+                "support_email",
+            }
+            if not required.issubset(instructions):
+                return None
+            branding = "\n".join(
+                (
+                    "OAUTH STEP 1 OF 3: Review application branding",
+                    "",
+                    f"The browser page is for project `{instructions['project_id']}`.",
+                    "If branding is not configured, enter these exact values. If it "
+                    "already exists, verify the values instead of creating another "
+                    "brand:",
+                    f"- Application name: {instructions['application_name']}",
+                    f"- User support email: {instructions['support_email']}",
+                    f"- Application homepage: {instructions['homepage_url']}",
+                    "- Authorized domain, if requested: "
+                    f"{instructions['authorized_domain']}",
+                    "",
+                    "In Google Auth Platform > Audience, configure these staging "
+                    "access settings:",
+                    f"- Audience: {instructions['audience']}",
+                    "  Consumer Google and Google Workspace accounts are both "
+                    "eligible to authenticate. External does not make restricted "
+                    "applications public; platform admission still applies.",
+                    "- Publishing status for staging: "
+                    f"{instructions['publishing_status']}",
+                    "- Test users: add every Google account that will test staging.",
+                    "",
+                    "Save any required correction, or leave an already matching "
+                    "configuration unchanged. Return to this terminal and press "
+                    "Enter. Keep the deployment running.",
+                )
+            )
+            client = "\n".join(
+                (
+                    "OAUTH STEP 2 OF 3: Review the Web OAuth client",
+                    "",
+                    "On Google Auth Platform > Clients, review the Web OAuth client "
+                    "for these exact values. Create it only when no exact matching "
+                    "client exists; otherwise verify the existing client instead of "
+                    "creating a duplicate:",
+                    f"- Application type: {instructions['application_type']}",
+                    f"- Name: {instructions['application_name']}",
+                    "- Authorized JavaScript origin: "
+                    f"{instructions['authorized_origin']}",
+                    f"- Authorized redirect URI: {instructions['redirect_uri']}",
+                    "",
+                    "Save any required correction, or leave an exact matching client "
+                    "unchanged. Keep both the client ID and client secret available "
+                    "temporarily. Do not download or commit a JSON credential file. "
+                    "Return here and press Enter; the next terminal prompt accepts "
+                    "only the client ID.",
+                )
+            )
+            provider_guidance = "\n".join(
+                (
+                    "OAUTH STEP 3 OF 3: Verify the OAuth client secret in Secret Manager",
+                    "",
+                    "The browser page opens the existing Secret Manager target:",
+                    f"{instructions['oauth_store_target']}",
+                    "Do not create a second secret.",
+                    "",
+                    "Inspect its versions before changing anything. This deployment "
+                    "requires exactly one ENABLED version:",
+                    "- If none is enabled, add one version containing only the OAuth "
+                    "client secret.",
+                    "- If one is enabled, confirm it is the intended secret for this "
+                    "exact OAuth client.",
+                    "- If more than one is enabled, stop and resolve stale versions "
+                    "before continuing.",
+                    "",
+                    "Never enter the client secret in this terminal, source control, "
+                    "chat, or a configuration file. After exactly one intended "
+                    "version is enabled, return here and press Enter for provider "
+                    "readback.",
+                )
+            )
+            return (
+                (branding, instructions["branding_console_url"]),
+                (client, instructions["clients_console_url"]),
+                (
+                    provider_guidance,
+                    instructions["oauth_store_console_url"],
+                ),
+            )
+        if stage_id == "external-dns":
+            required = {
+                "address",
+                "dns_console_url",
+                "dns_zone",
+                "hostname",
+                "provider",
+                "record_name",
+                "record_status",
+                "record_type",
+                "ttl_seconds",
+            }
+            if not required.issubset(instructions):
+                return None
+            if instructions["record_status"] == "verified":
+                guidance = "\n".join(
+                    (
+                        "EXTERNAL DNS RECORD ALREADY VERIFIED",
+                        "",
+                        f"`{instructions['hostname']}` already resolves to "
+                        f"`{instructions['address']}` at every authoritative name "
+                        "server and the approved recursive resolvers, with the "
+                        f"required {instructions['ttl_seconds']}-second authoritative "
+                        "TTL.",
+                        "",
+                        "No DNS change is required. Review the record in Squarespace "
+                        "if desired, then return here and press Enter so the running "
+                        "deployment can verify it again immediately before continuing.",
+                    )
+                )
+            elif instructions["record_status"] == "reconcile":
+                guidance = "\n".join(
+                    (
+                        "MANUAL ACTION REQUIRED: Reconcile the external DNS record",
+                        "",
+                        "Keep this deployment running while you complete these steps:",
+                        "",
+                        f"1. Open {instructions['provider']} DNS management for "
+                        f"`{instructions['dns_zone']}`.",
+                        "2. Add or update only this record so it has these exact values:",
+                        f"   - Type: {instructions['record_type']}",
+                        f"   - Host/name: {instructions['record_name']}",
+                        f"   - Full hostname: {instructions['hostname']}",
+                        f"   - Value/address: {instructions['address']}",
+                        f"   - TTL: {instructions['ttl_seconds']} seconds",
+                        "3. Save only this record. Do not modify another hostname, "
+                        "record, certificate, or application resource.",
+                        "4. Return here and press Enter. The deployment will verify "
+                        "authoritative and recursive DNS and wait for readable "
+                        "propagation.",
+                    )
+                )
+            else:
+                return None
+            return ((guidance, instructions["dns_console_url"]),)
+        return None
+
+    def _show_checkpoint_page(self, url: str) -> None:
+        if not url:
+            return
+        self._terminal.write(f"CONSOLE PAGE\n{url}")
+        if self._checkpoint_page_launcher is None:
+            self._terminal.write(
+                "Open the console page above in a browser before continuing."
+            )
+            return
+        try:
+            opened = self._checkpoint_page_launcher.open(url)
+        except (OSError, RuntimeError, ValueError):
+            opened = False
+        if opened:
+            self._terminal.write("Opened the console page in the system browser.")
+        else:
+            self._terminal.write(
+                "The console page could not be opened automatically. Open the URL "
+                "above in a browser before continuing."
+            )
+
     def _execute_read_only(self, context: StageContext) -> StageExecution:
         try:
             readback = self._commands.read_stage(context)
@@ -350,7 +759,7 @@ class DeploymentExecutor:
             return self._failure("PROHIBITED_ACTION_MATERIAL")
         digest = self._bound_digest(context, value)
         exact = ExactAction(proposal.action, digest, proposal.summary)
-        self._terminal.write(f"ACTION {canonical}")
+        self._terminal.write(self._pretty_json("ACTION", value))
         self._terminal.write(f"ACTION_DIGEST {digest}")
         if not self._terminal.confirm(
             f"Execute the reviewed {stage_id} action {digest}? [y/N] "
@@ -369,6 +778,22 @@ class DeploymentExecutor:
                 plan_digest=digest,
                 blockers=(str(error),),
             )
+        if stage_id == "bootstrap-services" and readback.matched:
+            services = proposal.summary.get("services")
+            if not isinstance(services, list) or any(
+                not isinstance(service, str) for service in services
+            ):
+                return self._failure("BOOTSTRAP_SERVICE_READBACK_INVALID")
+            summary = {
+                "stage": stage_id,
+                "services": [
+                    {"name": service, "state": "enabled"} for service in services
+                ],
+            }
+            readback_summary = self._safe_canonical(summary)
+            if readback_summary is None:
+                return self._failure("PROHIBITED_READBACK_MATERIAL")
+            self._terminal.write(self._pretty_json("READBACK", summary))
         return self._readback_result(context, readback, plan_digest=digest)
 
     def _execute_manual(self, context: StageContext, stage_id: str) -> StageExecution:
@@ -383,6 +808,10 @@ class DeploymentExecutor:
             checkpoint.instructions
         ):
             return self._failure("MANUAL_CHECKPOINT_INVALID")
+        instruction_values = dict(checkpoint.instructions)
+        operator_steps = self._manual_checkpoint_guidance(stage_id, instruction_values)
+        if operator_steps is None:
+            return self._failure("MANUAL_CHECKPOINT_INVALID")
         value = {
             "checkpoint": checkpoint.checkpoint,
             "instructions": [
@@ -394,28 +823,27 @@ class DeploymentExecutor:
         if canonical is None:
             return self._failure("PROHIBITED_CHECKPOINT_MATERIAL")
         digest = self._bound_digest(context, value)
-        self._terminal.write(f"CHECKPOINT {canonical}")
+        self._terminal.write(self._pretty_json("CHECKPOINT", value))
         self._terminal.write(f"CHECKPOINT_DIGEST {digest}")
-        if stage_id == "oauth-configuration":
-            self._terminal.write(
-                "Enter the OAuth client secret in Secret Manager directly; "
-                "never enter it in this terminal."
-            )
-        self._terminal.pause(
-            f"Complete checkpoint {checkpoint.checkpoint!r}, then Press Enter to verify: "
-        )
         supplied_inputs: tuple[tuple[str, str], ...] = ()
-        if stage_id == "oauth-configuration":
-            client_id = self._terminal.ask(
-                "Paste the OAuth client ID (never the client secret): "
-            ).strip()
-            if not client_id:
-                return StageExecution(
-                    outcome="failed",
-                    plan_digest=digest,
-                    blockers=("OAUTH_CLIENT_ID_REQUIRED",),
-                )
-            supplied_inputs = (("oauth-client-id", client_id),)
+        for step_index, (guidance, console_url) in enumerate(operator_steps, start=1):
+            self._terminal.write(guidance)
+            self._show_checkpoint_page(console_url)
+            self._terminal.pause(
+                f"Complete step {step_index} of {len(operator_steps)} for "
+                f"{checkpoint.checkpoint!r}, then press Enter to continue: "
+            )
+            if stage_id == "oauth-configuration" and step_index == 2:
+                client_id = self._terminal.ask(
+                    "Paste the OAuth client ID (never the client secret): "
+                ).strip()
+                if not client_id:
+                    return StageExecution(
+                        outcome="failed",
+                        plan_digest=digest,
+                        blockers=("OAUTH_CLIENT_ID_REQUIRED",),
+                    )
+                supplied_inputs = (("oauth-client-id", client_id),)
 
         max_attempts, interval = _POLLING.get(stage_id, (1, 0))
         latest_blockers: tuple[str, ...] = ()
@@ -449,6 +877,15 @@ class DeploymentExecutor:
                         plan_digest=digest,
                         blockers=("DNS_PROVIDER_VERIFICATION_REQUIRED",),
                     )
+                if stage_id == "external-dns":
+                    self._terminal.write(
+                        "EXTERNAL DNS VERIFIED\n"
+                        f"{instruction_values['hostname']} resolves to "
+                        f"{instruction_values['address']} at every authoritative "
+                        "name server and the approved recursive resolvers. The "
+                        f"authoritative TTL is {instruction_values['ttl_seconds']} "
+                        "seconds. The DNS checkpoint is complete."
+                    )
                 return self._readback_result(
                     context,
                     StageReadback(True, verification.outputs),
@@ -462,6 +899,12 @@ class DeploymentExecutor:
                     blockers=("CHECKPOINT_OUTCOME_INVALID",),
                 )
             if attempt < max_attempts:
+                if stage_id == "external-dns":
+                    self._terminal.write(
+                        "External DNS is not yet consistently readable "
+                        f"(attempt {attempt} of {max_attempts}); waiting "
+                        f"{interval} seconds before retrying."
+                    )
                 self._waiter.wait(interval)
         return StageExecution(
             outcome="waiting",
@@ -478,6 +921,8 @@ class DeploymentExecutor:
         phase: str,
     ) -> StageExecution:
         observer = _ArtifactObserver(self._commands, context)
+        actions = context.stage.get("actions")
+        destructive = isinstance(actions, list) and "delete" in actions
         try:
             evaluated = prepare_phase_plan(
                 context.environment,
@@ -485,14 +930,68 @@ class DeploymentExecutor:
                 context.source_revision,
                 self._working_root,
                 observer,
+                destructive=destructive,
             )
         except EnvironmentUnavailableError as error:
             return self._failure(str(error))
+        except BackendDeclarationConflictError:
+            return self._failure("TERRAFORM_BACKEND_DECLARATION_CONFLICT")
         except DeploymentCommandError as error:
-            return self._failure(str(error))
+            if (
+                str(error) != "TERRAFORM_PROTECTED_SIGNING_KEY_RING_TAINTED"
+                or stage_id != "foundation"
+                or observer.request is None
+            ):
+                return self._terraform_plan_failure(error)
+            try:
+                identity = self._commands.signing_key_ring_recovery_identity(
+                    context,
+                    observer.request,
+                )
+            except DeploymentCommandError as recovery_error:
+                return self._failure(str(recovery_error))
+            self._terminal.write(
+                "RECOVERY Terraform state marks the existing protected signing "
+                "key ring as tainted."
+            )
+            self._terminal.write(f"RECOVERY_LIVE_IDENTITY {identity}")
+            self._terminal.write(
+                "RECOVERY_EFFECT Clear only the Terraform taint marker; the live "
+                "key ring is not replaced or changed."
+            )
+            if not self._terminal.confirm(
+                "Clear only its Terraform taint marker and generate a fresh "
+                "foundation plan? [y/N] "
+            ):
+                return StageExecution(
+                    outcome="cancelled",
+                    blockers=(
+                        "TERRAFORM_PROTECTED_RESOURCE_RECOVERY_NOT_CONFIRMED",
+                    ),
+                )
+            try:
+                self._commands.clear_signing_key_ring_taint(
+                    context,
+                    observer.request,
+                    identity,
+                )
+            except DeploymentCommandError as recovery_error:
+                return self._failure(str(recovery_error))
+            observer = _ArtifactObserver(self._commands, context)
+            try:
+                evaluated = prepare_phase_plan(
+                    context.environment,
+                    phase,
+                    context.source_revision,
+                    self._working_root,
+                    observer,
+                    destructive=destructive,
+                )
+            except (EnvironmentUnavailableError, DeploymentCommandError) as retry_error:
+                return self._terraform_plan_failure(retry_error)
 
         if not evaluated.accepted:
-            return self._failure(*(violation.code for violation in evaluated.violations))
+            return self._plan_policy_failure(evaluated.violations)
         if (
             observer.request is None
             or observer.artifact is None
@@ -509,14 +1008,9 @@ class DeploymentExecutor:
         if isinstance(exact_plan, StageExecution):
             return exact_plan
 
-        canonical_summary = json.dumps(
-            exact_plan.canonical_summary,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
+        self._terminal.write(
+            self._pretty_json("PLAN", exact_plan.canonical_summary)
         )
-        self._terminal.write(f"PLAN {canonical_summary}")
         self._terminal.write(f"PLAN_DIGEST {exact_plan.policy_digest}")
 
         if self._requires_apply(exact_plan.canonical_summary):
@@ -532,10 +1026,11 @@ class DeploymentExecutor:
             try:
                 self._commands.apply_terraform_plan(observer.request, exact_plan)
             except DeploymentCommandError as error:
+                failed = self._terraform_apply_failure(error)
                 return StageExecution(
-                    outcome="failed",
+                    outcome=failed.outcome,
                     plan_digest=exact_plan.policy_digest,
-                    blockers=(str(error),),
+                    blockers=failed.blockers,
                 )
 
         request = TerraformReadbackRequest(
@@ -565,11 +1060,28 @@ class DeploymentExecutor:
                     blockers=tuple(sorted(set(blockers))),
                 )
             if readback.ready:
+                if stage_id == "tls-readiness":
+                    self._terminal.write(
+                        "Managed certificate is ACTIVE for "
+                        "apps-staging.comfforts.com. TLS readiness is complete."
+                    )
                 break
             if attempt < max_attempts:
+                if stage_id == "tls-readiness":
+                    self._terminal.write(
+                        "Managed certificate is still provisioning "
+                        f"(attempt {attempt} of {max_attempts}); waiting "
+                        f"{interval} seconds before retrying."
+                    )
                 self._waiter.wait(interval)
         assert readback is not None
         if not readback.ready:
+            if stage_id == "tls-readiness":
+                self._terminal.write(
+                    "Certificate is still provisioning after 60 minutes. Leave "
+                    "the verified DNS record and platform resources in place, then "
+                    "resume platform-deploy later."
+                )
             return StageExecution(
                 outcome="waiting",
                 plan_digest=exact_plan.policy_digest,
@@ -606,6 +1118,163 @@ class DeploymentExecutor:
             return self._failure("DEPLOYMENT_STAGE_UNAVAILABLE")
         return self._execute_terraform(context, stage_id, phase)
 
+    def _check_terraform(
+        self,
+        context: StageContext,
+        stage_id: str,
+        phase: str,
+    ) -> StageCheck:
+        observer = _ArtifactObserver(self._commands, context)
+        try:
+            evaluated = prepare_phase_plan(
+                context.environment,
+                phase,
+                context.source_revision,
+                self._working_root,
+                observer,
+                destructive=False,
+            )
+        except EnvironmentUnavailableError as error:
+            return StageCheck("blocked", blockers=(str(error),))
+        except BackendDeclarationConflictError:
+            return StageCheck(
+                "blocked",
+                blockers=("TERRAFORM_BACKEND_DECLARATION_CONFLICT",),
+            )
+        except DeploymentCommandError as error:
+            failed = self._terraform_plan_failure(error)
+            return StageCheck("blocked", blockers=failed.blockers)
+
+        artifact = observer.artifact
+        try:
+            if not evaluated.accepted:
+                failed = self._plan_policy_failure(evaluated.violations)
+                return StageCheck("blocked", blockers=failed.blockers)
+            if (
+                observer.request is None
+                or artifact is None
+                or evaluated.plan_digest is None
+                or evaluated.canonical_summary is None
+            ):
+                return StageCheck("blocked", blockers=("PLAN_BINDING_INCOMPLETE",))
+
+            summary = evaluated.canonical_summary
+            outputs: tuple[tuple[str, str], ...] = ()
+            request = TerraformReadbackRequest(
+                stage_id=stage_id,
+                phase=phase,
+                environment=context.environment,
+                source_revision=context.source_revision,
+                specification_digest=context.specification_digest,
+                inputs=context.inputs,
+            )
+            readback_blocker: str | None = None
+            try:
+                readback = self._commands.readback_terraform(request)
+            except DeploymentCommandError as error:
+                readback = None
+                readback_blocker = str(error)
+            if readback is not None and readback.matched:
+                expected = self._expected_outputs(context)
+                if tuple(name for name, _ in readback.outputs) == expected:
+                    outputs = readback.outputs
+
+            changed = self._plan_changes(summary)
+            if not changed and not outputs and self._expected_outputs(context):
+                if readback_blocker in _RECONCILABLE_TERRAFORM_READBACK:
+                    return StageCheck(
+                        "would-change",
+                        plan_digest=evaluated.plan_digest,
+                        summary=summary,
+                        blockers=(readback_blocker,),
+                    )
+                return StageCheck(
+                    "blocked",
+                    plan_digest=evaluated.plan_digest,
+                    summary=summary,
+                    blockers=(
+                        readback_blocker or "TERRAFORM_READBACK_OUTPUT_MISMATCH",
+                    ),
+                )
+            return StageCheck(
+                "would-change" if changed else "pass",
+                outputs=outputs,
+                plan_digest=evaluated.plan_digest,
+                summary=summary,
+            )
+        finally:
+            if artifact is not None:
+                try:
+                    artifact.saved_plan_path.unlink(missing_ok=True)
+                except OSError:
+                    self._terminal.write(
+                        "Deployment check could not remove its ephemeral saved plan."
+                    )
+
+    def check(self, context: StageContext) -> StageCheck:
+        """Rehearse one stage without approval, mutation, or lifecycle-state writes."""
+
+        stage_id = str(context.stage.get("stage_id", ""))
+        if context.environment == "production":
+            return StageCheck("blocked", blockers=("OWNERSHIP_TRANSFER_REQUIRED",))
+        if stage_id in _READ_ONLY_STAGES:
+            try:
+                readback = self._commands.read_stage(context)
+            except DeploymentCommandError as error:
+                return StageCheck("blocked", blockers=(str(error),))
+            if not readback.matched:
+                return StageCheck(
+                    "blocked",
+                    blockers=readback.blockers or ("STAGE_READBACK_MISMATCH",),
+                )
+            return StageCheck("pass", outputs=readback.outputs)
+        if stage_id in _ACTION_STAGES:
+            try:
+                proposal = self._commands.prepare_action(context)
+            except DeploymentCommandError as error:
+                return StageCheck("blocked", blockers=(str(error),))
+            summary = {"action": proposal.action, "summary": proposal.summary}
+            if self._safe_canonical(summary) is None:
+                return StageCheck("blocked", blockers=("PROHIBITED_ACTION_MATERIAL",))
+            try:
+                readback = self._commands.readback_action(context)
+            except DeploymentCommandError as error:
+                return StageCheck(
+                    "would-change",
+                    summary=summary,
+                    blockers=(str(error),),
+                )
+            expected = self._expected_outputs(context)
+            if readback.matched and tuple(
+                name for name, _ in readback.outputs
+            ) == expected:
+                return StageCheck("pass", outputs=readback.outputs, summary=summary)
+            return StageCheck(
+                "would-change",
+                outputs=readback.outputs,
+                summary=summary,
+                blockers=readback.blockers,
+            )
+        if stage_id in _MANUAL_STAGES:
+            try:
+                checkpoint = self._commands.prepare_manual_checkpoint(context)
+            except DeploymentCommandError as error:
+                return StageCheck("blocked", blockers=(str(error),))
+            return StageCheck(
+                "manual",
+                summary={
+                    "checkpoint": checkpoint.checkpoint,
+                    "instruction_names": [
+                        name for name, _ in checkpoint.instructions
+                    ],
+                },
+            )
+        try:
+            phase = _TERRAFORM_PHASES[stage_id]
+        except KeyError:
+            return StageCheck("blocked", blockers=("DEPLOYMENT_STAGE_UNAVAILABLE",))
+        return self._check_terraform(context, stage_id, phase)
+
 
 __all__ = (
     "ActionProposal",
@@ -613,7 +1282,6 @@ __all__ = (
     "DeploymentCommandError",
     "DeploymentCommands",
     "DeploymentExecutor",
-    "DeploymentTerminal",
     "ExactAction",
     "ExactTerraformPlan",
     "ManualCheckpoint",
@@ -621,5 +1289,4 @@ __all__ = (
     "TerraformPlanArtifact",
     "TerraformReadback",
     "TerraformReadbackRequest",
-    "WaitAdapter",
 )

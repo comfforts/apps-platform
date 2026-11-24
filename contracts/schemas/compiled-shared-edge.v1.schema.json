@@ -140,7 +140,6 @@
         },
         "lifecycle": {
           "enum": [
-            "staged",
             "active",
             "suspended",
             "retired"

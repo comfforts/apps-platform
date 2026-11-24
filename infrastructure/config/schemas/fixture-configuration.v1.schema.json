@@ -20,6 +20,10 @@
     "assertion_audience",
     "platform_issuer",
     "edge_caller_principal",
+    "network_host_project_id",
+    "shared_network_reference",
+    "application_subnet_reference",
+    "vpc_egress",
     "labels"
   ],
   "properties": {
@@ -79,6 +83,18 @@
     "edge_caller_principal": {
       "$ref": "#/$defs/serviceAccountPrincipal"
     },
+    "network_host_project_id": {
+      "$ref": "#/$defs/projectId"
+    },
+    "shared_network_reference": {
+      "$ref": "#/$defs/networkReference"
+    },
+    "application_subnet_reference": {
+      "$ref": "#/$defs/subnetworkReference"
+    },
+    "vpc_egress": {
+      "const": "all-traffic"
+    },
     "labels": {
       "$ref": "#/$defs/labels"
     }
@@ -137,6 +153,14 @@
       "minLength": 30,
       "maxLength": 256,
       "pattern": "^serviceAccount:[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\\.iam\\.gserviceaccount\\.com$"
+    },
+    "networkReference": {
+      "type": "string",
+      "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/global/networks/[a-z][a-z0-9-]{1,61}[a-z0-9]$"
+    },
+    "subnetworkReference": {
+      "type": "string",
+      "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/regions/[a-z][a-z0-9-]{1,61}[a-z0-9]/subnetworks/[a-z][a-z0-9-]{1,61}[a-z0-9]$"
     },
     "labels": {
       "type": "object",

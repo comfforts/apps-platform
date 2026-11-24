@@ -6,10 +6,16 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
+import stat
 import subprocess
 from typing import Any, Protocol
 
-from infrastructure.operator.local_deployment import InitialGeneration
+from infrastructure.operator.diagnostics import capture_private_command_failure
+from infrastructure.operator.local_deployment import (
+    InitialGeneration,
+    LocalDeploymentInputError,
+    existing_initial_generation_reference,
+)
 from infrastructure.operator.provider_commands import (
     ProviderCommandRequest,
     ProviderCommandResult,
@@ -26,9 +32,10 @@ _ALLOWED_COMMANDS = {
     ("builds", "submit"),
     ("compute", "ssl-certificates", "describe"),
     ("kms", "keys", "versions", "list"),
+    ("kms", "keyrings", "describe"),
     ("secrets", "versions", "list"),
-    ("services", "describe"),
     ("services", "enable"),
+    ("services", "list"),
     ("storage", "cat"),
     ("storage", "buckets", "describe"),
     ("storage", "cp"),
@@ -45,8 +52,10 @@ _PROHIBITED_ARGUMENT_PREFIXES = (
 _BOOTSTRAP_SERVICES = (
     "serviceusage.googleapis.com",
     "storage.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
 )
 _PROJECT_ID = "comfforts-platform-non-prod"
+_PROJECT_NUMBER = "455651441682"
 _REGION = "us-west1"
 _CONFIGURATION_BUCKET = "comfforts-ap-stg-455651441682-configuration"
 _BOOTSTRAP_BUCKET = "comfforts-ap-stg-455651441682-platform-state"
@@ -54,9 +63,11 @@ _OAUTH_SECRET = "app-platform-edge-oauth"
 _SIGNING_KEY_RING = "app-platform"
 _SIGNING_KEY = "edge-signing"
 _CERTIFICATE = "app-platform-edge-certificate"
+_HOSTNAME = "apps-staging.comfforts.com"
 _IMAGE_PACKAGE = (
     f"{_REGION}-docker.pkg.dev/{_PROJECT_ID}/app-platform-images/shared-edge"
 )
+_PROJECT_ID_PATTERN = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]")
 _SOURCE_REVISION = re.compile(r"[0-9a-f]{40}")
 _VERSION_REFERENCE = re.compile(
     r"projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
@@ -66,6 +77,14 @@ _VERSION_REFERENCE = re.compile(
 
 class DeploymentProviderError(RuntimeError):
     """Coarse provider failure that never contains raw command output."""
+
+    def __init__(
+        self,
+        code: str,
+        diagnostic: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(code)
+        self.diagnostic = dict(diagnostic or {})
 
 
 class DeploymentProviderRunner(Protocol):
@@ -140,7 +159,12 @@ class ClosedDeploymentGcloudRunner:
 @dataclass(frozen=True, slots=True)
 class CertificateReadback:
     reference: str
-    ready: bool
+    status: str
+    domain_status: str
+
+    @property
+    def ready(self) -> bool:
+        return self.status == "ACTIVE" and self.domain_status == "ACTIVE"
 
 
 class GcloudDeploymentProvider:
@@ -153,11 +177,24 @@ class GcloudDeploymentProvider:
         cloud_sdk_configuration: Path,
         working_root: Path,
         runner: DeploymentProviderRunner,
+        fixture_project_id: str,
+        private_state_root: Path | None = None,
     ) -> None:
         self._executable = executable.resolve()
         self._cloud_sdk_configuration = cloud_sdk_configuration.resolve()
         self._working_root = working_root.resolve()
         self._runner = runner
+        if (
+            _PROJECT_ID_PATTERN.fullmatch(fixture_project_id) is None
+            or fixture_project_id == _PROJECT_ID
+        ):
+            raise ValueError("fixture project ID must be explicit and separate")
+        self._fixture_project_id = fixture_project_id
+        self._fixture_image_package = (
+            f"{_REGION}-docker.pkg.dev/{fixture_project_id}/"
+            "app-platform-images/fixture"
+        )
+        self._private_state_root: Path | None = None
         if not self._executable.is_file():
             raise ValueError("an absolute Cloud SDK executable is required")
         if (
@@ -167,6 +204,15 @@ class GcloudDeploymentProvider:
             raise ValueError("Cloud SDK configuration must be a real directory")
         if not self._working_root.is_dir() or self._working_root.is_symlink():
             raise ValueError("deployment provider working root must be real")
+        if private_state_root is not None:
+            resolved_state = private_state_root.resolve()
+            if (
+                private_state_root.is_symlink()
+                or not resolved_state.is_dir()
+                or stat.S_IMODE(resolved_state.stat().st_mode) & 0o077
+            ):
+                raise ValueError("deployment diagnostics require private operator state")
+            self._private_state_root = resolved_state
 
     def _environment(self) -> tuple[tuple[str, str], ...]:
         return (
@@ -222,8 +268,8 @@ class GcloudDeploymentProvider:
             raise DeploymentProviderError(code)
         return result
 
-    def _common(self) -> tuple[str, ...]:
-        return (f"--project={_PROJECT_ID}", "--quiet")
+    def _common(self, project_id: str = _PROJECT_ID) -> tuple[str, ...]:
+        return (f"--project={project_id}", "--quiet")
 
     def _run_common(
         self,
@@ -239,6 +285,44 @@ class GcloudDeploymentProvider:
             stdin=stdin,
             timeout_seconds=timeout_seconds,
         )
+
+    def _run_cloud_build(
+        self,
+        build_failure_code: str,
+        config_failure_code: str,
+        phase: str,
+        *arguments: str,
+        project_id: str = _PROJECT_ID,
+    ) -> ProviderCommandResult:
+        result = self._try(
+            *arguments,
+            *self._common(project_id),
+            timeout_seconds=900,
+        )
+        if result.returncode == 0:
+            return result
+        diagnostic_metadata = capture_private_command_failure(
+            self._private_state_root,
+            environment="staging",
+            operation="cloud-build",
+            phase=phase,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
+        diagnostic = result.stderr[: 64 * 1024]
+        if all(
+            marker in diagnostic
+            for marker in (
+                b"interpreting ",
+                b" as build config:",
+                b"Expected type <class 'str'> for field value",
+            )
+        ):
+            raise DeploymentProviderError(
+                config_failure_code,
+                diagnostic_metadata,
+            )
+        raise DeploymentProviderError(build_failure_code, diagnostic_metadata)
 
     @staticmethod
     def _json(code: str, payload: bytes) -> Any:
@@ -258,17 +342,19 @@ class GcloudDeploymentProvider:
         )
 
     def bootstrap_services_ready(self) -> bool:
-        for service in _BOOTSTRAP_SERVICES:
-            result = self._run_common(
-                "BOOTSTRAP_SERVICE_READBACK_FAILED",
-                "services",
-                "describe",
-                service,
-                "--format=value(state)",
-            )
-            if result.stdout.strip() != b"ENABLED":
-                return False
-        return True
+        service_filter = " OR ".join(
+            f"config.name={service}" for service in _BOOTSTRAP_SERVICES
+        )
+        result = self._run_common(
+            "BOOTSTRAP_SERVICE_READBACK_FAILED",
+            "services",
+            "list",
+            "--enabled",
+            f"--filter={service_filter}",
+            "--format=value(config.name)",
+        )
+        enabled_services = set(result.stdout.splitlines())
+        return all(service.encode() in enabled_services for service in _BOOTSTRAP_SERVICES)
 
     def bootstrap_backend_ready(self) -> bool:
         result = self._try(
@@ -285,7 +371,30 @@ class GcloudDeploymentProvider:
             raise DeploymentProviderError("BOOTSTRAP_BACKEND_READBACK_INVALID")
         return True
 
-    def publish_initial_generation(self, generation: InitialGeneration) -> int:
+    def signing_key_ring_identity(self) -> str:
+        expected = (
+            f"projects/{_PROJECT_ID}/locations/{_REGION}/keyRings/"
+            f"{_SIGNING_KEY_RING}"
+        )
+        try:
+            observed = self._run_common(
+                "SIGNING_KEY_RING_READBACK_FAILED",
+                "kms",
+                "keyrings",
+                "describe",
+                _SIGNING_KEY_RING,
+                f"--location={_REGION}",
+                "--format=value(name)",
+            ).stdout.decode("ascii", errors="strict").strip()
+        except UnicodeDecodeError as error:
+            raise DeploymentProviderError(
+                "SIGNING_KEY_RING_READBACK_INVALID"
+            ) from error
+        if observed != expected:
+            raise DeploymentProviderError("SIGNING_KEY_RING_READBACK_MISMATCH")
+        return observed
+
+    def publish_initial_generation(self, generation: InitialGeneration) -> str:
         object_uri = f"gs://{_CONFIGURATION_BUCKET}/{generation.object_name}"
         self._try(
             "storage",
@@ -296,10 +405,11 @@ class GcloudDeploymentProvider:
             *self._common(),
             stdin=generation.contents,
         )
-        return self.read_initial_generation(generation)
+        return self.read_initial_generation()
 
-    def read_initial_generation(self, generation: InitialGeneration) -> int:
-        object_uri = f"gs://{_CONFIGURATION_BUCKET}/{generation.object_name}"
+    def read_initial_generation(self) -> str:
+        object_name = "generations/1/compiled.json"
+        object_uri = f"gs://{_CONFIGURATION_BUCKET}/{object_name}"
         metadata = self._json(
             "GENERATION_OBJECT_READBACK_INVALID",
             self._run_common(
@@ -325,14 +435,21 @@ class GcloudDeploymentProvider:
             "cat",
             f"{object_uri}#{object_generation}",
         ).stdout
-        if contents != generation.contents:
-            raise DeploymentProviderError("GENERATION_OBJECT_CONTENT_MISMATCH")
-        return object_generation
+        try:
+            return existing_initial_generation_reference(contents, object_generation)
+        except LocalDeploymentInputError as error:
+            raise DeploymentProviderError(str(error)) from error
 
-    def read_shared_edge_image(self, source_revision: str) -> str | None:
+    def _read_image(
+        self,
+        package: str,
+        source_revision: str,
+        invalid_code: str,
+        project_id: str = _PROJECT_ID,
+    ) -> str | None:
         if _SOURCE_REVISION.fullmatch(source_revision) is None:
             raise ValueError("source revision must be exact")
-        tagged_image = f"{_IMAGE_PACKAGE}:source-{source_revision}"
+        tagged_image = f"{package}:source-{source_revision}"
         result = self._try(
             "artifacts",
             "docker",
@@ -340,14 +457,29 @@ class GcloudDeploymentProvider:
             "describe",
             tagged_image,
             "--format=value(image_summary.digest)",
-            *self._common(),
+            *self._common(project_id),
         )
         if result.returncode != 0:
             return None
         digest = result.stdout.decode("ascii", errors="strict").strip()
         if re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
-            raise DeploymentProviderError("EDGE_IMAGE_READBACK_INVALID")
-        return f"{_IMAGE_PACKAGE}@{digest}"
+            raise DeploymentProviderError(invalid_code)
+        return f"{package}@{digest}"
+
+    def read_shared_edge_image(self, source_revision: str) -> str | None:
+        return self._read_image(
+            _IMAGE_PACKAGE,
+            source_revision,
+            "EDGE_IMAGE_READBACK_INVALID",
+        )
+
+    def read_fixture_image(self, source_revision: str) -> str | None:
+        return self._read_image(
+            self._fixture_image_package,
+            source_revision,
+            "FIXTURE_IMAGE_READBACK_INVALID",
+            self._fixture_project_id,
+        )
 
     def publish_shared_edge_image(self, source_revision: str) -> str:
         existing = self.read_shared_edge_image(source_revision)
@@ -364,18 +496,53 @@ class GcloudDeploymentProvider:
         ):
             raise DeploymentProviderError("EDGE_IMAGE_BUILD_CONFIG_INVALID")
         tagged_image = f"{_IMAGE_PACKAGE}:source-{source_revision}"
-        self._run_common(
+        self._run_cloud_build(
             "EDGE_IMAGE_BUILD_FAILED",
+            "EDGE_IMAGE_BUILD_CONFIG_INVALID",
+            "shared-edge-image",
             "builds",
             "submit",
             str(self._working_root),
             f"--config={config}",
             f"--substitutions=_IMAGE={tagged_image}",
-            timeout_seconds=900,
         )
         observed = self.read_shared_edge_image(source_revision)
         if observed is None:
             raise DeploymentProviderError("EDGE_IMAGE_READBACK_MISSING")
+        return observed
+
+    def publish_fixture_image(self, source_revision: str) -> str:
+        existing = self.read_fixture_image(source_revision)
+        if existing is not None:
+            return existing
+        config = (
+            self._working_root
+            / "infrastructure/images/fixture/cloudbuild.yaml"
+        ).resolve()
+        if (
+            self._working_root not in config.parents
+            or not config.is_file()
+            or config.is_symlink()
+        ):
+            raise DeploymentProviderError("FIXTURE_IMAGE_BUILD_CONFIG_INVALID")
+        tagged_image = f"{self._fixture_image_package}:source-{source_revision}"
+        self._run_cloud_build(
+            "FIXTURE_IMAGE_BUILD_FAILED",
+            "FIXTURE_IMAGE_BUILD_CONFIG_INVALID",
+            "fixture-image",
+            "builds",
+            "submit",
+            str(self._working_root),
+            f"--config={config}",
+            (
+                f"--substitutions=_IMAGE={tagged_image},"
+                f"_SOURCE_REVISION={source_revision}"
+            ),
+            project_id=self._fixture_project_id,
+        )
+        observed = self.read_fixture_image(source_revision)
+        if observed is None:
+            raise DeploymentProviderError("FIXTURE_IMAGE_READBACK_MISSING")
         return observed
 
     def active_signing_key_version(self) -> str:
@@ -425,15 +592,23 @@ class GcloudDeploymentProvider:
             for value in values
             if isinstance(value, dict) and isinstance(value.get("name"), str)
         )
-        prefix = f"projects/{_PROJECT_ID}/secrets/{_OAUTH_SECRET}/versions/"
-        if (
-            len(names) != 1
-            or not names[0].startswith(prefix)
-            or not names[0].removeprefix(prefix).isdigit()
-            or names[0].endswith("/0")
-        ):
+        if len(names) != 1:
             raise DeploymentProviderError("OAUTH_SECRET_VERSION_READBACK_INVALID")
-        return names[0]
+        trusted_prefixes = (
+            f"projects/{_PROJECT_ID}/secrets/{_OAUTH_SECRET}/versions/",
+            f"projects/{_PROJECT_NUMBER}/secrets/{_OAUTH_SECRET}/versions/",
+        )
+        version = next(
+            (
+                names[0].removeprefix(prefix)
+                for prefix in trusted_prefixes
+                if names[0].startswith(prefix)
+            ),
+            "",
+        )
+        if re.fullmatch(r"[1-9][0-9]*", version) is None:
+            raise DeploymentProviderError("OAUTH_SECRET_VERSION_READBACK_INVALID")
+        return trusted_prefixes[0] + version
 
     def certificate_readback(self) -> CertificateReadback:
         value = self._json(
@@ -454,11 +629,43 @@ class GcloudDeploymentProvider:
         if not isinstance(managed, dict):
             raise DeploymentProviderError("CERTIFICATE_READBACK_INVALID")
         domains = managed.get("domains")
+        domain_statuses = managed.get("domainStatus")
         status = managed.get("status")
         reference = value.get("selfLink")
-        if domains != ["apps-staging.comfforts.com"] or not isinstance(reference, str):
+        if (
+            domains != [_HOSTNAME]
+            or not isinstance(domain_statuses, dict)
+            or set(domain_statuses) != {_HOSTNAME}
+            or not isinstance(domain_statuses.get(_HOSTNAME), str)
+            or not isinstance(status, str)
+            or not isinstance(reference, str)
+        ):
             raise DeploymentProviderError("CERTIFICATE_READBACK_INVALID")
-        return CertificateReadback(reference=reference, ready=status == "ACTIVE")
+        domain_status = domain_statuses[_HOSTNAME]
+        if status == "PROVISIONING_FAILED":
+            raise DeploymentProviderError("CERTIFICATE_PROVISIONING_FAILED")
+        if status == "PROVISIONING_FAILED_PERMANENTLY":
+            raise DeploymentProviderError(
+                "CERTIFICATE_PROVISIONING_FAILED_PERMANENTLY"
+            )
+        if status == "RENEWAL_FAILED":
+            raise DeploymentProviderError("CERTIFICATE_RENEWAL_FAILED")
+        domain_failure = {
+            "FAILED_NOT_VISIBLE": "CERTIFICATE_DOMAIN_NOT_VISIBLE",
+            "FAILED_CAA_CHECKING": "CERTIFICATE_DOMAIN_CAA_CHECK_FAILED",
+            "FAILED_CAA_FORBIDDEN": "CERTIFICATE_DOMAIN_CAA_FORBIDDEN",
+            "FAILED_RATE_LIMITED": "CERTIFICATE_DOMAIN_RATE_LIMITED",
+        }.get(domain_status)
+        if domain_failure is not None:
+            raise DeploymentProviderError(domain_failure)
+        if domain_status.startswith("FAILED_"):
+            raise DeploymentProviderError("CERTIFICATE_DOMAIN_VALIDATION_FAILED")
+        if (status, domain_status) not in {
+            ("ACTIVE", "ACTIVE"),
+            ("PROVISIONING", "PROVISIONING"),
+        }:
+            raise DeploymentProviderError("CERTIFICATE_READBACK_INVALID")
+        return CertificateReadback(reference, status, domain_status)
 
 
 __all__ = (

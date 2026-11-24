@@ -1,20 +1,50 @@
+resource "google_project_service" "iam_credentials" {
+  project = var.edge_configuration.project_id
+  service = "iamcredentials.googleapis.com"
+
+  disable_dependent_services = false
+  disable_on_destroy         = false
+}
+
+resource "google_service_account_iam_member" "edge_caller_token_creator" {
+  service_account_id = var.edge_configuration.edge_caller_service_account_id
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${var.edge_configuration.runtime_identity_email}"
+
+  depends_on = [google_project_service.iam_credentials]
+}
+
 resource "google_cloud_run_v2_service" "edge" {
   project  = var.edge_configuration.project_id
   location = var.edge_configuration.region
   name     = var.edge_configuration.service_name
   labels   = var.edge_configuration.labels
 
-  deletion_protection  = true
-  deletion_policy      = "PREVENT"
-  ingress              = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  deletion_protection  = !var.destruction_enabled
+  deletion_policy      = var.destruction_enabled ? "DELETE" : "PREVENT"
+  ingress              = var.destruction_enabled ? "INGRESS_TRAFFIC_INTERNAL_ONLY" : "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   default_uri_disabled = true
   invoker_iam_disabled = false
+
+  depends_on = [
+    google_project_service.iam_credentials,
+    google_service_account_iam_member.edge_caller_token_creator,
+  ]
 
   template {
     revision                         = var.edge_configuration.candidate_revision
     service_account                  = var.edge_configuration.runtime_identity_email
     timeout                          = "3600s"
     max_instance_request_concurrency = 20
+
+    vpc_access {
+      egress = "ALL_TRAFFIC"
+
+      network_interfaces {
+        network    = var.edge_configuration.shared_network_reference
+        subnetwork = var.edge_configuration.application_subnet_reference
+      }
+    }
 
     scaling {
       min_instance_count = 0
@@ -46,6 +76,11 @@ resource "google_cloud_run_v2_service" "edge" {
       env {
         name  = "APP_PLATFORM_PROJECT_ID"
         value = var.edge_configuration.project_id
+      }
+
+      env {
+        name  = "APP_PLATFORM_PROJECT_NUMBER"
+        value = var.edge_configuration.project_number
       }
 
       env {
@@ -148,8 +183,6 @@ resource "google_cloud_run_v2_service" "edge" {
 
   lifecycle {
     ignore_changes = [
-      template[0].revision,
-      template[0].containers[0].env,
       traffic,
     ]
   }
@@ -179,7 +212,6 @@ resource "google_compute_backend_service" "edge" {
   name                  = "app-platform-edge-backend"
   load_balancing_scheme = "EXTERNAL_MANAGED"
   protocol              = "HTTP"
-  timeout_sec           = 3600
   enable_cdn            = false
 
   backend {

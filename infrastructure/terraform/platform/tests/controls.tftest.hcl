@@ -19,7 +19,6 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
       module.platform_controls.policy_summary.logging.deletion_policy == "PREVENT" &&
       module.platform_controls.policy_summary.logging.internal_destination &&
       !module.platform_controls.policy_summary.logging.external_sink &&
-      !module.platform_controls.policy_summary.logging.unique_writer_identity &&
       module.platform_controls.policy_summary.logging.exclusion_count == 3 &&
       module.platform_controls.policy_summary.logging.default_bucket_excluded &&
       module.platform_controls.policy_summary.logging.owner_reader_role == "roles/logging.viewAccessor" &&
@@ -35,6 +34,7 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
         "component",
         "component_version",
         "correlation_id",
+        "diagnostic_code",
         "event_type",
         "event_version",
         "generation_digest",
@@ -103,9 +103,6 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
       module.platform_controls.policy_summary.artifacts.retained_roles == ["active", "rollback", "candidate"] &&
       module.platform_controls.policy_summary.artifacts.most_recent_versions_per_service == 3 &&
       toset(module.platform_controls.policy_summary.artifacts.package_name_prefixes) == toset([
-        "fixture-authenticated",
-        "fixture-public",
-        "fixture-restricted",
         "shared-edge",
       ]) &&
       module.platform_controls.policy_summary.artifacts.rollback_window_hours == 24 &&
@@ -113,7 +110,7 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
       module.platform_controls.policy_summary.artifacts.deletion_policy == "PREVENT" &&
       module.platform_controls.policy_summary.artifacts.image_publication == "deferred"
     )
-    error_message = "Artifact Registry cleanup must remain dry-run-first and retain active, rollback, and candidate images for every qualification service"
+    error_message = "Artifact Registry cleanup must remain dry-run-first and retain active, rollback, and candidate Shared Edge images"
   }
 
   assert {

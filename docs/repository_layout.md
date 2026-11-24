@@ -1,6 +1,6 @@
 # App Platform repository layout
 
-Version 2.2 | Status: canonical dedicated repository; AP-M9-W8 qualification and destruction mechanics
+Version 2.3 | Status: canonical dedicated repository; AP-M9-W9 fixture lifecycle mechanics
 implemented; no backend, provider, DNS, deployment, or Live operation performed
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
@@ -24,7 +24,7 @@ permission to create a resource or perform an external action.
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
-| `infrastructure/operator/` | deep Python preparation, exact staged deployment, application integration, approval, journal, status, resume, injected adapters, and thin CLI |
+| `infrastructure/operator/` | linear Python preflight, preparation, local-only active-operation cancellation, exact-plan deployment, application integration, atomic progress, status, resume, external-effect adapters, and thin CLI |
 | `infrastructure/backend/` | AP-M9-W5 backend rendering, lineage, operation authority, plan policy, and fake command integration |
 | `infrastructure/terraform/bootstrap/` | state-bucket owner root with closed bootstrap phase output |
 | `infrastructure/terraform/platform/` | phased foundation and Shared Edge configuration on one Platform State lineage |
@@ -41,11 +41,11 @@ delivery record remains under `docs/history/`, and the implementation remains re
 history. It is not a current operator input.
 
 AP-M9-W3 added only deterministic, credential-free repository interfaces. It created no operator
-command, approval, journal, bundle instance, provider resource, state, deployment, or evidence.
+command, approval, progress, bundle instance, provider resource, state, deployment, or evidence.
 
 AP-M9-W4 added credential-free `platform-prepare` and `platform-status`, exact local approval
 binding, private generated operator state under the ignored `.platform-operator/` path, and
-resumable journal orchestration exercised through deterministic fakes. It added no executable
+resumable progress exercised through deterministic fakes. It added no executable
 deploy target, credential, provider request, backend operation, Terraform plan or apply, DNS
 action, platform resource, bundle instance, deployment, or Live evidence.
 
@@ -73,13 +73,28 @@ application, provider publication, active generation, application mutation, depl
 evidence and never read or destroyed Application State.
 
 AP-M9-W8 added the qualification-evidence contract and canonical vector, exact current-revision
-readback, the closed ten-check suite, networked Fixture Application runtime, failure injection,
+readback, the closed ten-check suite, process-local networked Fixture Application runtime, failure injection,
 reviewed whole-generation rollback, safe-destruction compilation/orchestration, private create-only
 destruction progress, least-data fixture handoff records, guarded Cloud SDK generation and target
 adapters, the production Shared Edge composition, its non-root image entry point, and
-`platform-qualify`/`platform-destroy`. Qualification and destruction live entry points remain gated
-on explicit W9 authority; this repository slice performed no provider request, image build,
-generation activation, rollback, qualification, or destruction.
+`platform-qualify`/`platform-destroy`. W9 replaces the former live-entry implementation gates with
+verified-session qualification and exact retained-resource destruction adapters; neither W8 nor W9
+performed a provider request, image build, generation activation, rollback, qualification, or destruction.
+
+AP-M9-W9 adds the executable Fixture Application owner lifecycle over the existing image and three
+independent Terraform roots. It introduces shallow `fixture-project-bootstrap`,
+`platform-connect-project`, `application-handoff-check`, `fixture-handoff`, `fixture-status`, and
+`fixture-destroy` targets over the deep operator module. The read-only handoff check combines
+platform-plan, project-service, Shared VPC, bundle-input, and access-mode readback before bundle
+publication. The fixture project owns one private state bucket with independent root
+prefixes and attaches to the platform Shared VPC. Platform outputs, fixture handoff, and platform
+registration remain separate so the fixtures exercise the same cross-owner boundary as an external
+application. The package also includes private pre-registration bundle inspection and exact reuse,
+provider posture readback, registration generations that preserve other applications, suite-wide
+or selected status, automatic prepared-specification reuse, and a non-publishing
+`platform-preflight` readiness target with deterministic fake coverage, plus live qualification and
+safe platform-destruction adapter completion. Candidate staging operation is implementation
+feedback, not accepted AP-M9 qualification.
 
 ## AP-M9 capability locations
 
@@ -104,14 +119,14 @@ policy stay testable without credentials or network access.
 
 - Keep platform code, contracts, documents, tests, prompts, and secret-free historical indexes in
   this repository.
-- Keep Terraform state, saved plans, credentials, secret values, provider responses, execution
-  journals containing sensitive data, and private Live evidence outside Git.
+- Keep Terraform state, saved plans, credentials, secret values, provider responses, private
+  deployment progress, and private Live evidence outside Git.
 - Keep Platform State and every Application State in independent lineages. Never use
   `terraform_remote_state` as an integration contract.
 - Exchange only versioned, non-secret Platform Integration Bundles and Application Attachment
   Bundles across the platform/application boundary.
-- Keep inactive application-adoption inputs under `integrations/ai_finance_assistant/` outside the
-  authority chain until Finance adopts them through its own release authority.
+- Keep application-specific migration plans and adoption authority in the consuming application's
+  repository.
 - Update a public contract and all repository consumers in the same bounded slice.
 - Do not create a reserved path merely because this document names it.
 

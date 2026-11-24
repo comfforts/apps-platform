@@ -12,6 +12,7 @@ from contracts.lifecycle import (
 )
 from infrastructure.operator._interfaces import (
     OperatorInterrupted,
+    OperatorTerminal,
     StageContext,
     StageExecution,
 )
@@ -20,7 +21,6 @@ from infrastructure.operator._interfaces import (
 DESTRUCTIBLE_PLATFORM_RESOURCES = (
     "artifact-registry",
     "budget",
-    "configuration-bucket",
     "dns-a-record",
     "load-balancer",
     "logging",
@@ -33,15 +33,20 @@ DESTRUCTIBLE_PLATFORM_RESOURCES = (
     "session-store",
     "shared-edge",
     "shared-edge-image",
-    "signing-key",
 )
 
 # These resources require separately approved purge or recovery authority.
 RETAINED_PLATFORM_RESOURCES = (
+    "application-subnet",
     "backend-bucket",
+    "configuration-bucket",
     "evidence-bucket",
+    "logging-exclusion",
     "provider-service",
     "recovery-copy",
+    "shared-network",
+    "shared-vpc-host",
+    "signing-key",
     "state-backend",
 )
 
@@ -54,9 +59,10 @@ class DestructionRequest:
     source_revision: str
     profile_digest: str
     deployed_specification_digest: str
-    deployment_journal_digest: str
+    deployment_progress_digest: str
     registration_generation_digest: str
     qualification_evidence_digest: str
+    source_authority: str = "accepted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,13 +74,14 @@ class DestructionSnapshot:
     source_revision: str
     profile_digest: str
     deployed_specification_digest: str
-    deployment_journal_digest: str
+    deployment_progress_digest: str
     registration_generation_digest: str
     qualification_evidence_digest: str
     active_application_ids: tuple[str, ...]
     platform_resource_types: tuple[str, ...]
     retained_resource_types: tuple[str, ...]
     ownership_matches: bool
+    source_authority: str = "accepted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,12 +159,7 @@ def _destruction_stages() -> list[dict[str, object]]:
         {
             "stage_id": "identity-destroy",
             "actions": ["delete", "read"],
-            "resource_types": [
-                "oauth-client",
-                "oauth-secret-version",
-                "session-store",
-                "signing-key",
-            ],
+            "resource_types": ["oauth-client"],
             "consumes": [_binding("edge-destroy", "edge-destroyed")],
             "produces": ["identity-destroyed"],
             "manual_checkpoint": "provider-console",
@@ -165,14 +167,15 @@ def _destruction_stages() -> list[dict[str, object]]:
         },
         {
             "stage_id": "foundation-destroy",
-            "actions": ["delete", "read"],
+            "actions": ["delete", "read", "update"],
             "resource_types": [
                 "artifact-registry",
                 "budget",
-                "configuration-bucket",
                 "logging",
+                "oauth-secret-version",
                 "platform-identity",
                 "secret-container",
+                "session-store",
                 "shared-edge-image",
             ],
             "consumes": [_binding("identity-destroy", "identity-destroyed")],
@@ -204,6 +207,11 @@ def _blockers(
     comparisons = (
         (snapshot.environment, request.environment, "DESTRUCTION_ENVIRONMENT_MISMATCH"),
         (snapshot.source_revision, request.source_revision, "DESTRUCTION_SOURCE_MISMATCH"),
+        (
+            snapshot.source_authority,
+            request.source_authority,
+            "DESTRUCTION_SOURCE_AUTHORITY_MISMATCH",
+        ),
         (snapshot.profile_digest, request.profile_digest, "DESTRUCTION_PROFILE_MISMATCH"),
         (
             snapshot.deployed_specification_digest,
@@ -211,9 +219,9 @@ def _blockers(
             "DESTRUCTION_SPECIFICATION_MISMATCH",
         ),
         (
-            snapshot.deployment_journal_digest,
-            request.deployment_journal_digest,
-            "DESTRUCTION_JOURNAL_MISMATCH",
+            snapshot.deployment_progress_digest,
+            request.deployment_progress_digest,
+            "DESTRUCTION_PROGRESS_MISMATCH",
         ),
         (
             snapshot.registration_generation_digest,
@@ -257,6 +265,7 @@ def compile_destruction_specification(
         "operation": "destroy",
         "profile_digest": request.profile_digest,
         "source": {
+            "authority": request.source_authority,
             "repository": "comfforts/apps-platform",
             "revision": request.source_revision,
         },
@@ -326,12 +335,6 @@ class DestructionControl(Protocol):
     def mark_complete(self, environment: str, digest: str) -> bool: ...
 
 
-class DestructionTerminal(Protocol):
-    def confirm_exact(self, prompt: str, expected: str) -> bool: ...
-
-    def write(self, message: str) -> None: ...
-
-
 class DestructionExecutor(Protocol):
     def execute(self, context: StageContext) -> StageExecution: ...
 
@@ -351,7 +354,7 @@ class DestructionLifecycle:
         self,
         state_reader: DestructionStateReader,
         control: DestructionControl,
-        terminal: DestructionTerminal,
+        terminal: OperatorTerminal,
         executor: DestructionExecutor,
     ) -> None:
         self._state_reader = state_reader
@@ -686,13 +689,14 @@ class DestructionLifecycle:
             deployed_specification_digest=(
                 current.deployed_specification_digest
             ),
-            deployment_journal_digest=current.deployment_journal_digest,
+            deployment_progress_digest=current.deployment_progress_digest,
             registration_generation_digest=(
                 current.registration_generation_digest
             ),
             qualification_evidence_digest=(
                 current.qualification_evidence_digest
             ),
+            source_authority=current.source_authority,
         )
         return self.destroy(request)
 
@@ -709,6 +713,5 @@ __all__ = (
     "DestructionSnapshot",
     "DestructionStageClosure",
     "DestructionStateReader",
-    "DestructionTerminal",
     "compile_destruction_specification",
 )

@@ -1,55 +1,53 @@
-"""Closed command boundary for AP-M9-W7 application integration operations."""
+"""Focused command-line coverage for handoff ownership boundaries."""
 
 from __future__ import annotations
 
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 from pathlib import Path
 import tempfile
 import unittest
 
-from contracts.lifecycle import lifecycle_digest, load_lifecycle_document
+from contracts.lifecycle import lifecycle_digest
 from infrastructure.operator.cli import main
+from infrastructure.operator.fixture_lifecycle import (
+    FixtureApplicationStatus,
+    FixtureHandoffResult,
+    FixtureStatusResult,
+)
 from infrastructure.operator.integration import (
     IntegrationBundleRequest,
     IntegrationBundleResult,
-    LifecycleChangeRequest,
     RegistrationIntent,
     RegistrationLifecycleResult,
 )
+from infrastructure.operator.project_connections import ProjectLifecycleResult
+from tests.environment import FIXTURES_PROJECT_ID
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 VECTORS = PROJECT_ROOT / "contracts/lifecycle/test-vectors/valid"
-SOURCE_REVISION = "a" * 40
-GENERATION_DIGEST = "sha256:" + ("7" * 64)
 
 
-class FakeIntegrationLifecycle:
+def _integration_bundle() -> dict[str, object]:
+    return json.loads(
+        (VECTORS / "platform-integration-bundle.staging.synthetic.v1.json").read_text()
+    )
+
+
+class Integration:
     def __init__(self) -> None:
-        self.outputs_requests: list[IntegrationBundleRequest] = []
-        self.registrations: list[
-            tuple[dict[str, object], dict[str, object], RegistrationIntent]
-        ] = []
-        self.detaches: list[LifecycleChangeRequest] = []
-        self.retirements: list[LifecycleChangeRequest] = []
+        self.output_requests: list[IntegrationBundleRequest] = []
+        self.registrations: list[tuple[object, object, RegistrationIntent]] = []
 
     def outputs(self, request: IntegrationBundleRequest) -> IntegrationBundleResult:
-        self.outputs_requests.append(request)
-        bundle = json.loads(
-            (
-                VECTORS
-                / "platform-integration-bundle.staging.synthetic.v1.json"
-            ).read_text(encoding="utf-8")
-        )
+        self.output_requests.append(request)
+        bundle = _integration_bundle()
         return IntegrationBundleResult(
-            outcome="generated",
-            bundle=bundle,
-            bundle_digest=lifecycle_digest(
-                bundle,
-                "platform-integration-bundle",
-            ),
+            "generated",
+            bundle,
+            lifecycle_digest(bundle, "platform-integration-bundle"),
         )
 
     def register(
@@ -58,216 +56,202 @@ class FakeIntegrationLifecycle:
         attachment_bundle: dict[str, object],
         intent: RegistrationIntent,
     ) -> RegistrationLifecycleResult:
-        self.registrations.append(
-            (integration_bundle, attachment_bundle, intent)
-        )
+        self.registrations.append((integration_bundle, attachment_bundle, intent))
         return RegistrationLifecycleResult(
-            outcome="activated",
-            generation=7,
-            generation_digest=GENERATION_DIGEST,
+            "activated", 3, "sha256:" + ("7" * 64)
         )
 
-    def detach(
+
+class Fixture:
+    def __init__(self) -> None:
+        self.handoff_arguments: tuple[object, ...] | None = None
+
+    def handoff(
         self,
-        request: LifecycleChangeRequest,
-    ) -> RegistrationLifecycleResult:
-        self.detaches.append(request)
-        return RegistrationLifecycleResult(
-            outcome="activated",
-            generation=8,
-            generation_digest=GENERATION_DIGEST,
+        environment: str,
+        application_id: str,
+        integration_bundle: dict[str, object],
+        integration_bundle_path: str,
+    ) -> FixtureHandoffResult:
+        self.handoff_arguments = (
+            environment,
+            application_id,
+            integration_bundle,
+            integration_bundle_path,
+        )
+        return FixtureHandoffResult(
+            "prepared",
+            application_id,
+            f"us-west1-docker.pkg.dev/{FIXTURES_PROJECT_ID}/"
+            "app-platform-images/fixture@sha256:" + ("1" * 64),
+            "sha256:" + ("2" * 64),
+            integration_bundle_path,
+            "sha256:" + ("3" * 64),
+            "/private/application-attachment-bundle.v1.json",
+            "/private/registration-intent.v1.json",
         )
 
-    def retire(
+    def status(
         self,
-        request: LifecycleChangeRequest,
-    ) -> RegistrationLifecycleResult:
-        self.retirements.append(request)
-        return RegistrationLifecycleResult(
-            outcome="activated",
-            generation=9,
-            generation_digest=GENERATION_DIGEST,
+        environment: str,
+        application_id: str | None = None,
+    ) -> FixtureStatusResult:
+        selected = application_id or "fixture-public"
+        return FixtureStatusResult(
+            "read",
+            3,
+            "sha256:" + ("7" * 64),
+            (FixtureApplicationStatus(selected, "active", True, True, True),),
         )
 
 
-def _run(
-    arguments: list[str],
-    lifecycle: FakeIntegrationLifecycle,
-) -> tuple[int, dict[str, object]]:
-    output = io.StringIO()
-    with redirect_stdout(output):
-        exit_code = main(
-            arguments,
-            integration_factory=lambda _: lifecycle,
+class Projects:
+    def bootstrap_fixture(
+        self,
+        environment: str,
+        project_id: str,
+    ) -> ProjectLifecycleResult:
+        return ProjectLifecycleResult(
+            "bootstrapped", project_id, "123456789012"
         )
-    return exit_code, json.loads(output.getvalue())
+
+    def connect(self, environment: str, project_id: str) -> ProjectLifecycleResult:
+        return ProjectLifecycleResult(
+            "connected",
+            project_id,
+            "123456789012",
+            "/private/connection.v1.json",
+        )
 
 
 class IntegrationCliTest(unittest.TestCase):
-    def test_outputs_writes_one_canonical_create_only_bundle(self) -> None:
-        lifecycle = FakeIntegrationLifecycle()
-        with tempfile.TemporaryDirectory() as directory:
-            state_directory = Path(directory) / "operator"
-            arguments = [
-                "outputs",
-                "--environment",
-                "staging",
-                "--state-directory",
-                str(state_directory),
-                "--application-id",
-                "fixture-authenticated",
-                "--access-mode",
-                "authenticated",
-                "--route-intent",
-                "/fixture-authenticated",
-                "--platform-source-revision",
-                SOURCE_REVISION,
-                "--platform-generation",
-                "1",
-            ]
-
-            first_code, first = _run(arguments, lifecycle)
-            second_code, second = _run(arguments, lifecycle)
-
-            bundle_path = state_directory / str(first["bundle_path"])
-            loaded = load_lifecycle_document(
-                bundle_path,
-                "platform-integration-bundle",
+    def test_outputs_persists_application_project_scoped_bundle(self) -> None:
+        integration = Integration()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                code = main(
+                    [
+                        "outputs",
+                        "--environment", "staging",
+                        "--state-directory", temporary,
+                        "--application-id", "fixture-authenticated",
+                        "--application-project-id", FIXTURES_PROJECT_ID,
+                        "--access-mode", "authenticated",
+                        "--route-intent", "/fixture-authenticated",
+                        "--platform-source-revision", "a" * 40,
+                        "--platform-generation", "1",
+                    ],
+                    integration_factory=lambda _path, _authority: integration,
+                )
+            result = json.loads(output.getvalue())
+            self.assertEqual(code, 0)
+            self.assertTrue(Path(result["bundle_path"]).is_file())
+            self.assertEqual(
+                integration.output_requests[0].application_project_id,
+                FIXTURES_PROJECT_ID,
             )
 
-        self.assertEqual((first_code, second_code), (0, 0))
-        self.assertEqual(first, second)
-        self.assertEqual(first["outcome"], "generated")
-        self.assertEqual(loaded.violations, ())
-        self.assertEqual(len(lifecycle.outputs_requests), 2)
+    def test_fixture_handoff_consumes_existing_bundle_and_stops(self) -> None:
+        fixture = Fixture()
+        bundle_path = VECTORS / "platform-integration-bundle.staging.synthetic.v1.json"
+        output = io.StringIO()
+        diagnostics = io.StringIO()
+        with redirect_stdout(output), redirect_stderr(diagnostics):
+            code = main(
+                [
+                    "fixture-handoff",
+                    "--environment", "staging",
+                    "--application-id", "fixture-authenticated",
+                    "--integration-bundle", str(bundle_path),
+                ],
+                fixture_factory=lambda _path, _authority: fixture,
+            )
+        result = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
         self.assertEqual(
-            lifecycle.outputs_requests[0].expected_platform_source_revision,
-            SOURCE_REVISION,
+            result["registration_intent_path"],
+            "/private/registration-intent.v1.json",
         )
+        self.assertIn("route is inactive", diagnostics.getvalue())
+        assert fixture.handoff_arguments is not None
+        self.assertEqual(fixture.handoff_arguments[1], "fixture-authenticated")
 
-    def test_register_reads_strict_private_inputs_and_emits_coarse_result(self) -> None:
-        lifecycle = FakeIntegrationLifecycle()
-        with tempfile.TemporaryDirectory() as directory:
-            intent_path = Path(directory) / "registration-intent.json"
-            intent_path.write_text(
+    def test_platform_register_is_the_only_route_activation_command(self) -> None:
+        integration = Integration()
+        with tempfile.TemporaryDirectory() as temporary:
+            intent = Path(temporary) / "intent.json"
+            intent.write_text(
                 json.dumps(
                     {
                         "attachment_id": "primary",
-                        "catalogue_summary": "Synthetic qualification application",
-                        "catalogue_title": "Fixture application",
-                        "catalogue_visibility": "listed",
+                        "catalogue_summary": "Synthetic fixture",
+                        "catalogue_title": "Authenticated fixture",
+                        "catalogue_visibility": "unlisted",
                         "forwarding_mode": "strip_application_prefix",
                         "mount_path": "/",
                         "restricted_members": [],
                     }
-                ),
-                encoding="utf-8",
+                )
             )
-            code, result = _run(
-                [
-                    "register",
-                    "--environment",
-                    "staging",
-                    "--state-directory",
-                    str(Path(directory) / "operator"),
-                    "--integration-bundle",
-                    str(
-                        VECTORS
-                        / "platform-integration-bundle.staging.synthetic.v1.json"
-                    ),
-                    "--attachment-bundle",
-                    str(
-                        VECTORS
-                        / "application-attachment-bundle.staging.synthetic.v1.json"
-                    ),
-                    "--registration-intent",
-                    str(intent_path),
-                ],
-                lifecycle,
-            )
-            handoff_path = (
-                Path(directory)
-                / "operator/environments/staging/applications/"
-                "fixture-authenticated/handoffs/"
-                f"{GENERATION_DIGEST[7:]}.v1.json"
-            )
-            handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
-
+            output = io.StringIO()
+            with redirect_stdout(output):
+                code = main(
+                    [
+                        "register",
+                        "--environment", "staging",
+                        "--state-directory", temporary,
+                        "--integration-bundle",
+                        str(
+                            VECTORS
+                            / "platform-integration-bundle.staging.synthetic.v1.json"
+                        ),
+                        "--attachment-bundle",
+                        str(
+                            VECTORS
+                            / "application-attachment-bundle.staging.synthetic.v1.json"
+                        ),
+                        "--registration-intent", str(intent),
+                    ],
+                    integration_factory=lambda _path, _authority: integration,
+                )
         self.assertEqual(code, 0)
-        self.assertEqual(result["outcome"], "activated")
-        self.assertEqual(result["generation"], 7)
-        self.assertNotIn("restricted_members", json.dumps(result))
-        self.assertNotIn("resource_reference", json.dumps(result))
-        self.assertEqual(
-            handoff["registration_generation_digest"],
-            GENERATION_DIGEST,
-        )
-        self.assertNotIn("restricted_members", handoff)
-        self.assertNotIn("target", handoff)
-        self.assertEqual(len(lifecycle.registrations), 1)
-        self.assertEqual(lifecycle.registrations[0][2].attachment_id, "primary")
+        self.assertEqual(len(integration.registrations), 1)
 
-    def test_detach_and_retire_preserve_exact_preconditions(self) -> None:
-        lifecycle = FakeIntegrationLifecycle()
-        base = [
-            "--environment",
-            "staging",
-            "--application-id",
-            "fixture-authenticated",
-            "--platform-source-revision",
-            SOURCE_REVISION,
-            "--generation-digest",
-            GENERATION_DIGEST,
-        ]
-
-        detach_code, detach_result = _run(["detach", *base], lifecycle)
-        retire_code, retire_result = _run(["retire", *base], lifecycle)
-
-        self.assertEqual((detach_code, retire_code), (0, 0))
-        self.assertEqual(detach_result["generation"], 8)
-        self.assertEqual(retire_result["generation"], 9)
-        self.assertEqual(
-            lifecycle.detaches[0],
-            LifecycleChangeRequest(
-                environment="staging",
-                application_id="fixture-authenticated",
-                expected_platform_source_revision=SOURCE_REVISION,
-                expected_generation_digest=GENERATION_DIGEST,
-            ),
-        )
-        self.assertEqual(lifecycle.retirements[0], lifecycle.detaches[0])
-
-    def test_local_adapter_fails_closed_without_deployed_readback(self) -> None:
+    def test_status_reports_target_and_route_readiness_separately(self) -> None:
         output = io.StringIO()
-
-        with tempfile.TemporaryDirectory() as directory, redirect_stdout(output):
-            exit_code = main(
-                [
-                    "outputs",
-                    "--environment",
-                    "staging",
-                    "--state-directory",
-                    str(Path(directory) / "operator"),
-                    "--application-id",
-                    "fixture-public",
-                    "--access-mode",
-                    "public",
-                    "--route-intent",
-                    "/fixture-public",
-                    "--platform-source-revision",
-                    SOURCE_REVISION,
-                    "--platform-generation",
-                    "1",
-                ]
+        with redirect_stdout(output):
+            code = main(
+                ["fixture-status", "--environment", "staging", "--application-id", "fixture-public"],
+                fixture_status_factory=lambda _path, _authority: Fixture(),
             )
-
         result = json.loads(output.getvalue())
-        self.assertEqual(exit_code, 2)
-        self.assertEqual(result["outcome"], "blocked")
-        self.assertEqual(
-            result["blockers"],
-            ["PLATFORM_READBACK_FAILED"],
-        )
+        self.assertEqual(code, 0)
+        self.assertTrue(result["applications"][0]["target_ready"])
+        self.assertTrue(result["applications"][0]["route_ready"])
+
+    def test_project_bootstrap_and_connection_are_explicit_commands(self) -> None:
+        for operation, extra, outcome in (
+            (
+                "fixture-project-bootstrap",
+                ["--application-project-id", FIXTURES_PROJECT_ID],
+                "bootstrapped",
+            ),
+            (
+                "platform-connect-project",
+                ["--application-project-id", FIXTURES_PROJECT_ID],
+                "connected",
+            ),
+        ):
+            with self.subTest(operation=operation):
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    code = main(
+                        [operation, "--environment", "staging", *extra],
+                        project_factory=lambda _path, _authority: Projects(),
+                    )
+                self.assertEqual(code, 0)
+                self.assertEqual(json.loads(output.getvalue())["outcome"], outcome)
 
 
 if __name__ == "__main__":

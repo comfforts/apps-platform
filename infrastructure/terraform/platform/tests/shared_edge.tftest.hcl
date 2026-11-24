@@ -38,6 +38,16 @@ run "plans_one_immutable_shared_edge_and_hostname_forwarder" {
 
   assert {
     condition = (
+      module.shared_edge[0].policy_summary.caller_identity.iam_credentials_service == "iamcredentials.googleapis.com" &&
+      module.shared_edge[0].policy_summary.caller_identity.runtime_principal == "serviceAccount:app-platform-edge-runtime@synthetic-platform.iam.gserviceaccount.com" &&
+      module.shared_edge[0].policy_summary.caller_identity.caller_service_account == "projects/synthetic-platform/serviceAccounts/app-platform-edge-caller@synthetic-platform.iam.gserviceaccount.com" &&
+      module.shared_edge[0].policy_summary.caller_identity.impersonation_role == "roles/iam.serviceAccountTokenCreator"
+    )
+    error_message = "the Shared Edge phase must own keyless runtime-to-caller impersonation"
+  }
+
+  assert {
+    condition = (
       module.shared_edge[0].policy_summary.runtime.region == "us-west1" &&
       module.shared_edge[0].policy_summary.runtime.ingress == "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" &&
       module.shared_edge[0].policy_summary.runtime.default_uri_disabled &&
@@ -90,6 +100,40 @@ run "plans_one_immutable_shared_edge_and_hostname_forwarder" {
       output.shared_edge_phase_output.state_owner == "platform"
     )
     error_message = "Platform State must not manage, discover, or accept arbitrary URLs for application-owned runtimes"
+  }
+}
+
+run "plans_environment_scoped_registration_generation" {
+  command = plan
+
+  variables {
+    platform_configuration = merge(
+      jsondecode(file("../../config/examples/platform-shared-edge.synthetic.v2.json")),
+      {
+        shared_edge = merge(
+          jsondecode(file("../../config/examples/platform-shared-edge.synthetic.v2.json")).shared_edge,
+          {
+            registration_generation = merge(
+              jsondecode(file("../../config/examples/platform-shared-edge.synthetic.v2.json")).shared_edge.registration_generation,
+              {
+                generation        = 2
+                generation_digest = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+                content_digest    = "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+                object_name       = "environments/staging/generations/2/compiled-shared-edge.v1.json"
+              },
+            )
+          },
+        )
+      },
+    )
+  }
+
+  assert {
+    condition = (
+      module.shared_edge[0].policy_summary.registration_generation.generation == 2 &&
+      module.shared_edge[0].policy_summary.registration_generation.object_name == "environments/staging/generations/2/compiled-shared-edge.v1.json"
+    )
+    error_message = "the Shared Edge must accept the environment-scoped immutable generation object"
   }
 }
 

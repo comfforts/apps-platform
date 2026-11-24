@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
+import json
 from pathlib import Path
 import unittest
 
 import google_crc32c
+from google.auth.credentials import AnonymousCredentials
 import httpx
 
 from edge.live import (
@@ -16,7 +19,10 @@ from edge.live import (
     LiveRuntimeSettings,
     access_oauth_client_secret,
     build_live_app,
+    completion_logger,
+    create_edge_caller_credentials,
 )
+from edge._observability import CompletionEvent, StructuredLoggingCompletionSink
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +48,7 @@ def _environment() -> dict[str, str]:
         "APP_PLATFORM_OPERATOR_ISSUER": "https://accounts.google.com",
         "APP_PLATFORM_OPERATOR_SUBJECT": "123456789012345678901",
         "APP_PLATFORM_PROJECT_ID": "comfforts-platform-non-prod",
+        "APP_PLATFORM_PROJECT_NUMBER": "455651441682",
         "APP_PLATFORM_REGION": "us-west1",
         "APP_PLATFORM_SIGNING_KEY_VERSION": (
             "projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
@@ -79,6 +86,28 @@ class _Session:
 
 
 class LiveRuntimeTest(unittest.TestCase):
+    def test_completion_logger_emits_one_parseable_json_line_at_info(self) -> None:
+        stream = io.StringIO()
+        logger = completion_logger(stream)
+        event = CompletionEvent(
+            event_version=1,
+            event_type="request_completion",
+            source_revision="a" * 40,
+            generation_digest="sha256:" + "2" * 64,
+            application_id=None,
+            route_identifier=None,
+            outcome="dependency_unavailable",
+            status_class="5xx",
+            latency_ms=7,
+            correlation_id="request-correlation-live-0001",
+            diagnostic_code="IDENTITY_PROVIDER_CALLBACK_FAILED",
+        )
+
+        asyncio.run(StructuredLoggingCompletionSink(logger).emit(event))
+
+        self.assertEqual(json.loads(stream.getvalue()), event.as_dict())
+        self.assertFalse(logger.propagate)
+
     def test_shared_edge_image_starts_only_the_live_factory_as_nonroot(self) -> None:
         dockerfile = (
             PROJECT_ROOT / "infrastructure/images/shared-edge/Dockerfile"
@@ -134,6 +163,7 @@ class LiveRuntimeTest(unittest.TestCase):
         settings = LiveRuntimeSettings.from_environment(_environment())
 
         self.assertEqual(settings.project_id, "comfforts-platform-non-prod")
+        self.assertEqual(settings.project_number, "455651441682")
         self.assertEqual(settings.external_origin, "https://apps-staging.comfforts.com")
         self.assertEqual(settings.generation_object_generation, 17)
         self.assertEqual(settings.key_id, "kms-1")
@@ -196,6 +226,7 @@ class LiveRuntimeTest(unittest.TestCase):
                     cloud_run=object(),
                     kms=object(),
                     auth_request=object(),
+                    edge_caller_credentials=object(),
                     http=http,
                 ),
                 "private-oauth-secret",
@@ -204,6 +235,26 @@ class LiveRuntimeTest(unittest.TestCase):
             asyncio.run(http.aclose())
 
         self.assertTrue(callable(app))
+
+    def test_edge_caller_credentials_are_exact_short_lived_impersonation(self) -> None:
+        settings = LiveRuntimeSettings.from_environment(_environment())
+        source_credentials = AnonymousCredentials()
+
+        credentials = create_edge_caller_credentials(
+            settings,
+            source_credentials=source_credentials,
+        )
+
+        self.assertIsInstance(credentials._source_credentials, AnonymousCredentials)
+        self.assertEqual(
+            credentials._target_principal,
+            "app-platform-edge-caller@"
+            "comfforts-platform-non-prod.iam.gserviceaccount.com",
+        )
+        self.assertEqual(
+            credentials._target_scopes,
+            ("https://www.googleapis.com/auth/cloud-platform",),
+        )
 
 
 if __name__ == "__main__":

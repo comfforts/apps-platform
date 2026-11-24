@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import json
 from typing import Any, Protocol
@@ -14,7 +14,8 @@ from contracts.lifecycle import (
     validate_lifecycle_document,
     validate_lifecycle_relationships,
 )
-from infrastructure.operator._interfaces import OperatorInterrupted
+from infrastructure.config.project_identity import fixtures_project_id
+from infrastructure.operator._interfaces import OperatorInterrupted, OperatorTerminal
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,12 +27,23 @@ class PlatformIntegrationState:
     profile_digest: str
     platform_source_revision: str
     specification_digest: str
-    journal_digest: str
+    progress_digest: str
     generation: int
     hostname: str
     oauth_client_id: str | None
     edge_caller_reference: str
     qualification_status: str
+    source_authority: str = "accepted"
+    host_project_id: str = "comfforts-platform-non-prod"
+    host_project_number: str = "455651441682"
+    region: str = "us-west1"
+    network_reference: str = (
+        "projects/comfforts-platform-non-prod/global/networks/app-platform-shared"
+    )
+    subnetwork_reference: str = (
+        "projects/comfforts-platform-non-prod/regions/us-west1/subnetworks/"
+        "app-platform-applications-us-west1"
+    )
 
 
 class PlatformIntegrationReader(Protocol):
@@ -52,6 +64,11 @@ class AttachmentTargetReadback:
     ingress_mode: str
     caller_grant: str
     audience: str | None
+    application_project_id: str | None = None
+    network_reference: str | None = None
+    subnetwork_reference: str | None = None
+    egress_mode: str | None = None
+    blockers: tuple[str, ...] = ()
 
 
 class AttachmentTargetReader(Protocol):
@@ -74,6 +91,34 @@ class IntegrationBundleRequest:
     route_intent: str
     expected_platform_source_revision: str
     expected_generation: int
+    application_project_id: str = field(default_factory=fixtures_project_id)
+
+
+@dataclass(frozen=True, slots=True)
+class ApplicationProjectConnection:
+    environment: str
+    project_id: str
+    project_number: str
+    host_project_id: str
+    host_project_number: str
+    region: str
+    network_reference: str
+    subnetwork_reference: str
+    egress_mode: str
+
+
+class ApplicationProjectConnectionReader(Protocol):
+    def read_connection(
+        self,
+        environment: str,
+        project_id: str,
+    ) -> ApplicationProjectConnection: ...
+
+    def read_project_number(
+        self,
+        environment: str,
+        project_number: str,
+    ) -> ApplicationProjectConnection: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +151,15 @@ class RegistrationIntent:
     mount_path: str
     forwarding_mode: str
     restricted_members: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationEntry:
+    """One validated application handoff selected for atomic suite registration."""
+
+    integration_bundle: dict[str, Any]
+    attachment_bundle: dict[str, Any]
+    intent: RegistrationIntent
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,12 +214,6 @@ class RegistrationGenerationControl(Protocol):
     ) -> GenerationActivationReadback: ...
 
 
-class IntegrationTerminal(Protocol):
-    def write(self, message: str) -> None: ...
-
-    def confirm_exact(self, prompt: str, expected: str) -> bool: ...
-
-
 @dataclass(frozen=True, slots=True)
 class RegistrationLifecycleResult:
     """One complete registration lifecycle outcome."""
@@ -186,6 +234,24 @@ class LifecycleChangeRequest:
     expected_generation_digest: str
 
 
+@dataclass(frozen=True, slots=True)
+class RegistrationApplicationStatus:
+    application_id: str
+    lifecycle: str
+    resource_reference: str
+    target_exists: bool
+    target_ready: bool
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationStatusResult:
+    outcome: str
+    generation: int | None
+    generation_digest: str | None
+    applications: tuple[RegistrationApplicationStatus, ...]
+    blockers: tuple[str, ...] = ()
+
+
 class ApplicationIntegrationLifecycle:
     """Generate least-data application handoffs from exact platform readback."""
 
@@ -195,11 +261,21 @@ class ApplicationIntegrationLifecycle:
         *,
         attachment_reader: AttachmentTargetReader | None = None,
         generation_control: RegistrationGenerationControl | None = None,
-        terminal: IntegrationTerminal | None = None,
+        project_connections: ApplicationProjectConnectionReader | None = None,
+        terminal: OperatorTerminal | None = None,
     ) -> None:
         self._platform_reader = platform_reader
         self._attachment_reader = attachment_reader
         self._generation_control = generation_control
+        self._project_connections = (
+            project_connections
+            if project_connections is not None
+            else (
+                platform_reader
+                if hasattr(platform_reader, "read_connection")
+                else None
+            )
+        )
         self._terminal = terminal
 
     @staticmethod
@@ -229,6 +305,24 @@ class ApplicationIntegrationLifecycle:
             return self._blocked("PLATFORM_GENERATION_MISMATCH")
         if state.lifecycle_state != "deployed":
             return self._blocked("PLATFORM_NOT_DEPLOYED")
+        if self._project_connections is None:
+            return self._blocked("APPLICATION_PROJECT_CONNECTION_UNAVAILABLE")
+        try:
+            connection = self._project_connections.read_connection(
+                request.environment,
+                request.application_project_id,
+            )
+        except (OSError, ValueError):
+            return self._blocked("APPLICATION_PROJECT_NOT_CONNECTED")
+        if (
+            connection.host_project_id != state.host_project_id
+            or connection.host_project_number != state.host_project_number
+            or connection.region != state.region
+            or connection.network_reference != state.network_reference
+            or connection.subnetwork_reference != state.subnetwork_reference
+            or connection.egress_mode != "all-traffic"
+        ):
+            return self._blocked("APPLICATION_PROJECT_CONNECTION_MISMATCH")
 
         protected = request.access_mode in {"authenticated", "restricted"}
         origin = f"https://{state.hostname}"
@@ -242,8 +336,9 @@ class ApplicationIntegrationLifecycle:
             "generation": state.generation,
             "profile_digest": state.profile_digest,
             "platform_source_revision": state.platform_source_revision,
+            "platform_source_authority": state.source_authority,
             "specification_digest": state.specification_digest,
-            "journal_digest": state.journal_digest,
+            "deployment_progress_digest": state.progress_digest,
             "endpoints": {
                 "external_origin": origin,
                 "issuer": f"{origin}/_platform" if protected else None,
@@ -261,6 +356,18 @@ class ApplicationIntegrationLifecycle:
                     else None
                 ),
                 "edge_caller_reference": state.edge_caller_reference,
+            },
+            "application_project": {
+                "project_id": connection.project_id,
+                "project_number": connection.project_number,
+            },
+            "network": {
+                "host_project_id": connection.host_project_id,
+                "host_project_number": connection.host_project_number,
+                "region": connection.region,
+                "network_reference": connection.network_reference,
+                "subnetwork_reference": connection.subnetwork_reference,
+                "egress_mode": connection.egress_mode,
             },
             "attachment_contract": {
                 "adapter_kind": "gcp-cloud-run-v1",
@@ -300,8 +407,10 @@ class ApplicationIntegrationLifecycle:
             and bundle.get("profile_digest") == state.profile_digest
             and bundle.get("platform_source_revision")
             == state.platform_source_revision
+            and bundle.get("platform_source_authority")
+            == state.source_authority
             and bundle.get("specification_digest") == state.specification_digest
-            and bundle.get("journal_digest") == state.journal_digest
+            and bundle.get("deployment_progress_digest") == state.progress_digest
             and bundle.get("generation") == state.generation
             and bundle.get("qualification_status") == state.qualification_status
             and isinstance(identity, dict)
@@ -336,6 +445,77 @@ class ApplicationIntegrationLifecycle:
         ):
             return self._attachment_blocked("ATTACHMENT_BUNDLE_MISMATCH")
 
+        application_project = integration_bundle["application_project"]
+        network = integration_bundle["network"]
+        identity = integration_bundle["identity"]
+        attachment_contract = integration_bundle["attachment_contract"]
+        target = attachment_bundle["target"]
+        assert isinstance(application_project, dict)
+        assert isinstance(network, dict)
+        assert isinstance(identity, dict)
+        assert isinstance(attachment_contract, dict)
+        assert isinstance(target, dict)
+        expected_reference_prefix = (
+            "urn:comfforts:app-platform:gcp:cloud-run:"
+            f"{application_project['project_number']}:{network['region']}:"
+        )
+        relationship_comparisons = (
+            (
+                target["application_project_id"],
+                application_project["project_id"],
+                "ATTACHMENT_PROJECT_MISMATCH",
+            ),
+            (
+                str(target["resource_reference"]).startswith(
+                    expected_reference_prefix
+                ),
+                True,
+                "ATTACHMENT_REFERENCE_MISMATCH",
+            ),
+            (
+                target["network_reference"],
+                network["network_reference"],
+                "ATTACHMENT_NETWORK_MISMATCH",
+            ),
+            (
+                target["subnetwork_reference"],
+                network["subnetwork_reference"],
+                "ATTACHMENT_SUBNETWORK_MISMATCH",
+            ),
+            (
+                target["egress_mode"],
+                network["egress_mode"],
+                "ATTACHMENT_EGRESS_MISMATCH",
+            ),
+            (
+                target["adapter_kind"],
+                attachment_contract["adapter_kind"],
+                "ATTACHMENT_ADAPTER_MISMATCH",
+            ),
+            (
+                target["ingress_mode"],
+                attachment_contract["ingress_mode"],
+                "ATTACHMENT_INGRESS_MISMATCH",
+            ),
+            (
+                target["caller_grant"],
+                identity["edge_caller_reference"],
+                "ATTACHMENT_CALLER_MISMATCH",
+            ),
+            (
+                target["audience"],
+                identity["audience"],
+                "ATTACHMENT_AUDIENCE_MISMATCH",
+            ),
+        )
+        relationship_blockers = tuple(
+            blocker
+            for observed, expected, blocker in relationship_comparisons
+            if observed != expected
+        )
+        if relationship_blockers:
+            return self._attachment_blocked(*relationship_blockers)
+
         environment = integration_bundle["environment"]
         assert isinstance(environment, str)
         try:
@@ -347,8 +527,6 @@ class ApplicationIntegrationLifecycle:
         if self._attachment_reader is None:
             return self._attachment_blocked("ATTACHMENT_READBACK_UNAVAILABLE")
 
-        target = attachment_bundle["target"]
-        assert isinstance(target, dict)
         resource_reference = target["resource_reference"]
         assert isinstance(resource_reference, str)
         try:
@@ -362,25 +540,68 @@ class ApplicationIntegrationLifecycle:
             return self._attachment_blocked("TARGET_NOT_FOUND")
         if not readback.ready:
             return self._attachment_blocked("TARGET_NOT_READY")
+        if readback.blockers:
+            return self._attachment_blocked(*readback.blockers)
 
-        observed = (
-            readback.owner_application_id,
-            readback.adapter_kind,
-            readback.resource_reference,
-            readback.ingress_mode,
-            readback.caller_grant,
-            readback.audience,
+        comparisons = (
+            (
+                readback.owner_application_id,
+                target["owner_application_id"],
+                "TARGET_OWNER_MISMATCH",
+            ),
+            (
+                readback.adapter_kind,
+                target["adapter_kind"],
+                "TARGET_ADAPTER_MISMATCH",
+            ),
+            (
+                readback.resource_reference,
+                target["resource_reference"],
+                "TARGET_REFERENCE_MISMATCH",
+            ),
+            (
+                readback.ingress_mode,
+                target["ingress_mode"],
+                "TARGET_INGRESS_MISMATCH",
+            ),
+            (
+                readback.caller_grant,
+                target["caller_grant"],
+                "TARGET_CALLER_GRANT_MISMATCH",
+            ),
+            (
+                readback.application_project_id,
+                target["application_project_id"],
+                "TARGET_PROJECT_MISMATCH",
+            ),
+            (
+                readback.network_reference,
+                target["network_reference"],
+                "TARGET_NETWORK_MISMATCH",
+            ),
+            (
+                readback.subnetwork_reference,
+                target["subnetwork_reference"],
+                "TARGET_SUBNETWORK_MISMATCH",
+            ),
+            (
+                readback.egress_mode,
+                target["egress_mode"],
+                "TARGET_EGRESS_MISMATCH",
+            ),
+            (
+                readback.audience,
+                target["audience"],
+                "TARGET_AUDIENCE_MISMATCH",
+            ),
         )
-        expected = (
-            target["owner_application_id"],
-            target["adapter_kind"],
-            target["resource_reference"],
-            target["ingress_mode"],
-            target["caller_grant"],
-            target["audience"],
+        blockers = tuple(
+            blocker
+            for observed, expected, blocker in comparisons
+            if observed != expected
         )
-        if observed != expected:
-            return self._attachment_blocked("TARGET_POSTURE_MISMATCH")
+        if blockers:
+            return self._attachment_blocked(*blockers)
         return AttachmentValidationResult(
             outcome="validated",
             attachment_bundle=attachment_bundle,
@@ -534,9 +755,71 @@ class ApplicationIntegrationLifecycle:
             content_digest=cls._canonical_digest(compilation.compiled_configuration),
         )
 
+    @classmethod
+    def _compile_complete_generation(
+        cls,
+        environment: str,
+        source_revision: str,
+        current: RegistrationGenerationProposal | None,
+        replacements: tuple[dict[str, Any], ...],
+        change_summary: str,
+    ) -> RegistrationGenerationProposal | None:
+        previous = current.registration_set if current is not None else None
+        replacement_ids = {item["application_id"] for item in replacements}
+        registrations = (
+            [
+                copy.deepcopy(item)
+                for item in previous["registrations"]
+                if item["application_id"] not in replacement_ids
+            ]
+            if previous is not None
+            else []
+        )
+        registrations.extend(copy.deepcopy(item) for item in replacements)
+        registrations.sort(key=lambda item: item["application_id"])
+        registration_set = {
+            "contract_version": 1,
+            "generation": (
+                int(previous["generation"]) + 1 if previous is not None else 1
+            ),
+            "previous_generation_digest": (
+                current.generation_digest if current is not None else None
+            ),
+            "proposal": {
+                "source_revision": source_revision,
+                "change_summary": change_summary,
+            },
+            "registrations": registrations,
+        }
+        compilation = compile_registration_set(
+            previous,
+            registration_set,
+            {
+                "contract_version": 1,
+                "enabled_attachment_adapter_kinds": ["gcp-cloud-run-v1"],
+            },
+        )
+        if (
+            compilation.violations
+            or compilation.compiled_configuration is None
+            or compilation.ownership_manifest is None
+            or compilation.generation_digest is None
+        ):
+            return None
+        return RegistrationGenerationProposal(
+            environment=environment,
+            registration_set=registration_set,
+            compiled_configuration=compilation.compiled_configuration,
+            ownership_manifest=compilation.ownership_manifest,
+            generation_digest=compilation.generation_digest,
+            content_digest=cls._canonical_digest(compilation.compiled_configuration),
+        )
+
     def _publish_and_activate(
         self,
         proposal: RegistrationGenerationProposal,
+        *,
+        reviewed_confirmation: bool = False,
     ) -> RegistrationLifecycleResult:
         assert self._generation_control is not None
         assert self._terminal is not None
@@ -553,18 +836,24 @@ class ApplicationIntegrationLifecycle:
             return self._registration_blocked("GENERATION_READBACK_MISMATCH")
 
         generation = int(proposal.registration_set["generation"])
-        expected = (
-            f"ACTIVATE {proposal.environment} GENERATION {generation} "
-            f"{proposal.generation_digest}"
-        )
         self._terminal.write(
             f"GENERATION {generation} {proposal.generation_digest}"
         )
         try:
-            confirmed = self._terminal.confirm_exact(
-                f"Type {expected!r} to activate the exact whole generation: ",
-                expected,
-            )
+            if reviewed_confirmation:
+                confirmed = self._terminal.confirm(
+                    "Activate the reviewed complete Fixture Application generation "
+                    f"{generation} {proposal.generation_digest}? [y/N] "
+                )
+            else:
+                expected = (
+                    f"ACTIVATE {proposal.environment} GENERATION {generation} "
+                    f"{proposal.generation_digest}"
+                )
+                confirmed = self._terminal.confirm_exact(
+                    f"Type {expected!r} to activate the exact whole generation: ",
+                    expected,
+                )
         except OperatorInterrupted:
             return self._registration_blocked(
                 "GENERATION_ACTIVATION_INTERRUPTED",
@@ -605,6 +894,224 @@ class ApplicationIntegrationLifecycle:
             outcome="activated",
             generation=generation,
             generation_digest=proposal.generation_digest,
+        )
+
+    def register_complete(
+        self,
+        entries: tuple[RegistrationEntry, ...],
+    ) -> RegistrationLifecycleResult:
+        """Validate and activate one complete multi-application generation."""
+
+        if not entries:
+            return self._registration_blocked("REGISTRATION_SET_EMPTY")
+        if self._generation_control is None:
+            return self._registration_blocked("GENERATION_CONTROL_UNAVAILABLE")
+        if self._terminal is None:
+            return self._registration_blocked("INTEGRATION_TERMINAL_UNAVAILABLE")
+
+        environments = {
+            str(entry.integration_bundle.get("environment")) for entry in entries
+        }
+        source_revisions = {
+            str(entry.integration_bundle.get("platform_source_revision"))
+            for entry in entries
+        }
+        application_ids = [
+            str(entry.integration_bundle.get("application_id")) for entry in entries
+        ]
+        if (
+            len(environments) != 1
+            or len(source_revisions) != 1
+            or len(application_ids) != len(set(application_ids))
+        ):
+            return self._registration_blocked("REGISTRATION_SET_MISMATCH")
+
+        environment = next(iter(environments))
+        current = self._generation_control.current(environment)
+        if current is not None and current.environment != environment:
+            return self._registration_blocked("GENERATION_ENVIRONMENT_MISMATCH")
+        current_by_id = {
+            str(item["application_id"]): item
+            for item in (
+                current.registration_set["registrations"] if current is not None else []
+            )
+        }
+        active_registrations: list[dict[str, Any]] = []
+        unchanged = current is not None
+        for entry in entries:
+            validated = self.validate_attachment(
+                entry.integration_bundle,
+                entry.attachment_bundle,
+            )
+            if validated.outcome != "validated":
+                return self._registration_blocked(*validated.blockers)
+            access_mode = entry.integration_bundle.get("access_mode")
+            if not self._registration_intent_valid(access_mode, entry.intent):
+                return self._registration_blocked("REGISTRATION_INTENT_INVALID")
+            application_id = str(entry.integration_bundle["application_id"])
+            previous = current_by_id.get(application_id)
+            if previous is not None and previous.get("lifecycle") == "retired":
+                return self._registration_blocked("APPLICATION_RETIRED")
+            desired_active = self._application_registration(
+                entry.integration_bundle,
+                entry.attachment_bundle,
+                entry.intent,
+                "active",
+                int(previous["registration_revision"]) if previous is not None else 1,
+            )
+            if previous is None or {
+                key: value
+                for key, value in previous.items()
+                if key != "registration_revision"
+            } != {
+                key: value
+                for key, value in desired_active.items()
+                if key != "registration_revision"
+            }:
+                unchanged = False
+            active_registrations.append(
+                self._application_registration(
+                    entry.integration_bundle,
+                    entry.attachment_bundle,
+                    entry.intent,
+                    "active",
+                    (
+                        int(previous["registration_revision"]) + 1
+                        if previous is not None
+                        else 1
+                    ),
+                )
+            )
+
+        if unchanged:
+            assert current is not None
+            return RegistrationLifecycleResult(
+                outcome="unchanged",
+                generation=int(current.registration_set["generation"]),
+                generation_digest=current.generation_digest,
+            )
+
+        active_proposal = self._compile_complete_generation(
+            environment,
+            next(iter(source_revisions)),
+            current,
+            tuple(active_registrations),
+            "Activate complete Fixture Application suite",
+        )
+        if active_proposal is None:
+            return self._registration_blocked("REGISTRATION_COMPILATION_FAILED")
+        return self._publish_and_activate(
+            active_proposal,
+            reviewed_confirmation=True,
+        )
+
+    def status_applications(
+        self,
+        environment: str,
+        application_ids: tuple[str, ...],
+    ) -> RegistrationStatusResult:
+        """Read registration and target posture without mutating either owner."""
+
+        if self._generation_control is None or self._attachment_reader is None:
+            return RegistrationStatusResult(
+                "blocked",
+                None,
+                None,
+                (),
+                ("FIXTURE_STATUS_UNAVAILABLE",),
+            )
+        try:
+            platform = self._platform_reader.read_platform(environment)
+            current = self._generation_control.current(environment)
+        except Exception:
+            return RegistrationStatusResult(
+                "blocked",
+                None,
+                None,
+                (),
+                ("FIXTURE_STATUS_READBACK_FAILED",),
+            )
+        if (
+            platform.environment != environment
+            or platform.lifecycle_state != "deployed"
+            or current is None
+            or current.environment != environment
+        ):
+            return RegistrationStatusResult(
+                "blocked",
+                None,
+                None,
+                (),
+                ("FIXTURE_STATUS_PLATFORM_MISMATCH",),
+            )
+        registrations = {
+            str(item["application_id"]): item
+            for item in current.registration_set["registrations"]
+        }
+        statuses: list[RegistrationApplicationStatus] = []
+        for application_id in application_ids:
+            registration = registrations.get(application_id)
+            if registration is None:
+                return RegistrationStatusResult(
+                    "blocked",
+                    int(current.registration_set["generation"]),
+                    current.generation_digest,
+                    tuple(statuses),
+                    ("FIXTURE_REGISTRATION_MISSING",),
+                )
+            attachments = registration.get("attachments")
+            if not isinstance(attachments, list) or len(attachments) != 1:
+                return RegistrationStatusResult(
+                    "blocked",
+                    int(current.registration_set["generation"]),
+                    current.generation_digest,
+                    tuple(statuses),
+                    ("FIXTURE_REGISTRATION_INVALID",),
+                )
+            resource_reference = attachments[0].get("resource_reference")
+            if not isinstance(resource_reference, str):
+                return RegistrationStatusResult(
+                    "blocked",
+                    int(current.registration_set["generation"]),
+                    current.generation_digest,
+                    tuple(statuses),
+                    ("FIXTURE_REGISTRATION_INVALID",),
+                )
+            try:
+                target = self._attachment_reader.read_target(
+                    environment,
+                    resource_reference,
+                )
+            except Exception:
+                return RegistrationStatusResult(
+                    "blocked",
+                    int(current.registration_set["generation"]),
+                    current.generation_digest,
+                    tuple(statuses),
+                    ("FIXTURE_TARGET_READBACK_FAILED",),
+                )
+            if target.owner_application_id != application_id:
+                return RegistrationStatusResult(
+                    "blocked",
+                    int(current.registration_set["generation"]),
+                    current.generation_digest,
+                    tuple(statuses),
+                    ("FIXTURE_TARGET_OWNER_MISMATCH",),
+                )
+            statuses.append(
+                RegistrationApplicationStatus(
+                    application_id,
+                    str(registration["lifecycle"]),
+                    resource_reference,
+                    target.exists,
+                    target.ready,
+                )
+            )
+        return RegistrationStatusResult(
+            "read",
+            int(current.registration_set["generation"]),
+            current.generation_digest,
+            tuple(statuses),
         )
 
     def register(
@@ -649,12 +1156,11 @@ class ApplicationIntegrationLifecycle:
         if current_registration is not None and current_registration["lifecycle"] == "retired":
             return self._registration_blocked("APPLICATION_RETIRED")
 
-        first_lifecycle = "staged" if current_registration is None else "active"
         desired = self._application_registration(
             integration_bundle,
             attachment_bundle,
             intent,
-            first_lifecycle,
+            "active",
             (
                 int(current_registration["registration_revision"])
                 if current_registration is not None
@@ -693,25 +1199,7 @@ class ApplicationIntegrationLifecycle:
         if proposal is None:
             return self._registration_blocked("REGISTRATION_COMPILATION_FAILED")
         result = self._publish_and_activate(proposal)
-        if result.outcome != "activated" or first_lifecycle == "active":
-            return result
-
-        active = copy.deepcopy(desired)
-        active["lifecycle"] = "active"
-        active["registration_revision"] = int(desired["registration_revision"]) + 1
-        active_proposal = self._compile_generation(
-            environment,
-            source_revision,
-            proposal,
-            active,
-            f"Activate {application_id}",
-        )
-        if active_proposal is None:
-            return self._registration_blocked(
-                "REGISTRATION_COMPILATION_FAILED",
-                proposal=proposal,
-            )
-        return self._publish_and_activate(active_proposal)
+        return result
 
     def _transition(
         self,
@@ -808,7 +1296,6 @@ __all__ = (
     "AttachmentValidationResult",
     "GenerationActivationReadback",
     "GenerationPublicationReadback",
-    "IntegrationTerminal",
     "IntegrationBundleRequest",
     "IntegrationBundleResult",
     "LifecycleChangeRequest",
@@ -817,6 +1304,9 @@ __all__ = (
     "PlatformIntegrationState",
     "RegistrationGenerationControl",
     "RegistrationGenerationProposal",
+    "RegistrationEntry",
+    "RegistrationApplicationStatus",
+    "RegistrationStatusResult",
     "RegistrationIntent",
     "RegistrationLifecycleResult",
 )

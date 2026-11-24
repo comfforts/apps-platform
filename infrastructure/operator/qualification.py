@@ -111,10 +111,11 @@ class QualificationRequest:
     source_revision: str
     profile_digest: str
     specification_digest: str
-    deployment_journal_digest: str
+    deployment_progress_digest: str
     registration_generation_digest: str
     component_revisions: tuple[ComponentRevision, ...]
     fixture_revisions: tuple[FixtureRevision, ...]
+    source_authority: str = "accepted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,10 +127,11 @@ class QualificationReadback:
     source_revision: str
     profile_digest: str
     specification_digest: str
-    deployment_journal_digest: str
+    deployment_progress_digest: str
     registration_generation_digest: str
     component_revisions: tuple[ComponentRevision, ...]
     fixture_revisions: tuple[FixtureRevision, ...]
+    source_authority: str = "accepted"
 
 
 @dataclass(frozen=True, slots=True)
@@ -329,6 +331,10 @@ class QualificationLifecycle:
                 "QUALIFICATION_SOURCE_MISMATCH",
             ),
             (
+                current.source_authority == request.source_authority,
+                "QUALIFICATION_SOURCE_AUTHORITY_MISMATCH",
+            ),
+            (
                 current.profile_digest == request.profile_digest,
                 "QUALIFICATION_PROFILE_MISMATCH",
             ),
@@ -337,9 +343,9 @@ class QualificationLifecycle:
                 "QUALIFICATION_SPECIFICATION_MISMATCH",
             ),
             (
-                current.deployment_journal_digest
-                == request.deployment_journal_digest,
-                "QUALIFICATION_JOURNAL_MISMATCH",
+                current.deployment_progress_digest
+                == request.deployment_progress_digest,
+                "QUALIFICATION_PROGRESS_MISMATCH",
             ),
             (
                 current.registration_generation_digest
@@ -434,10 +440,11 @@ class QualificationLifecycle:
             "contract_version": 1,
             "document_kind": "qualification-evidence",
             "environment": request.environment,
+            "source_authority": request.source_authority,
             "source_revision": request.source_revision,
             "profile_digest": request.profile_digest,
             "specification_digest": request.specification_digest,
-            "deployment_journal_digest": request.deployment_journal_digest,
+            "deployment_progress_digest": request.deployment_progress_digest,
             "registration_generation_digest": request.registration_generation_digest,
             "component_revisions": [
                 {"name": item.name, "digest": item.digest}
@@ -453,8 +460,13 @@ class QualificationLifecycle:
         }
         if validate_lifecycle_document(evidence, "qualification-evidence"):
             return self._blocked("QUALIFICATION_EVIDENCE_INVALID")
+        outcome = (
+            "candidate-qualified"
+            if verdict == "qualified" and request.source_authority == "candidate"
+            else verdict
+        )
         return QualificationResult(
-            outcome=verdict,
+            outcome=outcome,
             evidence=evidence,
             evidence_digest=lifecycle_digest(
                 evidence,
@@ -475,12 +487,13 @@ class QualificationLifecycle:
             source_revision=current.source_revision,
             profile_digest=current.profile_digest,
             specification_digest=current.specification_digest,
-            deployment_journal_digest=current.deployment_journal_digest,
+            deployment_progress_digest=current.deployment_progress_digest,
             registration_generation_digest=(
                 current.registration_generation_digest
             ),
             component_revisions=current.component_revisions,
             fixture_revisions=current.fixture_revisions,
+            source_authority=current.source_authority,
         )
         return self.qualify(request)
 

@@ -56,6 +56,7 @@ from edge._identity import (
     PlatformIdentity,
     PlatformSession,
 )
+from edge._observability import CompletionEvent
 from edge.verification import HttpJwksFetcher, InMemoryJwksFetcher
 
 
@@ -67,16 +68,16 @@ AsgiSend = Callable[[AsgiMessage], Awaitable[None]]
 AsgiApplication = Callable[[AsgiScope, AsgiReceive, AsgiSend], Awaitable[None]]
 
 GENERATION_BUCKET = "qualification-config"
-GENERATION_OBJECT = "compiled/generation-2.json"
+GENERATION_OBJECT = "compiled/generation-1.json"
 GENERATION_OBJECT_GENERATION = 7
 SOURCE_REVISION = "0123456789abcdef0123456789abcdef01234567"
 GENERATION_CONTENT_DIGEST = (
-    "sha256:697e0ef7d5c03490afe2e82f990fa306"
-    "ad5a19b37b575de1b70634bc966f930e"
+    "sha256:93d1f37e0675f9636ec1933bffbefe9d"
+    "ae7c776ad66dbdcc70361e464b791283"
 )
 GENERATION_DIGEST = (
-    "sha256:dbbf3a48ddfa7457bb5260bf4060958f"
-    "31c2485317a255d51b7adca86c9f9224"
+    "sha256:68037a002b4334ab1ad0a0a2d983a9c"
+    "60835327ec8c5ecea812a207e4d83dc29"
 )
 
 
@@ -115,6 +116,7 @@ def assertion_components(
         FixedTokenSource(
             correlation_ids or ["correlation-012345678901234"]
         ),
+        issuer="https://apps-staging.comfforts.com/_platform",
     )
     return issuer, keys
 
@@ -166,7 +168,7 @@ class ResponseHeaders(dict[bytes, bytes]):
 
 def valid_generation_payload() -> bytes:
     return (
-        PROJECT_ROOT / "contracts/test-vectors/valid/compiled-active.v1.json"
+        PROJECT_ROOT / "contracts/test-vectors/valid/compiled-initial.v1.json"
     ).read_bytes()
 
 
@@ -577,6 +579,14 @@ class FixedCorrelationIds:
         return self._values.pop(0)
 
 
+class RecordingCompletionSink:
+    def __init__(self) -> None:
+        self.events: list[CompletionEvent] = []
+
+    async def emit(self, event: CompletionEvent) -> None:
+        self.events.append(event)
+
+
 class FakeGoogleOidc:
     def __init__(self, identity: PlatformIdentity) -> None:
         self.identity = identity
@@ -692,7 +702,10 @@ class FakeFirestoreDocument:
         self._documents[self._key] = copy.deepcopy(value)
 
     async def get(self, *, transaction: Any = None) -> FakeFirestoreSnapshot:
-        del transaction
+        if transaction is not None and not transaction.in_progress:
+            raise ValueError(
+                "Transaction not in progress, cannot be used in API requests."
+            )
         return FakeFirestoreSnapshot(self._documents.get(self._key))
 
     async def delete(self) -> None:
@@ -711,29 +724,58 @@ class FakeFirestoreCollection:
 
 
 class FakeFirestoreTransaction:
-    def __init__(self) -> None:
+    def __init__(self, client: "FakeFirestoreClient") -> None:
+        self._client = client
         self._deletes: list[FakeFirestoreDocument] = []
+        self._id: bytes | None = None
+        self._max_attempts = 5
+        self._read_only = False
+
+    @property
+    def in_progress(self) -> bool:
+        return self._id is not None
+
+    def _clean_up(self) -> None:
+        self._deletes.clear()
+        self._id = None
+
+    async def _begin(self, retry_id: bytes | None = None) -> None:
+        del retry_id
+        if self.in_progress:
+            raise ValueError("transaction already active")
+        self._client.transaction_begin_count += 1
+        self._id = f"transaction-{self._client.transaction_begin_count}".encode()
 
     def delete(self, document: FakeFirestoreDocument) -> None:
+        if not self.in_progress:
+            raise ValueError("transaction not active")
         self._deletes.append(document)
 
-    async def commit(self) -> None:
+    async def _commit(self) -> None:
+        if not self.in_progress:
+            raise ValueError("transaction not active")
         for document in self._deletes:
             document.delete_now()
+        self._client.transaction_commit_count += 1
+        self._clean_up()
 
-    async def rollback(self) -> None:
-        self._deletes.clear()
+    async def _rollback(self) -> None:
+        self._client.transaction_rollback_count += 1
+        self._clean_up()
 
 
 class FakeFirestoreClient:
     def __init__(self) -> None:
         self.collections: dict[str, dict[str, dict[str, Any]]] = {}
+        self.transaction_begin_count = 0
+        self.transaction_commit_count = 0
+        self.transaction_rollback_count = 0
 
     def collection(self, name: str) -> FakeFirestoreCollection:
         return FakeFirestoreCollection(self.collections.setdefault(name, {}))
 
     def transaction(self) -> FakeFirestoreTransaction:
-        return FakeFirestoreTransaction()
+        return FakeFirestoreTransaction(self)
 
 
 class StaticStorageBlob:
@@ -932,6 +974,9 @@ class IdentityAdapterTest(unittest.TestCase):
 
         self.assertEqual(first_flow, flow)
         self.assertIsNone(second_flow)
+        self.assertEqual(client.transaction_begin_count, 2)
+        self.assertEqual(client.transaction_commit_count, 2)
+        self.assertEqual(client.transaction_rollback_count, 0)
         self.assertEqual(loaded_session, session)
         self.assertIsNone(asyncio.run(store.get_session("opaque-session-id")))
         stored_keys = {
@@ -1394,11 +1439,21 @@ class CloudRunAttachmentTest(unittest.TestCase):
 
         self.assertEqual(provider.requests, [])
 
-    def test_google_provider_uses_injected_client_and_exact_resource_only(self) -> None:
-        resource = self.resource()
+    def test_google_provider_uses_cross_project_numeric_resource_without_discovery(
+        self,
+    ) -> None:
+        resource = replace(self.resource(), project_number="840919308355")
+        requested_name = resource.provider_name
+        canonical_name = (
+            "projects/comfforts-fixtures-nonprod/locations/us-west1/"
+            "services/alpha-app"
+        )
+        target_uri = (
+            "https://alpha-app-840919308355.us-west1.run.app"
+        )
         client = StaticCloudRunServicesClient(
             run_v2.Service(
-                name=resource.provider_name,
+                name=canonical_name,
                 labels={
                     "state_owner": "application",
                     "application_id": "alpha-app",
@@ -1412,9 +1467,9 @@ class CloudRunAttachmentTest(unittest.TestCase):
                     state=run_v2.Condition.State.CONDITION_SUCCEEDED,
                 ),
                 latest_ready_revision=(
-                    f"{resource.provider_name}/revisions/alpha-app-00007"
+                    f"{canonical_name}/revisions/alpha-app-00007"
                 ),
-                uri=self.target_uri,
+                uri=target_uri,
                 invoker_iam_disabled=False,
             ),
             policy_pb2.Policy(
@@ -1433,12 +1488,19 @@ class CloudRunAttachmentTest(unittest.TestCase):
 
         metadata = asyncio.run(provider.describe(resource))
 
-        self.assertEqual(client.service_requests, [resource.provider_name])
+        self.assertEqual(client.service_requests, [requested_name])
         self.assertEqual(
             client.policy_requests,
-            [{"resource": resource.provider_name}],
+            [{"resource": requested_name}],
         )
-        self.assertEqual(metadata, self.metadata())
+        self.assertEqual(
+            metadata,
+            replace(
+                self.metadata(),
+                resource=resource,
+                target_uri=target_uri,
+            ),
+        )
 
     def test_google_provider_does_not_treat_conditional_or_disabled_iam_as_grant(
         self,
@@ -1471,7 +1533,7 @@ class CloudRunAttachmentTest(unittest.TestCase):
 
         metadata = asyncio.run(
             GoogleCloudRunMetadataProvider(
-                StaticCloudRunServicesClient(service, policy)
+                StaticCloudRunServicesClient(service, policy),
             ).describe(resource)
         )
 
@@ -1964,6 +2026,54 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertEqual(store.flows[flow_id].expires_at, 10_600)
         self.assertEqual(oidc.authorization_requests[0]["code_verifier"], verifier)
 
+    def test_login_reports_only_the_failed_identity_boundary(self) -> None:
+        configuration, source = configured_generation(
+            protected_generation("authenticated"),
+            external_origin="https://apps-staging.comfforts.com",
+        )
+        store = InMemoryIdentityStore()
+        store.available = False
+        oidc = FakeGoogleOidc(
+            PlatformIdentity("https://accounts.google.com", "visitor-1")
+        )
+        events = RecordingCompletionSink()
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                google_oidc=oidc,
+                identity_store=store,
+                clock=FixedClock(10_000),
+                token_source=FixedTokenSource(
+                    [
+                        "flow-id-01234567890123456789",
+                        "state-01234567890123456789012",
+                        "nonce-01234567890123456789012",
+                        "verifier-012345678901234567890123456789012345",
+                    ]
+                ),
+                correlation_ids=FixedCorrelationIds(
+                    ["request-correlation-identity-login"]
+                ),
+                completion_events=events,
+            ),
+        )
+
+        _, (status, _, body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/login",
+                query_string=b"return_to=%2Falpha",
+            )
+        )
+
+        self.assertEqual((status, body), (503, b"identity unavailable\n"))
+        self.assertEqual(
+            events.events[0].diagnostic_code,
+            "IDENTITY_STORE_LOGIN_FLOW_WRITE_FAILED",
+        )
+        self.assertEqual(oidc.authorization_requests, [])
+
     def test_callback_creates_absolute_session_and_authenticated_handoff(self) -> None:
         configuration, source = configured_generation(
             protected_generation("authenticated"),
@@ -2192,6 +2302,7 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
             PlatformIdentity("https://accounts.google.com", "visitor-1")
         )
         oidc.failure = RuntimeError("provider included a sensitive diagnostic")
+        events = RecordingCompletionSink()
         app = create_app(
             configuration,
             RuntimeAdapters(
@@ -2200,6 +2311,14 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
                 identity_store=store,
                 clock=FixedClock(1_000),
                 token_source=FixedTokenSource([]),
+                correlation_ids=FixedCorrelationIds(
+                    [
+                        "request-correlation-identity-0001",
+                        "request-correlation-identity-0002",
+                        "request-correlation-identity-0003",
+                    ]
+                ),
+                completion_events=events,
             ),
         )
 
@@ -2239,6 +2358,14 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertEqual((provider_status, provider_body), (503, b"identity unavailable\n"))
         self.assertEqual((store_status, store_body), (503, b"identity unavailable\n"))
         self.assertNotIn(b"sensitive", provider_body)
+        self.assertEqual(
+            events.events[1].diagnostic_code,
+            "IDENTITY_PROVIDER_CALLBACK_FAILED",
+        )
+        self.assertNotIn(
+            "provider included a sensitive diagnostic",
+            json.dumps(events.events[1].as_dict(), sort_keys=True),
+        )
 
     def test_expired_session_reauthenticates_without_silent_renewal(self) -> None:
         configuration, source = configured_generation(
@@ -2374,7 +2501,7 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         )
         assertion = handoff.requests[0].verified_identity_assertion
         verifier = ApplicationIdentityVerifier(
-            expected_issuer="https://accounts.google.com",
+            expected_issuer="https://apps-staging.comfforts.com/_platform",
             expected_audience=(
                 "urn:comfforts:app-platform:audience:alpha-app"
             ),
@@ -2389,6 +2516,10 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertNotEqual(assertion, "visitor-controlled-forged-value")
         self.assertTrue(result.accepted)
         assert result.identity is not None
+        self.assertEqual(
+            result.identity.issuer,
+            "https://apps-staging.comfforts.com/_platform",
+        )
         self.assertEqual(result.identity.subject, "verified-subject")
         self.assertEqual(result.identity.issued_at, 10_000)
         self.assertEqual(result.identity.expires_at, 10_060)
@@ -2491,11 +2622,10 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
     ) -> None:
         document = compiled_generation()
         expected = {
-            "staged": (404, b"not found\n"),
             "suspended": (503, b"temporarily unavailable\n"),
             "retired": (410, b"permanently removed\n"),
         }
-        for lifecycle in ("staged", "suspended", "retired"):
+        for lifecycle in ("suspended", "retired"):
             application_id = f"{lifecycle}-app"
             route_prefix = f"/{lifecycle}"
             state = copy.deepcopy(document["application_states"][0])
@@ -2544,7 +2674,7 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         )
         self.assertEqual(catalogue_status, 200)
         self.assertIn(b'href="/alpha"', catalogue_body)
-        for lifecycle in ("staged", "suspended", "retired"):
+        for lifecycle in ("suspended", "retired"):
             with self.subTest(lifecycle=lifecycle):
                 route_prefix = f"/{lifecycle}"
                 self.assertNotIn(route_prefix.encode("ascii"), catalogue_body)

@@ -26,9 +26,8 @@ identity, deployment, Live, or Application Adoption authority.
 
 The source subtree and extracted root tree are identical. Repeating `git subtree split` for the
 fixed source revision produced the same split revision. A clean target readback clone confirmed the
-pushed commit and root tree. The extracted root retained the inactive
-`integrations/ai_finance_assistant/` package without making it platform or Finance Assistant
-authority.
+pushed commit and root tree. Application-specific migration authority remained outside App
+Platform authority throughout extraction.
 
 ## Toolchain and deterministic verification
 

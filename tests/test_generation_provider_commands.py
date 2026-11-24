@@ -8,7 +8,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from infrastructure.operator.integration import RegistrationGenerationProposal
+from infrastructure.operator.integration import (
+    ApplicationProjectConnection,
+    RegistrationGenerationProposal,
+)
 from infrastructure.operator.provider_commands import (
     ClosedGcloudRunner,
     GcloudGenerationProvider,
@@ -16,6 +19,7 @@ from infrastructure.operator.provider_commands import (
     ProviderCommandRequest,
     ProviderCommandResult,
 )
+from tests.environment import FIXTURES_PROJECT_ID
 
 
 PROJECT_ID = "comfforts-platform-non-prod"
@@ -25,6 +29,7 @@ BUCKET = "comfforts-ap-stg-455651441682-configuration"
 GENERATION_DIGEST = "sha256:" + ("a" * 64)
 CONTENT_DIGEST = "sha256:" + ("b" * 64)
 SOURCE_REVISION = "c" * 40
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _canonical(value: object) -> bytes:
@@ -69,13 +74,19 @@ class FakeGcloud:
     revision_created: bool = False
     active: bool = False
     corrupt_revision: bool = False
+    active_source_revision: str = SOURCE_REVISION
+    active_image_digest: str = "d" * 64
+    service_template_image_digest: str = "d" * 64
+    candidate_environment: dict[str, str] | None = None
+    candidate_image: str | None = None
+    candidate_service_account: str | None = None
+    configuration_object_name: str | None = None
 
     @property
     def revision_name(self) -> str:
         return f"{SERVICE}-g7-{GENERATION_DIGEST[7:19]}"
 
-    @staticmethod
-    def _service(traffic: list[dict[str, object]]) -> bytes:
+    def _service(self, traffic: list[dict[str, object]]) -> bytes:
         return _canonical(
             {
                 "metadata": {"name": SERVICE},
@@ -91,7 +102,7 @@ class FakeGcloud:
                                     "image": (
                                         f"{REGION}-docker.pkg.dev/{PROJECT_ID}/"
                                         "app-platform/shared-edge@sha256:"
-                                        + ("d" * 64)
+                                        + self.service_template_image_digest
                                     )
                                 }
                             ],
@@ -102,9 +113,9 @@ class FakeGcloud:
             }
         )
 
-    def _revision(self) -> bytes:
-        object_name = (
-            f"generations/{GENERATION_DIGEST[7:]}/compiled-shared-edge.v1.json"
+    def _revision(self, revision_name: str) -> bytes:
+        object_name = self.configuration_object_name or (
+            "environments/staging/generations/7/compiled-shared-edge.v1.json"
         )
         digest = "sha256:" + ("f" * 64) if self.corrupt_revision else GENERATION_DIGEST
         environment = {
@@ -121,19 +132,29 @@ class FakeGcloud:
                 "cryptoKeys/edge/cryptoKeyVersions/1"
             ),
         }
+        image_digest = self.service_template_image_digest
+        service_account = (
+            f"app-platform-edge-runtime@{PROJECT_ID}.iam.gserviceaccount.com"
+        )
+        if revision_name == f"{SERVICE}-initial":
+            environment["APP_PLATFORM_SOURCE_REVISION"] = (
+                self.active_source_revision
+            )
+            image_digest = self.active_image_digest
+        elif self.candidate_environment is not None:
+            environment = dict(self.candidate_environment)
+            image_digest = self.candidate_image or image_digest
+            service_account = self.candidate_service_account or service_account
         return _canonical(
             {
-                "metadata": {"name": self.revision_name},
+                "metadata": {"name": revision_name},
                 "spec": {
-                    "serviceAccountName": (
-                        f"app-platform-edge-runtime@{PROJECT_ID}."
-                        "iam.gserviceaccount.com"
-                    ),
+                    "serviceAccountName": service_account,
                     "containers": [
                         {
                             "image": (
                                 f"{REGION}-docker.pkg.dev/{PROJECT_ID}/"
-                                "app-platform/shared-edge@sha256:" + ("d" * 64)
+                                "app-platform/shared-edge@sha256:" + image_digest
                             ),
                             "env": [
                                 {"name": name, "value": value}
@@ -168,10 +189,48 @@ class FakeGcloud:
             )
             return ProviderCommandResult(0, self._service(traffic), b"")
         if arguments[:3] == ("run", "revisions", "describe"):
-            if not self.revision_created:
+            revision_name = arguments[3]
+            if (
+                revision_name != f"{SERVICE}-initial"
+                and not self.revision_created
+            ):
                 return ProviderCommandResult(1, b"", b"not found: secret-token")
-            return ProviderCommandResult(0, self._revision(), b"")
+            return ProviderCommandResult(
+                0,
+                self._revision(revision_name),
+                b"",
+            )
         if arguments[:3] == ("run", "services", "update"):
+            bindings = next(
+                (
+                    item.split("=", maxsplit=1)[1]
+                    for item in arguments
+                    if item.startswith("--set-env-vars=")
+                    or item.startswith("--update-env-vars=")
+                ),
+                "",
+            )
+            if bindings:
+                self.candidate_environment = dict(
+                    item.split("=", maxsplit=1)
+                    for item in bindings.split(",")
+                )
+            self.candidate_image = next(
+                (
+                    item.rsplit("@sha256:", maxsplit=1)[1]
+                    for item in arguments
+                    if item.startswith("--image=")
+                ),
+                None,
+            )
+            self.candidate_service_account = next(
+                (
+                    item.split("=", maxsplit=1)[1]
+                    for item in arguments
+                    if item.startswith("--service-account=")
+                ),
+                None,
+            )
             self.revision_created = True
             return ProviderCommandResult(0, b"{}", b"")
         if arguments[:3] == ("run", "services", "update-traffic"):
@@ -202,6 +261,29 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         executable.chmod(0o700)
         configuration = root / "cloud-sdk"
         configuration.mkdir(mode=0o700)
+        class Connections:
+            @staticmethod
+            def read_project_number(
+                environment: str,
+                project_number: str,
+            ) -> ApplicationProjectConnection:
+                return ApplicationProjectConnection(
+                    environment=environment,
+                    project_id=FIXTURES_PROJECT_ID,
+                    project_number=project_number,
+                    host_project_id=PROJECT_ID,
+                    host_project_number="455651441682",
+                    region=REGION,
+                    network_reference=(
+                        f"projects/{PROJECT_ID}/global/networks/app-platform-shared"
+                    ),
+                    subnetwork_reference=(
+                        f"projects/{PROJECT_ID}/regions/{REGION}/subnetworks/"
+                        f"app-platform-applications-{REGION}"
+                    ),
+                    egress_mode="all-traffic",
+                )
+
         return GcloudGenerationProvider(
             executable=executable,
             cloud_sdk_configuration=configuration,
@@ -212,6 +294,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             service_name=SERVICE,
             configuration_bucket=BUCKET,
             runner=fake,
+            project_connections=Connections(),
         )
 
     def test_stage_uses_create_only_object_and_no_traffic_revision(self) -> None:
@@ -244,8 +327,52 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         )
         self.assertEqual(upload.stdin, compiled)
         self.assertIn("--if-generation-match=0", upload.argv)
+        self.assertIn(
+            f"gs://{BUCKET}/environments/staging/generations/7/"
+            "compiled-shared-edge.v1.json",
+            upload.argv,
+        )
         self.assertNotIn("HOME", dict(upload.environment))
         self.assertNotIn("GOOGLE_APPLICATION_CREDENTIALS", dict(upload.environment))
+
+    def test_stage_preserves_active_runtime_instead_of_staged_service_template(self) -> None:
+        compiled = _canonical(proposal().compiled_configuration)
+        active_source = "e" * 40
+        active_image = "a" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(
+                compiled,
+                active_source_revision=active_source,
+                active_image_digest=active_image,
+                service_template_image_digest="d" * 64,
+            )
+            provider = self._provider(directory, fake)
+
+            provider.stage(proposal(), compiled)
+
+        mutation = next(
+            request
+            for request in fake.requests
+            if request.argv[1:4] == ("run", "services", "update")
+        )
+        self.assertIn(
+            f"--image={REGION}-docker.pkg.dev/{PROJECT_ID}/"
+            f"app-platform/shared-edge@sha256:{active_image}",
+            mutation.argv,
+        )
+        self.assertIn(
+            f"--service-account=app-platform-edge-runtime@{PROJECT_ID}."
+            "iam.gserviceaccount.com",
+            mutation.argv,
+        )
+        bindings = next(
+            item for item in mutation.argv if item.startswith("--set-env-vars=")
+        )
+        self.assertIn(
+            f"APP_PLATFORM_SOURCE_REVISION={active_source}",
+            bindings,
+        )
+        self.assertNotIn("--update-env-vars=", " ".join(mutation.argv))
 
     def test_stage_resumes_only_when_existing_object_and_revision_match(self) -> None:
         compiled = _canonical(proposal().compiled_configuration)
@@ -368,6 +495,76 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             )
         )
 
+    def test_reads_exact_active_generation_binding_without_mutation(self) -> None:
+        compiled = _canonical(proposal().compiled_configuration)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(
+                compiled,
+                object_created=True,
+                revision_created=True,
+                active=True,
+                configuration_object_name=(
+                    f"generations/{GENERATION_DIGEST[7:]}/"
+                    "compiled-shared-edge.v1.json"
+                ),
+            )
+            provider = self._provider(directory, fake)
+
+            binding = provider.read_active_binding("staging")
+
+        self.assertEqual(binding.environment, "staging")
+        self.assertEqual(binding.revision_name, fake.revision_name)
+        self.assertEqual(binding.platform_source_revision, SOURCE_REVISION)
+        self.assertEqual(
+            binding.image_reference,
+            f"{REGION}-docker.pkg.dev/{PROJECT_ID}/app-platform/"
+            "shared-edge@sha256:" + "d" * 64,
+        )
+        self.assertEqual(binding.generation, 7)
+        self.assertEqual(binding.generation_digest, GENERATION_DIGEST)
+        self.assertEqual(binding.content_digest, CONTENT_DIGEST)
+        self.assertEqual(
+            binding.object_name,
+            f"generations/{GENERATION_DIGEST[7:]}/compiled-shared-edge.v1.json",
+        )
+        self.assertEqual(binding.object_generation, 42)
+        self.assertFalse(
+            any(
+                request.argv[1:4]
+                in {
+                    ("run", "services", "update"),
+                    ("run", "services", "update-traffic"),
+                }
+                for request in fake.requests
+            )
+        )
+
+    def test_reads_one_exact_candidate_revision_binding_without_activation(self) -> None:
+        compiled = _canonical(proposal().compiled_configuration)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(
+                compiled,
+                object_created=True,
+                revision_created=True,
+                active=False,
+            )
+            provider = self._provider(directory, fake)
+
+            binding = provider.read_revision_binding(
+                "staging",
+                fake.revision_name,
+            )
+
+        self.assertEqual(binding.revision_name, fake.revision_name)
+        self.assertEqual(binding.platform_source_revision, SOURCE_REVISION)
+        self.assertEqual(binding.generation_digest, GENERATION_DIGEST)
+        self.assertFalse(
+            any(
+                request.argv[1:4] == ("run", "services", "update-traffic")
+                for request in fake.requests
+            )
+        )
+
     def test_closed_runner_rejects_credential_override_and_unreviewed_command(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -413,8 +610,20 @@ class GenerationProviderCommandsTest(unittest.TestCase):
 
     def test_attachment_readback_verifies_owner_ingress_audience_and_caller(self) -> None:
         compiled = _canonical(proposal().compiled_configuration)
+        fixture_labels = json.loads(
+            (
+                PROJECT_ROOT
+                / "infrastructure/config/examples/"
+                "fixture-authenticated.synthetic.v1.json"
+            ).read_bytes()
+        )["labels"]
 
         class AttachmentGcloud(FakeGcloud):
+            target_environment = str(fixture_labels["environment"])
+            identity_audience: str | None = (
+                "urn:comfforts:app-platform:audience:fixture-authenticated"
+            )
+
             def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
                 arguments = request.argv[1:]
                 self.requests.append(request)
@@ -425,16 +634,42 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                             {
                                 "metadata": {
                                     "annotations": {
-                                        "run.googleapis.com/ingress": "internal"
+                                        "run.googleapis.com/ingress": "internal",
+                                        **(
+                                            {
+                                                "comfforts.com/identity-audience": (
+                                                    self.identity_audience
+                                                )
+                                            }
+                                            if self.identity_audience is not None
+                                            else {}
+                                        ),
                                     },
                                     "labels": {
-                                        "environment": "staging",
+                                        "application_id": "fixture-authenticated",
+                                        "environment": self.target_environment,
                                         "state_owner": "application",
                                     },
                                     "name": "fixture-authenticated",
                                 },
                                 "spec": {
                                     "template": {
+                                        "metadata": {
+                                            "annotations": {
+                                                "run.googleapis.com/network-interfaces": (
+                                                    '[{"network":"projects/'
+                                                    + PROJECT_ID
+                                                    + '/global/networks/app-platform-shared",'
+                                                    '"subnetwork":"projects/'
+                                                    + PROJECT_ID
+                                                    + '/regions/us-west1/subnetworks/'
+                                                    'app-platform-applications-us-west1"}]'
+                                                ),
+                                                "run.googleapis.com/vpc-access-egress": (
+                                                    "all-traffic"
+                                                ),
+                                            }
+                                        },
                                         "spec": {
                                             "containers": [
                                                 {
@@ -486,7 +721,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
 
         reference = (
             "urn:comfforts:app-platform:gcp:cloud-run:"
-            "455651441682:us-west1:fixture-authenticated"
+            "123456789012:us-west1:fixture-authenticated"
         )
         with tempfile.TemporaryDirectory() as directory:
             fake = AttachmentGcloud(compiled)
@@ -503,6 +738,38 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             "urn:comfforts:app-platform:audience:fixture-authenticated",
         )
         self.assertIn("app-platform-edge-caller", target.caller_grant)
+        self.assertEqual(target.application_project_id, FIXTURES_PROJECT_ID)
+        self.assertEqual(
+            target.network_reference,
+            f"projects/{PROJECT_ID}/global/networks/app-platform-shared",
+        )
+        self.assertEqual(
+            target.subnetwork_reference,
+            (
+                f"projects/{PROJECT_ID}/regions/us-west1/subnetworks/"
+                "app-platform-applications-us-west1"
+            ),
+        )
+        self.assertEqual(target.egress_mode, "all-traffic")
+        self.assertEqual(target.blockers, ())
+
+        fake.target_environment = "staging"
+        mismatched = provider.read_target("staging", reference)
+
+        self.assertEqual(
+            mismatched.blockers,
+            ("TARGET_ENVIRONMENT_LABEL_MISMATCH",),
+        )
+
+        fake.target_environment = str(fixture_labels["environment"])
+        fake.identity_audience = None
+        missing_identity_audience = provider.read_target("staging", reference)
+
+        self.assertIsNone(missing_identity_audience.audience)
+        self.assertEqual(
+            missing_identity_audience.blockers,
+            ("TARGET_IDENTITY_AUDIENCE_MISMATCH",),
+        )
 
 
 if __name__ == "__main__":

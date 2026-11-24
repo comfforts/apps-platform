@@ -21,7 +21,7 @@
       "admission": {
         "mode": "public"
       },
-      "lifecycle": "staged",
+      "lifecycle": "active",
       "attachments": [
         {
           "contract_version": 1,

@@ -1,7 +1,7 @@
 # App Platform documentation
 
-Version 1.22 | Status: AP-M9-W8 qualification and safe-destruction lifecycle implemented; AP-M8-W1/W2 retained as
-historical evidence; no platform environment is deployed or qualified
+Version 1.29 | Status: AP-M9-W9 fixture deployment lifecycle cross-project correction in progress;
+candidate staging exists but is not accepted qualification
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. Live
@@ -16,17 +16,18 @@ Read these documents completely, in order, before modifying the platform:
 2. [Domain glossary](../GLOSSARY.md) — canonical terms.
 3. [Product requirements](01_product_requirements.md) — AP-PR-001 through AP-PR-012 and AP-QR-001
    through AP-QR-009.
-4. [Architecture decision records](02_architecture_decision_records.md) — ADR-001 through ADR-013.
+4. [Architecture decision records](02_architecture_decision_records.md) — ADR-001 through ADR-014.
 5. [System design](03_system_design.md) — interfaces, ownership, lifecycle, and provider design.
 6. [Threat model](06_threat_model.md) — trust zones, threats, controls, and evidence classes.
-7. [Implementation plan](04_implementation_plan.md) — the active AP-M9-W1 through AP-M9-W10
+7. [Implementation plan](04_implementation_plan.md) — the active AP-M9-W1 through AP-M9-W11
    sequence and historical milestone records.
 8. [Evaluation strategy](05_evaluation_strategy.md) — AP-EVAL-M9 gates and claim boundaries.
 9. [Contract index](../contracts/README.md) — public machine interfaces.
 10. [Repository layout](repository_layout.md) — capability placement and transition rules.
 11. [Runbook index](runbooks/README.md) — subordinate operator procedures.
-12. [AP-M9 environment lifecycle](runbooks/environment_lifecycle.md) — current human-operated
-    lifecycle design, implemented local commands, and unavailable external actions.
+12. [Environment lifecycle runbook](runbooks/environment_lifecycle.md) — operator procedure for
+    staging and production preparation, deployment, inspection, qualification, recovery, and
+    destruction.
 13. [Repository extraction runbook](runbooks/repository_extraction.md) and
     [handoff](repository_extraction_handoff.md) — completed canonical repository transition
     procedure and evidence.
@@ -34,6 +35,13 @@ Read these documents completely, in order, before modifying the platform:
 
 The material under [`docs/history/`](history/README.md) preserves superseded delivery evidence. It
 is not part of the active instruction path and cannot authorize an operation.
+
+## Backlog
+
+The [App Platform backlog](07_back_log.md) records deferred product and maintenance proposals. A
+backlog entry is not current authority and cannot authorize implementation or an external
+operation. Promote an item through the requirements, decisions, design, threat, evaluation, and
+delivery authorities before beginning it.
 
 ## Milestone status
 
@@ -45,7 +53,7 @@ is not part of the active instruction path and cannot authorize an operation.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W8 implemented | operator-driven environment and application lifecycle |
+| AP-M9 | W9 cross-project correction in progress | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
@@ -62,35 +70,46 @@ small reviewable commits, merge it, and only then begin the next package.
 2. **AP-M9-W2 — retired manifest cleanup (implemented):** remove the operator-manifest schema,
    validator, synthetic example, command, tests, and obsolete active guidance without changing
    AP-M7 assets.
-3. **AP-M9-W3 — lifecycle contracts and profiles (implemented):** small staging/production
-   profiles, deployment specifications, execution journals, status documents, integration bundles,
-   attachment bundles, canonical digests, and cross-document validation.
-4. **AP-M9-W4 — interactive lifecycle core (implemented):** credential-free preparation and
-   status, exact digest approval, append-only journals, redaction, truthful failure state, and
-   resumable deterministic fake execution behind injected adapters.
+3. **AP-M9-W3 — lifecycle contracts and profiles (implemented, then simplified):** small
+   staging/production profiles and the cross-owner integration, attachment, and qualification
+   contracts. Preparation, status, and resume progress are private implementation state.
+4. **AP-M9-W4 — interactive lifecycle core (implemented, then simplified):** credential-free
+   preparation and status, exact operation approval, atomic progress, redaction, truthful failure
+   state, and resumable deterministic execution behind external-effect seams.
 5. **AP-M9-W5 — deployable Terraform (implemented):** phased bootstrap, foundation, and Shared
    Edge configuration; exact backend declarations; canonical plan
    policy; closed outputs; mocked plans; and deterministic command fakes.
-6. **AP-M9-W6 — interactive platform deployment (implemented):** staged exact-plan execution,
+6. **AP-M9-W6 — interactive platform deployment (implemented):** multi-stage exact-plan execution,
    reviewed action confirmation, human OAuth and external-DNS checkpoints, bounded DNS/TLS
    polling, readback, stop-on-discrepancy, transcript redaction, and interruption-safe resume.
-7. **AP-M9-W7 — application lifecycle (implemented):** least-data bundle generation, exact target
+7. **AP-M9-W7 — platform-side application lifecycle (implemented):** least-data bundle generation, exact target
    posture validation, immutable whole-generation registration and activation, reversible
    detachment/reactivation, terminal retirement, and distinct reserved-route responses.
 8. **AP-M9-W8 — qualification and safe destruction (implemented):** revision-bound qualification,
-   redacted evidence, synthetic network fixtures, failure injection, reviewed generation rollback,
+   redacted evidence, process-local network fixtures, failure injection, reviewed generation rollback,
    resumable environment destruction that never targets Application State, and guarded real
-   staging deployment adapters ready for the separately approved first operation.
-9. **AP-M9-W9 — staging operation:** deploy and qualify `apps-staging.comfforts.com` with synthetic
-   applications under new explicit owner approvals.
-10. **AP-M9-W10 — production readiness:** prove the production handoff and stop with
+   shared-platform deployment adapters. It does not deploy a Fixture Application.
+9. **AP-M9-W9 — fixture application deployment lifecycle (cross-project correction in progress):**
+   immutable fixture images and independent roots in a dedicated fixture application project; an
+   explicit Shared VPC project-connection boundary; application-project-scoped integration
+   bundles; a read-only application handoff readiness check; separate fixture handoff, platform registration, status, detachment, and fixture
+   destruction; provider readback; deterministic fake coverage; and staging-only Candidate Source
+   admission. The combined `fixture-deploy` shortcut is removed so fixtures exercise the same
+   platform/application handoff as an external application.
+10. **AP-M9-W10 — accepted staging operation:** from merged W9 code, deploy and qualify
+    `apps-staging.comfforts.com` with the three synthetic applications. The deliberate command
+    invocation and same-process confirmations authorize ordinary staging creation and update;
+    destructive and irreversible boundaries retain separate approval.
+11. **AP-M9-W11 — production readiness:** prove the production handoff and stop with
     `OWNERSHIP_TRANSFER_REQUIRED` while Finance Assistant or `apps.comfforts.com` remains
     Finance-owned.
 
-AP-M9-W8 began only after AP-M9-W7 merged. No staging operation is authorized before AP-M9-W8
-merges. AP-M9-W9 owns the first real staging operation and requires its own values and approvals.
+AP-M9-W9 began only after AP-M9-W8 merged. Candidate staging operations exposed the same-project
+fixture gap, so W9 remains the correction boundary until cross-project fixtures pass. A pushed W9
+pull-request revision may test staging with Candidate Source, but its evidence is not accepted
+qualification. AP-M9-W10 owns the first accepted staging operation and begins only after W9 merges.
 Production migration and Application Adoption remain separate owner-controlled work after
-AP-M9-W10.
+AP-M9-W11.
 
 ## Authority and claim discipline
 
@@ -104,20 +123,12 @@ Use these status meanings:
 - **Implemented:** repository behavior exists and passes deterministic checks; no live action is
   implied.
 - **Qualified:** the named evaluation gate has revision-scoped evidence.
-- **Integration draft:** a non-authoritative input awaiting adoption by its consuming application.
 - **Historical evidence:** an immutable record that provides no current action authority.
 
 The App Platform owns only shared platform boundaries. Application data, stores, providers,
 secrets, principals, entitlements, runtime deployment, and Application State remain application
 owned. Finance Assistant and `apps.comfforts.com` remain unchanged until their own adoption and
 ownership-transfer authorities are approved.
-
-## Inactive integration inputs
-
-[`integrations/ai_finance_assistant/README.md`](../integrations/ai_finance_assistant/README.md) is
-discoverable compatibility material, not part of the platform authority chain. Read it only for an
-explicitly scoped compatibility or adoption task. It cannot define generic platform behavior or
-activate an application adoption.
 
 ## Evidence and secret boundary
 

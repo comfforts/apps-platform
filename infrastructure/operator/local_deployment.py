@@ -11,7 +11,11 @@ import re
 import tempfile
 from typing import Any
 
-from contracts import compile_registration_set
+from contracts import (
+    compile_registration_set,
+    load_json_bytes,
+    validate_contract_instance,
+)
 from infrastructure.backend import PhasePlanRequest, backend_declarations
 from infrastructure.config import validate_configuration
 from infrastructure.operator._interfaces import StageContext
@@ -32,7 +36,13 @@ _PHASE_SOURCES = {
     "bootstrap": "infrastructure/terraform/bootstrap",
     "platform-foundation": "infrastructure/terraform/platform",
     "shared-edge": "infrastructure/terraform/platform",
+    "fixture-public": "infrastructure/terraform/fixtures/fixture-public",
+    "fixture-authenticated": (
+        "infrastructure/terraform/fixtures/fixture-authenticated"
+    ),
+    "fixture-restricted": "infrastructure/terraform/fixtures/fixture-restricted",
 }
+_PLATFORM_PHASES = {"bootstrap", "platform-foundation", "shared-edge"}
 _FOUNDATION_NAMES = {
     "configuration_bucket": "comfforts-ap-stg-455651441682-configuration",
     "log_bucket": "comfforts-ap-stg-455651441682-logs",
@@ -135,6 +145,51 @@ class InitialGeneration:
         ).decode("utf-8")
 
 
+def existing_initial_generation_reference(
+    contents: bytes,
+    object_generation: int,
+) -> str:
+    """Validate and bind an existing immutable empty Registration Generation."""
+
+    if object_generation < 1:
+        raise LocalDeploymentInputError("INITIAL_GENERATION_READBACK_INVALID")
+    loaded = load_json_bytes(contents, max_bytes=1_048_576)
+    configuration = loaded.value
+    if (
+        loaded.violations
+        or not isinstance(configuration, dict)
+        or validate_contract_instance(
+            configuration,
+            "urn:comfforts:app-platform:schema:compiled-shared-edge:v1",
+        )
+        or configuration.get("generation") != 1
+        or configuration.get("previous_generation_digest") is not None
+        or configuration.get("application_states") != []
+        or configuration.get("catalogue") != []
+        or configuration.get("routes") != []
+        or configuration.get("admission_policies") != []
+        or configuration.get("reserved_paths")
+        != ["/", "/.well-known", "/_platform"]
+        or configuration.get("identity_delivery")
+        != {
+            "context_contract_version": 1,
+            "header_name": "X-Comfforts-Verified-Identity",
+        }
+        or not isinstance(configuration.get("generation_digest"), str)
+        or _DIGEST.fullmatch(str(configuration["generation_digest"])) is None
+    ):
+        raise LocalDeploymentInputError("INITIAL_GENERATION_READBACK_INVALID")
+    return _canonical(
+        {
+            "content_digest": _digest(contents),
+            "generation": 1,
+            "generation_digest": configuration["generation_digest"],
+            "object_generation": object_generation,
+            "object_name": "generations/1/compiled.json",
+        }
+    ).decode("utf-8")
+
+
 def initial_generation(source_revision: str) -> InitialGeneration:
     """Compile the deterministic empty generation served before application registration."""
 
@@ -226,7 +281,15 @@ class PrivateTerraformWorkspace:
             ):
                 self._copy(path, destination / path.name)
         modules = self._project_root / "infrastructure/terraform/modules"
-        self._copy_directory(modules, self._working_root / "modules")
+        relative_modules = Path(os.path.relpath(modules, start=source))
+        module_destination = (destination / relative_modules).resolve()
+        workspace_boundary = self._working_root.parent.resolve()
+        if (
+            module_destination == workspace_boundary
+            or workspace_boundary not in module_destination.parents
+        ):
+            raise LocalDeploymentInputError("TERRAFORM_SOURCE_INVALID")
+        self._copy_directory(modules, module_destination)
         return destination
 
 
@@ -235,6 +298,22 @@ class RenderedTerraformInput:
     terraform_root: Path
     variable_file: Path
     configuration_digest: str
+
+
+def render_private_terraform_input(
+    terraform_root: Path,
+    variables: dict[str, Any],
+) -> RenderedTerraformInput:
+    """Write one canonical, mode-private variable file in an isolated root."""
+
+    contents = _canonical(variables) + b"\n"
+    variable_file = terraform_root / "terraform.tfvars.json"
+    _private_write(variable_file, contents)
+    return RenderedTerraformInput(
+        terraform_root,
+        variable_file,
+        _digest(contents),
+    )
 
 
 class DeploymentConfigurationRenderer:
@@ -258,17 +337,15 @@ class DeploymentConfigurationRenderer:
         declarations = backend_declarations("staging")
         unique: dict[str, dict[str, str]] = {}
         for declaration in declarations:
+            if declaration.state_owner != "platform":
+                continue
             unique.setdefault(
                 declaration.owner_id,
                 {
                     "state_owner": declaration.state_owner,
                     "owner_id": declaration.owner_id,
                     "bucket_name": declaration.bucket,
-                    "backend_prefix": (
-                        "platform"
-                        if declaration.owner_id == "app-platform"
-                        else declaration.prefix
-                    ),
+                    "backend_prefix": "platform",
                 },
             )
         return {
@@ -300,6 +377,8 @@ class DeploymentConfigurationRenderer:
         self,
         context: StageContext,
         phase: str,
+        *,
+        preserve_shared_edge_tls: bool = False,
     ) -> dict[str, Any]:
         shared_edge: dict[str, Any] | None = None
         if phase == "shared-edge":
@@ -333,7 +412,10 @@ class DeploymentConfigurationRenderer:
                         "source_revision": context.source_revision,
                         **generation,
                     },
-                    "tls_enabled": context.stage["stage_id"] == "tls-readiness",
+                    "tls_enabled": (
+                        context.stage["stage_id"] == "tls-readiness"
+                        or preserve_shared_edge_tls
+                    ),
                 }
             except (KeyError, TypeError) as error:
                 raise LocalDeploymentInputError(
@@ -344,6 +426,7 @@ class DeploymentConfigurationRenderer:
             "configuration_kind": "platform",
             "configuration_class": "operator",
             "phase": "foundation" if phase == "platform-foundation" else "shared-edge",
+            "destruction_mode": "none",
             "repository": "comfforts/apps-platform",
             "environment": "staging",
             "foundation": self._foundation(),
@@ -355,16 +438,109 @@ class DeploymentConfigurationRenderer:
             },
         }
 
+    def render_transition(
+        self,
+        request: PhasePlanRequest,
+        destruction_mode: str,
+        deployed_outputs: dict[str, str],
+    ) -> RenderedTerraformInput:
+        """Render one closed Platform State destruction transition."""
+
+        allowed = {
+            "none": "platform-foundation",
+            "shared-edge-unlock": "shared-edge",
+            "shared-edge-remove": "shared-edge",
+            "platform-unlock": "platform-foundation",
+            "retained": "platform-foundation",
+        }
+        if (
+            request.environment != "staging"
+            or allowed.get(destruction_mode) != request.phase
+            or request.state_owner != "platform"
+            or request.owner_id != "app-platform"
+        ):
+            raise LocalDeploymentInputError("DESTRUCTION_TRANSITION_INVALID")
+        root = self._workspace.prepare_phase(request.phase)
+        if request.backend_path.resolve() != (root / "backend.tf").resolve():
+            raise LocalDeploymentInputError("TERRAFORM_BACKEND_PATH_MISMATCH")
+
+        shared_edge: dict[str, Any] | None = None
+        phase = "foundation"
+        if destruction_mode == "shared-edge-unlock":
+            phase = "shared-edge"
+            try:
+                foundation = _object(
+                    deployed_outputs["foundation-reference"],
+                    "FOUNDATION_REFERENCE_INVALID",
+                )
+                generation = _object(
+                    deployed_outputs["registration-generation-reference"],
+                    "REGISTRATION_GENERATION_REFERENCE_INVALID",
+                )
+                signing_key_version = foundation["signing_key_version"]
+                shared_edge = {
+                    "edge_image_digest": deployed_outputs["shared-edge-image-digest"],
+                    "oauth_client_id": deployed_outputs["oauth-client-id"],
+                    "oauth_client_secret_version": deployed_outputs[
+                        "oauth-secret-version"
+                    ],
+                    "signing_key_version": signing_key_version,
+                    "operator_identity": {
+                        "issuer": self._session.operator_issuer,
+                        "subject": self._session.operator_subject,
+                    },
+                    "registration_generation": {
+                        "source_revision": request.source_revision,
+                        **generation,
+                    },
+                    "tls_enabled": True,
+                }
+            except (KeyError, TypeError) as error:
+                raise LocalDeploymentInputError(
+                    "DESTRUCTION_DEPLOYMENT_BINDING_INCOMPLETE"
+                ) from error
+        configuration = {
+            "contract_version": 2,
+            "configuration_kind": "platform",
+            "configuration_class": "operator",
+            "phase": phase,
+            "destruction_mode": destruction_mode,
+            "repository": "comfforts/apps-platform",
+            "environment": "staging",
+            "foundation": self._foundation(),
+            "shared_edge": shared_edge,
+            "labels": {
+                "environment": "staging",
+                "managed_by": "terraform",
+                "state_owner": "platform",
+            },
+        }
+        if validate_configuration(configuration, "platform"):
+            raise LocalDeploymentInputError("TERRAFORM_CONFIGURATION_INVALID")
+        return render_private_terraform_input(
+            root,
+            {"platform_configuration": configuration},
+        )
+
     def render(
         self,
         context: StageContext,
         request: PhasePlanRequest,
+        *,
+        preserve_shared_edge_tls: bool = False,
     ) -> RenderedTerraformInput:
         if context.environment != "staging" or request.environment != "staging":
             raise LocalDeploymentInputError("OWNERSHIP_TRANSFER_REQUIRED")
         if (
             request.source_revision != context.source_revision
-            or request.phase not in _PHASE_SOURCES
+            or request.phase not in _PLATFORM_PHASES
+            or (
+                preserve_shared_edge_tls
+                and (
+                    request.phase != "shared-edge"
+                    or context.stage.get("stage_id") != "shared-edge"
+                )
+            )
         ):
             raise LocalDeploymentInputError("TERRAFORM_CONTEXT_MISMATCH")
         root = self._workspace.prepare_phase(request.phase)
@@ -378,14 +554,18 @@ class DeploymentConfigurationRenderer:
         else:
             kind = "platform"
             variable_name = "platform_configuration"
-            configuration = self._platform(context, request.phase)
+            configuration = self._platform(
+                context,
+                request.phase,
+                preserve_shared_edge_tls=preserve_shared_edge_tls,
+            )
         violations = validate_configuration(configuration, kind)
         if violations:
             raise LocalDeploymentInputError("TERRAFORM_CONFIGURATION_INVALID")
-        contents = _canonical({variable_name: configuration}) + b"\n"
-        variable_file = root / "terraform.tfvars.json"
-        _private_write(variable_file, contents)
-        return RenderedTerraformInput(root, variable_file, _digest(contents))
+        return render_private_terraform_input(
+            root,
+            {variable_name: configuration},
+        )
 
 
 __all__ = (
@@ -396,4 +576,5 @@ __all__ = (
     "PrivateTerraformWorkspace",
     "RenderedTerraformInput",
     "initial_generation",
+    "render_private_terraform_input",
 )

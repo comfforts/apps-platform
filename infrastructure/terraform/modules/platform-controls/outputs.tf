@@ -4,6 +4,7 @@ locals {
     "component",
     "component_version",
     "correlation_id",
+    "diagnostic_code",
     "event_type",
     "event_version",
     "generation_digest",
@@ -41,9 +42,9 @@ locals {
 output "foundation_reference" {
   description = "Closed non-secret control references created by the foundation phase."
   value = {
-    artifact_repository = google_artifact_registry_repository.qualification_images.name
+    artifact_repository = try(google_artifact_registry_repository.qualification_images[0].name, null)
     evidence_bucket     = google_storage_bucket.evidence.name
-    log_bucket          = google_logging_project_bucket_config.edge.id
+    log_bucket          = try(google_logging_project_bucket_config.edge[0].id, null)
   }
 }
 
@@ -56,10 +57,9 @@ output "policy_summary" {
       retention_days          = 7
       analytics               = false
       locked                  = false
-      deletion_policy         = "PREVENT"
+      deletion_policy         = local.destruction_enabled ? "DELETE" : "PREVENT"
       internal_destination    = true
       external_sink           = false
-      unique_writer_identity  = false
       exclusion_count         = 3
       default_bucket_excluded = true
       allowed_fields          = local.allowed_log_fields
@@ -103,7 +103,7 @@ output "policy_summary" {
       monthly_amount                = 20
       threshold_percents            = [50, 80, 100]
       spend_basis                   = "CURRENT_SPEND"
-      notification_destination      = google_monitoring_notification_channel.budget_email.id
+      notification_destination      = try(google_monitoring_notification_channel.budget_email[0].id, null)
       notification_email            = var.controls_configuration.notification_email
       implicit_notification         = false
       automatic_billing_disablement = false
@@ -121,7 +121,7 @@ output "policy_summary" {
       package_name_prefixes            = var.controls_configuration.artifact_packages
       rollback_window_hours            = 24
       owner_approved_deletion_required = true
-      deletion_policy                  = "PREVENT"
+      deletion_policy                  = local.destruction_enabled ? "DELETE" : "PREVENT"
       image_publication                = "deferred"
     }
     runtime_caps = {
@@ -158,5 +158,6 @@ output "policy_summary" {
       "production-replica",
       "waf",
     ]
+    destruction_mode = var.destruction_mode
   }
 }

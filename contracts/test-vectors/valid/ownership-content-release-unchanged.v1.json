@@ -1,7 +1,7 @@
 {
   "contract_version": 1,
-  "generation": 3,
-  "generation_digest": "sha256:c396cdf5b79fa382183319077c9c9b46f07feed506869ab1620829fd92dfa4c3",
+  "generation": 2,
+  "generation_digest": "sha256:dfefcbe1337a24729790df162ddf875a65352c81b4d20254133fa5f4d8f2397a",
   "resources": [
     {
       "resource_reference": "urn:comfforts:app-platform:catalogue:root",

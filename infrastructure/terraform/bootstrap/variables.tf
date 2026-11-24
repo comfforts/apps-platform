@@ -36,13 +36,13 @@ variable "backend_configuration" {
   }
 
   validation {
-    condition = length(var.backend_configuration.state_buckets) == 4 && length(toset([
+    condition = length(var.backend_configuration.state_buckets) == 1 && length(toset([
       for bucket in var.backend_configuration.state_buckets : bucket.bucket_name
-      ])) == 4 && alltrue([
+      ])) == 1 && alltrue([
       for bucket in var.backend_configuration.state_buckets :
       can(regex("^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$", bucket.bucket_name))
     ])
-    error_message = "exactly four distinct canonical state bucket names are required."
+    error_message = "exactly one canonical platform state bucket name is required."
   }
 
   validation {
@@ -51,11 +51,8 @@ variable "backend_configuration" {
       "${bucket.state_owner}:${bucket.owner_id}:${bucket.backend_prefix}"
       ]) == toset([
       "platform:app-platform:platform",
-      "application:fixture-public:fixtures/fixture-public",
-      "application:fixture-authenticated:fixtures/fixture-authenticated",
-      "application:fixture-restricted:fixtures/fixture-restricted",
     ])
-    error_message = "state buckets must map exactly to the platform and three Fixture Application owners."
+    error_message = "the bootstrap root may manage only the platform state bucket."
   }
 
   validation {

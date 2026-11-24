@@ -14,6 +14,7 @@ from edge._observability import (
     CompletionEventMiddleware,
     ExactSessionOperatorAuthorizer,
     StructuredLoggingCompletionSink,
+    record_diagnostic,
 )
 from tests.test_edge_runtime import (
     SOURCE_REVISION,
@@ -109,6 +110,54 @@ async def call_http(app: Any) -> list[dict[str, Any]]:
 
 
 class CompletionEventTest(unittest.IsolatedAsyncioTestCase):
+    async def test_arbitrary_diagnostic_is_rejected_before_logging(self) -> None:
+        scope = http_scope()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "completion diagnostic code is invalid",
+        ):
+            record_diagnostic(scope, "provider included a sensitive diagnostic")
+
+        self.assertNotIn(
+            "comfforts_diagnostic_code",
+            scope["state"],
+        )
+
+    async def test_allowlisted_diagnostic_is_retained_in_completion_event(self) -> None:
+        async def application(scope: Any, receive: Any, send: Any) -> None:
+            del receive
+            record_diagnostic(scope, "IDENTITY_PROVIDER_CALLBACK_FAILED")
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 503,
+                    "headers": [],
+                }
+            )
+            await send({"type": "http.response.body", "body": b"unavailable"})
+
+        sink = RecordingCompletionSink()
+        middleware = CompletionEventMiddleware(
+            application,
+            source_revision=SOURCE_REVISION,
+            generation_digest=None,
+            correlation_ids=FixedCorrelationIds(["request-correlation-0000"]),
+            sink=sink,
+            clock=AdvancingClock(),
+            health=health_registry(),
+        )
+
+        await call_http(middleware)
+
+        self.assertEqual(len(sink.events), 1)
+        self.assertEqual(
+            sink.events[0].diagnostic_code,
+            "IDENTITY_PROVIDER_CALLBACK_FAILED",
+        )
+        serialized = json.dumps(sink.events[0].as_dict(), sort_keys=True)
+        self.assertNotIn("provider-payload-secret-marker", serialized)
+
     async def test_one_allowlisted_event_excludes_request_and_response_data(self) -> None:
         async def application(scope: Any, receive: Any, send: Any) -> None:
             del scope
@@ -133,8 +182,8 @@ class CompletionEventTest(unittest.IsolatedAsyncioTestCase):
             application,
             source_revision=SOURCE_REVISION,
             generation_digest=(
-                "sha256:dbbf3a48ddfa7457bb5260bf4060958f"
-                "31c2485317a255d51b7adca86c9f9224"
+                "sha256:68037a002b4334ab1ad0a0a2d983a9c"
+                "60835327ec8c5ecea812a207e4d83dc29"
             ),
             correlation_ids=FixedCorrelationIds(["request-correlation-0001"]),
             sink=sink,
@@ -317,7 +366,7 @@ class RuntimeStatusTest(unittest.TestCase):
             },
         )
         self.assertEqual(document["source_revision"], SOURCE_REVISION)
-        self.assertEqual(document["generation"]["number"], 2)
+        self.assertEqual(document["generation"]["number"], 1)
         self.assertEqual(
             document["generation"]["digest"],
             compiled_generation()["generation_digest"],

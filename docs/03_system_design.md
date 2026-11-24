@@ -1,17 +1,16 @@
 # App Platform system design
 
-Version 1.7 | Status: Fixture-qualified logical design, implemented AP-M6 runtime and AP-M7
-Terraform profiles, and implemented AP-M9-W8 qualification/destruction controls; no provider operation
-or live infrastructure is deployed
+Version 1.9 | Status: AP-M9-W9 cross-project fixture correction in progress; Candidate Source
+provider operation is not accepted qualification
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
 does not provision infrastructure, activate an application, qualify runtime behavior, or change a
 consuming application.
 
-Requirements: AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006
+Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
-Decisions: ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-006, ADR-007, ADR-008, ADR-009
+Decisions: ADR-001 through ADR-014
 
 ## Design outcome
 
@@ -179,18 +178,22 @@ the exact grammar
 `urn:comfforts:app-platform:gcp:cloud-run:<project-number>:<region>:<service-name>`. It is not a URL,
 credential, Terraform address, or permission to discover arbitrary resources.
 
-The future adapter may resolve only the named Cloud Run service through GCP metadata and IAM. A
+The adapter may resolve only the named Cloud Run service through GCP metadata and IAM. A
 target is activation-eligible only when provider readback establishes that the exact service exists
 in the declared project and region, reports ready, is assigned to the registration's named
 Application State owner, and has an Application-Owner-approved grant for the platform edge caller.
 No independent DNS check is part of ownership proof.
 
-The first live fixtures may use Cloud Run services in the qualification project while preserving
-separate platform and per-fixture state roots. The same reference grammar permits later
-cross-project targets, but same-project evidence does not qualify them. Later cross-project GCP
-applications use a platform-owned Shared VPC host network, with the application project attached
-as a service project through its own adoption procedure. Network attachment does not give Platform
-State ownership of the application's Cloud Run service, IAM policy, data, or Terraform state.
+Provider-backed fixtures and real applications use cross-project attachment. The platform project
+owns a Shared VPC host network and regional application subnet. Each application project attaches
+as a service project through the explicit project-connection lifecycle. Its Cloud Run service
+agent receives read-only host-network discovery and network-user access on only that subnet. The
+service uses all-traffic Direct VPC egress through the subnet, internal-only ingress, and IAM
+admission for the dedicated edge caller. A platform-owned regional Cloud Router and Public Cloud
+NAT provide the subnet's controlled public egress, including protected-application retrieval of the
+platform's public JWKS endpoint. Network attachment does not give Platform State ownership of the
+application's Cloud Run service, IAM policy, billing, data, or Terraform state, and applications do
+not own or mutate the shared router or NAT.
 
 Protected services require both provider-level direct-invocation denial and application-side
 assertion verification. The load balancer-to-edge and edge-to-application trust details are refined
@@ -273,8 +276,8 @@ matches `^/[a-z0-9][a-z0-9_-]*$`. The root `/`, `/_platform` and its descendants
 Registration authors must supply the canonical form. The compiler rejects uppercase characters,
 trailing slashes, empty segments, dot segments, percent encoding, encoded separators, query or
 fragment syntax, control characters, and Unicode lookalikes instead of silently rewriting them.
-Two registrations may not hold the same canonical prefix, including staged, suspended, or retired
-tombstones. A retired prefix is not silently reassigned to another application.
+Two registrations may not hold the same canonical prefix, including suspended registrations and
+retired tombstones. A retired prefix is not silently reassigned to another application.
 
 A request belongs to an application only when its path equals the registered prefix or begins with
 that prefix followed by `/`. Textual prefix matches such as `/app2` for `/app` are forbidden.
@@ -294,7 +297,7 @@ selection are outside the contract. Query data is forwarded as request data and 
 in route selection.
 
 The root catalogue, reserved platform paths, and application routes are disjoint. Unknown,
-malformed, staged, suspended, or retired paths fail closed and never fall through to another
+malformed, suspended, or retired paths fail closed and never fall through to another
 application or expose an attachment reference.
 
 ## Catalogue
@@ -356,7 +359,10 @@ The edge creates an opaque Platform Session backed by minimal Firestore Native s
 qualification project and region. The browser cookie is host-only, `Secure`, `HttpOnly`,
 `SameSite=Lax`, and scoped to `/`. The session expires absolutely after eight hours and cannot be
 silently renewed past that boundary. The platform retains no Google access or refresh token and
-does not use Visitor identity to call Google APIs.
+does not use Visitor identity to call Google APIs. The edge runtime alone receives
+`roles/datastore.user`, the lowest project-level predefined role that supplies the required
+Firestore entity read/write permissions; neither the edge caller nor an application identity
+receives session-store access.
 
 A valid session may add Verified Identity Context to a public request, while an absent or invalid
 session leaves a public request anonymous. A protected request without a valid session enters the
@@ -394,16 +400,17 @@ identity.
 
 ## Lifecycle and atomic change
 
-Version 1 defines four lifecycle states:
+Version 1 defines three lifecycle states:
 
-- `staged`: contract-valid but absent from catalogue and routing;
 - `active`: eligible for the declared catalogue visibility, routing, and admission behavior;
 - `suspended`: retained for review but absent from catalogue and routing;
 - `retired`: terminal tombstone, absent from catalogue and routing.
 
-A new application first enters `staged`. Valid transitions are `staged -> active`,
-`staged -> retired`, `active -> suspended`, `active -> retired`, `suspended -> active`, and
-`suspended -> retired`. Content may be revised while staged, active, or suspended through a new
+A new application enters `active` only through atomic activation of a complete immutable candidate
+generation. Candidate publication is not an Application Lifecycle state: before activation a new
+application is absent, while an existing application remains represented by the current active
+generation. Valid transitions are `active -> suspended`, `active -> retired`, `suspended -> active`,
+and `suspended -> retired`. Content may be revised while active or suspended through a new
 Registration Generation. Retired registrations cannot change or reactivate, and their application
 identifiers and route prefixes remain reserved.
 
@@ -419,10 +426,13 @@ deletes or mutates its Application State.
 ### Initial Live generation activation
 
 The reviewed Registration Set remains in Git and compiles before planning into an immutable,
-content-addressed GCS configuration object. One candidate Cloud Run edge revision binds the exact
-source commit, compiler, generation digest, object generation, container image digest, identity
-profile, and adapter configuration. The candidate receives no user traffic while attachment,
-ownership, IAM, and provider dependencies are validated.
+create-only GCS configuration object. New objects use the environment-and-generation path
+`environments/<environment>/generations/<number>/compiled-shared-edge.v1.json`; the generation
+digest, content digest, and GCS object generation bind its exact content. Historical initial and
+digest-addressed names remain readable and immutable. One candidate Cloud Run edge revision binds
+the exact source commit, compiler, generation digest, object name and generation, container image
+digest, identity profile, and adapter configuration. The candidate receives no user traffic while
+attachment, ownership, IAM, and provider dependencies are validated.
 
 The current Live generation pointer is the Cloud Run service's 100-percent traffic assignment to
 one immutable edge revision. Owner-approved activation changes that pointer once. The load balancer
@@ -759,14 +769,16 @@ AP-M9 presents one deep Python lifecycle module through thin Make targets. Its e
 limited to these operator operations:
 
 ```text
-prepare  deploy  status  outputs  register  detach  retire  qualify  destroy
+preflight  preflight-check  deploy-check  application-handoff-check  prepare  deploy  status  outputs  register  detach  retire  qualify  destroy
+ fixture-project-bootstrap  platform-connect-project  fixture-handoff  fixture-status  fixture-destroy
 ```
 
-The module owns preflight, discovery, canonical specification generation, stage ordering, exact
-Terraform planning, interactive checkpoints, provider readback, execution journaling, bundle
-generation, qualification, and safe resume. Git, GitHub, GCP, Terraform, DNS, terminal prompts, and
-the clock are injected internal seams with production and deterministic fake adapters. Callers and
-tests cross the lifecycle interface rather than invoking root-specific scripts.
+The module owns preflight, discovery, one small operation specification, a fixed readable stage
+sequence, exact Terraform planning, interactive checkpoints, provider readback, atomic progress,
+bundle generation, qualification, and safe resume. Git, provider commands, Terraform, DNS, the
+operator console, private state, and time are external-effect seams with production and
+deterministic fake implementations. Callers and tests cross the operator interface rather than a
+generic orchestration framework.
 
 Each environment has one small committed Environment Profile containing only stable non-secret
 owner decisions. Staging fixes the approved non-production project, region, hostname, and provider
@@ -778,17 +790,83 @@ responses, and execution outcomes are not operator-maintained profile fields.
 Preparation is read-only. It verifies reviewed source and tools, loads one profile, discovers
 available GitHub and provider metadata, detects ownership conflicts and drift, derives deterministic
 values, asks only for unresolved owner decisions, and emits one canonical Deployment Specification.
-A complete specification fixes the environment, source, intended stages, resource/action
-allow-lists, declared stage-output bindings, manual checkpoints, readback, failure behavior, and
-destructive boundary. An address or client identifier produced by a named later stage is a bound
-output, not a missing input. Approval is a separate owner decision over the complete specification
-digest.
+A complete specification fixes the environment, source authority and revision, profile, operation,
+and reviewed workflow identity. Stage order, resource/action policy, checkpoints, and readback live
+in reviewed executable code rather than a second declarative language. An address or client
+identifier produced later is generated progress, not a missing preparation input. Approval is a
+separate owner decision over the specification digest.
 
-Deployment consumes exactly that approved digest and advances one Execution Journal through these
-logical stages:
+Preflight executes the preparation-readiness portion only. It loads and validates the named
+profile, checks the selected source authority, and invokes the bounded GitHub, GCP, Terraform, and
+DNS discovery adapters. Its result contains only `ready` or `blocked` plus blocker codes. It does
+not invoke specification generation, canonical state writes, approval, executor construction,
+planning, or mutation. Preparation consumes the same readiness logic and then continues into
+specification generation and approval.
+
+The two local-maintenance checks are diagnostic interfaces, not operational source authorities.
+`preflight-check` runs preflight with source-admission failures demoted to explicit diagnostics.
+`deploy-check` additionally validates retained specification/progress state and supplies each
+currently resolvable fixed stage to a read-only checker. Terraform stages render from the working
+tree, refresh remote state with locking disabled, run the normal plan policy, and delete their
+ephemeral saved plan. Missing generated predecessor outputs produce `deferred`; manual checkpoints
+produce `manual`. Its deep interface returns explicit platform readiness: `ready`,
+`reconciliation-required`, `incomplete`, or `blocked`. The classification includes required
+platform services and the platform-owned foundation, network egress, Shared Edge, active runtime,
+TLS, and final readback. The checker exposes reads and plan creation only and cannot approve,
+apply, execute a provider action, complete a checkpoint, or write operational lifecycle state.
+
+`application-handoff-check` is the application-scoped readiness boundary immediately before
+`outputs`. It consumes the deployment check's explicit platform-ready result without interpreting
+deployment-stage names, then performs fresh provider readback for the named application project,
+its required services, Shared VPC host association, host-network viewer grant, and subnet-user
+grant. It validates the
+same application, route, access mode, platform revision, and Registration Generation inputs that
+would produce the bundle, but does not publish that bundle. Public mode requires no platform
+identity projection. Authenticated and restricted modes require the exact platform identity values
+and application-specific audience in that application-scoped projection. The command has no
+approval, apply, provider-mutation, bundle-publication, or operational-state-write interface.
+The deployment checker owns the exact application-subnet Cloud Router and NAT requirement;
+missing or changed egress is platform reconciliation, not an application-project repair.
+
+Before default deployment prepares new intent, it reads the private current-specification pointer
+and canonical specification and revalidates the current source, profile, environment, human
+session, project, ownership, pinned tools, readable provider facts, approval binding, and active
+progress compatibility. An exact current approval is selected automatically; the operator does not relay its
+digest. Absence, drift, or missing approval falls back to normal preparation. Malformed retained
+state or a current blocker fails closed without rewriting the evidence. Supplying an explicit
+current digest remains an optional pin, not the ordinary interface.
+
+The specification version and workflow identifier bind the executable stage schema. The completed
+11-stage `platform-deploy-v1` workflow remains an exact readable predecessor after the current
+12-stage `platform-deploy-v2` workflow adds runtime activation. A valid terminal predecessor record
+is historical: status may report it, but execution cannot resume it and the lifecycle cannot add a
+stage result that the predecessor never ran. Before new preparation changes the private current
+pointers, the operator displays both workflows and confirms that local supersession with `y/N`.
+The predecessor specification and terminal snapshot remain unchanged. A declined confirmation
+changes nothing; a running or waiting predecessor remains an active-operation conflict. An invalid
+or unrecognized record fails with a named readback blocker instead of reaching the generic internal
+error boundary.
+
+Source authority is an explicit specification input derived from Git readback, never a free-form
+operator value. `accepted` requires the exact clean current protected-main revision. `candidate`
+requires staging, a clean non-main branch, an exact pushed matching origin revision, and current
+`origin/main` as an ancestor. The authority label changes the specification digest. Environment
+status and Platform Integration Bundles carry the label; candidate qualification is published
+under a separate candidate pointer and cannot become accepted qualification or production
+authority. After merge, accepted preparation, deployment, and qualification run again from main.
+
+For an ordinary reversible staging creation or update, invoking the named command deliberately is
+the owner's selection of the operation. Specification approval and every exact plan or bounded
+action confirmation occur inside that same process; no separate out-of-band approval is required.
+Repository merge never invokes an operation. Destruction, purge, ownership transfer, production
+cutover, and scope expansion remain separately governed decisions.
+
+Deployment consumes exactly that approved digest, follows this fixed sequence, and atomically
+replaces one private progress record after each successful readback:
 
 1. source, identity, environment, state, ownership, and drift preflight;
-2. reviewed enablement and readback of the two APIs required for state bootstrap;
+2. reviewed enablement and readback of the three prerequisite APIs required for state bootstrap
+   and Terraform provider planning;
 3. one-time backend bootstrap when absent;
 4. platform foundation, including configuration storage, registry, identities, KMS, Firestore,
    Secret Manager containers, logging, evidence, and cost controls;
@@ -796,17 +874,35 @@ logical stages:
 6. immutable closed initial Registration Generation publication;
 7. platform-owned OAuth branding/client creation and direct Secret Manager entry through an
    interactive provider-console checkpoint;
-8. Shared Edge, load balancer, and reserved address;
-9. the exact external Squarespace record through an interactive checkpoint;
-10. authoritative and recursive DNS verification, certificate creation or readiness, and bounded
-   propagation wait; and
-11. state/provider/ownership readback and status reconciliation.
+8. Shared Edge, load balancer, reserved address, and full hostname readback;
+9. exact source-, image-, and active-generation-bound Shared Edge revision activation;
+10. the exact external Squarespace record through an interactive checkpoint;
+11. authoritative and recursive DNS verification, certificate creation or readiness, and a
+    one-hour readiness bound with 30-second observations; explicit provider failure states stop
+    instead of being classified as pending; and
+12. state/provider/ownership readback and status reconciliation.
+
+The first execution of step 8 is dark and leaves TLS disabled until external DNS is verified. On a
+later source-bound reconciliation, the operator reads the exact Platform State addresses before
+planning. If the managed certificate is already state-owned, step 8 preserves the certificate and
+its HTTPS resources instead of rendering the first-deployment TLS-disabled shape. State presence
+does not imply readiness; step 11 still verifies DNS and the provider-managed certificate status.
+
+The operator transcript groups those twelve internal resume checkpoints into seven numbered human
+stages: verification; state and foundation bootstrap; immutable image and generation publication;
+OAuth configuration; Shared Edge creation and runtime activation; DNS and TLS; and final platform
+readback. Each group is
+announced as `Stage n/7` when first entered in a process. A resumed process announces the group
+containing its first unclosed internal checkpoint, so a resume at certificate planning reports
+`Stage 6/7 · Configure DNS and TLS` without repeating the already closed DNS action.
 
 The local wizard remains active at a manual checkpoint, prints the exact approved values and
-provider destination, and waits for Enter. It never asks for a secret payload. After acknowledgement
-it verifies every provider-readable value; an unreadable field is recorded as operator-attested.
-Rerunning the same operation is a crash-recovery path that resumes after the last closed stage. A
-scope change, unapproved mutation, owner mismatch, or drift requires new preparation and approval.
+provider destination, and waits for Enter. It never asks for a secret payload. Before the DNS
+pause, readback distinguishes an exact existing record from one that must be reconciled; after
+acknowledgement it verifies every provider-readable value and narrates the closed checkpoint. An
+unreadable field is recorded as operator-attested. Rerunning the same operation is a crash-recovery
+path that resumes after the last closed stage. A scope change, unapproved mutation, owner mismatch,
+or drift requires new preparation and approval.
 
 The lifecycle verifies and uses one short-lived human-authenticated operator session for the
 selected environment and provider project. Each Terraform mutation plans, canonicalizes,
@@ -816,13 +912,47 @@ service-account key, long-lived credential, automatic unlock, state push, import
 cleanup, or destructive recovery is permitted. Capability available to the human account outside
 the script is residual risk and never expands the reviewed lifecycle scope.
 
-After environment deployment, `outputs` compiles a Platform Integration Bundle for one application,
-environment, access mode, route intent, and platform revision. A fixture may consume a bundle whose
+When Terraform plan or apply fails, the command boundary writes the exact captured stdout and
+stderr into a new timestamped event below the ignored private operator diagnostics directory. The
+event directory is mode `0700`; its streams and SHA-256 manifest are mode `0600`. Terminal output
+contains only the safe blocker, diagnostic path and digest, and a handling warning. The raw streams
+may contain sensitive provider material and therefore never enter a profile, specification,
+approval, progress record, bundle, evidence package, qualification result, Git input, or terminal
+transcript. This local troubleshooting boundary permits root-cause inspection without treating raw
+provider output as reviewed authority.
+
+After environment deployment and explicit application-project connection, `outputs` compiles a
+Platform Integration Bundle for one application project, application, environment, access mode,
+route intent, and platform revision. The operator first runs `application-handoff-check` with those
+same values and resolves any platform-reconciliation, project-service, connection, or protected-
+identity blocker. The bundle includes the exact application project, Shared VPC host,
+network, subnet, region, and egress bindings. A fixture may consume a bundle whose
 qualification status is explicitly `unqualified`; real Application Adoption requires the owning
 application to accept the platform's current qualification status. The application deploys through
 Application State and returns an Application Attachment Bundle bound to the platform-bundle digest.
-Registration validates the bundle, provider target, owner, ingress, caller grant, audience, and
-current platform state before activating a complete Registration Generation.
+Registration validates the bundle, provider target project and network, owner, ingress, caller
+grant, audience, and current platform state before activating a complete Registration Generation.
+Protected fixture verification failures emit only an allowlisted constant diagnostic code and the
+fixture identifier. Assertions, identities, tokens, provider exceptions, and request values remain
+absent from the fixture log event.
+
+The repository-owned Fixture Application operator acts only as the Application Owner for the three
+synthetic fixtures. A one-time `fixture-project-bootstrap` creates or repairs their dedicated
+application project, required services, private versioned state bucket, and image repository.
+`platform-connect-project` attaches that existing project to the platform Shared VPC and records
+the verified connection without creating a runtime or route.
+
+For each fixture, the Platform Operator runs `outputs`, then passes that exact bundle to
+`fixture-handoff`. The handoff builds or reuses the immutable fixture image, plans and applies only
+the selected independent Application State root, emits its attachment bundle and registration
+intent, publishes the canonical files with mode `0600` in ignored operator state, and stops. It is
+an Application State mutation, not read-only preparation. After inspection, the Platform Operator
+runs `register` to activate a complete generation. There is no combined fixture deploy-and-register
+operation. `fixture-status` is read-only and reports all fixtures by default or one optional
+selection. `fixture-destroy` requires the route to have been suspended through `detach`, requires
+the fixture-specific destructive confirmation, operates only on the selected fixture Application
+State, and never destroys Platform State. These commands are the executable staging-fixture
+boundary; Terraform roots and loopback servers alone are not deployment capability.
 
 Detachment is the reversible suspended state. The edge removes the application from the catalogue
 and target routing, reserves its identifier and route, invokes no target, and returns a generic
@@ -841,7 +971,9 @@ retiring their identities.
 Environment destruction creates a separate destructive specification, refuses active attachments,
 requires exact typed confirmation, removes traffic and external DNS safely, respects cache and
 rollback windows, and never destroys Application State. State backends, recovery material, and
-evidence remain until a separately approved purge. Production uses independent authority and a
+evidence remain until a separately approved purge. The Shared VPC host, application network, and
+subnet also remain while application projects are connected; disconnecting those projects is a
+separate destructive operation. Production uses independent authority and a
 stronger confirmation. `platform-prepare` for production returns
 `OWNERSHIP_TRANSFER_REQUIRED` while the Finance-owned production edge or any other requested
 resource has not completed an explicit ownership transfer.
@@ -849,20 +981,26 @@ resource has not completed an explicit ownership transfer.
 AP-M9-W1 defines this design, AP-M9-W2 removed the retired manifest implementation, AP-M9-W3
 implemented the profile and lifecycle contracts, AP-M9-W4 implemented credential-free local
 preparation/status plus resumable fake execution, AP-M9-W5 implemented the repository-only
-Terraform lifecycle described below, and AP-M9-W6 implemented the unarmed staged deployment engine,
+Terraform lifecycle described below, and AP-M9-W6 implemented the unarmed multi-stage deployment engine,
 closed command boundary, exact confirmations, manual checkpoints, readback, and resume. AP-M9-W7
 implemented least-data application outputs, exact attachment/target validation, immutable complete-
 generation activation, reversible detachment/reactivation, terminal retirement, and distinct
 reserved-route responses behind injected boundaries. AP-M9-W8 implemented exact-revision
 qualification, redacted evidence, network fixtures, failure injection, reviewed rollback, and
 safe-destruction mechanics plus guarded local provider construction and the production Shared Edge
-composition. The live process accepts exact generated revision, generation, provider,
+composition. AP-M9-W9 implements the Fixture Application operator, browser-mediated qualification,
+exact retained-resource destruction transitions, and staging-only Candidate Source admission so a
+pushed pull-request revision can exercise provider behavior before merge without claiming accepted
+qualification. The repository work itself performs no external operation. The live
+process accepts exact generated revision, generation, provider,
 OAuth-secret-version, KMS-key-version, edge-caller, and operator-subject bindings. It reads the
 OAuth payload directly from the selected Secret Manager version and never puts that payload in an
 environment variable, terminal, image, output, or evidence record. These packages create no identity,
 credential, state,
 provider resource, OAuth client, DNS record, certificate, bundle instance, application change, or
-Live qualification evidence. Python-to-Go migration remains a later contract-preserving milestone after
+Live qualification evidence. AP-M9-W10 performs the first accepted staging operation from the
+merged W9 implementation; any candidate exercise must be repeated from Accepted Source.
+Python-to-Go migration remains a later contract-preserving milestone after
 the Python product is delivered and qualified.
 
 ### AP-M9-W5 deployable Terraform lifecycle
@@ -899,7 +1037,8 @@ working root, uses mode `0600`, returns a content digest, is idempotent for iden
 refuses traversal or replacement. It does not invoke Terraform or access a backend.
 
 The operator-session profile contains the selected environment, exact provider project, active
-human account readback, clean current source revision, and local authentication freshness result.
+human account readback, explicit clean accepted or candidate source revision, and local
+authentication freshness result.
 It is private execution state, not an operator-authored manifest or committed identity value. The
 lifecycle creates no operation-specific service accounts or impersonation bindings. Terraform-
 managed runtime identities remain distinct per environment and owner, and service-account keys
@@ -911,6 +1050,32 @@ phase resource/action inventory. It sorts that projection before hashing. Raw pl
 values, provider payloads, and state never enter the canonical summary. A mismatch, ambient
 provider default, unexpected resource/action, replacement, or non-destructive delete yields
 ordered violations and no consumable plan digest.
+
+Foundation and Shared Edge share one Terraform root and Platform State lineage. A Shared Edge plan
+may therefore include exact `module.platform_foundation` and `module.platform_controls` resources
+from the preceding phase only as `no-op` or `read` observations. The sole migration exception is
+the first cross-project fixture reconciliation: policy admits the exact Shared VPC network,
+application subnet, host-project binding, application-subnet Cloud Router, and Cloud NAT creates
+plus the exact qualification image-repository update and edge session-store role creation. Those
+addresses and actions are closed and the stage rereads the foundation output, including exact
+all-traffic, router, and NAT references.
+Every other inherited create, update, delete, replacement, unexpected prefix, or unknown type
+fails policy instead of acquiring Shared Edge authority.
+
+A failed Shared Edge apply can leave a valid partial `module.shared_edge[0]` inventory in that same
+lineage. When a later source-bound deployment reaches foundation, the operator first projects the
+exact state addresses. If any Shared Edge address is already recorded, it creates an explicit
+refresh-only foundation plan rather than interpreting the foundation phase as authority to remove
+the edge. In that mode, both foundation and inherited Shared Edge resources may appear only as
+`no-op` or `read`; any drift or mutation fails policy and no refresh-only plan is applied. The later
+normal Shared Edge exact plan reconciles the partial inventory while preserving one Platform State
+owner and lineage.
+
+Terraform manages each inactive candidate's revision name, environment binding, and image digest as
+one immutable Cloud Run configuration. A later source or image therefore produces a newly named
+candidate instead of attempting to alter an existing revision. Terraform deliberately ignores only
+the service traffic assignment after creation: registration activation and rollback own that Live
+generation pointer and may move it only after their separate validation and confirmation.
 
 The Shared Edge phase can first reserve the address with TLS disabled. Certificate and HTTPS
 resources become eligible only after the later deployment engine has completed the external-DNS
@@ -991,7 +1156,7 @@ values only.
 - An unavailable attachment fails for that application only; the edge does not retry against a
   different application.
 - Missing or invalid identity fails protected admission and application-side verification.
-- Staged, suspended, and retired registrations produce no live route or catalogue entry.
+- Suspended and retired registrations produce no live route or catalogue entry.
 - Provider-console or hand-written route changes are drift and cannot become the reviewed baseline.
 - Rollback selects a previously reviewed whole generation; it never rolls back or deletes
   Application State.
@@ -1018,12 +1183,15 @@ make a sink, retention policy, alert, responder, quota, or budget operational.
 
 ### Initial logging, evidence, incident, and cost profile
 
-The edge emits one structured completion event per request or streaming connection into a dedicated
-Cloud Logging bucket in the qualification project and `us-west1`. Seven-day retention and
-owner-only access apply. Events contain only generation, application and route identifiers, coarse
-outcomes, status class, latency, correlation identifier, and non-secret platform versions. They
-exclude identity, visitor metadata, payloads, application data, assertions, sessions, secrets,
-state, saved plans, and stream chunks. Logs have no external sink.
+The edge emits one exact JSON-line structured completion event per request or streaming connection
+into a dedicated Cloud Logging bucket in the qualification project and `us-west1`. The live logger
+uses an isolated `INFO` handler with no human-readable prefix so Cloud Logging parses the record as
+the `jsonPayload` selected by the dedicated sink. Seven-day retention and owner-only access apply.
+Events contain only generation, application and route identifiers, coarse outcomes, status class,
+latency, correlation identifier, non-secret platform versions, and an optional diagnostic code
+from the fixed runtime allowlist. They exclude identity, visitor metadata, payloads, application
+data, assertions, sessions, secrets, provider exceptions, state, saved plans, and stream chunks.
+Logs have no external sink.
 
 Control-plane events record digest-bound plan, apply, activation, rollback, DNS/TLS, key, IAM,
 state, drift, break-glass, incident, and destructive-cleanup outcomes without copying protected
@@ -1059,9 +1227,10 @@ cleanup begins in dry-run and deletion remains owner-approved. Terraform checks 
 larger runtimes, extra environments or edges, unapproved billable services, longer retention, and
 missing `environment`, `managed_by`, `state_owner`, or applicable `application_id` labels.
 
-The platform project pays for Shared Edge and initial same-project qualification resources. Later
-application projects pay for their runtime, data, networking, and provider services unless their
-Application Adoption explicitly records another allocation.
+The platform project pays for Shared Edge and Shared VPC host resources. The dedicated fixture
+project pays for fixture runtimes, images, and state. Other application projects pay for their
+runtime, data, networking use, and provider services unless their Application Adoption explicitly
+records another allocation.
 
 ### AP-M6 networked runtime profile
 
@@ -1124,7 +1293,9 @@ eight hours without renewal. Public routing remains anonymous when session stora
 authenticated and restricted routing fail closed. Restricted admission compares the exact reviewed
 issuer-and-subject pair, never email. Logout deletes server state, clears the cookie, and accepts
 only a root or active registered platform-relative return location. Production provider and store
-adapters are exercised with deterministic local transports; default verification performs no
+failures retain the same generic visitor response while emitting only constant, non-sensitive
+boundary codes that distinguish the session store from the identity provider. Production provider
+and store adapters are exercised with deterministic local transports; default verification performs no
 provider call. AP-M6-W6 replaces the internal admitted identity at the handoff with its signed
 Version 1 assertion.
 
@@ -1163,6 +1334,14 @@ registration, unsupported adapter, malformed URN, provider failure, missing serv
 scope, unready service, owner reuse, caller mismatch, audience mismatch, disabled Invoker check, or
 invalid provider target closes before application delivery. Local fake readback is not evidence
 that IAM, ingress, a target service, or an edge caller exists in GCP.
+
+The Shared Edge runtime identity receives no direct invocation grant on application services. It
+may create short-lived credentials for only the dedicated edge-caller service account. That caller
+receives Cloud Run Viewer and Invoker only on each exact attached service, allowing the runtime to
+read the named service and IAM policy and then mint an audience-bound ID token without a stored
+service-account key. A project number from the typed attachment reference is accepted only when it
+maps to the configured project ID; the canonical provider response must then match that exact
+project ID, region, and service name.
 
 AP-M6-W8 delivers only a successfully selected, admitted, asserted, and resolved request. Its HTTP
 transport obtains a Google service-identity token for the resolved audience, preserves the
@@ -1333,7 +1512,7 @@ text field for HTML and constructs each link only from the canonical registered 
 does not accept templates, raw markup, arbitrary links, attachment references, or operator data.
 Deterministic tests inspect the parsed links and literal text; they do not require a browser.
 
-Unknown, malformed, reserved, staged, suspended, and retired paths return a closed platform
+Unknown, malformed, reserved, suspended, and retired paths return a closed platform
 response and never invoke an attachment. Authentication failures are distinct from restricted
 membership denial, but neither response reveals membership, attachment, or application-state
 details. An unavailable or oversized fixture response fails only the selected application and is
@@ -1394,8 +1573,8 @@ availability, performance, persistence, Application Adoption, or any Finance Ass
 This section is design authority only. No Fixture (`F`) evidence exists until a later approved item
 4 plan, implementation, and evaluation record exercise these claims.
 
-Finance Assistant code, data, infrastructure, identity, state, and migration are never fixture
-dependencies. Its Integration Draft remains an inactive compatibility input.
+Real-application code, data, infrastructure, identity, state, and migration are never fixture
+dependencies. Application migration remains under the consuming application's authority.
 
 ## Configurability and extraction
 
@@ -1407,12 +1586,14 @@ credential access and no cloud, DNS, identity, or application mutation.
 Extraction to a dedicated repository changes the project root but not contract identifiers,
 compiler behavior, paths relative to that root, or ownership boundaries.
 
-## Explicitly unresolved implementation decisions
+## Historical pre-implementation boundary — superseded
 
-This design intentionally does not implement:
+The original contract-and-fixture design stopped before the following work. This list is preserved
+only as historical scope evidence; the active AP-M9 sections above and the implementation plan
+record which items are now implemented:
 
-- AP-M9 Environment Profiles, lifecycle contracts, operator module, command adapters, execution
-  journal, integration bundles, attachment bundles, or qualification evidence;
+- environment profiles, lifecycle contracts, the operator workflow, provider command seams,
+  deployment progress, integration bundles, attachment bundles, or qualification evidence;
 - the deployable bootstrap/foundation/edge Terraform phases, operation identities, backend objects,
   state migration, provider composition entry point, container definitions, or IAM grants;
 - OAuth client registration values, Firestore session configuration, KMS key versions, secret
@@ -1426,9 +1607,9 @@ AP-M6 now resolves the network framework, dependency policy, and initial header,
 abusive-traffic limits as implementation authority. Local runtime and adapter implementation does
 not make provider resources or Live behavior implemented or qualified.
 
-The implementation plan, evaluation strategy, threat model, versioned schemas, and deterministic
-validation added by this delivery item may constrain later work. They cannot describe an unresolved
-runtime or control as operational.
+The versioned schemas and deterministic validation from that delivery remain part of the current
+design where later authority did not replace them. This historical boundary does not override the
+active status and claim discipline in `docs/README.md`.
 
 ## Design acceptance boundary
 
@@ -1468,5 +1649,5 @@ application-owned gate.
 | Terraform state and operator authority | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
 | AP-M7 Terraform configuration profile | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
 | Historical AP-M8 proposal, superseded before execution | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
-| AP-M9 interactive environment lifecycle | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-013 |
+| AP-M9 interactive environment lifecycle | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-014 |
 | Observability, evidence, incidents, and cost | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007, AP-PR-008; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-004, ADR-009 |

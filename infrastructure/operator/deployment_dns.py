@@ -197,6 +197,36 @@ class DigDnsReadback:
             "sha256:" + hashlib.sha256(payload).hexdigest(),
         )
 
+    def absent(self) -> DnsReadback:
+        """Verify the staging A record is absent at every approved resolver."""
+
+        nameservers = self._lines(self._run("+short", "NS", _ZONE))
+        if not nameservers:
+            raise DnsReadbackError("DNS_AUTHORITATIVE_SERVERS_MISSING")
+        if any(_DNS_NAME.fullmatch(value) is None for value in nameservers):
+            raise DnsReadbackError("DNS_AUTHORITATIVE_SERVERS_INVALID")
+        observations: list[str] = []
+        for server in (*sorted(set(nameservers)), *_RECURSIVE_RESOLVERS):
+            answer = self._answer(
+                self._lines(
+                    self._run(
+                        "+noall",
+                        "+answer",
+                        f"@{server}",
+                        _HOSTNAME,
+                        "A",
+                    )
+                )
+            )
+            if answer is not None:
+                return DnsReadback(False)
+            observations.append(f"{server}:absent")
+        payload = "\n".join(observations).encode("ascii")
+        return DnsReadback(
+            True,
+            "sha256:" + hashlib.sha256(payload).hexdigest(),
+        )
+
 
 __all__ = (
     "ClosedDigRunner",

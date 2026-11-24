@@ -15,6 +15,7 @@ from infrastructure.backend import (
 )
 from infrastructure.operator import StageContext
 from infrastructure.operator.deployment import (
+    DeploymentCommandError,
     ExactAction,
     ExactTerraformPlan,
     TerraformPlanArtifact,
@@ -29,6 +30,10 @@ from infrastructure.operator.local_deployment import (
     initial_generation,
 )
 from infrastructure.operator.local_deployment_commands import LocalDeploymentCommands
+from infrastructure.operator.local_generation import (
+    ProviderGenerationActivation,
+    ProviderGenerationBinding,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -89,6 +94,12 @@ def _request(root: Path, phase: str) -> PhasePlanRequest:
 class FakeTerraform:
     applied: list[str] = field(default_factory=list)
     migrated: int = 0
+    recovered_taints: list[str] = field(default_factory=list)
+    refresh_only_plans: list[bool] = field(default_factory=list)
+    read_outputs: list[str] = field(default_factory=list)
+    state_addresses: tuple[str, ...] = ()
+    foundation_nat_name: str | None = "app-platform-applications-us-west1-nat"
+    foundation_egress_ready: bool = True
 
     def create_plan(
         self,
@@ -97,6 +108,7 @@ class FakeTerraform:
         variable_file: Path,
         *,
         bootstrap_remote: bool = False,
+        refresh_only: bool = False,
     ) -> TerraformPlanArtifact:
         if request.phase == "bootstrap":
             self.assertEqualForFake(
@@ -104,6 +116,20 @@ class FakeTerraform:
                 bootstrap_remote,
             )
         self.assert_private(variable_file)
+        variables = json.loads(variable_file.read_text(encoding="utf-8"))
+        if (
+            request.phase == "shared-edge"
+            and (
+                "module.shared_edge[0].google_compute_managed_ssl_certificate."
+                "edge[0]"
+            )
+            in self.state_addresses
+            and not variables["platform_configuration"]["shared_edge"]["tls_enabled"]
+        ):
+            raise DeploymentCommandError(
+                "TERRAFORM_PROTECTED_RESOURCE_DELETE_PROPOSED"
+            )
+        self.refresh_only_plans.append(refresh_only)
         plan = terraform_root / "saved.tfplan"
         plan.write_bytes(b"saved plan")
         plan.chmod(0o600)
@@ -116,6 +142,7 @@ class FakeTerraform:
                 "owner_id": "app-platform",
                 "terraform_root": request.terraform_root,
                 "phase": request.phase,
+                "planning_mode": "refresh-only" if refresh_only else "normal",
                 "provider": {
                     "source": "registry.terraform.io/hashicorp/google",
                     "service": "google",
@@ -125,6 +152,16 @@ class FakeTerraform:
                 "changes": [],
             },
         )
+
+    def platform_state_addresses(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> tuple[str, ...]:
+        del terraform_root
+        if request.phase not in {"platform-foundation", "shared-edge"}:
+            raise AssertionError("state projection is only expected for platform phases")
+        return self.state_addresses
 
     @staticmethod
     def assertEqualForFake(observed: object, expected: object) -> None:
@@ -155,6 +192,14 @@ class FakeTerraform:
             raise AssertionError("wrong migration")
         self.migrated += 1
 
+    def clear_signing_key_ring_taint(
+        self,
+        request: PhasePlanRequest,
+        terraform_root: Path,
+    ) -> None:
+        del terraform_root
+        self.recovered_taints.append(request.phase)
+
     def read_output(
         self,
         request: PhasePlanRequest,
@@ -162,6 +207,7 @@ class FakeTerraform:
         output_name: str,
     ) -> object:
         del request
+        self.read_outputs.append(output_name)
         if output_name == "bootstrap_phase_output":
             return {
                 "contract_version": 1,
@@ -174,6 +220,25 @@ class FakeTerraform:
                 "lineages": {"bootstrap": {"prefix": "bootstrap"}},
             }
         if output_name == "foundation_phase_output":
+            foundation = {
+                "configuration_bucket": (
+                    "comfforts-ap-stg-455651441682-configuration"
+                ),
+                "oauth_secret_id": (
+                    "projects/comfforts-platform-non-prod/secrets/"
+                    "app-platform-edge-oauth"
+                ),
+            }
+            if self.foundation_egress_ready:
+                foundation.update(
+                    {
+                        "application_egress_mode": "all-traffic",
+                        "application_router_name": (
+                            "app-platform-applications-us-west1-router"
+                        ),
+                        "application_nat_name": self.foundation_nat_name,
+                    }
+                )
             return {
                 "contract_version": 1,
                 "output_kind": "platform-foundation",
@@ -184,15 +249,7 @@ class FakeTerraform:
                 "project_number": "455651441682",
                 "region": "us-west1",
                 "hostname": "apps-staging.comfforts.com",
-                "foundation": {
-                    "configuration_bucket": (
-                        "comfforts-ap-stg-455651441682-configuration"
-                    ),
-                    "oauth_secret_id": (
-                        "projects/comfforts-platform-non-prod/secrets/"
-                        "app-platform-edge-oauth"
-                    ),
-                },
+                "foundation": foundation,
                 "controls": {},
             }
         variables = json.loads(
@@ -208,6 +265,7 @@ class FakeTerraform:
             "project_id": "comfforts-platform-non-prod",
             "region": "us-west1",
             "edge": {
+                "candidate_revision": "app-platform-edge-g1-testbinding",
                 "hostname": "apps-staging.comfforts.com",
                 "reserved_address": "34.120.10.20",
                 "service_name": "app-platform-edge",
@@ -220,9 +278,10 @@ class FakeTerraform:
 class FakeProvider:
     services: bool = False
     image: str | None = None
-    generation: int | None = None
+    generation_reference: str | None = None
     certificate_ready: bool = True
     backend: bool = False
+    initial_generation_publications: int = 0
 
     def enable_bootstrap_services(self) -> None:
         self.services = True
@@ -233,16 +292,16 @@ class FakeProvider:
     def bootstrap_backend_ready(self) -> bool:
         return self.backend
 
-    def publish_initial_generation(self, generation: InitialGeneration) -> int:
-        del generation
-        self.generation = 42
-        return 42
+    def publish_initial_generation(self, generation: InitialGeneration) -> str:
+        self.initial_generation_publications += 1
+        if self.generation_reference is None:
+            self.generation_reference = generation.reference(42)
+        return self.generation_reference
 
-    def read_initial_generation(self, generation: InitialGeneration) -> int:
-        del generation
-        if self.generation is None:
+    def read_initial_generation(self) -> str:
+        if self.generation_reference is None:
             raise AssertionError("generation missing")
-        return self.generation
+        return self.generation_reference
 
     def publish_shared_edge_image(self, source_revision: str) -> str:
         del source_revision
@@ -255,6 +314,12 @@ class FakeProvider:
     def read_shared_edge_image(self, source_revision: str) -> str | None:
         del source_revision
         return self.image
+
+    def signing_key_ring_identity(self) -> str:
+        return (
+            "projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
+            "app-platform"
+        )
 
     def active_signing_key_version(self) -> str:
         return (
@@ -271,7 +336,8 @@ class FakeProvider:
     def certificate_readback(self) -> CertificateReadback:
         return CertificateReadback(
             "https://compute.googleapis.com/projects/example/certificates/edge",
-            self.certificate_ready,
+            "ACTIVE" if self.certificate_ready else "PROVISIONING",
+            "ACTIVE" if self.certificate_ready else "PROVISIONING",
         )
 
 
@@ -288,10 +354,63 @@ class FakeDns:
         )
 
 
+@dataclass
+class FakeRuntimeProvider:
+    binding: ProviderGenerationBinding
+    candidates: dict[str, ProviderGenerationBinding] = field(default_factory=dict)
+    activations: list[tuple[str, str, str, str]] = field(default_factory=list)
+
+    def shared_edge_exists(self, environment: str) -> bool:
+        return environment == self.binding.environment
+
+    def read_revision_binding(
+        self,
+        environment: str,
+        revision_name: str,
+    ) -> ProviderGenerationBinding:
+        binding = self.candidates[revision_name]
+        if binding.environment != environment:
+            raise RuntimeError("candidate environment mismatch")
+        return binding
+
+    def activate(
+        self,
+        environment: str,
+        revision_name: str,
+        generation_digest: str,
+        authority: str,
+    ) -> ProviderGenerationActivation:
+        self.activations.append(
+            (environment, revision_name, generation_digest, authority)
+        )
+        self.binding = self.read_revision_binding(environment, revision_name)
+        return ProviderGenerationActivation(
+            True,
+            revision_name,
+            generation_digest,
+        )
+
+    def read_active_binding(self, environment: str) -> ProviderGenerationBinding:
+        if environment != self.binding.environment:
+            raise RuntimeError("active environment mismatch")
+        return self.binding
+
+
+@dataclass
+class FakeRuntimeRecorder:
+    bindings: list[ProviderGenerationBinding] = field(default_factory=list)
+
+    def record_active_runtime(self, binding: ProviderGenerationBinding) -> None:
+        self.bindings.append(binding)
+
+
 class LocalDeploymentCommandsTest(unittest.TestCase):
     def _commands(
         self,
         directory: str,
+        *,
+        runtime_provider: FakeRuntimeProvider | None = None,
+        runtime_recorder: FakeRuntimeRecorder | None = None,
     ) -> tuple[LocalDeploymentCommands, FakeTerraform, FakeProvider, FakeDns, Path]:
         work = Path(directory) / "work"
         work.mkdir(mode=0o700)
@@ -311,12 +430,140 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
                 provider,
                 dns,
                 session,
+                runtime_provider=runtime_provider,
+                runtime_recorder=runtime_recorder,
             ),
             terraform,
             provider,
             dns,
             work,
         )
+
+    def test_redeploy_activates_current_source_with_active_generation(self) -> None:
+        old_binding = ProviderGenerationBinding(
+            environment="staging",
+            revision_name="app-platform-edge-g2-old",
+            platform_source_revision="c" * 40,
+            image_reference=(
+                "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                "app-platform-images/shared-edge@sha256:" + "c" * 64
+            ),
+            generation=2,
+            generation_digest="sha256:" + "2" * 64,
+            content_digest="sha256:" + "3" * 64,
+            object_name=(
+                "environments/staging/generations/2/"
+                "compiled-shared-edge.v1.json"
+            ),
+            object_generation=84,
+        )
+        new_image = (
+            "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+            "app-platform-images/shared-edge@sha256:" + "d" * 64
+        )
+        candidate_name = "app-platform-edge-g2-current"
+        candidate = ProviderGenerationBinding(
+            environment="staging",
+            revision_name=candidate_name,
+            platform_source_revision=SOURCE,
+            image_reference=new_image,
+            generation=old_binding.generation,
+            generation_digest=old_binding.generation_digest,
+            content_digest=old_binding.content_digest,
+            object_name=old_binding.object_name,
+            object_generation=old_binding.object_generation,
+        )
+        runtime = FakeRuntimeProvider(
+            old_binding,
+            {candidate_name: candidate},
+        )
+        recorder = FakeRuntimeRecorder()
+        with tempfile.TemporaryDirectory() as directory:
+            commands, _, provider, _, _ = self._commands(
+                directory,
+                runtime_provider=runtime,
+                runtime_recorder=recorder,
+            )
+            provider.generation_reference = initial_generation(SOURCE).reference(42)
+            generation_context = _context(
+                "generation-publish",
+                ("registration-generation-reference",),
+            )
+            generation_proposal = commands.prepare_action(generation_context)
+            commands.execute_action(
+                generation_context,
+                ExactAction(
+                    generation_proposal.action,
+                    "sha256:" + "e" * 64,
+                    generation_proposal.summary,
+                ),
+            )
+            generation_readback = commands.readback_action(generation_context)
+            generation_reference = dict(generation_readback.outputs)[
+                "registration-generation-reference"
+            ]
+            edge_reference = json.dumps(
+                {
+                    "contract_version": 1,
+                    "environment": "staging",
+                    "output_kind": "shared-edge",
+                    "project_id": "comfforts-platform-non-prod",
+                    "region": "us-west1",
+                    "state_owner": "platform",
+                    "owner_id": "app-platform",
+                    "edge": {
+                        "candidate_revision": candidate_name,
+                        "hostname": "apps-staging.comfforts.com",
+                        "reserved_address": "34.120.10.20",
+                        "service_name": "app-platform-edge",
+                        "tls_enabled": True,
+                    },
+                },
+                sort_keys=True,
+            )
+            activation_context = _context(
+                "runtime-activation",
+                ("active-runtime-binding",),
+                (
+                    ("image-publish.shared-edge-image-digest", new_image),
+                    (
+                        "generation-publish.registration-generation-reference",
+                        generation_reference,
+                    ),
+                    ("shared-edge.edge-reference", edge_reference),
+                ),
+            )
+            proposal = commands.prepare_action(activation_context)
+            commands.execute_action(
+                activation_context,
+                ExactAction(
+                    proposal.action,
+                    "sha256:" + "f" * 64,
+                    proposal.summary,
+                ),
+            )
+            activation_readback = commands.readback_action(activation_context)
+
+        self.assertEqual(json.loads(generation_reference)["generation"], 2)
+        self.assertEqual(
+            generation_proposal.action,
+            "preserve-active-registration-generation",
+        )
+        self.assertEqual(provider.initial_generation_publications, 0)
+        self.assertEqual(
+            runtime.activations,
+            [
+                (
+                    "staging",
+                    candidate_name,
+                    old_binding.generation_digest,
+                    "apply",
+                )
+            ],
+        )
+        self.assertTrue(activation_readback.matched)
+        self.assertEqual(runtime.binding, candidate)
+        self.assertEqual(recorder.bindings, [candidate])
 
     @staticmethod
     def _readback(
@@ -369,7 +616,7 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
 
     def test_foundation_and_edge_readbacks_feed_later_stages(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            commands, _, _, _, work = self._commands(directory)
+            commands, terraform, _, _, work = self._commands(directory)
             foundation = _context(
                 "foundation",
                 ("foundation-reference", "oauth-secret-container"),
@@ -385,43 +632,298 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             )
             reference = dict(foundation_result.outputs)["foundation-reference"]
             generation = initial_generation(SOURCE)
+            edge_inputs = (
+                ("foundation.foundation-reference", reference),
+                (
+                    "image-publish.shared-edge-image-digest",
+                    "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                    "app-platform-images/shared-edge@sha256:" + "d" * 64,
+                ),
+                (
+                    "oauth-configuration.oauth-client-id",
+                    "123-client.apps.googleusercontent.com",
+                ),
+                (
+                    "oauth-configuration.oauth-secret-version",
+                    "projects/comfforts-platform-non-prod/secrets/"
+                    "app-platform-edge-oauth/versions/1",
+                ),
+                (
+                    "generation-publish.registration-generation-reference",
+                    generation.reference(42),
+                ),
+            )
             edge = _context(
                 "shared-edge",
-                ("edge-reference", "reserved-address"),
-                (
-                    ("foundation.foundation-reference", reference),
-                    (
-                        "image-publish.shared-edge-image-digest",
-                        "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
-                        "app-platform-images/shared-edge@sha256:" + "d" * 64,
-                    ),
-                    ("oauth-configuration.oauth-client-id", "123-client.apps.googleusercontent.com"),
-                    (
-                        "oauth-configuration.oauth-secret-version",
-                        "projects/comfforts-platform-non-prod/secrets/"
-                        "app-platform-edge-oauth/versions/1",
-                    ),
-                    (
-                        "generation-publish.registration-generation-reference",
-                        generation.reference(42),
-                    ),
-                ),
+                ("edge-reference", "hostname", "reserved-address"),
+                edge_inputs,
             )
             commands.create_terraform_plan(edge, _request(work, "shared-edge"))
             edge_result = self._readback(commands, edge, "shared-edge")
+            tls = _context(
+                "tls-readiness",
+                ("certificate-reference",),
+                (*edge_inputs, ("shared-edge.edge-reference", "verified-edge")),
+            )
+            commands.create_terraform_plan(tls, _request(work, "shared-edge"))
+            variables = json.loads(
+                (work / "shared-edge/terraform.tfvars.json").read_text(
+                    encoding="utf-8"
+                )
+            )
 
         self.assertTrue(foundation_result.matched)
-        self.assertIn("signing_key_version", json.loads(reference))
+        foundation_reference = json.loads(reference)
+        self.assertIn("signing_key_version", foundation_reference)
+        self.assertEqual(
+            foundation_reference["foundation"]["application_egress_mode"],
+            "all-traffic",
+        )
+        self.assertEqual(
+            foundation_reference["foundation"]["application_nat_name"],
+            "app-platform-applications-us-west1-nat",
+        )
         self.assertEqual(
             dict(edge_result.outputs)["reserved-address"],
             "34.120.10.20",
         )
+        self.assertEqual(
+            dict(edge_result.outputs)["hostname"],
+            "apps-staging.comfforts.com",
+        )
+        self.assertEqual(
+            terraform.read_outputs,
+            [
+                "foundation_phase_output",
+                "shared_edge_phase_output",
+                "foundation_phase_output",
+            ],
+        )
+        self.assertTrue(
+            variables["platform_configuration"]["shared_edge"]["tls_enabled"]
+        )
+
+    def test_foundation_readback_rejects_missing_application_nat(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, _, _, work = self._commands(directory)
+            terraform.foundation_nat_name = None
+            foundation = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+            commands.create_terraform_plan(
+                foundation,
+                _request(work, "platform-foundation"),
+            )
+
+            with self.assertRaisesRegex(
+                DeploymentCommandError,
+                "FOUNDATION_READBACK_INVALID",
+            ):
+                self._readback(commands, foundation, "platform-foundation")
+
+    def test_renderer_blocker_is_not_hidden_as_plan_command_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, _, _, _, work = self._commands(directory)
+            context = _context(
+                "tls-readiness",
+                ("certificate-reference",),
+                (("shared-edge.edge-reference", "verified-edge"),),
+            )
+
+            with self.assertRaises(DeploymentCommandError) as raised:
+                commands.create_terraform_plan(
+                    context,
+                    _request(work, "shared-edge"),
+                )
+
+        self.assertEqual(str(raised.exception), "SHARED_EDGE_INPUT_INCOMPLETE")
+
+    def test_foundation_preserves_existing_shared_edge_with_refresh_only_plan(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, _, _, work = self._commands(directory)
+            terraform.state_addresses = (
+                "module.platform_foundation.google_storage_bucket.configuration",
+                "module.shared_edge[0].google_compute_global_address.edge",
+            )
+            terraform.foundation_egress_ready = False
+            foundation = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+
+            artifact = commands.create_terraform_plan(
+                foundation,
+                _request(work, "platform-foundation"),
+            )
+            readback = self._readback(
+                commands,
+                foundation,
+                "platform-foundation",
+            )
+
+        self.assertEqual(terraform.refresh_only_plans, [True])
+        self.assertEqual(artifact.observation["planning_mode"], "refresh-only")
+        self.assertTrue(readback.matched)
+        reference = json.loads(dict(readback.outputs)["foundation-reference"])
+        self.assertNotIn(
+            "application_egress_mode",
+            reference["foundation"],
+        )
+
+    def test_shared_edge_readback_requires_egress_after_refresh_only_foundation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, _, _, work = self._commands(directory)
+            terraform.state_addresses = (
+                "module.shared_edge[0].google_compute_global_address.edge",
+            )
+            terraform.foundation_egress_ready = False
+            foundation = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+            commands.create_terraform_plan(
+                foundation,
+                _request(work, "platform-foundation"),
+            )
+            foundation_result = self._readback(
+                commands,
+                foundation,
+                "platform-foundation",
+            )
+            edge_inputs = (
+                (
+                    "foundation.foundation-reference",
+                    dict(foundation_result.outputs)["foundation-reference"],
+                ),
+                (
+                    "image-publish.shared-edge-image-digest",
+                    "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                    "app-platform-images/shared-edge@sha256:" + "d" * 64,
+                ),
+                (
+                    "oauth-configuration.oauth-client-id",
+                    "123-client.apps.googleusercontent.com",
+                ),
+                (
+                    "oauth-configuration.oauth-secret-version",
+                    "projects/comfforts-platform-non-prod/secrets/"
+                    "app-platform-edge-oauth/versions/1",
+                ),
+                (
+                    "generation-publish.registration-generation-reference",
+                    initial_generation(SOURCE).reference(42),
+                ),
+            )
+            edge = _context(
+                "shared-edge",
+                ("edge-reference", "hostname", "reserved-address"),
+                edge_inputs,
+            )
+            commands.create_terraform_plan(edge, _request(work, "shared-edge"))
+
+            with self.assertRaisesRegex(
+                DeploymentCommandError,
+                "FOUNDATION_READBACK_INVALID",
+            ):
+                self._readback(commands, edge, "shared-edge")
+
+    def test_shared_edge_redeployment_preserves_existing_tls_resources(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, _, _, work = self._commands(directory)
+            terraform.state_addresses = (
+                "module.shared_edge[0].google_compute_managed_ssl_certificate."
+                "edge[0]",
+                "module.shared_edge[0].google_compute_target_https_proxy.edge[0]",
+                "module.shared_edge[0].google_compute_global_forwarding_rule.https[0]",
+            )
+            foundation = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+            commands.create_terraform_plan(
+                foundation,
+                _request(work, "platform-foundation"),
+            )
+            foundation_result = self._readback(
+                commands,
+                foundation,
+                "platform-foundation",
+            )
+            edge_inputs = (
+                (
+                    "foundation.foundation-reference",
+                    dict(foundation_result.outputs)["foundation-reference"],
+                ),
+                (
+                    "image-publish.shared-edge-image-digest",
+                    "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                    "app-platform-images/shared-edge@sha256:" + "d" * 64,
+                ),
+                (
+                    "oauth-configuration.oauth-client-id",
+                    "123-client.apps.googleusercontent.com",
+                ),
+                (
+                    "oauth-configuration.oauth-secret-version",
+                    "projects/comfforts-platform-non-prod/secrets/"
+                    "app-platform-edge-oauth/versions/1",
+                ),
+                (
+                    "generation-publish.registration-generation-reference",
+                    initial_generation(SOURCE).reference(42),
+                ),
+            )
+            edge = _context(
+                "shared-edge",
+                ("edge-reference", "hostname", "reserved-address"),
+                edge_inputs,
+            )
+
+            commands.create_terraform_plan(edge, _request(work, "shared-edge"))
+            result = self._readback(commands, edge, "shared-edge")
+            variables = json.loads(
+                (work / "shared-edge/terraform.tfvars.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+        self.assertTrue(result.matched)
+        self.assertTrue(
+            variables["platform_configuration"]["shared_edge"]["tls_enabled"]
+        )
+
+    def test_signing_key_ring_recovery_verifies_live_identity_before_untaint(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, _, _, work = self._commands(directory)
+            context = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+            request = _request(work, "platform-foundation")
+            commands.create_terraform_plan(context, request)
+
+            identity = commands.signing_key_ring_recovery_identity(context, request)
+            commands.clear_signing_key_ring_taint(context, request, identity)
+
+        self.assertEqual(
+            identity,
+            "projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
+            "app-platform",
+        )
+        self.assertEqual(terraform.recovered_taints, ["platform-foundation"])
 
     def test_actions_are_exact_idempotent_and_read_back(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             commands, _, provider, _, _ = self._commands(directory)
             cases = (
-                ("bootstrap-services", ("bootstrap-services-attestation",)),
+                ("bootstrap-services", ()),
                 ("image-publish", ("shared-edge-image-digest",)),
                 ("generation-publish", ("registration-generation-reference",)),
             )
@@ -437,7 +939,7 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
 
         self.assertTrue(provider.services)
         self.assertIsNotNone(provider.image)
-        self.assertEqual(provider.generation, 42)
+        self.assertIsNotNone(provider.generation_reference)
         self.assertTrue(all(result.matched for result in outputs))
 
     def test_oauth_prompts_only_non_secret_input_and_reads_secret_metadata(self) -> None:
@@ -456,6 +958,14 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
 
         transcript = json.dumps(checkpoint.instructions)
         self.assertIn("Comfforts Apps Staging", transcript)
+        self.assertIn("Web application", transcript)
+        self.assertIn(("audience", "External"), checkpoint.instructions)
+        self.assertIn(("publishing_status", "Testing"), checkpoint.instructions)
+        self.assertIn("comfforts-platform-non-prod", transcript)
+        self.assertIn("comfforts.com", transcript)
+        self.assertIn("console.cloud.google.com/auth/branding", transcript)
+        self.assertIn("console.cloud.google.com/auth/clients", transcript)
+        self.assertIn("console.cloud.google.com/security/secret-manager", transcript)
         self.assertIn("/_platform/auth/callback", transcript)
         self.assertNotIn("client_secret", transcript)
         self.assertEqual(result.outcome, "succeeded")
@@ -466,19 +976,47 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             commands, _, _, dns, _ = self._commands(directory)
             context = _context(
                 "external-dns",
-                ("dns-attestation",),
-                (("shared-edge.reserved-address", "34.120.10.20"),),
+                (),
+                (
+                    ("shared-edge.hostname", "apps-staging.comfforts.com"),
+                    ("shared-edge.reserved-address", "34.120.10.20"),
+                ),
             )
-            checkpoint = commands.prepare_manual_checkpoint(context)
             dns.ready = False
+            checkpoint = commands.prepare_manual_checkpoint(context)
             waiting = commands.verify_manual_checkpoint(context, 1, ())
             dns.ready = True
             verified = commands.verify_manual_checkpoint(context, 2, ())
 
         self.assertIn(("ttl_seconds", "1800"), checkpoint.instructions)
+        self.assertIn(("record_status", "reconcile"), checkpoint.instructions)
+        self.assertIn(
+            ("dns_console_url", "https://account.squarespace.com/domains"),
+            checkpoint.instructions,
+        )
         self.assertEqual(waiting.outcome, "waiting")
         self.assertEqual(verified.outcome, "succeeded")
-        self.assertEqual(dns.addresses, ["34.120.10.20", "34.120.10.20"])
+        self.assertEqual(
+            dns.addresses,
+            ["34.120.10.20", "34.120.10.20", "34.120.10.20"],
+        )
+
+    def test_dns_checkpoint_recognizes_an_existing_verified_record(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, _, _, dns, _ = self._commands(directory)
+            context = _context(
+                "external-dns",
+                (),
+                (
+                    ("shared-edge.hostname", "apps-staging.comfforts.com"),
+                    ("shared-edge.reserved-address", "34.120.10.20"),
+                ),
+            )
+
+            checkpoint = commands.prepare_manual_checkpoint(context)
+
+        self.assertIn(("record_status", "verified"), checkpoint.instructions)
+        self.assertEqual(dns.addresses, ["34.120.10.20"])
 
 
 if __name__ == "__main__":

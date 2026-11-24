@@ -1,7 +1,7 @@
 {
   "contract_version": 1,
   "generation": 1,
-  "generation_digest": "sha256:bdf0608ec2111ad74e6042edb2be550f47a8f4a15ca5ac7b3a6d09951df75008",
+  "generation_digest": "sha256:68037a002b4334ab1ad0a0a2d983a9c60835327ec8c5ecea812a207e4d83dc29",
   "resources": [
     {
       "resource_reference": "urn:comfforts:app-platform:catalogue:root",
@@ -19,6 +19,24 @@
       "owner": {
         "state": "application",
         "owner_id": "alpha-app"
+      }
+    },
+    {
+      "resource_reference": "urn:comfforts:app-platform:edge-connector:alpha-app:web",
+      "resource_kind": "edge-connector",
+      "management_mode": "managed",
+      "owner": {
+        "state": "platform",
+        "owner_id": "app-platform"
+      }
+    },
+    {
+      "resource_reference": "urn:comfforts:app-platform:route:alpha-app",
+      "resource_kind": "route",
+      "management_mode": "managed",
+      "owner": {
+        "state": "platform",
+        "owner_id": "app-platform"
       }
     },
     {

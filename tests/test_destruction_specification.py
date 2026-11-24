@@ -29,7 +29,7 @@ def request() -> DestructionRequest:
         source_revision=SOURCE_REVISION,
         profile_digest=_digest("1"),
         deployed_specification_digest=_digest("2"),
-        deployment_journal_digest=_digest("3"),
+        deployment_progress_digest=_digest("3"),
         registration_generation_digest=_digest("4"),
         qualification_evidence_digest=_digest("5"),
     )
@@ -43,7 +43,7 @@ def snapshot() -> DestructionSnapshot:
         source_revision=expected.source_revision,
         profile_digest=expected.profile_digest,
         deployed_specification_digest=expected.deployed_specification_digest,
-        deployment_journal_digest=expected.deployment_journal_digest,
+        deployment_progress_digest=expected.deployment_progress_digest,
         registration_generation_digest=expected.registration_generation_digest,
         qualification_evidence_digest=expected.qualification_evidence_digest,
         active_application_ids=(),
@@ -54,6 +54,15 @@ def snapshot() -> DestructionSnapshot:
 
 
 class DestructionSpecificationTest(unittest.TestCase):
+    def test_connected_shared_vpc_foundation_is_retained(self) -> None:
+        self.assertTrue(
+            {
+                "application-subnet",
+                "shared-network",
+                "shared-vpc-host",
+            }.issubset(RETAINED_PLATFORM_RESOURCES)
+        )
+
     def test_exact_platform_inventory_compiles_separate_destroy_specification(self) -> None:
         result = compile_destruction_specification(request(), snapshot())
 
@@ -80,6 +89,19 @@ class DestructionSpecificationTest(unittest.TestCase):
             ),
             (),
         )
+
+    def test_candidate_destruction_remains_bound_to_candidate_authority(self) -> None:
+        candidate_request = replace(request(), source_authority="candidate")
+        candidate_snapshot = replace(snapshot(), source_authority="candidate")
+
+        result = compile_destruction_specification(
+            candidate_request,
+            candidate_snapshot,
+        )
+
+        self.assertEqual(result.outcome, "prepared")
+        assert result.specification is not None
+        self.assertEqual(result.specification["source"]["authority"], "candidate")
 
     def test_active_attachment_ownership_or_inventory_mismatch_blocks_compilation(self) -> None:
         cases = {
@@ -129,9 +151,9 @@ class DestructionSpecificationTest(unittest.TestCase):
                 replace(snapshot(), deployed_specification_digest=_digest("f")),
                 "DESTRUCTION_SPECIFICATION_MISMATCH",
             ),
-            "journal": (
-                replace(snapshot(), deployment_journal_digest=_digest("f")),
-                "DESTRUCTION_JOURNAL_MISMATCH",
+            "progress": (
+                replace(snapshot(), deployment_progress_digest=_digest("f")),
+                "DESTRUCTION_PROGRESS_MISMATCH",
             ),
             "generation": (
                 replace(snapshot(), registration_generation_digest=_digest("f")),

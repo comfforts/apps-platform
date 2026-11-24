@@ -13,6 +13,7 @@ from infrastructure.operator.local_generation import (
     LocalRegistrationGenerationControl,
     LocalReviewedGenerationControl,
     ProviderGenerationActivation,
+    ProviderGenerationBinding,
     ProviderGenerationPublication,
 )
 
@@ -45,6 +46,7 @@ def proposal(
         compiled_configuration={
             "contract_version": 1,
             "generation": generation,
+            "generation_digest": digest,
             "routes": [],
         },
         ownership_manifest={
@@ -59,22 +61,23 @@ def proposal(
 
 @dataclass
 class FakeProvider:
-    staged: list[tuple[RegistrationGenerationProposal, bytes]] = field(
+    published: list[tuple[RegistrationGenerationProposal, bytes]] = field(
         default_factory=list
     )
     activations: list[tuple[str, str, str, str]] = field(default_factory=list)
     stage_matches: bool = True
     activation_matches: bool = True
+    active_binding: ProviderGenerationBinding | None = None
 
     def stage(
         self,
         value: RegistrationGenerationProposal,
         compiled_configuration: bytes,
     ) -> ProviderGenerationPublication:
-        self.staged.append((value, compiled_configuration))
+        self.published.append((value, compiled_configuration))
         return ProviderGenerationPublication(
             created=True,
-            object_generation=len(self.staged),
+            object_generation=len(self.published),
             revision_name=f"app-platform-edge-g{value.registration_set['generation']}",
             readback_matches=self.stage_matches,
         )
@@ -96,6 +99,11 @@ class FakeProvider:
             ),
             active_generation_digest=generation_digest,
         )
+
+    def read_active_binding(self, environment: str) -> ProviderGenerationBinding:
+        if self.active_binding is None or self.active_binding.environment != environment:
+            raise RuntimeError("active generation binding is unavailable")
+        return self.active_binding
 
 
 class LocalGenerationControlTest(unittest.TestCase):
@@ -124,10 +132,13 @@ class LocalGenerationControlTest(unittest.TestCase):
         self.assertFalse(second.created)
         self.assertTrue(first.readback_matches)
         self.assertEqual(first.publication_reference, second.publication_reference)
-        self.assertEqual(len(provider.staged), 1)
+        self.assertEqual(len(provider.published), 1)
         self.assertEqual(
-            provider.staged[0][1],
-            b'{"contract_version":1,"generation":1,"routes":[]}',
+            provider.published[0][1],
+            (
+                b'{"contract_version":1,"generation":1,'
+                b'"generation_digest":"sha256:' + (b"1" * 64) + b'","routes":[]}'
+            ),
         )
 
     def test_activation_moves_only_to_the_bound_staged_revision(self) -> None:
@@ -155,6 +166,156 @@ class LocalGenerationControlTest(unittest.TestCase):
                 )
             ],
         )
+
+    def test_adopts_exact_deployed_initial_generation_without_provider_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            binding = ProviderGenerationBinding(
+                environment="staging",
+                revision_name="app-platform-edge-initial",
+                platform_source_revision="b" * 40,
+                image_reference=(
+                    "us-west1-docker.pkg.dev/example/edge@sha256:" + "9" * 64
+                ),
+                generation=1,
+                generation_digest=proposal().generation_digest,
+                content_digest=proposal().content_digest,
+                object_name="generations/1/compiled.json",
+                object_generation=41,
+            )
+            control, provider = self._control(
+                directory,
+                FakeProvider(active_binding=binding),
+            )
+
+            first = control.bind_deployed_initial(
+                proposal(),
+                object_name="generations/1/compiled.json",
+                object_generation=41,
+            )
+            second = control.bind_deployed_initial(
+                proposal(),
+                object_name="generations/1/compiled.json",
+                object_generation=41,
+            )
+            active_source = control.active_platform_source_revision("staging")
+            current = control.current("staging")
+
+        self.assertEqual(first, proposal())
+        self.assertEqual(second, proposal())
+        self.assertEqual(current, proposal())
+        self.assertEqual(active_source, "b" * 40)
+        self.assertEqual(provider.published, [])
+        self.assertEqual(provider.activations, [])
+
+    def test_rebinds_current_generation_to_verified_runtime_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            control, provider = self._control(directory)
+            publication = control.publish(proposal())
+            control.activate(
+                "staging",
+                publication.publication_reference,
+                proposal().generation_digest,
+            )
+            binding = ProviderGenerationBinding(
+                environment="staging",
+                revision_name="app-platform-edge-g1-current-source",
+                platform_source_revision="b" * 40,
+                image_reference=(
+                    "us-west1-docker.pkg.dev/example/edge@sha256:" + "9" * 64
+                ),
+                generation=1,
+                generation_digest=proposal().generation_digest,
+                content_digest=proposal().content_digest,
+                object_name="generations/1/compiled.json",
+                object_generation=41,
+            )
+            provider.active_binding = binding
+
+            control.record_active_runtime(binding)
+            current = LocalReviewedGenerationControl(control).current("staging")
+
+        assert current is not None
+        self.assertEqual(current.proposal, proposal())
+        self.assertTrue(
+            current.publication_reference.endswith(
+                ":revision:app-platform-edge-g1-current-source"
+            )
+        )
+        self.assertEqual(
+            control.active_platform_source_revision("staging"),
+            "b" * 40,
+        )
+
+    def test_rebinds_numbered_generation_to_verified_runtime_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            current_proposal = proposal(3, previous=_digest("2"))
+            control, provider = self._control(directory)
+            publication = control.publish(current_proposal)
+            control.activate(
+                "staging",
+                publication.publication_reference,
+                current_proposal.generation_digest,
+            )
+            binding = ProviderGenerationBinding(
+                environment="staging",
+                revision_name="app-platform-edge-g3-current-source",
+                platform_source_revision="b" * 40,
+                image_reference=(
+                    "us-west1-docker.pkg.dev/example/edge@sha256:" + "9" * 64
+                ),
+                generation=3,
+                generation_digest=current_proposal.generation_digest,
+                content_digest=current_proposal.content_digest,
+                object_name=(
+                    "environments/staging/generations/3/"
+                    "compiled-shared-edge.v1.json"
+                ),
+                object_generation=43,
+            )
+            provider.active_binding = binding
+
+            control.record_active_runtime(binding)
+            current = LocalReviewedGenerationControl(control).current("staging")
+
+        assert current is not None
+        self.assertEqual(current.proposal, current_proposal)
+        self.assertTrue(
+            current.publication_reference.endswith(
+                ":revision:app-platform-edge-g3-current-source"
+            )
+        )
+
+    def test_rejects_deployed_initial_generation_binding_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            binding = ProviderGenerationBinding(
+                environment="staging",
+                revision_name="app-platform-edge-initial",
+                platform_source_revision="a" * 40,
+                image_reference=(
+                    "us-west1-docker.pkg.dev/example/edge@sha256:" + "9" * 64
+                ),
+                generation=1,
+                generation_digest=_digest("e"),
+                content_digest=proposal().content_digest,
+                object_name="generations/1/compiled.json",
+                object_generation=41,
+            )
+            control, _ = self._control(
+                directory,
+                FakeProvider(active_binding=binding),
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "deployed initial generation binding mismatch",
+            ):
+                control.bind_deployed_initial(
+                    proposal(),
+                    object_name="generations/1/compiled.json",
+                    object_generation=41,
+                )
+
+        self.assertIsNone(control.current("staging"))
 
     def test_conflict_or_provider_mismatch_never_advances_current_pointer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -214,16 +375,16 @@ class LocalGenerationControlTest(unittest.TestCase):
         self.assertTrue(rollback.activated)
         self.assertEqual(provider.activations[-1][-1], "rollback")
 
-    def test_terraform_delegates_only_revision_environment_and_traffic(self) -> None:
+    def test_terraform_manages_candidate_binding_and_delegates_only_traffic(self) -> None:
         source = (
             PROJECT_ROOT
             / "infrastructure/terraform/modules/shared-edge/main.tf"
         ).read_text(encoding="utf-8")
         lifecycle = source.split("lifecycle {", maxsplit=1)[1].split("}", maxsplit=1)[0]
 
-        self.assertIn("template[0].revision", lifecycle)
-        self.assertIn("template[0].containers[0].env", lifecycle)
         self.assertIn("traffic", lifecycle)
+        self.assertNotIn("template[0].revision", lifecycle)
+        self.assertNotIn("template[0].containers[0].env", lifecycle)
         self.assertNotIn("image", lifecycle)
         self.assertNotIn("service_account", lifecycle)
 

@@ -65,8 +65,8 @@ class TerraformFoundationTest(unittest.TestCase):
             provider = (root / "provider.tf").read_text(encoding="utf-8")
             with self.subTest(root=root):
                 self.assertEqual(provider.count('provider "google"'), 1)
-                self.assertIn("project = var.", provider)
-                self.assertIn("region  = var.", provider)
+                self.assertRegex(provider, r"(?m)^\s*project\s+=\s+var\.")
+                self.assertRegex(provider, r"(?m)^\s*region\s+=\s+var\.")
 
     def test_setup_is_checksum_pinned_and_kept_out_of_git(self) -> None:
         self.assertEqual(terraform_setup.TERRAFORM_VERSION, "1.17.2")

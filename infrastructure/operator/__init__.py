@@ -3,14 +3,23 @@
 from infrastructure.operator._core import LifecycleOperator
 from infrastructure.operator._interfaces import (
     DiscoverySnapshot,
+    DeploymentCheckResult,
     ExecutionResult,
     GitSnapshot,
     OperatorInterrupted,
     OperatorAdapters,
+    OperatorTerminal,
+    PreflightResult,
     PrepareResult,
     StageContext,
+    StageCheck,
     StageExecution,
     StatusResult,
+)
+from infrastructure.operator.application_handoff_check import (
+    ApplicationHandoffCheck,
+    ApplicationHandoffCheckRequest,
+    ApplicationHandoffCheckResult,
 )
 from infrastructure.operator.deployment import DeploymentExecutor
 from infrastructure.operator.destruction import (
@@ -25,7 +34,6 @@ from infrastructure.operator.destruction import (
     DestructionSnapshot,
     DestructionStageClosure,
     DestructionStateReader,
-    DestructionTerminal,
     compile_destruction_specification,
 )
 from infrastructure.operator.integration import (
@@ -71,7 +79,11 @@ from infrastructure.operator.rollback import (
 )
 
 __all__ = (
+    "ApplicationHandoffCheck",
+    "ApplicationHandoffCheckRequest",
+    "ApplicationHandoffCheckResult",
     "DiscoverySnapshot",
+    "DeploymentCheckResult",
     "DeploymentExecutor",
     "DESTRUCTIBLE_PLATFORM_RESOURCES",
     "RETAINED_PLATFORM_RESOURCES",
@@ -84,7 +96,6 @@ __all__ = (
     "DestructionSnapshot",
     "DestructionStageClosure",
     "DestructionStateReader",
-    "DestructionTerminal",
     "ExecutionResult",
     "GitSnapshot",
     "ApplicationIntegrationLifecycle",
@@ -103,6 +114,8 @@ __all__ = (
     "QUALIFICATION_CHECK_CAPABILITIES",
     "OperatorInterrupted",
     "OperatorAdapters",
+    "OperatorTerminal",
+    "PreflightResult",
     "PrepareResult",
     "QualificationCheckObservation",
     "QualificationEvaluator",
@@ -127,6 +140,7 @@ __all__ = (
     "RollbackRequest",
     "RollbackResult",
     "StageContext",
+    "StageCheck",
     "StageExecution",
     "StatusResult",
     "compile_destruction_specification",

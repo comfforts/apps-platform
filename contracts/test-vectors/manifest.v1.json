@@ -2,8 +2,8 @@
   "contract_version": 1,
   "cases": [
     {
-      "case_id": "initial-staged",
-      "description": "Stage one public application without exposing a catalogue entry or route",
+      "case_id": "initial-active",
+      "description": "Compile one public application as a complete active candidate generation",
       "evidence_class": "C",
       "expected": "accept",
       "platform_configuration": "valid/platform-configuration.v1.json",
@@ -28,40 +28,12 @@
       ]
     },
     {
-      "case_id": "activate-application",
-      "description": "Activate the staged application as one compiled catalogue, route, admission, attachment, and ownership generation",
-      "evidence_class": "C",
-      "expected": "accept",
-      "platform_configuration": "valid/platform-configuration.v1.json",
-      "previous": "valid/initial-registration-set.v1.json",
-      "proposed": "valid/active-registration-set.v1.json",
-      "expected_compiled": "valid/compiled-active.v1.json",
-      "expected_ownership": "valid/ownership-active.v1.json",
-      "requirements": [
-        "AP-PR-001",
-        "AP-PR-003",
-        "AP-PR-004",
-        "AP-PR-007"
-      ],
-      "decisions": [
-        "ADR-001",
-        "ADR-002",
-        "ADR-003"
-      ],
-      "threats": [
-        "AP-TM-002",
-        "AP-TM-006",
-        "AP-TM-007",
-        "AP-TM-008"
-      ]
-    },
-    {
       "case_id": "activate-multiple-admission-modes",
       "description": "Activate ordered public, authenticated, and restricted registrations with listed and unlisted catalogue behavior and multiple mounts",
       "evidence_class": "C",
       "expected": "accept",
       "platform_configuration": "valid/platform-configuration.v1.json",
-      "previous": "valid/multi-staged-registration-set.v1.json",
+      "previous": null,
       "proposed": "valid/multi-active-registration-set.v1.json",
       "expected_compiled": "valid/compiled-multi-active.v1.json",
       "expected_ownership": "valid/ownership-multi-active.v1.json",
@@ -104,7 +76,7 @@
       "evidence_class": "C",
       "expected": "accept",
       "platform_configuration": "valid/platform-configuration.v1.json",
-      "previous": "valid/active-registration-set.v1.json",
+      "previous": "valid/initial-registration-set.v1.json",
       "proposed": "valid/retired-registration-set.v1.json",
       "expected_compiled": "valid/compiled-retired.v1.json",
       "expected_ownership": "valid/ownership-retired.v1.json",
@@ -839,7 +811,7 @@
       "evidence_class": "C",
       "expected": "accept",
       "platform_configuration": "valid/platform-configuration.v1.json",
-      "previous": "valid/active-registration-set.v1.json",
+      "previous": "valid/initial-registration-set.v1.json",
       "proposed": "valid/replaced-attachment-registration-set.v1.json",
       "expected_compiled": "valid/compiled-replaced-attachment.v1.json",
       "expected_ownership": "valid/ownership-replaced-attachment.v1.json",
@@ -891,7 +863,7 @@
       "evidence_class": "C",
       "expected": "accept",
       "platform_configuration": "valid/platform-configuration.v1.json",
-      "previous": "valid/active-registration-set.v1.json",
+      "previous": "valid/initial-registration-set.v1.json",
       "proposed": "valid/content-release-unchanged-registration-set.v1.json",
       "expected_compiled": "valid/compiled-content-release-unchanged.v1.json",
       "expected_ownership": "valid/ownership-content-release-unchanged.v1.json",
@@ -915,7 +887,7 @@
       "evidence_class": "C",
       "expected": "reject",
       "platform_configuration": "valid/platform-configuration.v1.json",
-      "previous": "valid/active-registration-set.v1.json",
+      "previous": "valid/initial-registration-set.v1.json",
       "proposed": "invalid/stale-predecessor.v1.json",
       "expected_violations": [
         {
@@ -941,7 +913,7 @@
       "evidence_class": "C",
       "expected": "reject",
       "platform_configuration": "valid/platform-configuration.v1.json",
-      "previous": "valid/active-registration-set.v1.json",
+      "previous": "valid/initial-registration-set.v1.json",
       "proposed": "invalid/missing-predecessor.v1.json",
       "expected_violations": [
         {

@@ -1,6 +1,6 @@
 # App Platform product requirements
 
-Version 0.2 | Status: requirements authority through the AP-M9 operator lifecycle; operational
+Version 0.4 | Status: requirements authority through the AP-M9 operator lifecycle; operational
 qualification remains unavailable
 
 This document defines what Comfforts App Platform must provide and the ownership boundaries it must
@@ -29,7 +29,7 @@ procedure completes.
 - **Platform Operator:** performs reviewed lifecycle and qualification procedures within the access
   granted by the Platform Owner.
 - **Application Owner:** controls a Registered Application's runtime, data, providers, feature
-  authorization, and adoption of an Integration Draft.
+  authorization, and Application Adoption.
 - **Visitor:** reaches the catalogue or an application route and may be anonymous, authenticated, or
   admitted under a more restrictive application policy.
 
@@ -95,25 +95,50 @@ isolation, public and authenticated admission, restricted admission, verified id
 application-owned feature denial, unmatched paths, and lifecycle changes without paid providers or
 production application data.
 
+The first staging qualification must deploy the public, authenticated, and restricted fixtures
+through separate Application State, exchange the same versioned bundles required of a real
+application, and exercise deployment, registration, detachment, destruction, redeployment, and
+reactivation. Static Terraform, process-local loopback, or an undeployed fixture image is not
+staging qualification. Provider-backed fixtures must run in an application project separate from
+the platform project and use the same explicit Shared VPC project connection, internal ingress,
+edge-caller IAM, project-scoped bundle, and registration boundaries required by an independently
+owned GCP application. A same-project fixture cannot qualify cross-project application attachment.
+
 ### AP-PR-009 · Explicit application adoption
 
-An Integration Draft must remain inactive until its consuming application adopts it through that
-application's own requirements, decisions, contracts, tests, and release process. Platform
-qualification must not depend on Finance Assistant migration, and platform documentation must not
-silently change Finance Assistant behavior or ownership.
+A real application may adopt the platform only through that application's own requirements,
+decisions, contracts, tests, migration, and release process. Platform qualification must not depend
+on a real-application migration, and platform documentation must not silently change another
+application's behavior or ownership.
 
 ### AP-PR-010 · Operator-controlled environment lifecycle
 
 A Platform Operator must be able to prepare, deploy, inspect, qualify, and destroy one explicitly
 selected Platform Environment through a small interactive interface. Preparation must discover or
 derive available non-secret facts, request only genuine owner decisions, and produce one complete
-digest-bound Deployment Specification before mutation. Deployment must execute its approved stages
-in one interactive session, pause at unavoidable provider-console or external-DNS checkpoints, and
-resume safely after interruption without requiring a hand-authored inventory of generated facts.
+digest-bound Deployment Specification before mutation. Complete means the environment, source
+authority and revision, profile, operation, and reviewed fixed workflow are known; generated
+provider values do not have to exist yet. Deployment must execute that workflow in one interactive
+session, pause at unavoidable provider-console or external-DNS checkpoints, and resume safely after
+interruption without requiring a hand-authored inventory of generated facts.
 
 The lifecycle must keep non-production and production configuration, state, identity, DNS, OAuth,
 evidence, and approvals independent. Production preparation must stop when an existing resource has
 another owner; it must never import, replace, or claim that resource implicitly.
+
+For an ordinary reversible staging creation or update, the owner's deliberate invocation of the
+named lifecycle command selects the operation, and the same process reviews and confirms the exact
+specification and plans; no separate out-of-band approval is required. Destruction, purge,
+ownership transfer, production cutover, or a scope expansion retains its separately named approval
+and stronger confirmation boundary.
+
+Source authority must be explicit and digest-bound. Accepted operations use the exact clean current
+protected-main revision. Before merge, a clean pushed pull-request revision whose branch tracks its
+matching origin branch and contains current `origin/main` may operate only on staging as Candidate
+Source. Candidate specifications, bundles, and qualification evidence must remain distinguishable
+from Accepted Source, cannot qualify or authorize production, and cannot overwrite accepted
+qualification. After merge, the operator must deploy and qualify the accepted main revision rather
+than promoting candidate evidence.
 
 ### AP-PR-011 · Versioned platform and application handoff
 
@@ -123,6 +148,12 @@ attachment. The Application Owner retains deployment authority and returns a ver
 Attachment Bundle identifying the application-owned target and the exact Platform Integration
 Bundle it consumed. The platform must validate the bundle and provider posture before a complete
 Registration Generation may route traffic to the attachment.
+
+The operator must be able to inspect the exact canonical Platform Integration Bundle and
+Application Attachment Bundle before registration. A repository-owned Fixture Application may
+reuse that prepared pair only while its environment, application, source authority, application
+source, platform source and generation, bundle digests, immutable image, and provider posture still
+match; inspection never authorizes registration by itself.
 
 An integration bundle must never contain an OAuth client secret, credential payload, Terraform
 state, application provider key, or a platform secret reference that the application is not
@@ -188,13 +219,33 @@ without implying success.
 The normal operator interface must be interactive, documented, and compact. It must discover facts
 available from reviewed source and provider readback, derive deterministic values, explain each
 manual action at the point of use, and accept an Enter-to-continue acknowledgement without making
-the operator restart the lifecycle. Generated execution records must be machine-produced rather
-than hand-authored. An interrupted operation must report its last accepted stage and provide a safe
-resume path. The normal deploy command must perform read-only preparation, specification review,
+the operator restart the lifecycle. Private progress must be machine-produced, atomically
+replaced, and never hand-authored. An interrupted operation must report its last accepted stage and
+provide a safe resume path. The normal deploy command must perform read-only preparation, specification review,
 approval, deployment, and manual checkpoints in one invocation; a separate prepare command is an
-optional dry run, not a mandatory operator round trip. Ordinary reviewed plan applications use one
-clear `y/N` confirmation after the plan is shown. Typed phrases are reserved for destruction,
-purge, ownership transfer, and similarly irreversible actions.
+optional dry run, not a mandatory operator round trip. When that dry run has already produced a
+current approved specification, the normal deploy command must locate and reuse it automatically
+after read-only freshness validation; the operator must not copy its digest between commands.
+Absent, stale, or unapproved intent must return to normal preparation, while malformed retained
+state or a current prerequisite blocker must fail closed. A separate optional preflight command
+must expose those readiness blockers without generating a specification or digest, asking for
+approval, writing lifecycle state, or mutating an external system. Ordinary reviewed plan
+applications use one clear `y/N` confirmation after the plan is shown. Typed phrases are reserved
+for destruction, purge, ownership transfer, and similarly irreversible actions.
+
+Local maintenance must provide explicit preflight and deployment checks that can inspect a dirty,
+unpushed working tree without admitting it as Accepted or Candidate Source. The deployment check
+must read and validate retained operator records, refresh actual provider and Terraform state,
+render current configuration, and apply normal plan policy wherever existing generated inputs make
+planning possible. It must not approve intent, acquire a state lock, apply a plan, execute a
+provider action or manual checkpoint, change operational lifecycle state, or claim that a
+successful read-only rehearsal proves a future mutation will succeed.
+
+Before publishing an application handoff, a compact read-only check must combine the relevant
+platform Terraform rehearsal with fresh application-project, required-service, Shared VPC,
+subnet-permission, bundle-input, and access-mode readback. It must explain whether platform
+reconciliation or application-project repair is required and must not publish a bundle, approve or
+apply a plan, write operational lifecycle state, or mutate a provider resource.
 
 ### AP-QR-008 · Environment isolation
 
@@ -206,12 +257,13 @@ production.
 
 ### AP-QR-009 · Bounded mutation and readback
 
-Every mutating lifecycle must bind an approved Deployment Specification, exact source revision,
-stage target, exact Terraform plan, and provider readback. A stage may consume a declared output of
-an earlier stage without making the original specification incomplete. Any unapproved resource
-type, owner, environment, destructive action, or scope expansion stops the lifecycle and requires
-new preparation and approval. Manual provider steps must be recorded as operator-attested when no
-readback exists and must never be described as provider-verified.
+Every mutating lifecycle must bind the selected environment, approved Deployment Specification,
+exact source revision, exact Terraform plan or bounded provider action, and provider readback. The
+reviewed fixed workflow defines stage order, resource policy, and how later steps consume generated
+values. Any unapproved resource type, owner, environment, destructive action, or scope expansion
+stops the lifecycle and requires new preparation and approval. Manual provider steps must be
+recorded as operator-attested when no readback exists and must never be described as
+provider-verified.
 
 ## Security, privacy, and rights invariants
 

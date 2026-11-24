@@ -1,10 +1,10 @@
 {
   "contract_version": 1,
-  "generation": 2,
-  "previous_generation_digest": "sha256:b8e092913c22c0d2322728d0f279b22b34162e22d8108335d3e8fee940a70458",
+  "generation": 6,
+  "previous_generation_digest": "sha256:7551615de0ce448e9031cd18706f4725792bdb5a6f27fa6bc029085a9ef0456f",
   "proposal": {
     "source_revision": "f78c4a73f1507afc6de52cbaadc3c7d6d8b042aa633155ac2e3a4ec37b997d2c",
-    "change_summary": "Activate the three independent deterministic Fixture Applications"
+    "change_summary": "Retire the authenticated fixture registration"
   },
   "registrations": [
     {
@@ -20,7 +20,7 @@
       "admission": {
         "mode": "authenticated"
       },
-      "lifecycle": "active",
+      "lifecycle": "retired",
       "attachments": [
         {
           "contract_version": 1,
@@ -39,11 +39,11 @@
     {
       "contract_version": 1,
       "application_id": "fixture-public",
-      "registration_revision": 2,
+      "registration_revision": 5,
       "route_prefix": "/public",
       "catalogue": {
         "visibility": "listed",
-        "title": "Public Fixture",
+        "title": "Public Fixture Updated",
         "summary": "Synthetic public application with deterministic route mounts"
       },
       "admission": {
@@ -66,9 +66,9 @@
         {
           "contract_version": 1,
           "owner_application_id": "fixture-public",
-          "attachment_id": "web",
+          "attachment_id": "web-v2",
           "adapter_kind": "fixture-in-process-v1",
-          "resource_reference": "urn:comfforts:app-platform:fixture:fixture-public:web",
+          "resource_reference": "urn:comfforts:app-platform:fixture:fixture-public:web-v2",
           "mount_path": "/",
           "forwarding_mode": "preserve",
           "identity_requirement": "none",
@@ -80,7 +80,7 @@
     {
       "contract_version": 1,
       "application_id": "fixture-restricted",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/restricted",
       "catalogue": {
         "visibility": "listed",

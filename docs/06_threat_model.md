@@ -1,6 +1,6 @@
 # App Platform threat model
 
-Version 1.10 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
+Version 1.12 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
 implemented AP-M9-W8 repository lifecycle controls; no provider operation or live
 infrastructure is deployed
 
@@ -95,8 +95,8 @@ content and must not be rendered, logged, or published wholesale.
 - Source control and continuous integration are part of the future configuration control plane.
   Repository write access is privileged but does not by itself authorize live mutation.
 
-Finance Assistant is not a trusted platform test harness. Its Integration Draft is untrusted input
-to a future adoption review and grants no platform or Finance authority.
+No real application is a trusted platform test harness. External application migration material
+grants no platform authority and remains under the consuming application's authority.
 
 ## Trust zones and flows
 
@@ -259,7 +259,9 @@ access.
 References are treated as inert data; offline validation performs no fetch or provider discovery.
 The immutable application identifier, attachment identifier, mount, forwarding mode, identity
 requirement, and ownership entry must agree. Secrets and Terraform state addresses are forbidden.
-Provider adapters resolve only their own typed references with least-privilege credentials.
+Provider adapters resolve only their own typed references with least-privilege credentials. The
+referenced project number must resolve to an explicitly connected application project, and target
+readback must match that project's approved Shared VPC network and subnet.
 
 **Evidence:** `C` covers unsupported kinds, malformed references, secrets, duplicate ownership, and
 cross-registration conflicts. `F` covers attachment selection and application isolation. `L`
@@ -276,9 +278,15 @@ grant, ownership readback, target request, or Live qualification has occurred.
 spoofs the platform identity header against a publicly reachable origin.
 
 **Required controls:** Application State restricts protected runtime ingress to the Shared Edge
-caller using provider or network controls. The Shared Edge strips visitor-supplied identity headers.
+caller using both internal-only Shared VPC ingress and Cloud Run IAM. Only the application
+project's Cloud Run service agent receives read-only host-network discovery and network-user access
+on the application subnet, and only the platform edge caller receives runtime invocation. The
+Shared Edge strips visitor-supplied identity headers.
 The application independently verifies the signed assertion and application-specific audience. A
 header alone never compensates for a public protected origin.
+All-traffic Direct VPC egress uses the platform-owned application subnet and an exact regional
+Cloud Router and Public Cloud NAT. The NAT serves only that subnet with provider-managed addresses
+and error-only logs; application projects receive no ownership or mutation authority over it.
 
 **Evidence:** `C` can prove only that protected attachments declare the required identity and
 ingress posture. `F` exercises spoofed headers and direct calls to protected fixture entry points,
@@ -361,7 +369,10 @@ management.
 **Required controls:** The State Ownership Manifest assigns each canonical resource reference to
 one owner. Platform lifecycle never mutates application-owned runtime or data; application
 lifecycle never mutates Shared Edge resources. Cross-state exchange is versioned reference data,
-not backend access. Destructive actions identify exact targets and require explicit review.
+not backend access. Platform bootstrap manages only platform state; the fixture project owns its
+runtime, image repository, and state bucket. Destructive actions identify exact targets and require
+explicit review. Route detachment precedes application destruction and remains a separate platform
+operation.
 
 **Evidence:** `C` rejects duplicate owners and ownership/type mismatches. `F` covers independent
 fixture and platform lifecycle. `L` covers state inventories, plans, readback, and destructive-action
@@ -470,7 +481,9 @@ accepts identity it can no longer verify.
 **Required controls:** Protected admission and identity verification fail closed. Unknown routes do
 not fall back to an application. Provider failure for one attachment does not reroute to another.
 Configuration retains the Last Reviewed Working Configuration and records unavailable or partial
-status without implying success.
+status without implying success. A protected application must be able to retrieve the public
+platform JWKS through the approved application-subnet NAT. Missing or changed NAT posture blocks
+handoff; runtime retrieval failure produces only a constant, non-sensitive diagnostic code.
 
 **Evidence:** `F` covers logical dependency failure using deterministic adapters. `L` covers actual
 DNS, TLS, key rotation, certificate, provider failure, and recovery behavior.
@@ -481,20 +494,31 @@ routes remain anonymously usable. AP-M6-W6 fails protected assertion issuance an
 unavailable verification keys closed; public routes may remain anonymous. AP-M6-W7 fails one
 unavailable or mismatched attachment closed without selecting another target. AP-M6-W8 maps local
 transport failure, timeout, malformed response, disconnect, and cancellation to closed outcomes
-without another target. The selected DNS, certificate, activation, and owner-confirmed rollback
-sequence is not implemented or qualified. Provider availability and disaster recovery beyond the
-15-minute post-approval rollback objective remain outside the demo commitment.
+without another target. AP-M9-W9 Terraform grants only the edge runtime the project-level
+Firestore data role required for login-flow and session entities. Runtime failure diagnostics use
+constant allowlisted boundary codes carried only by the minimized completion event routed to the
+dedicated seven-day regional log bucket. The isolated JSON-line logger prevents `INFO` completion
+events from being suppressed or misclassified as unselected text logs. Diagnostics never include
+provider exceptions, visitor identity, OAuth material, query parameters, or session values. The
+application handoff check detects missing Terraform-managed identity prerequisites before bundle
+publication, including the platform-owned application-subnet NAT. The networked fixture emits only
+an allowlisted verification result code and its application identifier when assertion verification
+fails; it never logs the assertion, identity, token, provider exception, or request value. Live
+Google login remains unqualified until the corrected platform revision is
+deployed and AP-EVAL-M9-07 passes. Provider availability and disaster recovery beyond the 15-minute
+post-approval rollback objective remain outside the demo commitment.
 
-### AP-TM-014 · Integration Draft or fixture mistaken for Application Adoption
+### AP-TM-014 · External migration proposal or fixture mistaken for Application Adoption
 
 **Scenario:** A draft integration, synthetic fixture result, or platform qualification is treated as
 permission to migrate a real application, broaden admission, transfer resources, or supersede the
 application's requirements and security decisions.
 
-**Required controls:** Integration Drafts remain outside both authority chains until adopted.
-Fixtures use synthetic state and cannot depend on a real application. Adoption names compatible
-contract revisions, application-owned authority changes, state-owner transitions, cutover,
-rollback, and product-specific evidence. One project cannot approve another project's change.
+**Required controls:** External migration proposals remain under the consuming application's
+authority. Fixtures use synthetic state and cannot depend on a real application. Adoption names
+compatible contract revisions, application-owned authority changes, state-owner transitions,
+cutover, rollback, and product-specific evidence. One project cannot approve another project's
+change.
 
 **Evidence:** `C` preserves authority labels and dependency checks. `F` proves only generic platform
 behavior. `A` is mandatory for every real application and retains its prior historical evidence.
@@ -590,7 +614,7 @@ without claiming implementation:
   or fallback to a local or stored credential.
 - **AP-TM-014:** The pool, provider, environments, workflows, and identities bind only the canonical
   App Platform repository and non-production qualification project. They grant no Finance
-  Assistant, production, real-application, Integration Draft, or Application Adoption authority.
+  Assistant, production, real-application migration, or Application Adoption authority.
 
 The initial federation setup remains a separately approved short-lived owner operation because no
 federated path exists yet. Its credential cannot enter Git or retained evidence, and the created
@@ -636,7 +660,7 @@ AP-M8-W1 defines these AP-M8-W5 controls without creating a backend or state:
   migration acceptance is a recovery incident.
 - **AP-TM-014:** Backend names, identities, prefixes, state, and evidence belong only to the
   non-production App Platform and synthetic Fixture Applications. No Finance, real-application,
-  Integration Draft, or Adoption state can enter the bootstrap or be inferred from it.
+  migration, or Adoption state can enter the bootstrap or be inferred from it.
 
 The initial owner credential may create only the four reviewed buckets and their exact controls.
 API enablement, billing mutation, project-wide storage roles, and non-backend resources require
@@ -696,7 +720,7 @@ generation, resource, record, or DNS entry:
   AP-M9 and requires a new approval even to reverse only the new record.
 - **AP-TM-014:** Images, Registration Sets, roots, identities, objects, state, hostname, and records
   remain confined to the App Platform qualification project and synthetic Fixture Applications.
-  No Finance, production, real-application, Integration Draft, or Adoption input can enter the
+  No Finance, production, real-application migration, or Adoption input can enter the
   sequence.
 
 The initial candidate has no predecessor and may receive 100 percent of its Cloud Run service's
@@ -746,7 +770,7 @@ creating evidence:
   reconstructed, or called a limitation. Recovery and rollback stay unexecuted.
 - **AP-TM-014:** The bundle names only the canonical repository, non-production qualification
   project/hostname, and three synthetic fixtures. Finance, production, real applications,
-  Integration Drafts, cross-project behavior, and Adoption remain unavailable and unchanged.
+  external migrations, cross-project behavior, and Adoption remain unavailable and unchanged.
 
 The proposed historical bundle was append-only under one private
 `ap-eval-m8/<source-revision>/<evaluation-id>/` prefix. Per-operation create-only permissions do not
@@ -773,22 +797,46 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   Shared Edge. Integration bundles expose platform login/assertion values rather than shared
   signing or OAuth authority. Application targets retain direct-origin denial, independent assertion
   verification, principals, data isolation, and Feature Entitlements.
-- **AP-TM-007:** One canonical specification, exact-source check, stage-output graph, append-only
-  Execution Journal, exact plan digest, state lock, provider readback, and resume cursor reject stale,
-  concurrent, reordered, repeated, or partial lifecycle changes. A journal cannot authorize a
-  mutation absent from its parent specification.
+- **AP-TM-007:** One canonical operation fingerprint, exact-source check, fixed reviewed stage
+  order, exact plan digest, state lock, provider readback, and one atomically replaced progress
+  cursor reject stale, concurrent, repeated, or partial lifecycle changes. Progress records no
+  authority beyond the approved operation and executable policy. Automatic current-specification
+  selection requires canonical readback plus exact source, profile, environment, approval, and
+  compatible active progress before reuse; malformed retained state is never regenerated over
+  silently. Inspectable fixture bundle pairs are canonical, digest-bound private artifacts; an edit,
+  partial write, stale generation, or relationship mismatch is never accepted as a registration
+  input.
 - **AP-TM-008 and AP-TM-009:** Environment, Platform State, Fixture Application State, and real
-  Application State remain distinct. Bundles are reference exchange, not backend access. Detach,
+  Application State remain distinct. Fixture runtimes and state live in a dedicated application
+  project attached through an explicit Shared VPC connection. Bundles are reference exchange, not backend access. Detach,
   retire, application destruction, platform destruction, and environment destruction cannot cross
   an owner.
 - **AP-TM-010:** Terminal prompts never accept a secret payload. OAuth secrets enter Secret Manager
-  directly. Profiles, specifications, journals, bundles, status, logs, and evidence exclude
+  directly. Profiles, specifications, progress, bundles, status, logs, and evidence exclude
   credentials, secret values, state, plans, raw provider responses, browser state, identity claims,
-  restricted membership, and application data.
-- **AP-TM-011:** The lifecycle binds clean reviewed source, pinned tools and dependencies, one
-  environment, an approved specification digest, the verified active human account and provider
-  project, an exact plan, and readback. A profile or journal edit, alternate source, wrong project, provider
-  default, console mutation, or unexpected drift stops before continuation.
+  restricted membership, and application data. Exact output from a failed Terraform plan or apply
+  may exist only as a timestamped, mode-`0600` troubleshooting artifact beneath the ignored
+  mode-`0700` private diagnostics directory. The terminal exposes only its path and SHA-256 digest;
+  the artifact is never evidence, authority, progress, bundle content, or a Git input and must be
+  reviewed and redacted before any external sharing.
+- **AP-TM-011:** The lifecycle binds explicit source authority, clean reviewed source, pinned tools
+  and dependencies, one environment, an approved specification digest, the verified active human
+  account and provider project, an exact plan, and readback. Accepted Source must be exact current
+  protected main. Candidate Source must be a clean pushed matching branch containing current
+  `origin/main`, is staging-only, records separate evidence, and cannot authorize production or
+  overwrite accepted qualification. A profile or progress edit, alternate or unpushed source, stale
+  candidate base, wrong project, provider default, console mutation, or unexpected drift stops
+  before continuation. Default deploy revalidates the active human session, project, pinned tools,
+  ownership, and readable provider facts before automatically reusing current approved intent;
+  current blockers stop rather than being hidden by regeneration. Standalone preflight exposes the
+  same blocker set but cannot create or approve intent, initialize an executor, write lifecycle
+  state, plan, or mutate. Local-maintenance preflight and deployment checks may inspect dirty or
+  unpushed source but label it diagnostic and never grant Accepted or Candidate authority. The
+  deployment check may create only an ephemeral lock-free plan beneath private working storage;
+  it cannot approve, apply, execute a provider action or checkpoint, write operational state, or
+  emit qualification evidence. Prepared fixture handoff reuse additionally requires the exact source
+  authority, application and platform revisions, active generation, image, bundle digests, and live
+  target posture; source equality alone is insufficient.
 - **AP-TM-012:** Preparation inventories every billable resource and destruction names every target.
   Existing limits, budgets, retention, scale-to-zero, and approved-service controls remain. A
   budget event never authorizes automated destruction.
@@ -808,9 +856,15 @@ readback. A compromised workstation remains residual risk; no script can make an
 incapable of out-of-band provider action. Such action is drift and never becomes reviewed authority
 without reconciliation. The lifecycle creates no operation-identity or impersonation fleet.
 
+For an ordinary reversible staging creation or update, deliberate invocation of the named command
+and its same-process specification and plan confirmations are the authorization. An additional
+out-of-band approval does not reduce the workstation's capability or narrow the displayed scope and
+is not a control. Separate fresh approval remains a control for destruction, purge, ownership
+transfer, production cutover, and scope expansion.
+
 AP-M9-W1 defines controls and evaluation authority, AP-M9-W2 removed the retired manifest attack
 surface, AP-M9-W3 implemented the closed lifecycle contracts, AP-M9-W4 implements local
-source/tool discovery, exact digest approval, append-only journal revisions, truthful status,
+source/tool discovery, exact operation approval, atomic progress, truthful status,
 redaction, and interruption-safe fake execution through injected adapters, AP-M9-W5 implements
 exact backend, phase, output, and plan-policy declarations through mocked
 providers and command fakes, and AP-M9-W6 implements fresh private-plan binding, exact typed
@@ -824,7 +878,9 @@ destruction refusal, exact scope confirmation, post-confirmation reread, ordered
 destruction, retained recovery/evidence boundaries, and create-only resume state. The non-fake
 deployment adapters are wired behind pinned-tool, exact-project, active-account, user-ADC,
 digest-bound plan, confirmation, source-upload allow-list, and readback gates, but remain uninvoked;
-W9 live qualification and destruction authority remains closed.
+W9 adds the repository-only Fixture Application deployment lifecycle, browser qualification, and
+closed safe-destruction transitions, completing every operator target needed before W10 may perform
+the first staging operation.
 No current result proves an identity, backend, provider, OAuth, DNS,
 deployment, or Live control operational.
 
@@ -835,13 +891,14 @@ pass:
 
 | Decision | Required before |
 | --- | --- |
-| Exact staging profile, profile schema, Deployment Specification, journal, and bundle contracts | AP-M9-W3 acceptance |
+| Exact staging profile and cross-owner bundle contracts | AP-M9-W3 acceptance |
 | Interactive discovery, prompt, digest, resume, and fake-adapter behavior | AP-M9-W4 acceptance |
 | Exact OAuth branding constraints, client reference, redirect registration, and Secret Manager target | AP-M9 staging preparation before OAuth console action |
 | Exact managed zone, absent record, allocated address, TTL, and external-DNS acknowledgement | AP-M9 staging deployment before DNS mutation |
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
-| Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before staging deployment |
+| Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
+| Dedicated fixture project, explicit Shared VPC connection, executable fixture image, independent Application State plans, project-scoped handoff, separate registration, status, destruction, and staging Candidate Source admission | AP-M9-W9 acceptance before candidate verification or the first accepted staging operation |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |

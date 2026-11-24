@@ -39,9 +39,20 @@ class TerraformBootstrapTest(unittest.TestCase):
             re.findall(r'^output "([^"]+)"', outputs, re.MULTILINE),
             ["bootstrap_phase_output"],
         )
-        self.assertEqual(re.findall(r'^module "([^"]+)"', main, re.MULTILINE), ["state_bucket"])
-        self.assertIn('source   = "../modules/state-bucket"', main)
-        self.assertIn("for_each = local.state_buckets", main)
+        self.assertEqual(
+            re.findall(r'^module "([^"]+)"', main, re.MULTILINE),
+            ["platform_state_bucket"],
+        )
+        self.assertIn('source = "../modules/state-bucket"', main)
+        self.assertNotIn("for_each", main)
+
+    def test_legacy_fixture_bucket_bindings_are_released_without_destroy(self) -> None:
+        main = (BOOTSTRAP_ROOT / "main.tf").read_text(encoding="utf-8")
+
+        self.assertIn('from = module.state_bucket["app-platform"]', main)
+        self.assertIn("to   = module.platform_state_bucket", main)
+        self.assertIn("from = module.state_bucket", main)
+        self.assertEqual(main.count("destroy = false"), 1)
 
     def test_internal_module_owns_only_hardened_state_buckets(self) -> None:
         module = _terraform_sources(MODULE_ROOT)
@@ -107,7 +118,7 @@ class TerraformBootstrapTest(unittest.TestCase):
             'contract_version == 1',
             'configuration_kind == "backend"',
             '["operator", "synthetic"]',
-            "state_buckets) == 4",
+            "state_buckets) == 1",
             ">= 90",
             "<= 365",
             ">= 20",

@@ -1,9 +1,9 @@
 {
   "contract_version": 1,
   "compiler_version": 1,
-  "generation": 3,
-  "generation_digest": "sha256:1f0c716cb37cba205260f90913c68aea29c7ed4d86a79b9e9b934da772547eb2",
-  "previous_generation_digest": "sha256:dbbf3a48ddfa7457bb5260bf4060958f31c2485317a255d51b7adca86c9f9224",
+  "generation": 2,
+  "generation_digest": "sha256:0a3be6df032aa8f05b93bee989822c8600aaea882bb106d36caa6d9b5832e127",
+  "previous_generation_digest": "sha256:68037a002b4334ab1ad0a0a2d983a9c60835327ec8c5ecea812a207e4d83dc29",
   "reserved_paths": [
     "/",
     "/.well-known",
@@ -16,7 +16,7 @@
   "application_states": [
     {
       "application_id": "alpha-app",
-      "registration_revision": 3,
+      "registration_revision": 2,
       "route_prefix": "/alpha",
       "lifecycle": "retired"
     }

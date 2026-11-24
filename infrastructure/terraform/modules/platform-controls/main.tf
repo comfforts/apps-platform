@@ -1,9 +1,13 @@
 locals {
+  destruction_enabled    = contains(["platform-unlock", "retained"], var.destruction_mode)
+  retained_only          = var.destruction_mode == "retained"
   edge_resource_filter   = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"app-platform-edge\""
   edge_completion_filter = "${local.edge_resource_filter} AND jsonPayload.event_version=1 AND jsonPayload.event_type=\"request_completion\" AND jsonPayload.component=\"shared-edge\""
 }
 
 resource "google_logging_project_bucket_config" "edge" {
+  count = local.retained_only ? 0 : 1
+
   project          = var.controls_configuration.project_id
   location         = var.controls_configuration.region
   bucket_id        = var.controls_configuration.log_bucket
@@ -11,19 +15,23 @@ resource "google_logging_project_bucket_config" "edge" {
   retention_days   = 7
   enable_analytics = false
   locked           = false
-  deletion_policy  = "PREVENT"
+  deletion_policy  = local.destruction_enabled ? "DELETE" : "PREVENT"
 }
 
 resource "google_logging_project_sink" "edge" {
+  count = local.retained_only ? 0 : 1
+
   project     = var.controls_configuration.project_id
   name        = "app-platform-edge-completions"
   description = "Routes minimized Shared Edge completion events to the regional platform log bucket."
-  destination = "logging.googleapis.com/projects/${var.controls_configuration.project_id}/locations/${var.controls_configuration.region}/buckets/${google_logging_project_bucket_config.edge.bucket_id}"
+  destination = "logging.googleapis.com/projects/${var.controls_configuration.project_id}/locations/${var.controls_configuration.region}/buckets/${google_logging_project_bucket_config.edge[0].bucket_id}"
   filter      = local.edge_completion_filter
 
-  unique_writer_identity = false
-  disabled               = false
-  deletion_policy        = "PREVENT"
+  # Keep the writer-identity request at the provider default. For a Logging bucket in
+  # this same project, the API omits an actual writer identity while the provider
+  # records its default request value; forcing false creates a permanent plan diff.
+  disabled        = false
+  deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"
 
   exclusions {
     name        = "identity-and-visitor-data"
@@ -62,6 +70,8 @@ resource "google_logging_project_exclusion" "edge_from_default" {
 }
 
 resource "google_project_iam_member" "log_owner_reader" {
+  count = local.retained_only ? 0 : 1
+
   project = var.controls_configuration.project_id
   role    = "roles/logging.viewAccessor"
   member  = var.controls_configuration.owner_principal
@@ -102,6 +112,8 @@ resource "google_storage_bucket_iam_member" "evidence_owner_reader" {
 }
 
 resource "google_monitoring_notification_channel" "budget_email" {
+  count = local.retained_only ? 0 : 1
+
   project      = var.controls_configuration.project_id
   display_name = "App Platform qualification budget owner"
   type         = "email"
@@ -110,14 +122,16 @@ resource "google_monitoring_notification_channel" "budget_email" {
   }
 
   enabled         = true
-  deletion_policy = "PREVENT"
+  deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"
 }
 
 resource "google_billing_budget" "qualification" {
-  billing_account = var.controls_configuration.billing_account_reference
+  count = local.retained_only ? 0 : 1
+
+  billing_account = trimprefix(var.controls_configuration.billing_account_reference, "billingAccounts/")
   display_name    = "App Platform qualification monthly budget"
   ownership_scope = "BILLING_ACCOUNT"
-  deletion_policy = "PREVENT"
+  deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"
 
   budget_filter {
     projects = ["projects/${var.controls_configuration.project_number}"]
@@ -146,23 +160,25 @@ resource "google_billing_budget" "qualification" {
   }
 
   all_updates_rule {
-    monitoring_notification_channels = [google_monitoring_notification_channel.budget_email.id]
+    monitoring_notification_channels = [google_monitoring_notification_channel.budget_email[0].id]
     disable_default_iam_recipients   = true
     enable_project_level_recipients  = false
   }
 }
 
 resource "google_artifact_registry_repository" "qualification_images" {
+  count = local.retained_only ? 0 : 1
+
   project       = var.controls_configuration.project_id
   location      = var.controls_configuration.region
   repository_id = var.controls_configuration.artifact_repository_id
-  description   = "Digest-selected images for App Platform qualification."
+  description   = "Digest-selected Shared Edge images for App Platform qualification."
   format        = "DOCKER"
   mode          = "STANDARD_REPOSITORY"
   labels        = var.controls_configuration.labels
 
   cleanup_policy_dry_run = true
-  deletion_policy        = "PREVENT"
+  deletion_policy        = local.destruction_enabled ? "DELETE" : "PREVENT"
 
   docker_config {
     immutable_tags = true

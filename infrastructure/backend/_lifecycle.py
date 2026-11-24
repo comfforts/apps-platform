@@ -9,23 +9,24 @@ import os
 from pathlib import Path
 import tempfile
 
+from infrastructure.config.project_identity import (
+    fixture_state_bucket,
+    fixtures_project_id,
+)
+
 
 _STAGING_PROJECT_ID = "comfforts-platform-non-prod"
-_STAGING_PROJECT_NUMBER = "455651441682"
 _STAGING_BUCKETS = {
     "platform": "comfforts-ap-stg-455651441682-platform-state",
-    "fixture-public": "comfforts-ap-stg-455651441682-fixture-public-state",
-    "fixture-authenticated": (
-        "comfforts-ap-stg-455651441682-fixture-authenticated-state"
-    ),
-    "fixture-restricted": (
-        "comfforts-ap-stg-455651441682-fixture-restricted-state"
-    ),
 }
 
 
 class EnvironmentUnavailableError(ValueError):
     """The requested environment has no deployment authority."""
+
+
+class BackendDeclarationConflictError(FileExistsError):
+    """A private workspace already names a different state lineage."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,7 +39,6 @@ class BackendDeclaration:
     state_owner: str
     owner_id: str
     project_id: str
-    project_number: str
     bucket: str
     prefix: str
 
@@ -52,7 +52,10 @@ class RenderedBackend:
     created: bool
 
 
-def backend_declarations(environment: str) -> tuple[BackendDeclaration, ...]:
+def backend_declarations(
+    environment: str,
+    fixture_project_id: str | None = None,
+) -> tuple[BackendDeclaration, ...]:
     """Return the exact reviewed phase bindings for an enabled environment."""
 
     if environment == "production":
@@ -63,9 +66,10 @@ def backend_declarations(environment: str) -> tuple[BackendDeclaration, ...]:
     shared = {
         "environment": "staging",
         "project_id": _STAGING_PROJECT_ID,
-        "project_number": _STAGING_PROJECT_NUMBER,
     }
     platform_bucket = _STAGING_BUCKETS["platform"]
+    selected_fixture_project = fixture_project_id or fixtures_project_id()
+    fixture_bucket = fixture_state_bucket(selected_fixture_project)
     return (
         BackendDeclaration(
             **shared,
@@ -96,12 +100,13 @@ def backend_declarations(environment: str) -> tuple[BackendDeclaration, ...]:
         ),
         *(
             BackendDeclaration(
-                **shared,
+                environment="staging",
+                project_id=selected_fixture_project,
                 phase=owner_id,
                 terraform_root=f"infrastructure/terraform/fixtures/{owner_id}",
                 state_owner="application",
                 owner_id=owner_id,
-                bucket=_STAGING_BUCKETS[owner_id],
+                bucket=fixture_bucket,
                 prefix=f"fixtures/{owner_id}",
             )
             for owner_id in (
@@ -148,7 +153,9 @@ def render_backend_declaration(
     digest = f"sha256:{hashlib.sha256(contents).hexdigest()}"
     if destination.exists():
         if not destination.is_file() or destination.read_bytes() != contents:
-            raise FileExistsError("refusing to replace a different backend declaration")
+            raise BackendDeclarationConflictError(
+                "refusing to replace a different backend declaration"
+            )
         return RenderedBackend(destination, digest, False)
 
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)

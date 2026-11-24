@@ -73,6 +73,7 @@ from ._observability import (
     SecureCorrelationIdSource,
     SOURCE_REVISION_PATTERN,
     correlation_id,
+    record_diagnostic,
     record_outcome,
     record_route,
     runtime_status_document,
@@ -524,6 +525,15 @@ def create_app(
             redirect_uri = f"{runtime_configuration.external_origin}{CALLBACK_PATH}"
             try:
                 await adapters.identity_store.put_flow(flow_id, flow)
+            except Exception:
+                health.observe("session_store", available=False)
+                record_diagnostic(
+                    request.scope,
+                    "IDENTITY_STORE_LOGIN_FLOW_WRITE_FAILED",
+                )
+                return _closed_response(503, "identity unavailable")
+            health.observe("session_store", available=True)
+            try:
                 provider_url = await adapters.google_oidc.authorization_url(
                     redirect_uri=redirect_uri,
                     state=state,
@@ -534,10 +544,12 @@ def create_app(
                     raise IdentityUnavailable("identity provider unavailable")
             except Exception:
                 health.observe("identity_provider", available=False)
-                health.observe("session_store", available=False)
+                record_diagnostic(
+                    request.scope,
+                    "IDENTITY_PROVIDER_AUTHORIZATION_FAILED",
+                )
                 return _closed_response(503, "identity unavailable")
             health.observe("identity_provider", available=True)
-            health.observe("session_store", available=True)
             response = RedirectResponse(provider_url, status_code=303)
             response.headers["Cache-Control"] = "no-store"
             _set_opaque_cookie(response, FLOW_COOKIE, flow_id, FLOW_LIFETIME_SECONDS)
@@ -557,18 +569,27 @@ def create_app(
             assert adapters.token_source is not None
             try:
                 flow = await adapters.identity_store.consume_flow(flow_id)
-                if (
-                    flow is None
-                    or flow.state != state
-                    or flow.expires_at <= adapters.clock.now()
-                ):
-                    return _closed_response(400, "invalid identity response")
-                return_to = _validated_return_to(
-                    active_generation.configuration,
-                    flow.return_to,
+            except Exception:
+                health.observe("session_store", available=False)
+                record_diagnostic(
+                    request.scope,
+                    "IDENTITY_STORE_LOGIN_FLOW_READ_FAILED",
                 )
-                if return_to is None:
-                    return _closed_response(400, "invalid identity response")
+                return _closed_response(503, "identity unavailable")
+            health.observe("session_store", available=True)
+            if (
+                flow is None
+                or flow.state != state
+                or flow.expires_at <= adapters.clock.now()
+            ):
+                return _closed_response(400, "invalid identity response")
+            return_to = _validated_return_to(
+                active_generation.configuration,
+                flow.return_to,
+            )
+            if return_to is None:
+                return _closed_response(400, "invalid identity response")
+            try:
                 identity = await adapters.google_oidc.authenticate(
                     code=code,
                     redirect_uri=(
@@ -577,7 +598,16 @@ def create_app(
                     nonce=flow.nonce,
                     code_verifier=flow.code_verifier,
                 )
-                session_id = adapters.token_source.token(32)
+            except Exception:
+                health.observe("identity_provider", available=False)
+                record_diagnostic(
+                    request.scope,
+                    "IDENTITY_PROVIDER_CALLBACK_FAILED",
+                )
+                return _closed_response(503, "identity unavailable")
+            health.observe("identity_provider", available=True)
+            session_id = adapters.token_source.token(32)
+            try:
                 await adapters.identity_store.put_session(
                     session_id,
                     PlatformSession(
@@ -586,10 +616,12 @@ def create_app(
                     ),
                 )
             except Exception:
-                health.observe("identity_provider", available=False)
                 health.observe("session_store", available=False)
+                record_diagnostic(
+                    request.scope,
+                    "IDENTITY_STORE_SESSION_WRITE_FAILED",
+                )
                 return _closed_response(503, "identity unavailable")
-            health.observe("identity_provider", available=True)
             health.observe("session_store", available=True)
             response = RedirectResponse(return_to, status_code=303)
             response.headers["Cache-Control"] = "no-store"
@@ -618,6 +650,10 @@ def create_app(
                     await adapters.identity_store.delete_session(session_id)
                 except Exception:
                     health.observe("session_store", available=False)
+                    record_diagnostic(
+                        request.scope,
+                        "IDENTITY_STORE_SESSION_DELETE_FAILED",
+                    )
                     return _closed_response(503, "identity unavailable")
                 health.observe("session_store", available=True)
             response = RedirectResponse(return_to, status_code=303)

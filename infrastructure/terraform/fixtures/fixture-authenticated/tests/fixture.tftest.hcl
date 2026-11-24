@@ -27,6 +27,9 @@ run "plans_isolated_authenticated_fixture" {
   assert {
     condition = (
       module.fixture_application.policy_summary.ingress == "INGRESS_TRAFFIC_INTERNAL_ONLY" &&
+      module.fixture_application.policy_summary.network_reference == "projects/synthetic-platform/global/networks/synthetic-shared" &&
+      module.fixture_application.policy_summary.subnetwork_reference == "projects/synthetic-platform/regions/us-west1/subnetworks/synthetic-applications" &&
+      module.fixture_application.policy_summary.vpc_egress == "ALL_TRAFFIC" &&
       !module.fixture_application.policy_summary.invoker_iam_disabled &&
       !module.fixture_application.policy_summary.unauthenticated_invocation &&
       module.fixture_application.policy_summary.edge_caller_role == "roles/run.invoker" &&
@@ -47,6 +50,7 @@ run "plans_isolated_authenticated_fixture" {
     condition = (
       module.fixture_application.policy_summary.admission_mode == "authenticated" &&
       module.fixture_application.policy_summary.assertion_audience == "urn:comfforts:app-platform:audience:fixture-authenticated" &&
+      module.fixture_application.policy_summary.identity_audience_annotation == "urn:comfforts:app-platform:audience:fixture-authenticated" &&
       module.fixture_application.policy_summary.platform_issuer == "https://apps.example.invalid/_platform" &&
       module.fixture_application.policy_summary.public_key_reference == "https://apps.example.invalid/.well-known/jwks.json" &&
       module.fixture_application.policy_summary.configured_labels.environment == "qualification" &&

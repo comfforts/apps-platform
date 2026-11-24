@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr
+import io
+import json
 import os
 from pathlib import Path
 import unittest
@@ -28,14 +31,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class FakeVerifier:
-    def __init__(self, accepted: bool = True) -> None:
+    def __init__(
+        self,
+        accepted: bool = True,
+        rejection_code: str = "assertion_signature_invalid",
+    ) -> None:
         self.accepted = accepted
+        self.rejection_code = rejection_code
         self.assertions: list[str | None] = []
 
     async def verify(self, assertion: str | None) -> VerificationResult:
         self.assertions.append(assertion)
         if not self.accepted or assertion is None:
-            return VerificationResult(False, "assertion_signature_invalid", None)
+            return VerificationResult(False, self.rejection_code, None)
         return VerificationResult(
             True,
             "identity_verified",
@@ -94,6 +102,31 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
         self.assertNotIn("synthetic", repr(root.headers).lower())
 
+    def test_browser_qualification_returns_only_a_loopback_challenge(self) -> None:
+        app = create_network_fixture(configuration("public"))
+        challenge = "a" * 64
+
+        with TestClient(app) as client:
+            accepted = client.get(
+                "/qualification/browser",
+                params={"callback_port": "43210", "challenge": challenge},
+                follow_redirects=False,
+            )
+            invalid = client.get(
+                "/qualification/browser",
+                params={"callback_port": "80", "challenge": challenge},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(accepted.status_code, 303)
+        self.assertEqual(
+            accepted.headers["location"],
+            "http://127.0.0.1:43210/?"
+            "application_id=fixture-public&challenge=" + challenge,
+        )
+        self.assertEqual(accepted.headers["cache-control"], "no-store")
+        self.assertEqual(invalid.status_code, 400)
+
     def test_protected_fixture_requires_one_independently_verified_assertion(self) -> None:
         verifier = FakeVerifier()
         app = create_network_fixture(
@@ -101,7 +134,7 @@ class NetworkedFixtureTest(unittest.TestCase):
             verifier=verifier,
         )
 
-        with TestClient(app) as client:
+        with redirect_stderr(io.StringIO()), TestClient(app) as client:
             missing = client.get("/")
             accepted = client.get(
                 "/",
@@ -124,7 +157,7 @@ class NetworkedFixtureTest(unittest.TestCase):
             verifier=verifier,
         )
 
-        with TestClient(app) as client:
+        with redirect_stderr(io.StringIO()), TestClient(app) as client:
             rejected = client.get(
                 "/",
                 headers={VERIFIED_IDENTITY_HEADER: "rejected.assertion.value"},
@@ -141,6 +174,34 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertEqual(duplicate.status_code, 401)
         self.assertEqual(verifier.assertions, ["rejected.assertion.value"])
 
+    def test_identity_rejection_logs_only_the_allowlisted_verifier_code(self) -> None:
+        verifier = FakeVerifier(
+            accepted=False,
+            rejection_code="verification_keys_unavailable",
+        )
+        app = create_network_fixture(
+            configuration("authenticated"),
+            verifier=verifier,
+        )
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr), TestClient(app) as client:
+            response = client.get(
+                "/",
+                headers={VERIFIED_IDENTITY_HEADER: "sensitive.assertion.value"},
+            )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(
+            json.loads(stderr.getvalue()),
+            {
+                "application_id": "fixture-authenticated",
+                "diagnostic_code": "verification_keys_unavailable",
+                "event": "fixture_identity_rejected",
+            },
+        )
+        self.assertNotIn("sensitive.assertion.value", stderr.getvalue())
+
     def test_websocket_uses_the_same_admission_boundary(self) -> None:
         public = create_network_fixture(configuration("public"))
         protected = create_network_fixture(
@@ -152,7 +213,7 @@ class NetworkedFixtureTest(unittest.TestCase):
             with client.websocket_connect("/socket") as socket:
                 socket.send_text("synthetic-input")
                 self.assertEqual(socket.receive_text(), "fixture-ready")
-        with TestClient(protected) as client:
+        with redirect_stderr(io.StringIO()), TestClient(protected) as client:
             with self.assertRaises(Exception):
                 with client.websocket_connect("/socket"):
                     pass
@@ -185,9 +246,12 @@ class NetworkedFixtureTest(unittest.TestCase):
             PROJECT_ROOT / "infrastructure/images/fixture/Dockerfile"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("ARG UV_BUILD_IMAGE", dockerfile)
+        self.assertIn("ARG UV_IMAGE", dockerfile)
+        self.assertIn("ARG PYTHON_BUILD_IMAGE", dockerfile)
         self.assertIn("ARG PYTHON_RUNTIME_IMAGE", dockerfile)
-        self.assertIn("FROM ${UV_BUILD_IMAGE} AS build", dockerfile)
+        self.assertIn("FROM ${UV_IMAGE} AS uv", dockerfile)
+        self.assertIn("FROM ${PYTHON_BUILD_IMAGE} AS build", dockerfile)
+        self.assertIn("COPY --from=uv /uv /uvx /bin/", dockerfile)
         self.assertIn("FROM ${PYTHON_RUNTIME_IMAGE}", dockerfile)
         self.assertIn("uv sync --frozen", dockerfile)
         self.assertIn("USER 65532:65532", dockerfile)
@@ -197,6 +261,31 @@ class NetworkedFixtureTest(unittest.TestCase):
         )
         self.assertNotIn("COPY . ", dockerfile)
         self.assertNotIn("latest", dockerfile.lower())
+
+        cloudbuild = (
+            PROJECT_ROOT / "infrastructure/images/fixture/cloudbuild.yaml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("gcr.io/cloud-builders/docker@sha256:", cloudbuild)
+        self.assertIn("UV_IMAGE=ghcr.io/astral-sh/uv@sha256:", cloudbuild)
+        self.assertIn("PYTHON_BUILD_IMAGE=python@sha256:", cloudbuild)
+        self.assertIn("PYTHON_RUNTIME_IMAGE=python@sha256:", cloudbuild)
+        self.assertIn("org.opencontainers.image.revision=${_SOURCE_REVISION}", cloudbuild)
+        self.assertIn(
+            '_SOURCE_REVISION: "0000000000000000000000000000000000000000"',
+            cloudbuild,
+        )
+        self.assertNotIn("latest", cloudbuild.lower())
+
+        upload_allowlist = (PROJECT_ROOT / ".gcloudignore").read_text(
+            encoding="utf-8"
+        )
+        for required in (
+            "!fixtures/",
+            "!fixtures/*.py",
+            "!infrastructure/images/fixture/Dockerfile",
+            "!infrastructure/images/fixture/cloudbuild.yaml",
+        ):
+            self.assertIn(required, upload_allowlist)
 
 
 if __name__ == "__main__":

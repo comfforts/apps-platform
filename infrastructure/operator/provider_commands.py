@@ -11,9 +11,11 @@ from typing import Any, Protocol
 
 from infrastructure.operator.integration import RegistrationGenerationProposal
 from infrastructure.operator.integration import AttachmentTargetReadback
+from infrastructure.operator.integration import ApplicationProjectConnectionReader
 from infrastructure.operator.local_generation import (
     GenerationProvider,
     ProviderGenerationActivation,
+    ProviderGenerationBinding,
     ProviderGenerationPublication,
 )
 from infrastructure.operator.local_qualification import (
@@ -158,6 +160,7 @@ class GcloudGenerationProvider(GenerationProvider):
         service_name: str,
         configuration_bucket: str,
         runner: ProviderCommandRunner,
+        project_connections: ApplicationProjectConnectionReader | None = None,
     ) -> None:
         self._executable = executable.resolve()
         self._cloud_sdk_configuration = cloud_sdk_configuration.resolve()
@@ -168,6 +171,7 @@ class GcloudGenerationProvider(GenerationProvider):
         self._service_name = service_name
         self._configuration_bucket = configuration_bucket
         self._runner = runner
+        self._project_connections = project_connections
         if not self._executable.is_file():
             raise ValueError("an absolute Cloud SDK executable is required")
         if (
@@ -421,12 +425,13 @@ class GcloudGenerationProvider(GenerationProvider):
     ) -> ProviderGenerationPublication:
         if proposal.environment != "staging":
             raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
-        generation, source_revision = self._generation_values(proposal)
+        generation, _ = self._generation_values(proposal)
         digest_value = proposal.generation_digest.removeprefix("sha256:")
         if len(digest_value) != 64:
             raise GenerationProviderError("GENERATION_PROPOSAL_INVALID")
         object_name = (
-            f"generations/{digest_value}/compiled-shared-edge.v1.json"
+            f"environments/{proposal.environment}/generations/{generation}/"
+            "compiled-shared-edge.v1.json"
         )
         object_uri = f"gs://{self._configuration_bucket}/{object_name}"
         copied = self._try_common(
@@ -441,11 +446,18 @@ class GcloudGenerationProvider(GenerationProvider):
             object_uri,
             compiled_configuration,
         )
-        service = self._describe_service()
-        invariants = self._revision_invariants(service)
+        _, active_revision = self._active_revision(proposal.environment)
+        invariants = self._revision_values(active_revision)
+        active_environment = self._revision_environment(active_revision)
+        active_platform_source = active_environment.get(
+            "APP_PLATFORM_SOURCE_REVISION"
+        )
+        if not isinstance(active_platform_source, str) or not active_platform_source:
+            raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
         revision_name = f"{self._service_name}-g{generation}-{digest_value[:12]}"
         expected_environment = {
-            "APP_PLATFORM_SOURCE_REVISION": source_revision,
+            **active_environment,
+            "APP_PLATFORM_SOURCE_REVISION": active_platform_source,
             "APP_PLATFORM_REGISTRATION_GENERATION": str(generation),
             "APP_PLATFORM_GENERATION_DIGEST": proposal.generation_digest,
             "APP_PLATFORM_CONFIGURATION_BUCKET": self._configuration_bucket,
@@ -457,6 +469,13 @@ class GcloudGenerationProvider(GenerationProvider):
         created = False
         if existing is None:
             suffix = revision_name.removeprefix(f"{self._service_name}-")
+            if any(
+                "," in name or "=" in name or "," in value
+                for name, value in expected_environment.items()
+            ):
+                raise GenerationProviderError(
+                    "GENERATION_REVISION_BINDING_MISMATCH"
+                )
             bindings = ",".join(
                 f"{name}={value}"
                 for name, value in sorted(expected_environment.items())
@@ -470,7 +489,9 @@ class GcloudGenerationProvider(GenerationProvider):
                 f"--region={self._region}",
                 "--no-traffic",
                 f"--revision-suffix={suffix}",
-                f"--update-env-vars={bindings}",
+                f"--image={invariants[1]}",
+                f"--service-account={invariants[0]}",
+                f"--set-env-vars={bindings}",
                 "--format=json",
             )
             created = True
@@ -536,20 +557,7 @@ class GcloudGenerationProvider(GenerationProvider):
             active_generation_digest=generation_digest,
         )
 
-    @staticmethod
-    def _component_digest(value: object) -> str:
-        payload = json.dumps(
-            value,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-        return "sha256:" + hashlib.sha256(payload).hexdigest()
-
-    def read_current(self, environment: str) -> ProviderQualificationSnapshot:
-        """Read the one active revision and its closed component bindings."""
-
+    def _active_revision(self, environment: str) -> tuple[str, dict[str, Any]]:
         if environment != "staging":
             raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
         service = self._describe_service()
@@ -570,6 +578,103 @@ class GcloudGenerationProvider(GenerationProvider):
         revision = self._describe_revision(revision_name)
         if revision is None:
             raise GenerationProviderError("GENERATION_REVISION_READBACK_MISSING")
+        if revision.get("metadata", {}).get("name") != revision_name:
+            raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
+        return revision_name, revision
+
+    def _revision_binding(
+        self,
+        environment: str,
+        revision_name: str,
+        revision: dict[str, Any],
+    ) -> ProviderGenerationBinding:
+        values = self._revision_environment(revision)
+        required = {
+            "APP_PLATFORM_CONFIGURATION_BUCKET",
+            "APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST",
+            "APP_PLATFORM_CONFIGURATION_OBJECT",
+            "APP_PLATFORM_CONFIGURATION_OBJECT_GENERATION",
+            "APP_PLATFORM_GENERATION_DIGEST",
+            "APP_PLATFORM_REGISTRATION_GENERATION",
+            "APP_PLATFORM_SOURCE_REVISION",
+        }
+        if not required <= set(values):
+            raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
+        try:
+            generation = int(values["APP_PLATFORM_REGISTRATION_GENERATION"])
+            object_generation = int(
+                values["APP_PLATFORM_CONFIGURATION_OBJECT_GENERATION"]
+            )
+        except ValueError as error:
+            raise GenerationProviderError(
+                "GENERATION_REVISION_BINDING_MISMATCH"
+            ) from error
+        source_revision = values["APP_PLATFORM_SOURCE_REVISION"]
+        generation_digest = values["APP_PLATFORM_GENERATION_DIGEST"]
+        content_digest = values["APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST"]
+        object_name = values["APP_PLATFORM_CONFIGURATION_OBJECT"]
+        if (
+            values["APP_PLATFORM_CONFIGURATION_BUCKET"]
+            != self._configuration_bucket
+            or generation < 1
+            or object_generation < 1
+            or len(source_revision) != 40
+            or any(character not in "0123456789abcdef" for character in source_revision)
+            or not generation_digest.startswith("sha256:")
+            or len(generation_digest) != 71
+            or not content_digest.startswith("sha256:")
+            or len(content_digest) != 71
+            or not object_name
+        ):
+            raise GenerationProviderError("GENERATION_REVISION_BINDING_MISMATCH")
+        _, image_reference = self._revision_values(revision)
+        return ProviderGenerationBinding(
+            environment=environment,
+            revision_name=revision_name,
+            platform_source_revision=source_revision,
+            image_reference=image_reference,
+            generation=generation,
+            generation_digest=generation_digest,
+            content_digest=content_digest,
+            object_name=object_name,
+            object_generation=object_generation,
+        )
+
+    def read_revision_binding(
+        self,
+        environment: str,
+        revision_name: str,
+    ) -> ProviderGenerationBinding:
+        """Read one exact staged edge revision without moving traffic."""
+
+        if environment != "staging":
+            raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
+        revision = self._describe_revision(revision_name)
+        if revision is None:
+            raise GenerationProviderError("GENERATION_REVISION_READBACK_MISSING")
+        return self._revision_binding(environment, revision_name, revision)
+
+    def read_active_binding(self, environment: str) -> ProviderGenerationBinding:
+        """Read the exact active revision binding without changing provider state."""
+
+        revision_name, revision = self._active_revision(environment)
+        return self._revision_binding(environment, revision_name, revision)
+
+    @staticmethod
+    def _component_digest(value: object) -> str:
+        payload = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+    def read_current(self, environment: str) -> ProviderQualificationSnapshot:
+        """Read the one active revision and its closed component bindings."""
+
+        revision_name, revision = self._active_revision(environment)
         values = self._revision_environment(revision)
         required = {
             "APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST",
@@ -620,10 +725,35 @@ class GcloudGenerationProvider(GenerationProvider):
             component_revisions=tuple(sorted(components)),
         )
 
+    def shared_edge_ingress(self, environment: str) -> str:
+        """Read only the closed Shared Edge ingress posture."""
+
+        if environment != "staging":
+            raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
+        service = self._describe_service()
+        annotations = service.get("metadata", {}).get("annotations", {})
+        if not isinstance(annotations, dict):
+            raise GenerationProviderError("EDGE_SERVICE_READBACK_INVALID")
+        ingress = annotations.get("run.googleapis.com/ingress")
+        if ingress not in {"internal", "internal-and-cloud-load-balancing"}:
+            raise GenerationProviderError("EDGE_SERVICE_READBACK_INVALID")
+        return str(ingress)
+
+    def shared_edge_exists(self, environment: str) -> bool:
+        """Read whether the exact platform-owned Shared Edge service exists."""
+
+        if environment != "staging":
+            raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
+        return self._try_describe_named_service(self._service_name) is not None
+
     @staticmethod
     def _service_environment(service: dict[str, Any]) -> dict[str, str]:
         try:
-            values = service["spec"]["template"]["spec"]["containers"][0]["env"]
+            template = service["spec"]["template"]
+            containers = template.get("containers")
+            if containers is None:
+                containers = template["spec"]["containers"]
+            values = containers[0]["env"]
         except (KeyError, IndexError, TypeError) as error:
             raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID") from error
         if not isinstance(values, list):
@@ -646,27 +776,54 @@ class GcloudGenerationProvider(GenerationProvider):
     ) -> AttachmentTargetReadback:
         """Read one exact Cloud Run attachment and its edge-caller IAM grant."""
 
-        prefix = (
-            "urn:comfforts:app-platform:gcp:cloud-run:"
-            f"{self._project_number}:{self._region}:"
-        )
-        application_id = resource_reference.removeprefix(prefix)
+        prefix = "urn:comfforts:app-platform:gcp:cloud-run:"
+        parts = resource_reference.removeprefix(prefix).split(":")
         if (
             environment != "staging"
             or not resource_reference.startswith(prefix)
-            or not application_id
+            or len(parts) != 3
+            or self._project_connections is None
+        ):
+            raise GenerationProviderError("ATTACHMENT_REFERENCE_INVALID")
+        project_number, region, service_name = parts
+        try:
+            connection = self._project_connections.read_project_number(
+                environment,
+                project_number,
+            )
+        except (OSError, ValueError) as error:
+            raise GenerationProviderError("APPLICATION_PROJECT_NOT_CONNECTED") from error
+        if (
+            connection.project_number != project_number
+            or connection.region != region
+            or region != self._region
+            or not service_name
             or any(
                 character not in "abcdefghijklmnopqrstuvwxyz0123456789-"
-                for character in application_id
+                for character in service_name
             )
         ):
             raise GenerationProviderError("ATTACHMENT_REFERENCE_INVALID")
-        service = self._try_describe_named_service(application_id)
+        service_result = self._try_run(
+            "run",
+            "services",
+            "describe",
+            service_name,
+            f"--region={region}",
+            "--format=json",
+            f"--project={connection.project_id}",
+            "--quiet",
+        )
+        service = (
+            None
+            if service_result.returncode != 0
+            else self._json("ATTACHMENT_TARGET_READBACK_INVALID", service_result.stdout)
+        )
         if service is None:
             return AttachmentTargetReadback(
                 exists=False,
                 ready=False,
-                owner_application_id=application_id,
+                owner_application_id="",
                 adapter_kind="gcp-cloud-run-v1",
                 resource_reference=resource_reference,
                 ingress_mode="unavailable",
@@ -687,33 +844,89 @@ class GcloudGenerationProvider(GenerationProvider):
         ):
             raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID")
         environment_values = self._service_environment(service)
+        identity_audience = annotations.get("comfforts.com/identity-audience")
+        if identity_audience is not None and not isinstance(identity_audience, str):
+            raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID")
         ready = any(
             isinstance(item, dict)
             and item.get("type") == "Ready"
             and item.get("status") == "True"
             for item in conditions
         )
-        owner = (
-            application_id
-            if labels.get("state_owner") == "application"
-            and labels.get("environment") == environment
-            else ""
-        )
+        label_blockers: list[str] = []
+        if labels.get("state_owner") != "application":
+            label_blockers.append("TARGET_STATE_OWNER_LABEL_MISMATCH")
+        if labels.get("environment") != "qualification":
+            label_blockers.append("TARGET_ENVIRONMENT_LABEL_MISMATCH")
+        if identity_audience != environment_values.get(
+            "APP_PLATFORM_ASSERTION_AUDIENCE"
+        ):
+            label_blockers.append("TARGET_IDENTITY_AUDIENCE_MISMATCH")
+        owner_application_id = labels.get("application_id")
+        if (
+            not isinstance(owner_application_id, str)
+            or not owner_application_id
+            or any(
+                character not in "abcdefghijklmnopqrstuvwxyz0123456789-"
+                for character in owner_application_id
+            )
+        ):
+            label_blockers.append("TARGET_APPLICATION_LABEL_MISMATCH")
+        provider_ingress = annotations.get("run.googleapis.com/ingress")
+        if provider_ingress is None:
+            provider_ingress = service.get("ingress")
         ingress = (
             "shared_edge_only"
-            if annotations.get("run.googleapis.com/ingress") == "internal"
+            if provider_ingress in {"internal", "INGRESS_TRAFFIC_INTERNAL_ONLY"}
             else "unverified"
         )
+        template = service.get("spec", {}).get("template", {})
+        template_annotations = (
+            template.get("metadata", {}).get("annotations", {})
+            if isinstance(template, dict)
+            else {}
+        )
+        network_reference = None
+        subnetwork_reference = None
+        egress_mode = None
+        if isinstance(template_annotations, dict):
+            raw_interfaces = template_annotations.get(
+                "run.googleapis.com/network-interfaces"
+            )
+            if isinstance(raw_interfaces, str):
+                try:
+                    interfaces = json.loads(raw_interfaces)
+                except json.JSONDecodeError:
+                    interfaces = None
+                if isinstance(interfaces, list) and len(interfaces) == 1:
+                    interface = interfaces[0]
+                    if isinstance(interface, dict):
+                        network_reference = interface.get("network")
+                        subnetwork_reference = interface.get("subnetwork")
+            if template_annotations.get("run.googleapis.com/vpc-access-egress") == "all-traffic":
+                egress_mode = "all-traffic"
+        vpc_access = template.get("vpcAccess") if isinstance(template, dict) else None
+        if isinstance(vpc_access, dict):
+            interfaces = vpc_access.get("networkInterfaces")
+            if isinstance(interfaces, list) and len(interfaces) == 1:
+                interface = interfaces[0]
+                if isinstance(interface, dict):
+                    network_reference = interface.get("network")
+                    subnetwork_reference = interface.get("subnetwork")
+            if vpc_access.get("egress") == "ALL_TRAFFIC":
+                egress_mode = "all-traffic"
         policy = self._json(
             "ATTACHMENT_IAM_READBACK_INVALID",
-            self._run_common(
+            self._run(
                 "ATTACHMENT_IAM_READBACK_FAILED",
                 "run",
                 "services",
                 "get-iam-policy",
-                application_id,
+                service_name,
                 f"--region={self._region}",
                 "--format=json",
+                f"--project={connection.project_id}",
+                "--quiet",
             ).stdout,
         )
         bindings = policy.get("bindings")
@@ -724,23 +937,37 @@ class GcloudGenerationProvider(GenerationProvider):
             f"{self._project_id}.iam.gserviceaccount.com"
         )
         caller_grant = ""
+        public_invoker = False
         for binding in bindings:
-            if (
-                isinstance(binding, dict)
-                and binding.get("role") == "roles/run.invoker"
-                and isinstance(binding.get("members"), list)
-                and expected_caller in binding["members"]
-            ):
+            if not isinstance(binding, dict) or binding.get("role") != "roles/run.invoker":
+                continue
+            members = binding.get("members")
+            if not isinstance(members, list):
+                raise GenerationProviderError("ATTACHMENT_IAM_READBACK_INVALID")
+            if expected_caller in members:
                 caller_grant = expected_caller
+            if "allUsers" in members or "allAuthenticatedUsers" in members:
+                public_invoker = True
+        if public_invoker:
+            ingress = "unverified"
         return AttachmentTargetReadback(
             exists=True,
             ready=ready,
-            owner_application_id=owner,
+            owner_application_id=(
+                owner_application_id
+                if isinstance(owner_application_id, str)
+                else ""
+            ),
             adapter_kind="gcp-cloud-run-v1",
             resource_reference=resource_reference,
             ingress_mode=ingress,
             caller_grant=caller_grant,
-            audience=environment_values.get("APP_PLATFORM_ASSERTION_AUDIENCE"),
+            audience=identity_audience,
+            application_project_id=connection.project_id,
+            network_reference=network_reference,
+            subnetwork_reference=subnetwork_reference,
+            egress_mode=egress_mode,
+            blockers=tuple(sorted(label_blockers)),
         )
 
 

@@ -1,16 +1,16 @@
 {
   "contract_version": 1,
-  "generation": 6,
-  "previous_generation_digest": "sha256:1af1e0811ff0f80eeee7492b07614cb1e2fca8e9ffa4bab05165d94600992f87",
+  "generation": 2,
+  "previous_generation_digest": "sha256:4eab4d0f3f618cb1faaa1737cec466ecb3b02d9a3538f114f20400c4d6919143",
   "proposal": {
     "source_revision": "f78c4a73f1507afc6de52cbaadc3c7d6d8b042aa633155ac2e3a4ec37b997d2c",
-    "change_summary": "Replace the public fixture web attachment reference"
+    "change_summary": "Update the public fixture catalogue title"
   },
   "registrations": [
     {
       "contract_version": 1,
       "application_id": "fixture-authenticated",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/authenticated",
       "catalogue": {
         "visibility": "unlisted",
@@ -39,7 +39,7 @@
     {
       "contract_version": 1,
       "application_id": "fixture-public",
-      "registration_revision": 6,
+      "registration_revision": 2,
       "route_prefix": "/public",
       "catalogue": {
         "visibility": "listed",
@@ -66,9 +66,9 @@
         {
           "contract_version": 1,
           "owner_application_id": "fixture-public",
-          "attachment_id": "web-v2",
+          "attachment_id": "web",
           "adapter_kind": "fixture-in-process-v1",
-          "resource_reference": "urn:comfforts:app-platform:fixture:fixture-public:web-v2",
+          "resource_reference": "urn:comfforts:app-platform:fixture:fixture-public:web",
           "mount_path": "/",
           "forwarding_mode": "preserve",
           "identity_requirement": "none",
@@ -80,7 +80,7 @@
     {
       "contract_version": 1,
       "application_id": "fixture-restricted",
-      "registration_revision": 2,
+      "registration_revision": 1,
       "route_prefix": "/restricted",
       "catalogue": {
         "visibility": "listed",

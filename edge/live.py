@@ -7,10 +7,12 @@ from dataclasses import dataclass
 import logging
 import os
 import re
-from typing import Any, Mapping
+import sys
+from typing import Any, Mapping, TextIO
 from urllib.parse import quote
 
 import google.auth
+from google.auth import impersonated_credentials
 from google.auth.transport.requests import AuthorizedSession, Request
 from google.cloud import firestore, kms, run_v2, storage
 import google_crc32c
@@ -66,6 +68,7 @@ _REQUIRED_ENVIRONMENT = (
     "APP_PLATFORM_OPERATOR_ISSUER",
     "APP_PLATFORM_OPERATOR_SUBJECT",
     "APP_PLATFORM_PROJECT_ID",
+    "APP_PLATFORM_PROJECT_NUMBER",
     "APP_PLATFORM_REGION",
     "APP_PLATFORM_SIGNING_KEY_VERSION",
     "APP_PLATFORM_SOURCE_REVISION",
@@ -76,12 +79,24 @@ class LiveConfigurationError(RuntimeError):
     """A safe startup failure caused by incomplete or invalid process input."""
 
 
+def completion_logger(stream: TextIO | None = None) -> logging.Logger:
+    """Build the isolated JSON-line logger consumed by the regional log sink."""
+
+    handler = logging.StreamHandler(stream if stream is not None else sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger = logging.Logger("comfforts.shared_edge.completion", level=logging.INFO)
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
+
+
 @dataclass(frozen=True, slots=True)
 class LiveRuntimeSettings:
     """Complete non-secret settings for one immutable Shared Edge revision."""
 
     source_revision: str
     project_id: str
+    project_number: str
     region: str
     external_origin: str
     generation_bucket: str
@@ -110,6 +125,7 @@ class LiveRuntimeSettings:
 
         issuer = environment["APP_PLATFORM_ISSUER"]
         project_id = environment["APP_PLATFORM_PROJECT_ID"]
+        project_number = environment["APP_PLATFORM_PROJECT_NUMBER"]
         region = environment["APP_PLATFORM_REGION"]
         secret_version = environment["APP_PLATFORM_OAUTH_CLIENT_SECRET_VERSION"]
         signing_key_version = environment["APP_PLATFORM_SIGNING_KEY_VERSION"]
@@ -120,6 +136,7 @@ class LiveRuntimeSettings:
             _SOURCE_REVISION.fullmatch(environment["APP_PLATFORM_SOURCE_REVISION"])
             is None
             or _PROJECT_ID.fullmatch(project_id) is None
+            or re.fullmatch(r"[1-9][0-9]{5,18}", project_number) is None
             or _REGION.fullmatch(region) is None
             or object_generation < 1
             or _DIGEST.fullmatch(
@@ -145,6 +162,7 @@ class LiveRuntimeSettings:
         settings = cls(
             source_revision=environment["APP_PLATFORM_SOURCE_REVISION"],
             project_id=project_id,
+            project_number=project_number,
             region=region,
             external_origin=issuer.removesuffix("/_platform"),
             generation_bucket=environment["APP_PLATFORM_CONFIGURATION_BUCKET"],
@@ -194,7 +212,30 @@ class LiveClients:
     cloud_run: Any
     kms: Any
     auth_request: Any
+    edge_caller_credentials: Any
     http: httpx.AsyncClient
+
+
+def create_edge_caller_credentials(
+    settings: LiveRuntimeSettings,
+    *,
+    source_credentials: Any | None = None,
+) -> Any:
+    """Create short-lived credentials for the exact dedicated edge caller."""
+
+    if source_credentials is None:
+        source_credentials, _ = google.auth.default(
+            scopes=("https://www.googleapis.com/auth/cloud-platform",)
+        )
+    target_principal = settings.edge_caller_principal.removeprefix(
+        "serviceAccount:"
+    )
+    return impersonated_credentials.Credentials(
+        source_credentials=source_credentials,
+        target_principal=target_principal,
+        target_scopes=("https://www.googleapis.com/auth/cloud-platform",),
+        lifetime=3600,
+    )
 
 
 def access_oauth_client_secret(
@@ -251,7 +292,10 @@ def build_live_app(
         active_key=signing_key,
         published_keys=(signing_key,),
     )
-    service_tokens = GoogleAuthServiceIdentityTokenSource(clients.auth_request)
+    service_tokens = GoogleAuthServiceIdentityTokenSource(
+        clients.auth_request,
+        clients.edge_caller_credentials,
+    )
     application_proxy = BoundedApplicationProxy(
         HttpxApplicationTransport(clients.http, service_tokens),
         WebsocketsApplicationConnector(service_tokens),
@@ -269,7 +313,12 @@ def build_live_app(
         identity_store=FirestoreIdentityStore(clients.firestore),
         clock=clock,
         token_source=tokens,
-        assertion_issuer=AssertionIssuer(assertion_keys, clock, tokens),
+        assertion_issuer=AssertionIssuer(
+            assertion_keys,
+            clock,
+            tokens,
+            issuer=f"{settings.external_origin}/_platform",
+        ),
         verification_key_source=assertion_keys,
         application_proxy=application_proxy,
         trusted_client_classifier=ScopeTrustedClientClassifier(),
@@ -277,9 +326,7 @@ def build_live_app(
             ((settings.operator_issuer, settings.operator_subject),)
         ),
         correlation_ids=SecureCorrelationIdSource(),
-        completion_events=StructuredLoggingCompletionSink(
-            logging.getLogger("comfforts.shared_edge")
-        ),
+        completion_events=StructuredLoggingCompletionSink(completion_logger()),
     )
     return create_app(settings.runtime_configuration(), adapters)
 
@@ -288,15 +335,19 @@ def create_live_app() -> Any:
     """Uvicorn factory for the immutable Cloud Run Shared Edge revision."""
 
     settings = LiveRuntimeSettings.from_environment(os.environ)
+    edge_caller_credentials = create_edge_caller_credentials(settings)
     clients = LiveClients(
         storage=storage.Client(project=settings.project_id),
         firestore=firestore.AsyncClient(
             project=settings.project_id,
             database="(default)",
         ),
-        cloud_run=run_v2.ServicesAsyncClient(),
+        cloud_run=run_v2.ServicesAsyncClient(
+            credentials=edge_caller_credentials,
+        ),
         kms=kms.KeyManagementServiceAsyncClient(),
         auth_request=Request(),
+        edge_caller_credentials=edge_caller_credentials,
         http=httpx.AsyncClient(),
     )
     secret = access_oauth_client_secret(settings.oauth_client_secret_version)
@@ -309,5 +360,7 @@ __all__ = (
     "LiveRuntimeSettings",
     "access_oauth_client_secret",
     "build_live_app",
+    "completion_logger",
+    "create_edge_caller_credentials",
     "create_live_app",
 )

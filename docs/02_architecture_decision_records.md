@@ -1,7 +1,7 @@
 # App Platform architecture decision records
 
-Version 0.7 | Status: accepted decisions through the AP-M9 operator-driven environment lifecycle;
-no platform infrastructure is deployed
+Version 0.9 | Status: accepted decisions through the AP-M9 cross-project fixture lifecycle;
+candidate staging infrastructure exists but has not been accepted or qualified
 
 These records capture hard-to-reverse App Platform boundaries. They are authoritative only for this
 project and do not transfer ownership of an existing application's resources. Requirement
@@ -219,11 +219,11 @@ Fixture behavior and data must be deterministic and synthetic. Fixture qualifica
 no Finance Assistant code, production application data, paid provider, application credential, or
 write access to a real application's state.
 
-An Integration Draft may describe how a real application could consume the qualified platform
-interfaces, but it is not an application change and is not platform acceptance evidence. Application
-Adoption occurs only when the Application Owner incorporates the proposal through that application's
-own requirements, decisions, contracts, implementation, tests, state migration, cutover, rollback,
-and release approval. A cutover must leave each resource with one active state owner.
+An external application migration proposal may describe how a real application could consume the
+qualified platform interfaces, but it is not an application change and is not platform acceptance
+evidence. Application Adoption occurs only through the Application Owner's requirements, decisions,
+contracts, implementation, tests, state migration, cutover, rollback, and release approval. A
+cutover must leave each resource with one active state owner.
 
 The fixture topology, implementation language, synthetic identities, entitlement model, and
 qualification evidence schema remain system-design and evaluation decisions.
@@ -252,7 +252,7 @@ qualification evidence schema remain system-design and evaluation decisions.
 
 ## ADR-005 · Qualify the first Live topology on GCP with Cloud Run attachments
 
-Status: Accepted
+Status: Accepted; fixture-project topology superseded by ADR-014
 
 Requirements: AP-PR-001, AP-PR-002, AP-PR-003, AP-PR-007, AP-PR-008, AP-PR-009,
 AP-QR-001, AP-QR-002, AP-QR-003, AP-QR-005, AP-QR-006
@@ -292,13 +292,9 @@ the declared project and region, a ready target, the named Application State own
 Ownership Manifest, and an application-owner-authorized grant to the platform edge caller. This
 joint proof binds the target to the registration without transferring management authority.
 
-The first live Fixture Application targets may share the qualification project with the platform,
-but each retains a separate Terraform state root and remains Application State. The reference form
-also permits a later target in an application-owned GCP project. Later cross-project GCP
-attachments use a platform-owned Shared VPC host network, with each application project attached
-as a service project through its own adoption procedure. The platform owns only the host network
-and edge identity, while the Application Owner continues to own its Cloud Run service, runtime IAM,
-data, and Application State. Cross-project behavior requires its own later evidence.
+Fixture Applications and real applications use the cross-project attachment topology defined by
+ADR-014. The typed reference resolves the target project explicitly; co-location with the platform
+project is not qualification evidence for an independently owned application.
 
 Protected Cloud Run targets must deny unauthenticated direct invocation and accept the dedicated
 edge caller through provider IAM in addition to independently verifying the application-bound
@@ -332,8 +328,8 @@ and cutover remain explicit, separately approved operator actions.
   make that distinction explicit.
 - The edge remains a hostname-wide concentration of risk and requires later IAM, identity,
   rollback, observability, and cost evidence before Live qualification.
-- A same-project fixture result does not qualify cross-project Shared VPC attachment or any real
-  application adoption.
+- Cross-project fixture evidence qualifies only the attachment mechanics it actually exercises; it
+  does not adopt or qualify a real application.
 - This decision selects topology only. It creates no Terraform configuration, provider resource,
   DNS record, certificate, credential, deployment, or Live evidence.
 
@@ -441,7 +437,8 @@ and qualified.
 
 ## ADR-007 · Separate state roots and use federated protected-main operations
 
-Status: Accepted; routine GitHub-Actions-only execution superseded by ADR-011
+Status: Accepted; routine GitHub-Actions-only execution superseded by ADR-011 and fixture-bucket
+placement refined by ADR-014
 
 Requirements: AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009, AP-QR-001, AP-QR-003,
 AP-QR-004, AP-QR-005, AP-QR-006
@@ -476,10 +473,12 @@ Application State. A future real application owns its backend in its own project
 chain; the platform never relocates that state into these roots.
 
 The bootstrap and platform roots use a dedicated platform-state bucket with distinct object
-prefixes because both are Platform State. Each Fixture Application uses a separate state bucket so
-the platform and other fixtures can be denied object access at the bucket boundary. Bucket names
-are environment configuration selected only after global-name availability is checked; they are
-not embedded in reusable modules or contracts.
+prefixes because both are Platform State. Repository-owned fixtures use separate prefixes in one
+versioned bucket owned by their dedicated fixture application project, as refined by ADR-014.
+Their Terraform roots remain independent. A real application owns its own backend under its own
+project and authority chain. Bucket names are environment configuration selected only after
+global-name availability is checked; reusable modules and public application contracts do not
+assume access to another owner's backend.
 
 Every state bucket uses uniform bucket-level access, public-access prevention, object versioning,
 and recovery history that retains a noncurrent version until it is at least 90 days old and at
@@ -576,12 +575,16 @@ touching existing Finance Assistant records.
 ### Decision
 
 Complete Registration Sets remain reviewed Git inputs. The deterministic compiler validates the
-declared predecessor and produces one canonical generation digest before Terraform planning. A
-content-addressed, immutable compiled configuration object is staged in a platform-owned GCS
-configuration bucket under that digest. The object is restricted platform configuration: it may
-contain the issuer-and-subject membership required by a restricted Admission Mode, but it contains
-no secret, credential, signed assertion, request payload, or application data and is never a public
-catalogue or evidence artifact.
+declared predecessor and produces one canonical generation digest before Terraform planning. An
+immutable compiled configuration object is published as an inactive candidate in a platform-owned
+GCS configuration bucket. New objects use the readable environment-and-generation path
+`environments/<environment>/generations/<number>/compiled-shared-edge.v1.json`; create-only
+publication, the generation digest, content digest, and exact GCS object generation provide the
+immutable binding. Existing initial and digest-addressed object names remain valid historical
+bindings and are never renamed or overwritten. The object is restricted platform configuration:
+it may contain the issuer-and-subject membership required by a restricted Admission Mode, but it
+contains no secret, credential, signed assertion, request payload, or application data and is never
+a public catalogue or evidence artifact.
 
 Each candidate Cloud Run edge revision is immutable and binds all of these values:
 
@@ -780,10 +783,11 @@ longer retention, backup or PITR enablement, CDN, WAF, HSM, or missing ownership
 resources use at least `environment`, `managed_by`, `state_owner`, and, where applicable,
 `application_id` labels.
 
-The platform project pays for Shared Edge resources and the initial same-project qualification
-fixtures. A future application-owned project pays for its runtime, data, networking, and provider
-services unless an Application Adoption explicitly approves another allocation. Cross-project
-references never give the platform access to application billing or Terraform state.
+The platform project pays for Shared Edge resources and Shared VPC host resources. The dedicated fixture
+application project pays for fixture runtimes, images, state, and service-project usage. Another
+application-owned project pays for its runtime, data, networking use, and provider services unless
+an Application Adoption explicitly approves another allocation. Cross-project references never
+give the platform access to application billing or Terraform state.
 
 ### Considered alternatives
 
@@ -827,12 +831,16 @@ human-operable and does not provide leverage for the operator.
 
 ### Decision
 
-AP-M9 exposes one deep interactive lifecycle module through the prepare, deploy, status, outputs,
-register, detach, retire, qualify, and destroy operations. Stable environment decisions live in a
+AP-M9 exposes one focused interactive lifecycle through the prepare, deploy, status, outputs,
+register, detach, retire, qualify, and destroy operations, plus explicit read-only preflight and
+deployment checks for local maintenance and a read-only application-handoff check before bundle
+publication. Stable environment decisions live in a
 small Environment Profile. Preparation discovers or derives available non-secret facts and creates
-one canonical Deployment Specification. Deployment creates the exact stage plans and generated
-facts just in time, validates them against that specification, and records them in a machine-
-generated Execution Journal.
+one canonical Deployment Specification containing the environment, source, profile, operation,
+and fixed workflow identity. Deployment creates exact plans and generated facts just in time,
+validates each against reviewed code and provider readback, and atomically replaces one private
+progress record after a stage closes. The specification is not a data-driven stage language and
+the progress record is not a public contract or append-only hash chain.
 
 The normal local wizard remains active across provider-console and external-DNS work. It displays
 the exact manual action, waits for an Enter acknowledgement, verifies every readable fact, and
@@ -846,8 +854,8 @@ implemented and superseded; it is not active deployment authority.
 ### Consequences
 
 - The operator learns one small interface rather than Terraform-root and manifest internals.
-- Generated facts remain digest-bound without becoming operator inputs.
-- Deterministic tests exercise the same lifecycle interface with fake command adapters.
+- Cross-owner facts remain digest-bound without turning every internal action into an attestation.
+- Deterministic tests exercise the same operator commands through external-effect fakes.
 - No AP-M9 repository change alone authorizes credentials or an external mutation.
 
 ## ADR-011 · Bind interactive mutation to one verified operator session and exact plans
@@ -871,12 +879,25 @@ verify than the proven Finance Assistant scripts.
 
 ### Decision
 
-The normal local lifecycle verifies the active human account, exact provider project, clean current
-`main`, pinned tools, selected environment, and reviewed Deployment Specification before mutation.
-It uses that short-lived human-authenticated session directly for the bounded interactive run. It
-creates no operation-identity fleet, impersonation binding, service-account key, or long-lived
-credential. Runtime service accounts remain Terraform-managed resources with their existing
-Platform State or Application State owners.
+The normal local lifecycle verifies the active human account, exact provider project, explicit
+source authority, pinned tools, selected environment, and reviewed Deployment Specification before
+mutation. Accepted Source is the exact clean current protected `main`. Candidate Source is a clean
+pushed non-main revision whose matching origin branch contains current `origin/main`; it is admitted
+only for pre-merge staging verification. Source authority is part of the specification and bundle
+bindings. Candidate qualification uses separate evidence pointers, cannot overwrite accepted
+qualification, cannot authorize production, and must be repeated from Accepted Source after merge.
+The lifecycle uses that short-lived human-authenticated session directly for the bounded interactive
+run. It creates no operation-identity fleet, impersonation binding, service-account key, or
+long-lived credential. Runtime service accounts remain Terraform-managed resources with their
+existing Platform State or Application State owners.
+
+For ordinary reversible staging creation and update, the owner's deliberate invocation of the
+named command selects the operation. The same process prepares and displays the specification,
+requests its approval, displays each exact plan or bounded action, and requests confirmation before
+mutation; no separate out-of-band approval is required. A second chat, ticket,
+workflow-environment, or other approval would duplicate that decision without narrowing scope.
+Destruction, purge, ownership transfer, production cutover,
+and any proposed scope expansion retain separately named approval and stronger confirmation.
 
 Every Terraform mutation creates a fresh exact plan, canonical digest, policy result, and `y/N`
 owner confirmation in the same execution that applies that plan. Typed confirmation remains
@@ -890,10 +911,35 @@ interactive interface.
 ### Consequences
 
 - The operator can complete one deployment without switching between local lifecycle invocations.
-- `platform-deploy` performs preparation, review, approval, and deployment in one process;
-  `platform-prepare` remains an optional read-only preview.
+- `platform-preflight` provides an optional readiness-only diagnostic over the same source,
+  profile, tool, authentication, project, ownership, and discovery checks. It reports blockers but
+  creates no specification, digest, approval, progress, plan, local deployment state, or external
+  mutation.
+- `platform-preflight-check` and `platform-deploy-check` may inspect a dirty working tree but never
+  report `SOURCE_NOT_CLEAN` or admit that tree as operational source. Other source findings remain
+  non-blocking diagnostics. The deeper check uses real provider readback and lock-free exact
+  planning, deletes ephemeral plans, classifies platform readiness as ready, reconciliation
+  required, incomplete, or blocked, and has no approval, apply, provider-action,
+  checkpoint-execution, or lifecycle-state-write interface.
+- `application-handoff-check` consumes the platform-ready result rather than interpreting internal
+  deployment stages. It then verifies the named application project, its required services, Shared
+  VPC grants, bundle inputs, admission mode, and application identity projection. It publishes no
+  bundle and exposes no mutation interface.
+- `platform-deploy` consumes the same platform-readiness interface before preparation, review,
+  approval, and deployment in one process; a blocked check stops before approval or mutation, while
+  reconciliation-required or incomplete results continue only through fresh exact stage plans.
+  `platform-prepare` remains an optional read-only preview. When that preview has already stored a
+  current approved specification, deploy discovers and reuses it after freshness validation
+  without requiring a copied digest; absent, stale, or unapproved intent returns to preparation.
+- Automatic selection never trusts a pointer alone: canonical readback, exact source/profile/
+  environment/approval binding, current session/project/tool/provider discovery, and active-
+  progress compatibility must pass. Malformed retained state and current blockers stop without replacement.
+- Deliberate invocation plus the in-process review gates authorizes an ordinary staging execution;
+  repository merge alone never starts one.
 - Source binding is enforced by the lifecycle and retained evidence rather than by a remote runner
   alone.
+- A pull request can exercise the real staging provider boundary before merge without presenting
+  its result as accepted-main qualification; production remains main-only.
 - The operator account remains powerful; exact plans, small command allow-lists, confirmations,
   readback, drift detection, and evidence are the active controls. Provider IAM outside the script
   remains an owner responsibility and residual risk.
@@ -930,10 +976,18 @@ Registration validates the returned bundle, target metadata, owner, ingress, cal
 audience, and current platform-bundle digest before activation. Neither bundle grants state access
 or transfers resource ownership.
 
+The repository-owned fixture operator may persist an exact canonical bundle pair in ignored private
+operator state after deploying and reading back one fixture but before registration. It exposes the
+two paths and digests for inspection. A later end-to-end fixture deployment may reuse the pair only
+after revalidating its complete source, platform-generation, image, digest, relationship, and live
+target bindings; otherwise it regenerates the handoff through the normal lifecycle.
+
 ### Consequences
 
 - Applications can deploy and destroy independently using an explicit platform contract.
 - Bundle digests expose stale handoffs without coupling either owner to another backend.
+- Optional fixture inspection does not activate a route, weaken registration validation, or make a
+  prepared bundle an authority record.
 - Application Adoption remains application-owned and cannot be inferred from bundle generation.
 
 ## ADR-013 · Isolate environments and distinguish detachment from permanent retirement
@@ -972,3 +1026,109 @@ destruction.
   identities or weakening retirement.
 - Production ownership cannot be inferred from a matching hostname or resource name.
 - Platform destruction refuses active attachments and never destroys Application State.
+
+## ADR-014 · Qualify cross-project attachment through an explicit Shared VPC connection
+
+Status: Accepted
+
+Requirements: AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009, AP-PR-010, AP-PR-011, AP-PR-012,
+AP-QR-001, AP-QR-002, AP-QR-004 through AP-QR-009
+
+### Context
+
+The first provider-backed fixture implementation placed its Cloud Run targets in the platform
+project. That proved bundle and registration behavior but did not prove the central ownership
+claim that an independently owned application project can attach to the Shared Edge without
+transferring its runtime or state. Treating same-project fixtures as a substitute would leave the
+Finance Assistant and every other external application to discover the real network, IAM,
+project, billing, and state boundaries during adoption.
+
+### Decision
+
+The staging platform project is the platform-owned Shared VPC host. It owns the custom network, the
+regional application subnet, a regional Cloud Router and Public Cloud NAT for that subnet, the
+Shared Edge, and the edge-caller identity. Each application project is an explicit Shared VPC
+service project. Its Cloud Run service uses Direct VPC egress through the platform subnet with
+all-traffic routing, denies public ingress, grants `roles/run.invoker` only to the platform edge
+caller, and independently verifies the platform assertion when identity is delivered. Public
+egress is required for protected applications to retrieve the platform's public JWKS endpoint and
+for later application-owned outbound dependencies without bypassing the approved subnet. The NAT
+uses provider-managed public addresses, serves only the application subnet's VM endpoints, and
+records error-only translation logs; application projects cannot own or mutate it.
+
+Connecting a project is an explicit platform operation performed once per environment/project
+pair. It reads the exact project number, attaches only that project to the named host, grants its
+Cloud Run service agent read-only host-network discovery and network-user access only on the
+application subnet, reads the result back, and writes a private non-secret connection record. It
+creates no application runtime or route.
+`platform-outputs` refuses an application project without that verified connection and includes
+the application project identity plus exact host-network, subnet, region, and egress references in
+the application-scoped Platform Integration Bundle.
+
+Immediately before bundle publication, `application-handoff-check` consumes the explicit result of
+the lock-free platform deployment check. Required platform services and platform-owned Shared VPC,
+subnet, Cloud Router, Cloud NAT, Shared Edge, runtime, TLS, and readback posture are owned by that
+platform check. The handoff check then verifies the named application project's required services
+and live Shared VPC grants and compiles, but does not publish, the requested bundle projection.
+Authenticated and restricted projections additionally require the application-specific audience
+and exact platform identity values. Any platform reconciliation is reported before application
+handoff rather than being inferred from application-project checks.
+
+Repository fixtures run in the dedicated staging project selected explicitly through
+`FIXTURES_PROJECT_ID`; its display name is selected separately through
+`FIXTURES_PROJECT_NAME`. The current staging operator values are
+`comfforts-fixtures-nonprod` and `Comfforts Fixtures Non-Prod`. A one-time interactive fixture-project bootstrap creates or
+repairs that project under the reviewed parent and billing account, enables only the required
+services, and creates its versioned private Terraform-state bucket and image repository. Google
+Cloud assigns the project number. The bootstrap reads it back, and project connection records and
+application bundles persist that provider identity; no fixture project number is configured or
+hardcoded. The three
+fixture roots retain independent state prefixes in that fixture-owned bucket. Platform bootstrap
+continues to create only the platform-state bucket and never manages fixture Application State.
+
+The transition from the former same-project fixture layout is non-destructive. Platform bootstrap
+moves the retained platform bucket out of the former multi-owner Terraform module address, then
+releases only the three known legacy fixture-bucket bindings from Platform State with
+`destroy = false`. The bootstrap plan policy permits `forget` only for those exact historical
+addresses and continues to prohibit every bucket deletion. The legacy buckets and their retained
+object versions therefore remain physically intact but unmanaged after the migration. Their later
+retention, export, or purge requires a separate destructive lifecycle and is not part of platform
+deployment or fixture destruction.
+
+Because an already-deployed Shared Edge requires a refresh-only foundation plan, the first
+cross-project reconciliation creates the Shared VPC network, subnet, host-project binding, Cloud
+Router, and Cloud NAT in the later normal Shared Edge plan. That plan also updates the existing
+qualification image repository for cross-project fixture use. Plan policy admits only seven exact
+inherited addresses with their exact create or update actions, including the least-privilege
+Firestore data role needed by the Shared Edge to persist login flows and sessions; every other
+inherited mutation, replacement, or deletion remains prohibited. Shared Edge readback requires the
+exact all-traffic, router, and NAT references before the stage can close.
+
+Fixture operation intentionally exposes the same ownership handoff as a real application. The
+operator connects the fixture project, generates the application-scoped Platform Integration
+Bundle, and passes it to `fixture-handoff`. That command builds and deploys only the selected
+fixture runtime through fixture-owned state and returns an Application Attachment Bundle plus a
+registration intent. It never activates a route. The Platform Operator inspects the handoff and
+runs `platform-register` to validate provider posture and atomically activate a Registration
+Generation. There is no combined `fixture-deploy` command.
+
+Destruction preserves the same separation. `platform-detach` first suspends and reserves the
+route. `fixture-destroy` then destroys only the selected fixture root after provider readback shows
+the route is suspended. Platform destruction never destroys the fixture project, bucket, runtime,
+or state. Ordinary platform destruction removes the billable Cloud NAT and its router while
+retaining the Shared VPC host, network, and subnet for separately governed project disconnection.
+Project disconnection and project deletion are separate future destructive authorities.
+
+### Consequences
+
+- Successful fixture qualification exercises the same project, network, IAM, bundle, attachment,
+  and registration seams required by an external GCP application.
+- An application owner need not switch the active gcloud project; every bounded command names its
+  target project explicitly.
+- A verified project connection is required before bundle generation, but it is not application
+  deployment, adoption, registration, or qualification.
+- Fixtures remain repository-owned test applications, while their runtime, image, and Terraform
+  state remain Application State outside the platform project.
+- A real application still supplies its own deployment, status, recovery, and destruction
+  commands; fixture commands are executable reference behavior, not platform authority over real
+  applications.

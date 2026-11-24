@@ -12,6 +12,7 @@ from contracts.validation import (
     load_schema_registry,
     validate_contract_instance,
 )
+from infrastructure.config.project_identity import fixtures_project_id
 
 
 CONFIG_DIRECTORY = Path(__file__).resolve().parent
@@ -182,11 +183,12 @@ def _fixed_operator_violations(value: dict[str, Any]) -> list[Violation]:
         return []
     violations = _reserved_synthetic_violations(value)
     kind = value.get("configuration_kind")
-    if kind in {"backend", "fixture"}:
+    if kind == "backend":
         _field_equals(value, "project_id", FIXED_PROJECT_ID, violations)
         _field_equals(value, "region", FIXED_REGION, violations)
     if kind == "fixture":
-        _field_equals(value, "project_number", FIXED_PROJECT_NUMBER, violations)
+        _field_equals(value, "project_id", fixtures_project_id(), violations)
+        _field_equals(value, "region", FIXED_REGION, violations)
     if kind == "fixture":
         _field_equals(
             value,
@@ -227,6 +229,14 @@ def _fixed_operator_violations(value: dict[str, Any]) -> list[Violation]:
     if kind == "cross-state-reference":
         reference = value.get("reference")
         if isinstance(reference, dict) and reference.get("reference_kind") == "platform":
+            if reference.get("project_id") != FIXED_PROJECT_ID:
+                violations.append(
+                    _violation(
+                        "CONFIGURATION_POLICY_INVALID",
+                        "/reference/project_id",
+                        "platform reference must use the reviewed project ID",
+                    )
+                )
             if reference.get("project_number") != FIXED_PROJECT_NUMBER:
                 violations.append(
                     _violation(
@@ -253,6 +263,27 @@ def _fixed_operator_violations(value: dict[str, Any]) -> list[Violation]:
                         "platform reference must use the reviewed region",
                     )
                 )
+            if reference.get("shared_network_reference") != (
+                f"projects/{FIXED_PROJECT_ID}/global/networks/app-platform-shared"
+            ):
+                violations.append(
+                    _violation(
+                        "CONFIGURATION_POLICY_INVALID",
+                        "/reference/shared_network_reference",
+                        "platform reference must use the reviewed Shared VPC",
+                    )
+                )
+            if reference.get("application_subnet_reference") != (
+                f"projects/{FIXED_PROJECT_ID}/regions/{FIXED_REGION}/subnetworks/"
+                f"app-platform-applications-{FIXED_REGION}"
+            ):
+                violations.append(
+                    _violation(
+                        "CONFIGURATION_POLICY_INVALID",
+                        "/reference/application_subnet_reference",
+                        "platform reference must use the reviewed application subnet",
+                    )
+                )
     return violations
 
 
@@ -262,9 +293,6 @@ def _backend_violations(value: dict[str, Any]) -> list[Violation]:
         return []
     expected = {
         ("platform", "app-platform"): "platform",
-        ("application", "fixture-public"): "fixtures/fixture-public",
-        ("application", "fixture-authenticated"): "fixtures/fixture-authenticated",
-        ("application", "fixture-restricted"): "fixtures/fixture-restricted",
     }
     seen: set[tuple[object, object]] = set()
     bucket_names: set[object] = set()
@@ -306,7 +334,7 @@ def _backend_violations(value: dict[str, Any]) -> list[Violation]:
             _violation(
                 "OWNER_CONFLICT",
                 "/state_buckets",
-                "all four independent state owners are required exactly once",
+                "the platform bootstrap state owner is required exactly once",
             )
         )
     return violations
@@ -315,6 +343,7 @@ def _backend_violations(value: dict[str, Any]) -> list[Violation]:
 def _platform_violations(value: dict[str, Any]) -> list[Violation]:
     violations: list[Violation] = []
     phase = value.get("phase")
+    destruction_mode = value.get("destruction_mode")
     foundation = value.get("foundation")
     shared_edge = value.get("shared_edge")
     if phase == "foundation" and shared_edge is not None:
@@ -331,6 +360,20 @@ def _platform_violations(value: dict[str, Any]) -> list[Violation]:
                 "CONFIGURATION_POLICY_INVALID",
                 "/shared_edge",
                 "Shared Edge phase requires its complete generated input binding",
+            )
+        )
+    expected_phase = {
+        "shared-edge-unlock": "shared-edge",
+        "shared-edge-remove": "foundation",
+        "platform-unlock": "foundation",
+        "retained": "foundation",
+    }.get(destruction_mode)
+    if expected_phase is not None and phase != expected_phase:
+        violations.append(
+            _violation(
+                "CONFIGURATION_POLICY_INVALID",
+                "/destruction_mode",
+                "destruction transition does not match its exact platform phase",
             )
         )
     if not isinstance(foundation, dict):
@@ -380,13 +423,35 @@ def _platform_violations(value: dict[str, Any]) -> list[Violation]:
     )
     if isinstance(generation, dict):
         number = generation.get("generation")
+        generation_digest = generation.get("generation_digest")
         object_name = generation.get("object_name")
-        if isinstance(number, int) and object_name != f"generations/{number}/compiled.json":
+        environment = value.get("environment")
+        legacy_initial = (
+            number == 1 and object_name == "generations/1/compiled.json"
+        )
+        legacy_content_addressed = (
+            isinstance(generation_digest, str)
+            and object_name
+            == (
+                f"generations/{generation_digest.removeprefix('sha256:')}/"
+                "compiled-shared-edge.v1.json"
+            )
+        )
+        environment_scoped = (
+            isinstance(environment, str)
+            and isinstance(number, int)
+            and object_name
+            == (
+                f"environments/{environment}/generations/{number}/"
+                "compiled-shared-edge.v1.json"
+            )
+        )
+        if not (legacy_initial or legacy_content_addressed or environment_scoped):
             violations.append(
                 _violation(
                     "CONFIGURATION_POLICY_INVALID",
                     "/shared_edge/registration_generation/object_name",
-                    "generation object name must bind the declared generation",
+                    "generation object name must bind the declared environment, generation, and digest",
                 )
             )
     return violations
@@ -446,13 +511,14 @@ def _fixture_violations(value: dict[str, Any]) -> list[Violation]:
                 )
             )
     principal = value.get("edge_caller_principal")
-    if isinstance(principal, str) and isinstance(project_id, str):
-        if not principal.endswith(f"@{project_id}.iam.gserviceaccount.com"):
+    host_project_id = value.get("network_host_project_id")
+    if isinstance(principal, str) and isinstance(host_project_id, str):
+        if not principal.endswith(f"@{host_project_id}.iam.gserviceaccount.com"):
             violations.append(
                 _violation(
                     "CONFIGURATION_POLICY_INVALID",
                     "/edge_caller_principal",
-                    "edge caller principal must match the configured project",
+                    "edge caller principal must match the platform network host project",
                 )
             )
     return violations

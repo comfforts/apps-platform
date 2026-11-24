@@ -60,11 +60,17 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             [
                 ("google_project_service", "platform"),
                 ("google_storage_bucket", "configuration"),
+                ("google_compute_shared_vpc_host_project", "platform"),
+                ("google_compute_network", "shared"),
+                ("google_compute_subnetwork", "applications"),
+                ("google_compute_router", "applications"),
+                ("google_compute_router_nat", "applications"),
                 ("google_service_account", "edge_runtime"),
                 ("google_service_account", "edge_caller"),
                 ("google_storage_bucket_iam_member", "edge_configuration_reader"),
                 ("google_firestore_database", "sessions"),
                 ("google_firestore_field", "session_expiration"),
+                ("google_project_iam_member", "edge_session_store"),
                 ("google_kms_key_ring", "assertion_signing"),
                 ("google_kms_crypto_key", "assertion_signing"),
                 ("google_kms_crypto_key_iam_member", "edge_signer"),
@@ -83,7 +89,7 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             'type        = "FIRESTORE_NATIVE"',
             'database_edition                  = "STANDARD"',
             'point_in_time_recovery_enablement = "POINT_IN_TIME_RECOVERY_DISABLED"',
-            'delete_protection_state           = "DELETE_PROTECTION_ENABLED"',
+            'delete_protection_state           = local.destruction_enabled ? "DELETE_PROTECTION_DISABLED" : "DELETE_PROTECTION_ENABLED"',
             "ttl_config {}",
             'purpose  = "ASYMMETRIC_SIGN"',
             'algorithm        = "EC_SIGN_P256_SHA256"',
@@ -91,17 +97,38 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             "prevent_destroy = true",
             'role          = "roles/cloudkms.signerVerifier"',
             'role   = "roles/storage.objectViewer"',
+            'role    = "roles/datastore.user"',
             'role      = "roles/secretmanager.secretAccessor"',
             'resource "google_secret_manager_secret" "edge_oauth"',
-            "deletion_protection = true",
+            "deletion_protection = !local.destruction_enabled",
             "manual_rotation_days",
             "verification_overlap_hours",
             'registration_generation         = "later-stage-input"',
             '"cloudbuild.googleapis.com"',
+            '"cloudresourcemanager.googleapis.com"',
             "disable_on_destroy         = false",
             "depends_on = [google_project_service.platform]",
+            'retained_only                  = var.destruction_mode == "retained"',
+            'deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"',
+            'auto_create_subnetworks = false',
+            'private_ip_google_access = true',
+            'source_subnetwork_ip_ranges_to_nat  = "LIST_OF_SUBNETWORKS"',
+            'source_ip_ranges_to_nat = ["ALL_IP_RANGES"]',
+            'nat_ip_allocate_option              = "AUTO_ONLY"',
+            'endpoint_types                      = ["ENDPOINT_TYPE_VM"]',
+            'filter = "ERRORS_ONLY"',
         ):
             self.assertIn(required_control, module)
+        self.assertNotIn('"iamcredentials.googleapis.com"', module)
+        self.assertNotIn("roles/iam.serviceAccountTokenCreator", module)
+        self.assertGreaterEqual(
+            module.count("google_service_account.edge_runtime"),
+            3,
+        )
+        self.assertIn(
+            'edge_runtime_email             = "${var.foundation_configuration.identities.edge_runtime_account_id}@${var.foundation_configuration.project_id}.iam.gserviceaccount.com"',
+            module,
+        )
 
     def test_module_has_no_later_slice_secret_or_activation_resource(self) -> None:
         module = _terraform_sources(MODULE_ROOT)
@@ -118,7 +145,6 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             'resource "google_kms_crypto_key_version"',
             "rotation_period",
             "google_cloud_run",
-            "google_compute_",
             "google_dns_",
             "google_logging_",
             "google_billing_",
@@ -161,6 +187,7 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
     def test_foundation_example_contains_no_later_phase_values(self) -> None:
         platform = json.loads(PLATFORM_EXAMPLE.read_text(encoding="utf-8"))
         self.assertEqual(platform["phase"], "foundation")
+        self.assertEqual(platform["destruction_mode"], "none")
         self.assertIsNone(platform["shared_edge"])
         foundation = platform["foundation"]
         self.assertNotIn("edge_image_digest", foundation)

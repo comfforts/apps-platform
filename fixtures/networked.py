@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
+import re
+import sys
 import time
 from typing import Protocol
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 import httpx
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response, StreamingResponse
+from starlette.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket
 
@@ -28,6 +31,39 @@ _FIXTURE_MODES = {
     "fixture-public": "public",
     "fixture-restricted": "restricted",
 }
+_QUALIFICATION_CHALLENGE = re.compile(r"[0-9a-f]{64}")
+_SAFE_IDENTITY_DIAGNOSTICS = {
+    "assertion_key_unknown": "assertion_key_unknown",
+    "assertion_malformed": "assertion_malformed",
+    "assertion_missing": "assertion_missing",
+    "assertion_signature_invalid": "assertion_signature_invalid",
+    "identity_audience_invalid": "identity_audience_invalid",
+    "identity_clock_invalid": "identity_clock_invalid",
+    "identity_contract_invalid": "identity_contract_invalid",
+    "identity_expired": "identity_expired",
+    "identity_issuer_invalid": "identity_issuer_invalid",
+    "identity_lifetime_invalid": "identity_lifetime_invalid",
+    "identity_not_yet_valid": "identity_not_yet_valid",
+    "verification_keys_unavailable": "verification_keys_unavailable",
+}
+
+
+def _write_identity_rejection(application_id: str, code: str) -> None:
+    safe_code = _SAFE_IDENTITY_DIAGNOSTICS.get(
+        code,
+        "identity_verification_rejected",
+    )
+    event = json.dumps(
+        {
+            "application_id": application_id,
+            "diagnostic_code": safe_code,
+            "event": "fixture_identity_rejected",
+        },
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    sys.stderr.write(event + "\n")
 
 
 class NetworkIdentityVerifier(Protocol):
@@ -145,7 +181,10 @@ def create_network_fixture(
         assertion = assertions[0] if assertions else None
         assert verifier is not None
         result = await verifier.verify(assertion)
-        return result.accepted and result.identity is not None
+        if not result.accepted or result.identity is None:
+            _write_identity_rejection(configuration.application_id, result.code)
+            return False
+        return True
 
     async def health(request: Request) -> Response:
         del request
@@ -159,6 +198,40 @@ def create_network_fixture(
                 401,
             )
         path = request.path_params.get("path", "")
+        if path == "qualification/browser" and request.method == "GET":
+            challenge_values = request.query_params.getlist("challenge")
+            port_values = request.query_params.getlist("callback_port")
+            if (
+                len(challenge_values) != 1
+                or len(port_values) != 1
+                or _QUALIFICATION_CHALLENGE.fullmatch(challenge_values[0]) is None
+            ):
+                return _fixed_response(
+                    configuration.application_id,
+                    "qualification-challenge-invalid",
+                    400,
+                )
+            try:
+                callback_port = int(port_values[0])
+            except ValueError:
+                callback_port = 0
+            if not 1024 <= callback_port <= 65535:
+                return _fixed_response(
+                    configuration.application_id,
+                    "qualification-challenge-invalid",
+                    400,
+                )
+            location = "http://127.0.0.1:" + str(callback_port) + "/?" + urlencode(
+                {
+                    "application_id": configuration.application_id,
+                    "challenge": challenge_values[0],
+                }
+            )
+            return RedirectResponse(
+                location,
+                status_code=303,
+                headers={"Cache-Control": "no-store"},
+            )
         if path in {"", "api"} and request.method == "GET":
             return _fixed_response(
                 configuration.application_id,

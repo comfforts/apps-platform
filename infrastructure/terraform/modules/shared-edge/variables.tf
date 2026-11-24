@@ -1,16 +1,20 @@
 variable "edge_configuration" {
   description = "Complete non-secret Shared Edge revision and hostname-forwarding configuration."
   type = object({
-    project_id             = string
-    region                 = string
-    qualification_hostname = string
-    labels                 = map(string)
-    service_name           = string
-    candidate_revision     = string
-    runtime_identity_email = string
-    edge_caller_principal  = string
-    image_digest           = string
-    configuration_bucket   = string
+    project_id                     = string
+    project_number                 = string
+    region                         = string
+    qualification_hostname         = string
+    labels                         = map(string)
+    service_name                   = string
+    candidate_revision             = string
+    runtime_identity_email         = string
+    edge_caller_principal          = string
+    edge_caller_service_account_id = string
+    image_digest                   = string
+    configuration_bucket           = string
+    shared_network_reference       = string
+    application_subnet_reference   = string
     registration_generation = object({
       source_revision   = string
       generation        = number
@@ -36,4 +40,10 @@ variable "edge_configuration" {
     })
     tls_enabled = bool
   })
+}
+
+variable "destruction_enabled" {
+  description = "Disable provider deletion protection only for the exact reviewed edge-unlock plan."
+  type        = bool
+  default     = false
 }

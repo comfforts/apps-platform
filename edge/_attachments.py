@@ -21,6 +21,7 @@ MAX_IAM_MEMBERS = 256
 _APPLICATION_ID_PATTERN = re.compile(r"[a-z][a-z0-9-]{1,61}[a-z0-9]")
 _REGION_PATTERN = re.compile(r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?")
 _SERVICE_PATTERN = re.compile(r"[a-z](?:[a-z0-9-]{0,47}[a-z0-9])?")
+_PROJECT_ID_PATTERN = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]")
 _RESOURCE_PATTERN = re.compile(
     r"urn:comfforts:app-platform:gcp:cloud-run:"
     r"(?P<project_number>[1-9][0-9]{0,18}):"
@@ -195,18 +196,47 @@ class GoogleCloudRunMetadataProvider:
     def __init__(self, services_client: Any) -> None:
         self._services_client = services_client
 
+    @staticmethod
+    def _provider_name(resource: CloudRunResource) -> str:
+        return resource.provider_name
+
+    @staticmethod
+    def _canonical_name_matches(
+        value: Any,
+        resource: CloudRunResource,
+    ) -> bool:
+        if not isinstance(value, str):
+            return False
+        parts = value.split("/")
+        if (
+            len(parts) != 6
+            or parts[0] != "projects"
+            or parts[2] != "locations"
+            or parts[3] != resource.region
+            or parts[4] != "services"
+            or parts[5] != resource.service_name
+        ):
+            return False
+        project = parts[1]
+        return (
+            project == resource.project_number
+            or _PROJECT_ID_PATTERN.fullmatch(project) is not None
+        )
+
     async def describe(
         self,
         resource: CloudRunResource,
     ) -> CloudRunServiceMetadata:
         try:
+            provider_name = self._provider_name(resource)
             service = await self._services_client.get_service(
-                name=resource.provider_name,
+                name=provider_name,
             )
-            if getattr(service, "name", None) != resource.provider_name:
+            service_name = getattr(service, "name", None)
+            if not self._canonical_name_matches(service_name, resource):
                 raise AttachmentUnavailable("Cloud Run resource scope mismatch")
             policy = await self._services_client.get_iam_policy(
-                request={"resource": resource.provider_name},
+                request={"resource": provider_name},
             )
             labels = _mapping(getattr(service, "labels", {}))
             annotations = _mapping(getattr(service, "annotations", {}))
@@ -225,7 +255,7 @@ class GoogleCloudRunMetadataProvider:
                 and getattr(terminal_condition, "state", None) == READY_STATE
                 and isinstance(latest_ready_revision, str)
                 and latest_ready_revision.startswith(
-                    f"{resource.provider_name}/revisions/"
+                    f"{service_name}/revisions/"
                 )
                 and isinstance(target_uri, str)
                 and not getattr(service, "invoker_iam_disabled", True)

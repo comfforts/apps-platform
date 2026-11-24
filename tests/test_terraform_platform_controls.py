@@ -84,16 +84,16 @@ class TerraformPlatformControlsTest(unittest.TestCase):
 
     def test_logging_is_regional_minimized_excluded_and_not_exported(self) -> None:
         main = (MODULE_ROOT / "main.tf").read_text(encoding="utf-8")
+        outputs = (MODULE_ROOT / "outputs.tf").read_text(encoding="utf-8")
         for required_control in (
             "location         = var.controls_configuration.region",
             "retention_days   = 7",
             "enable_analytics = false",
-            'deletion_policy  = "PREVENT"',
+            'deletion_policy  = local.destruction_enabled ? "DELETE" : "PREVENT"',
             "logging.googleapis.com/projects/${var.controls_configuration.project_id}/locations/${var.controls_configuration.region}/buckets/",
             'resource.type=\\"cloud_run_revision\\"',
             'jsonPayload.event_type=\\"request_completion\\"',
             'jsonPayload.component=\\"shared-edge\\"',
-            "unique_writer_identity = false",
             'resource "google_logging_project_exclusion" "edge_from_default"',
             'name        = "app-platform-edge-from-default"',
             "filter      = local.edge_resource_filter",
@@ -102,6 +102,9 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             'role    = "roles/logging.viewAccessor"',
         ):
             self.assertIn(required_control, main)
+        self.assertNotIn("unique_writer_identity", main)
+        self.assertNotIn("unique_writer_identity", outputs)
+        self.assertIn('"diagnostic_code"', outputs)
         self.assertEqual(main.count("exclusions {"), 3)
         for prohibited_field in (
             "assertion",
@@ -151,6 +154,10 @@ class TerraformPlatformControlsTest(unittest.TestCase):
     def test_budget_notifies_without_automatic_mutation_or_implicit_recipient(self) -> None:
         main = (MODULE_ROOT / "main.tf").read_text(encoding="utf-8")
         self.assertIn(
+            'billing_account = trimprefix(var.controls_configuration.billing_account_reference, "billingAccounts/")',
+            main,
+        )
+        self.assertNotIn(
             "billing_account = var.controls_configuration.billing_account_reference",
             main,
         )
@@ -165,7 +172,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             self.assertIn(f"threshold_percent = {threshold}", main)
         self.assertEqual(main.count('spend_basis       = "CURRENT_SPEND"'), 3)
         self.assertIn(
-            "monitoring_notification_channels = [google_monitoring_notification_channel.budget_email.id]",
+            "monitoring_notification_channels = [google_monitoring_notification_channel.budget_email[0].id]",
             main,
         )
         self.assertIn(
@@ -183,6 +190,15 @@ class TerraformPlatformControlsTest(unittest.TestCase):
         ):
             self.assertNotIn(prohibited, main)
 
+    def test_budget_provider_charges_user_adc_quota_to_selected_project(self) -> None:
+        provider = (PLATFORM_ROOT / "provider.tf").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "billing_project       = var.platform_configuration.foundation.project_id",
+            provider,
+        )
+        self.assertIn("user_project_override = true", provider)
+
     def test_artifact_cleanup_is_dry_run_first_and_keeps_three_roles(self) -> None:
         main = (MODULE_ROOT / "main.tf").read_text(encoding="utf-8")
         for required_control in (
@@ -191,7 +207,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             "labels        = var.controls_configuration.labels",
             "immutable_tags = true",
             "cleanup_policy_dry_run = true",
-            'deletion_policy        = "PREVENT"',
+            'deletion_policy        = local.destruction_enabled ? "DELETE" : "PREVENT"',
             'id     = "retain-generation-roles"',
             'action = "KEEP"',
             'tag_prefixes = ["active", "rollback", "candidate"]',
@@ -204,6 +220,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
         ):
             self.assertIn(required_control, main)
         self.assertEqual(main.count("cleanup_policies {"), 3)
+        self.assertIn('retained_only          = var.destruction_mode == "retained"', main)
 
     def test_existing_runtime_caps_and_labels_remain_exact(self) -> None:
         edge = _terraform_sources(TERRAFORM_ROOT / "modules" / "shared-edge")

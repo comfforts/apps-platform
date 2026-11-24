@@ -19,9 +19,17 @@ output "foundation_phase_output" {
       module.platform_foundation.policy_summary.identities.separated &&
       !module.platform_foundation.policy_summary.identities.service_account_keys &&
       !module.platform_foundation.policy_summary.oauth.secret_version_present &&
-      !module.platform_foundation.policy_summary.oauth.secret_value_present
+      !module.platform_foundation.policy_summary.oauth.secret_value_present &&
+      (
+        var.platform_configuration.destruction_mode == "retained" ||
+        (
+          module.platform_foundation.foundation_reference.application_egress_mode == "all-traffic" &&
+          module.platform_foundation.foundation_reference.application_router_name == "app-platform-applications-${local.foundation.region}-router" &&
+          module.platform_foundation.foundation_reference.application_nat_name == "app-platform-applications-${local.foundation.region}-nat"
+        )
+      )
     )
-    error_message = "foundation output requires separate keyless identities and a secret container without secret material."
+    error_message = "foundation output requires separate keyless identities, a secret container without secret material, and complete application egress while deployed."
   }
 }
 

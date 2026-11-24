@@ -701,7 +701,10 @@ class FakeFirestoreDocument:
         self._documents[self._key] = copy.deepcopy(value)
 
     async def get(self, *, transaction: Any = None) -> FakeFirestoreSnapshot:
-        del transaction
+        if transaction is not None and not transaction.in_progress:
+            raise ValueError(
+                "Transaction not in progress, cannot be used in API requests."
+            )
         return FakeFirestoreSnapshot(self._documents.get(self._key))
 
     async def delete(self) -> None:
@@ -720,29 +723,58 @@ class FakeFirestoreCollection:
 
 
 class FakeFirestoreTransaction:
-    def __init__(self) -> None:
+    def __init__(self, client: "FakeFirestoreClient") -> None:
+        self._client = client
         self._deletes: list[FakeFirestoreDocument] = []
+        self._id: bytes | None = None
+        self._max_attempts = 5
+        self._read_only = False
+
+    @property
+    def in_progress(self) -> bool:
+        return self._id is not None
+
+    def _clean_up(self) -> None:
+        self._deletes.clear()
+        self._id = None
+
+    async def _begin(self, retry_id: bytes | None = None) -> None:
+        del retry_id
+        if self.in_progress:
+            raise ValueError("transaction already active")
+        self._client.transaction_begin_count += 1
+        self._id = f"transaction-{self._client.transaction_begin_count}".encode()
 
     def delete(self, document: FakeFirestoreDocument) -> None:
+        if not self.in_progress:
+            raise ValueError("transaction not active")
         self._deletes.append(document)
 
-    async def commit(self) -> None:
+    async def _commit(self) -> None:
+        if not self.in_progress:
+            raise ValueError("transaction not active")
         for document in self._deletes:
             document.delete_now()
+        self._client.transaction_commit_count += 1
+        self._clean_up()
 
-    async def rollback(self) -> None:
-        self._deletes.clear()
+    async def _rollback(self) -> None:
+        self._client.transaction_rollback_count += 1
+        self._clean_up()
 
 
 class FakeFirestoreClient:
     def __init__(self) -> None:
         self.collections: dict[str, dict[str, dict[str, Any]]] = {}
+        self.transaction_begin_count = 0
+        self.transaction_commit_count = 0
+        self.transaction_rollback_count = 0
 
     def collection(self, name: str) -> FakeFirestoreCollection:
         return FakeFirestoreCollection(self.collections.setdefault(name, {}))
 
     def transaction(self) -> FakeFirestoreTransaction:
-        return FakeFirestoreTransaction()
+        return FakeFirestoreTransaction(self)
 
 
 class StaticStorageBlob:
@@ -941,6 +973,9 @@ class IdentityAdapterTest(unittest.TestCase):
 
         self.assertEqual(first_flow, flow)
         self.assertIsNone(second_flow)
+        self.assertEqual(client.transaction_begin_count, 2)
+        self.assertEqual(client.transaction_commit_count, 2)
+        self.assertEqual(client.transaction_rollback_count, 0)
         self.assertEqual(loaded_session, session)
         self.assertIsNone(asyncio.run(store.get_session("opaque-session-id")))
         stored_keys = {

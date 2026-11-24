@@ -974,6 +974,44 @@ destroyed.
         )
         self.assertEqual(observed, output)
 
+    def test_shared_edge_reads_exact_foundation_output_from_shared_lineage(
+        self,
+    ) -> None:
+        output = {
+            "contract_version": 1,
+            "output_kind": "platform-foundation",
+            "environment": "staging",
+        }
+        runner = FakeRunner(
+            [CommandResult(0, json.dumps(output).encode(), b"")]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "shared-edge"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root, "shared-edge")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+            )
+
+            observed = adapter.read_output(
+                request,
+                root,
+                "foundation_phase_output",
+            )
+
+        self.assertEqual(
+            runner.requests[0].argv[1:],
+            ("output", "-json", "foundation_phase_output"),
+        )
+        self.assertEqual(observed, output)
+
     def test_existing_bootstrap_initializes_the_exact_remote_lineage(self) -> None:
         plan_json = {
             "format_version": "1.2",

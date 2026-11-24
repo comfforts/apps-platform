@@ -1155,10 +1155,12 @@ class DeploymentExecutor:
                 specification_digest=context.specification_digest,
                 inputs=context.inputs,
             )
+            readback_blocker: str | None = None
             try:
                 readback = self._commands.readback_terraform(request)
-            except DeploymentCommandError:
+            except DeploymentCommandError as error:
                 readback = None
+                readback_blocker = str(error)
             if readback is not None and readback.matched:
                 expected = self._expected_outputs(context)
                 if tuple(name for name, _ in readback.outputs) == expected:
@@ -1170,7 +1172,9 @@ class DeploymentExecutor:
                     "blocked",
                     plan_digest=evaluated.plan_digest,
                     summary=summary,
-                    blockers=("TERRAFORM_READBACK_OUTPUT_MISMATCH",),
+                    blockers=(
+                        readback_blocker or "TERRAFORM_READBACK_OUTPUT_MISMATCH",
+                    ),
                 )
             return StageCheck(
                 "would-change" if changed else "pass",

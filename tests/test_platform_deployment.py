@@ -137,6 +137,7 @@ class FakeCommands:
     terraform_readiness: list[bool] = field(default_factory=list)
     plan_errors: list[str | DeploymentCommandError] = field(default_factory=list)
     recovered_taints: list[str] = field(default_factory=list)
+    readback_error: str | None = None
 
     def create_terraform_plan(
         self,
@@ -219,6 +220,8 @@ class FakeCommands:
 
     def readback_terraform(self, request: object) -> TerraformReadback:
         self.readbacks.append(request)
+        if self.readback_error is not None:
+            raise DeploymentCommandError(self.readback_error)
         stage_id = str(getattr(request, "stage_id"))
         outputs = {
             "bootstrap": (
@@ -546,6 +549,30 @@ class PlatformDeploymentTest(unittest.TestCase):
             self.assertEqual(terminal.confirmations, [])
             self.assertEqual(len(commands.readbacks), 1)
             self.assertEqual(list(root.glob("*.tfplan")), [])
+
+    def test_deployment_check_preserves_specific_readback_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                actions=(),
+                readback_error="TERRAFORM_OUTPUT_PHASE_MISMATCH",
+            )
+            executor = DeploymentExecutor(root, FakeTerminal([]), commands)
+
+            result = executor.check(
+                _context(
+                    "shared-edge",
+                    ("edge-reference", "hostname", "reserved-address"),
+                )
+            )
+
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(
+            result.blockers,
+            ("TERRAFORM_OUTPUT_PHASE_MISMATCH",),
+        )
 
     def test_state_forget_is_a_real_apply_change(self) -> None:
         self.assertTrue(

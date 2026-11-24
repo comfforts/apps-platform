@@ -800,7 +800,10 @@ class TerraformCliAdapter:
         allowed = {
             "bootstrap": {"bootstrap_phase_output"},
             "platform-foundation": {"foundation_phase_output"},
-            "shared-edge": {"shared_edge_phase_output"},
+            "shared-edge": {
+                "foundation_phase_output",
+                "shared_edge_phase_output",
+            },
             "fixture-public": {"attachment_reference"},
             "fixture-authenticated": {"attachment_reference"},
             "fixture-restricted": {"attachment_reference"},

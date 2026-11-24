@@ -1,6 +1,6 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W9 lifecycle and staging-candidate source admission implemented; no external operation performed
+Status: AP-M9-W9 cross-project fixture lifecycle correction in progress; candidate staging is not accepted qualification
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -18,8 +18,15 @@ make platform-preflight ENVIRONMENT=staging
 make platform-prepare ENVIRONMENT=staging
 make platform-status ENVIRONMENT=staging
 make platform-deploy ENVIRONMENT=staging
+make fixture-project-bootstrap \
+  ENVIRONMENT=staging \
+  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
+make platform-connect-project \
+  ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
 make platform-outputs \
   ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod \
   APPLICATION_ID=fixture-authenticated \
   ACCESS_MODE=authenticated \
   ROUTE_INTENT=/fixture-authenticated \
@@ -42,33 +49,35 @@ make platform-retire \
   GENERATION_DIGEST=sha256:<64-lowercase-hex>
 make platform-qualify ENVIRONMENT=staging
 make platform-destroy ENVIRONMENT=staging
-make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-public
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-restricted
+make fixture-handoff \
+  ENVIRONMENT=staging \
+  APPLICATION_ID=fixture-authenticated \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json
 make fixture-status ENVIRONMENT=staging
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 ```
 
-Fixture deploy and destroy always require one fixture application identifier and operate only that
-fixture's Application State. Fixture status is suite-wide by default and accepts the same optional
-identifier when a single-fixture readback is more useful.
+Fixture handoff and destroy always require one fixture application identifier and operate only that
+fixture's Application State. Destruction additionally requires a prior platform detachment.
+Fixture status is suite-wide by default and accepts the same optional identifier when a
+single-fixture readback is more useful.
 
 `platform-status` is observational. It reports the current checkout source, the source recorded by
 the last deployment operation, and the source serving the active Shared Edge separately. Expected
 differences are source diagnostics, not command failures; unreadable or inconsistent lifecycle
 state remains a blocker.
 
-`fixture-handoff` is an optional mutating inspection stop. It deploys or reconciles the selected
-fixture and prints the canonical Platform Integration Bundle and Application Attachment Bundle
-paths and digests, but does not register the fixture. A following `fixture-deploy` revalidates and
-reuses that exact pair when every source, generation, image, digest, relationship, and provider
-binding is unchanged; otherwise the normal end-to-end path regenerates it.
+`fixture-handoff` is the application-owned deployment step. It consumes an existing project-scoped
+Platform Integration Bundle, deploys or reconciles the selected fixture in the dedicated fixture
+project, and prints the canonical Platform Integration Bundle, Application Attachment Bundle, and
+registration-intent paths, but does not register the fixture. Registration remains the separate
+`platform-register` operation. A repeated handoff reuses the exact pair only when every source,
+project connection, generation, image, digest, relationship, and provider binding is unchanged.
 
-On success, both fixture commands print a concise human-readable completion message in addition to
-their machine-readable JSON. Handoff explicitly says that the fixture is not yet routed. Deploy
-reports the activated route without claiming that registration readback is full live qualification.
+On success, fixture handoff prints a concise human-readable completion message in addition to its
+machine-readable JSON and explicitly says that the fixture is not yet routed. Platform registration
+reports activation without claiming that registration readback is full live qualification.
 
 Accepted Source is the default and requires exact clean current `main`. To verify a pull request
 against real staging provider behavior before merge, first push the clean branch and add

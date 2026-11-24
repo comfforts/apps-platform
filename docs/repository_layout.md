@@ -82,14 +82,17 @@ verified-session qualification and exact retained-resource destruction adapters;
 performed a provider request, image build, generation activation, rollback, qualification, or destruction.
 
 AP-M9-W9 adds the executable Fixture Application owner lifecycle over the existing image and three
-independent Terraform roots. It introduces shallow `fixture-handoff`, `fixture-deploy`,
-`fixture-status`, and `fixture-destroy` targets over the deep operator module, optional private
-pre-registration bundle inspection and exact reuse, automatic platform/attachment bundle handoff
-for one selected fixture, provider posture readback, registration generations that preserve other
-applications, suite-wide or selected status, automatic prepared-specification reuse, and a
-non-publishing `platform-preflight` readiness target with deterministic fake coverage, plus live
-qualification and safe platform-destruction adapter completion. Repository implementation performs
-no external operation; AP-M9-W10 is the first staging invocation from merged code.
+independent Terraform roots. It introduces shallow `fixture-project-bootstrap`,
+`platform-connect-project`, `fixture-handoff`, `fixture-status`, and `fixture-destroy` targets over
+the deep operator module. The fixture project owns one private state bucket with independent root
+prefixes and attaches to the platform Shared VPC. Platform outputs, fixture handoff, and platform
+registration remain separate so the fixtures exercise the same cross-owner boundary as an external
+application. The package also includes private pre-registration bundle inspection and exact reuse,
+provider posture readback, registration generations that preserve other applications, suite-wide
+or selected status, automatic prepared-specification reuse, and a non-publishing
+`platform-preflight` readiness target with deterministic fake coverage, plus live qualification and
+safe platform-destruction adapter completion. Candidate staging operation is implementation
+feedback, not accepted AP-M9 qualification.
 
 ## AP-M9 capability locations
 

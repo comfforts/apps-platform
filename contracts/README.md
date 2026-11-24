@@ -56,8 +56,8 @@ route, admission policy, or provider command.
 | --- | --- | --- |
 | `lifecycle/schemas/environment-profile.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:environment-profile:v1` | Stable reviewed decisions for one isolated staging or production environment |
 | `lifecycle/schemas/deployment-specification.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:deployment-specification:v1` | Separately confirmed destructive scope, ordered steps, and retained-resource boundary |
-| `lifecycle/schemas/platform-integration-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1` | Application-scoped non-secret platform values required before an application deploys its target |
-| `lifecycle/schemas/application-attachment-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1` | Application-owned target posture bound to the exact integration bundle it consumed |
+| `lifecycle/schemas/platform-integration-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1` | Application- and project-scoped non-secret platform, Shared VPC, identity, and attachment values required before an application deploys its target |
+| `lifecycle/schemas/application-attachment-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1` | Application-owned target project, network, ingress, IAM, and audience posture bound to the exact integration bundle it consumed |
 | `lifecycle/schemas/qualification-evidence.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:qualification-evidence:v1` | Redacted, revision-bound results for evaluated platform and fixture behavior |
 
 [`lifecycle/`](lifecycle/README.md) is a separate local registry for the Environment Profile,
@@ -92,10 +92,11 @@ intent are never platform contract sources and do not specialize these generic i
 Each instance carries contract_version with the integer value 1. The filename suffix and schema URN
 use v1 for the same major version.
 
-Before the first Live deployment and Application Adoption, an owner-approved incompatible
+Before the first accepted Live qualification and Application Adoption, an owner-approved incompatible
 correction may revise Version 1 in place only when every repository consumer, vector, test, and
 authority reference changes atomically and no released external consumer exists. This repository
-is still in that pre-Live, pre-Adoption condition.
+is still in that pre-accepted-qualification, pre-Adoption condition; candidate staging operation
+does not release a public application contract.
 
 After the first Live deployment or Application Adoption, Version 1 is strict. Removing a field,
 adding a required field, adding a property that an existing closed-object consumer would reject,

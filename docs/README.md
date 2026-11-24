@@ -1,7 +1,7 @@
 # App Platform documentation
 
-Version 1.26 | Status: AP-M9-W9 fixture deployment lifecycle and candidate verification implemented;
-AP-M9-W10 staging operation is next; no platform environment is deployed or qualified
+Version 1.27 | Status: AP-M9-W9 fixture deployment lifecycle cross-project correction in progress;
+candidate staging exists but is not accepted qualification
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. Live
@@ -16,7 +16,7 @@ Read these documents completely, in order, before modifying the platform:
 2. [Domain glossary](../GLOSSARY.md) — canonical terms.
 3. [Product requirements](01_product_requirements.md) — AP-PR-001 through AP-PR-012 and AP-QR-001
    through AP-QR-009.
-4. [Architecture decision records](02_architecture_decision_records.md) — ADR-001 through ADR-013.
+4. [Architecture decision records](02_architecture_decision_records.md) — ADR-001 through ADR-014.
 5. [System design](03_system_design.md) — interfaces, ownership, lifecycle, and provider design.
 6. [Threat model](06_threat_model.md) — trust zones, threats, controls, and evidence classes.
 7. [Implementation plan](04_implementation_plan.md) — the active AP-M9-W1 through AP-M9-W11
@@ -36,6 +36,13 @@ Read these documents completely, in order, before modifying the platform:
 The material under [`docs/history/`](history/README.md) preserves superseded delivery evidence. It
 is not part of the active instruction path and cannot authorize an operation.
 
+## Backlog
+
+The [App Platform backlog](07_back_log.md) records deferred product and maintenance proposals. A
+backlog entry is not current authority and cannot authorize implementation or an external
+operation. Promote an item through the requirements, decisions, design, threat, evaluation, and
+delivery authorities before beginning it.
+
 ## Milestone status
 
 | Milestone | Status | Evidence boundary |
@@ -46,7 +53,7 @@ is not part of the active instruction path and cannot authorize an operation.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W9 implemented; W10 next | operator-driven environment and application lifecycle |
+| AP-M9 | W9 cross-project correction in progress | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
@@ -82,14 +89,13 @@ small reviewable commits, merge it, and only then begin the next package.
    redacted evidence, process-local network fixtures, failure injection, reviewed generation rollback,
    resumable environment destruction that never targets Application State, and guarded real
    shared-platform deployment adapters. It does not deploy a Fixture Application.
-9. **AP-M9-W9 — fixture application deployment lifecycle (implemented):** immutable fixture image,
-   interactive fixture handoff/deploy/status/destroy commands, three independent Application State
-   lineages, optional pre-registration bundle inspection and exact reuse, automatic bundle handoff
-   and registration, automatic freshness-validated reuse of a current approved platform
-   specification without digest copy-and-paste, a readiness-only preflight that publishes no
-   specification or lifecycle state, provider readback, live-qualification and safe-destruction
-   adapters, safe resume, deterministic fake coverage, and staging-only Candidate Source admission.
-   The repository package performed no external operation.
+9. **AP-M9-W9 — fixture application deployment lifecycle (cross-project correction in progress):**
+   immutable fixture images and independent roots in a dedicated fixture application project; an
+   explicit Shared VPC project-connection boundary; application-project-scoped integration
+   bundles; separate fixture handoff, platform registration, status, detachment, and fixture
+   destruction; provider readback; deterministic fake coverage; and staging-only Candidate Source
+   admission. The combined `fixture-deploy` shortcut is removed so fixtures exercise the same
+   platform/application handoff as an external application.
 10. **AP-M9-W10 — accepted staging operation:** from merged W9 code, deploy and qualify
     `apps-staging.comfforts.com` with the three synthetic applications. The deliberate command
     invocation and same-process confirmations authorize ordinary staging creation and update;
@@ -98,10 +104,10 @@ small reviewable commits, merge it, and only then begin the next package.
     `OWNERSHIP_TRANSFER_REQUIRED` while Finance Assistant or `apps.comfforts.com` remains
     Finance-owned.
 
-AP-M9-W9 began only after AP-M9-W8 merged and now implements every required repository-side
-operator target. A pushed W9 pull-request revision may test staging with Candidate Source, but its
-evidence is not accepted qualification. AP-M9-W10 owns the first accepted staging operation and
-begins only after W9 merges.
+AP-M9-W9 began only after AP-M9-W8 merged. Candidate staging operations exposed the same-project
+fixture gap, so W9 remains the correction boundary until cross-project fixtures pass. A pushed W9
+pull-request revision may test staging with Candidate Source, but its evidence is not accepted
+qualification. AP-M9-W10 owns the first accepted staging operation and begins only after W9 merges.
 Production migration and Application Adoption remain separate owner-controlled work after
 AP-M9-W11.
 

@@ -1640,7 +1640,7 @@ The normal operator interface is:
 ```text
 platform-prepare  platform-deploy  platform-status  platform-outputs
 platform-register platform-detach  platform-retire platform-qualify platform-destroy
-fixture-handoff  fixture-deploy   fixture-status   fixture-destroy
+fixture-project-bootstrap platform-connect-project fixture-handoff fixture-status fixture-destroy
 ```
 
 The local wizard remains active through OAuth and Squarespace work and continues after Enter.
@@ -1762,26 +1762,35 @@ readback, least-data accepted handoff records, separate destructive specificatio
 typed confirmation, post-confirmation reread, ordered stop-on-failure execution, and private
 create-only resume state. Destruction refuses active attachments or ownership/inventory mismatch,
 never targets Application State, and retains backends, recovery material, and evidence absent
-separate purge authority. Guarded shell-free Cloud SDK generation, traffic, attachment, and
+separate purge authority. It also retains the Shared VPC host, application network, and subnet
+until separately authorized project disconnection. Guarded shell-free Cloud SDK generation, traffic, attachment, and
 readback adapters are deterministic-test covered but were not invoked. W8 also completes the real
 staging deployment adapter: exact first-run/recovery bootstrap, provider-service enablement,
 digest-pinned and source-allow-listed image build, create-only initial generation, OAuth metadata,
 authoritative/recursive DNS, TLS, and final readback. W9 completes the live qualification and
 destruction defaults without invoking them.
 
-#### AP-M9-W9 · Fixture Application deployment lifecycle — implemented
+#### AP-M9-W9 · Fixture Application deployment lifecycle — cross-project correction in progress
 
-Implemented one interactive fixture operator over the existing image, bundle, Terraform, provider,
-and registration seams. Each `fixture-deploy` invocation requires a fixture application identifier,
-builds or reuses one immutable source-bound fixture image, generates only that fixture's integration
-bundle, plans and applies only its independent Application State root, reads back target and IAM
-posture, emits its exact attachment bundle, and activates a complete Registration Generation while
-preserving other registrations. `fixture-status` is read-only and supports suite-wide or selected
-readback. `fixture-destroy` detaches first, requires fixture-specific typed
-confirmation, destroys only selected fixture Application State, and supports deterministic
-redeployment/reactivation. Every mutation uses the verified human session, fresh exact plans,
-policy, confirmation, readback, private progress, and safe resume. Deterministic fakes cover the
-complete journey. W9 also completes browser-mediated live qualification and multi-stage platform
+Implement one interactive fixture-application operator over the existing image, bundle, Terraform,
+provider, and registration seams. A one-time `fixture-project-bootstrap` creates or repairs a
+dedicated fixture application project, required services, private versioned state bucket, and image
+repository. `platform-connect-project` attaches that existing project to the platform Shared VPC,
+grants its Cloud Run service agent read-only host-network discovery and network-user access only on
+the application subnet, reads back the result, and records the non-secret connection without
+creating a runtime or route.
+
+For each selected fixture, `platform-outputs` produces one application-project-scoped integration
+bundle. `fixture-handoff` consumes that exact bundle, builds or reuses one immutable source-bound
+fixture image, plans and applies only its independent Application State root, reads back project,
+network, ingress, IAM, audience, and readiness posture, and emits the exact attachment bundle and
+registration intent. It stops before registration. After inspection, `platform-register` activates
+a complete Registration Generation while preserving other registrations. There is no combined
+`fixture-deploy` shortcut. `fixture-status` is read-only and supports suite-wide or selected
+readback. `fixture-destroy` requires a prior `platform-detach`, then requires fixture-specific typed
+confirmation and destroys only selected fixture Application State. Every mutation uses the verified
+human session, fresh exact plans, policy, confirmation, readback, private progress, and safe resume.
+Deterministic fakes cover the complete journey. W9 also completes browser-mediated live qualification and multi-stage platform
 destruction through traffic disable, external-DNS removal, Shared Edge removal, protection unlock,
 destructible-foundation removal, and retained-inventory readback. W9 also binds `accepted` or
 `candidate` source authority into specifications, status, bundles, and qualification evidence. A
@@ -1789,11 +1798,10 @@ candidate must be a clean pushed non-main revision containing current `origin/ma
 only on staging, publishes separate candidate evidence, and cannot authorize production or accepted
 qualification. This repository package performed no authenticated command or external operation.
 
-The optional `fixture-handoff` target extends the same W9 lifecycle without changing
-`fixture-deploy`: it deploys or reconciles one selected fixture, persists the canonical integration
-and attachment bundle pair in ignored private state, prints their paths and digests for inspection,
-and stops before registration. The ordinary deploy path reuses an exact prepared pair only after
-full source, generation, digest, image, relationship, and provider-posture revalidation.
+The fixture handoff persists the canonical integration and attachment bundle pair plus registration
+intent in ignored private state, prints their paths and digests for inspection, and stops before
+registration. Rerunning it may reuse an exact prepared pair only after full source, project
+connection, generation, digest, image, relationship, and provider-posture revalidation.
 
 W9 also removes digest copy-and-paste from the optional platform-preparation flow. Default
 `platform-deploy` reads and revalidates the current approved specification and reuses it when its

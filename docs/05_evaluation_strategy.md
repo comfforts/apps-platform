@@ -1577,7 +1577,7 @@ gate.
 
 #### AP-EVAL-M9-01 · Authority, supersession, source, and regression integrity
 
-Verify AP-PR-001 through AP-PR-012, AP-QR-001 through AP-QR-009, ADR-001 through ADR-013,
+Verify AP-PR-001 through AP-PR-012, AP-QR-001 through AP-QR-009, ADR-001 through ADR-014,
 AP-TM-001 through AP-TM-014, AP-M9-W1 through W11, and this evaluation definition are complete and
 uniquely traced. Confirm AP-M8-W1/W2 remain historical, AP-M8-W3 through W12 and the old standalone
 AP-M9 proposal are superseded without execution, the source is clean protected main, and every
@@ -1622,7 +1622,9 @@ recovery, provider locks, environment isolation, runtime-identity separation, ke
 human account/project checks, plan canonicalization, policy enforcement, same-execution plan/apply
 binding, and readback. Reject a wrong account or project, cross-root target, alternate source,
 implicit provider default, replacement, unexpected destroy, state push, force-unlock, import, or
-automatic recovery. Verify the lifecycle creates no operation-identity or impersonation fleet.
+automatic recovery. Verify the platform bootstrap manages only the platform-state bucket; the
+dedicated fixture project owns its versioned fixture-state bucket and independent root prefixes.
+Verify the lifecycle creates no operation-identity or impersonation fleet.
 
 #### AP-EVAL-M9-05 · Interactive staging deployment, OAuth, DNS, and TLS
 
@@ -1634,21 +1636,27 @@ active across manual checkpoints, never received the OAuth secret, and stopped o
 
 #### AP-EVAL-M9-06 · Application bundles, attachments, and registration lifecycle
 
-Generate public, authenticated, and restricted fixture bundles; verify least-data projections and
-absence of the OAuth client secret; deploy each selected fixture through its separate Application
-State invocation; validate its returned attachment bundle and provider/IAM posture; and activate a
-complete Registration Generation preserving prior registrations after each selection, culminating
-in a generation containing all three fixtures. Exercise attachment replacement, stale bundle
+Create or read back the dedicated fixture project, connect it to the platform Shared VPC, and prove
+the Cloud Run service agent has read-only host-network discovery and network-user access only on
+the application subnet, while neither operation created a runtime or route. Generate public,
+authenticated, and restricted
+application-project-scoped fixture bundles; verify exact project, host network, subnet, region,
+egress, least-data projections, and absence of the OAuth client secret. Deploy each selected fixture
+through its separate Application State invocation in that project; validate its returned attachment
+bundle plus target project, network, internal ingress, edge-caller IAM, audience, and readiness;
+then separately activate a complete Registration Generation preserving prior registrations after
+each selection, culminating in a generation containing all three fixtures. Exercise attachment replacement, stale bundle
 rejection, detach, redeploy/reactivate,
 terminal retirement, route reservation, `503` detached behavior, `410` retired behavior, closed
 unknown routes, and proof that no platform action destroys Application State.
 
 For one selected fixture, stop after attachment generation and verify the operator receives exact
-mode-`0600` canonical integration- and attachment-bundle paths and digests without a registration
-transition. Then run the ordinary fixture deployment and prove it reuses that pair without another
-Application State apply only when every source, authority, platform-generation, digest, image,
-relationship, and provider-posture binding remains current. Change each binding class and verify
-reuse is refused and the normal reconciliation path runs instead.
+mode-`0600` canonical integration-bundle, attachment-bundle, and registration-intent paths and
+digests without a registration transition. Inspect them, then run `platform-register` and prove it
+performs no Application State apply. Rerun the handoff and prove it reuses the pair only when every
+source, authority, project connection, platform-generation, digest, image, relationship, and
+provider-posture binding remains current. Change each binding class and verify reuse is refused and
+the normal fixture reconciliation path runs instead.
 
 #### AP-EVAL-M9-07 · Live routing, identity, isolation, and limits
 
@@ -1665,7 +1673,8 @@ Activate and roll back a reviewed complete generation while preserving Applicati
 and destroy fixture-owned assets under fixture authority. Verify platform destruction refuses an
 active attachment, names the exact environment and inventory, requires typed confirmation, handles
 DNS/cache and OAuth checkpoints, touches no application resource, stops on partial failure, and
-retains backends/evidence absent purge authority. After an approved staging destroy, redeploy and
+retains backends/evidence and the connected Shared VPC foundation absent separate disconnect or
+purge authority. After an approved staging destroy, redeploy and
 repeat mandatory qualification before reporting staging ready.
 
 #### AP-EVAL-M9-09 · Evidence privacy, truthful status, drift, and handoff

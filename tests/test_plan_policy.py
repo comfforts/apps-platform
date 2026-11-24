@@ -6,6 +6,7 @@ from copy import deepcopy
 import unittest
 
 from infrastructure.backend import evaluate_plan, plan_policy
+from tests.environment import FIXTURES_PROJECT_ID
 
 
 SOURCE_REVISION = "1" * 40
@@ -105,7 +106,7 @@ def _fixture_observation(application_id: str) -> dict[str, object]:
         "provider": {
             "source": "registry.terraform.io/hashicorp/google",
             "service": "google",
-            "project_id": "comfforts-platform-non-prod",
+            "project_id": FIXTURES_PROJECT_ID,
             "configuration": "explicit",
         },
         "changes": [

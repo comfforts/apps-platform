@@ -201,13 +201,16 @@ class ContractSchemaTest(unittest.TestCase):
         self.assertIn("terraform-check:", makefile)
         self.assertIn("terraform-setup:", makefile)
         for application_target in (
+            "fixture-project-bootstrap:",
+            "platform-connect-project:",
             "platform-outputs:",
             "platform-register:",
             "platform-detach:",
             "platform-retire:",
         ):
             self.assertIn(application_target, makefile)
-        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 22)
+        self.assertNotIn("fixture-deploy:", makefile)
+        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 23)
 
     def test_contract_layer_runs_from_an_extracted_project_copy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

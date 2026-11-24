@@ -12,6 +12,7 @@ from contracts.lifecycle import (
 )
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
+    ApplicationProjectConnection,
     AttachmentTargetReadback,
     IntegrationBundleRequest,
     PlatformIntegrationState,
@@ -37,6 +38,29 @@ class FakePlatformReader:
     def read_platform(self, environment: str) -> PlatformIntegrationState:
         self.requests.append(environment)
         return self.state
+
+    def read_connection(
+        self,
+        environment: str,
+        project_id: str,
+    ) -> ApplicationProjectConnection:
+        return ApplicationProjectConnection(
+            environment=environment,
+            project_id=project_id,
+            project_number="123456789012",
+            host_project_id="comfforts-platform-non-prod",
+            host_project_number="455651441682",
+            region="us-west1",
+            network_reference=(
+                "projects/comfforts-platform-non-prod/global/networks/"
+                "app-platform-shared"
+            ),
+            subnetwork_reference=(
+                "projects/comfforts-platform-non-prod/regions/us-west1/"
+                "subnetworks/app-platform-applications-us-west1"
+            ),
+            egress_mode="all-traffic",
+        )
 
 
 class FakeAttachmentReader:
@@ -96,12 +120,16 @@ def _attachment(bundle: dict[str, object]) -> dict[str, object]:
             "owner_application_id": bundle["application_id"],
             "adapter_kind": "gcp-cloud-run-v1",
             "resource_reference": (
-                "urn:comfforts:app-platform:gcp:cloud-run:455651441682:"
+                "urn:comfforts:app-platform:gcp:cloud-run:123456789012:"
                 f"us-west1:{bundle['application_id']}"
             ),
             "ingress_mode": "shared_edge_only",
             "caller_grant": EDGE_CALLER,
             "audience": bundle["identity"]["audience"],
+            "application_project_id": bundle["application_project"]["project_id"],
+            "network_reference": bundle["network"]["network_reference"],
+            "subnetwork_reference": bundle["network"]["subnetwork_reference"],
+            "egress_mode": bundle["network"]["egress_mode"],
         },
     }
 
@@ -118,6 +146,10 @@ def _target_readback(attachment: dict[str, object]) -> AttachmentTargetReadback:
         ingress_mode=str(target["ingress_mode"]),
         caller_grant=str(target["caller_grant"]),
         audience=(str(target["audience"]) if target["audience"] is not None else None),
+        application_project_id=str(target["application_project_id"]),
+        network_reference=str(target["network_reference"]),
+        subnetwork_reference=str(target["subnetwork_reference"]),
+        egress_mode=str(target["egress_mode"]),
     )
 
 
@@ -342,6 +374,23 @@ class AttachmentValidationTest(unittest.TestCase):
         self.assertEqual(target_result.blockers, ("TARGET_INGRESS_MISMATCH",))
         self.assertEqual(platform_result.outcome, "blocked")
         self.assertEqual(platform_result.blockers, ("PLATFORM_STATE_MISMATCH",))
+        self.assertEqual(reader.requests, [])
+
+    def test_attachment_cannot_switch_to_another_connected_project(self) -> None:
+        generated = ApplicationIntegrationLifecycle(
+            FakePlatformReader(_state())
+        ).outputs(_request("public"))
+        assert generated.bundle is not None
+        attachment = _attachment(generated.bundle)
+        target = attachment["target"]
+        assert isinstance(target, dict)
+        target["application_project_id"] = "another-application-project"
+        lifecycle, reader = self._lifecycle(attachment)
+
+        result = lifecycle.validate_attachment(generated.bundle, attachment)
+
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(result.blockers, ("ATTACHMENT_PROJECT_MISMATCH",))
         self.assertEqual(reader.requests, [])
 
     def test_unavailable_or_unready_target_fails_closed(self) -> None:

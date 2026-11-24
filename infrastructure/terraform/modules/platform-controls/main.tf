@@ -172,7 +172,7 @@ resource "google_artifact_registry_repository" "qualification_images" {
   project       = var.controls_configuration.project_id
   location      = var.controls_configuration.region
   repository_id = var.controls_configuration.artifact_repository_id
-  description   = "Digest-selected images for App Platform qualification."
+  description   = "Digest-selected Shared Edge images for App Platform qualification."
   format        = "DOCKER"
   mode          = "STANDARD_REPOSITORY"
   labels        = var.controls_configuration.labels

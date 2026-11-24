@@ -107,7 +107,7 @@ class TerraformBootstrapTest(unittest.TestCase):
             'contract_version == 1',
             'configuration_kind == "backend"',
             '["operator", "synthetic"]',
-            "state_buckets) == 4",
+            "state_buckets) == 1",
             ">= 90",
             "<= 365",
             ">= 20",

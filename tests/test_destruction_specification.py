@@ -54,6 +54,15 @@ def snapshot() -> DestructionSnapshot:
 
 
 class DestructionSpecificationTest(unittest.TestCase):
+    def test_connected_shared_vpc_foundation_is_retained(self) -> None:
+        self.assertTrue(
+            {
+                "application-subnet",
+                "shared-network",
+                "shared-vpc-host",
+            }.issubset(RETAINED_PLATFORM_RESOURCES)
+        )
+
     def test_exact_platform_inventory_compiles_separate_destroy_specification(self) -> None:
         result = compile_destruction_specification(request(), snapshot())
 

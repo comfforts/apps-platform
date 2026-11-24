@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import json
 from typing import Any, Protocol
@@ -14,6 +14,7 @@ from contracts.lifecycle import (
     validate_lifecycle_document,
     validate_lifecycle_relationships,
 )
+from infrastructure.config.project_identity import fixtures_project_id
 from infrastructure.operator._interfaces import OperatorInterrupted, OperatorTerminal
 
 
@@ -33,6 +34,16 @@ class PlatformIntegrationState:
     edge_caller_reference: str
     qualification_status: str
     source_authority: str = "accepted"
+    host_project_id: str = "comfforts-platform-non-prod"
+    host_project_number: str = "455651441682"
+    region: str = "us-west1"
+    network_reference: str = (
+        "projects/comfforts-platform-non-prod/global/networks/app-platform-shared"
+    )
+    subnetwork_reference: str = (
+        "projects/comfforts-platform-non-prod/regions/us-west1/subnetworks/"
+        "app-platform-applications-us-west1"
+    )
 
 
 class PlatformIntegrationReader(Protocol):
@@ -53,6 +64,10 @@ class AttachmentTargetReadback:
     ingress_mode: str
     caller_grant: str
     audience: str | None
+    application_project_id: str | None = None
+    network_reference: str | None = None
+    subnetwork_reference: str | None = None
+    egress_mode: str | None = None
     blockers: tuple[str, ...] = ()
 
 
@@ -76,6 +91,34 @@ class IntegrationBundleRequest:
     route_intent: str
     expected_platform_source_revision: str
     expected_generation: int
+    application_project_id: str = field(default_factory=fixtures_project_id)
+
+
+@dataclass(frozen=True, slots=True)
+class ApplicationProjectConnection:
+    environment: str
+    project_id: str
+    project_number: str
+    host_project_id: str
+    host_project_number: str
+    region: str
+    network_reference: str
+    subnetwork_reference: str
+    egress_mode: str
+
+
+class ApplicationProjectConnectionReader(Protocol):
+    def read_connection(
+        self,
+        environment: str,
+        project_id: str,
+    ) -> ApplicationProjectConnection: ...
+
+    def read_project_number(
+        self,
+        environment: str,
+        project_number: str,
+    ) -> ApplicationProjectConnection: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,11 +261,21 @@ class ApplicationIntegrationLifecycle:
         *,
         attachment_reader: AttachmentTargetReader | None = None,
         generation_control: RegistrationGenerationControl | None = None,
+        project_connections: ApplicationProjectConnectionReader | None = None,
         terminal: OperatorTerminal | None = None,
     ) -> None:
         self._platform_reader = platform_reader
         self._attachment_reader = attachment_reader
         self._generation_control = generation_control
+        self._project_connections = (
+            project_connections
+            if project_connections is not None
+            else (
+                platform_reader
+                if hasattr(platform_reader, "read_connection")
+                else None
+            )
+        )
         self._terminal = terminal
 
     @staticmethod
@@ -252,6 +305,24 @@ class ApplicationIntegrationLifecycle:
             return self._blocked("PLATFORM_GENERATION_MISMATCH")
         if state.lifecycle_state != "deployed":
             return self._blocked("PLATFORM_NOT_DEPLOYED")
+        if self._project_connections is None:
+            return self._blocked("APPLICATION_PROJECT_CONNECTION_UNAVAILABLE")
+        try:
+            connection = self._project_connections.read_connection(
+                request.environment,
+                request.application_project_id,
+            )
+        except (OSError, ValueError):
+            return self._blocked("APPLICATION_PROJECT_NOT_CONNECTED")
+        if (
+            connection.host_project_id != state.host_project_id
+            or connection.host_project_number != state.host_project_number
+            or connection.region != state.region
+            or connection.network_reference != state.network_reference
+            or connection.subnetwork_reference != state.subnetwork_reference
+            or connection.egress_mode != "all-traffic"
+        ):
+            return self._blocked("APPLICATION_PROJECT_CONNECTION_MISMATCH")
 
         protected = request.access_mode in {"authenticated", "restricted"}
         origin = f"https://{state.hostname}"
@@ -285,6 +356,18 @@ class ApplicationIntegrationLifecycle:
                     else None
                 ),
                 "edge_caller_reference": state.edge_caller_reference,
+            },
+            "application_project": {
+                "project_id": connection.project_id,
+                "project_number": connection.project_number,
+            },
+            "network": {
+                "host_project_id": connection.host_project_id,
+                "host_project_number": connection.host_project_number,
+                "region": connection.region,
+                "network_reference": connection.network_reference,
+                "subnetwork_reference": connection.subnetwork_reference,
+                "egress_mode": connection.egress_mode,
             },
             "attachment_contract": {
                 "adapter_kind": "gcp-cloud-run-v1",
@@ -362,6 +445,77 @@ class ApplicationIntegrationLifecycle:
         ):
             return self._attachment_blocked("ATTACHMENT_BUNDLE_MISMATCH")
 
+        application_project = integration_bundle["application_project"]
+        network = integration_bundle["network"]
+        identity = integration_bundle["identity"]
+        attachment_contract = integration_bundle["attachment_contract"]
+        target = attachment_bundle["target"]
+        assert isinstance(application_project, dict)
+        assert isinstance(network, dict)
+        assert isinstance(identity, dict)
+        assert isinstance(attachment_contract, dict)
+        assert isinstance(target, dict)
+        expected_reference_prefix = (
+            "urn:comfforts:app-platform:gcp:cloud-run:"
+            f"{application_project['project_number']}:{network['region']}:"
+        )
+        relationship_comparisons = (
+            (
+                target["application_project_id"],
+                application_project["project_id"],
+                "ATTACHMENT_PROJECT_MISMATCH",
+            ),
+            (
+                str(target["resource_reference"]).startswith(
+                    expected_reference_prefix
+                ),
+                True,
+                "ATTACHMENT_REFERENCE_MISMATCH",
+            ),
+            (
+                target["network_reference"],
+                network["network_reference"],
+                "ATTACHMENT_NETWORK_MISMATCH",
+            ),
+            (
+                target["subnetwork_reference"],
+                network["subnetwork_reference"],
+                "ATTACHMENT_SUBNETWORK_MISMATCH",
+            ),
+            (
+                target["egress_mode"],
+                network["egress_mode"],
+                "ATTACHMENT_EGRESS_MISMATCH",
+            ),
+            (
+                target["adapter_kind"],
+                attachment_contract["adapter_kind"],
+                "ATTACHMENT_ADAPTER_MISMATCH",
+            ),
+            (
+                target["ingress_mode"],
+                attachment_contract["ingress_mode"],
+                "ATTACHMENT_INGRESS_MISMATCH",
+            ),
+            (
+                target["caller_grant"],
+                identity["edge_caller_reference"],
+                "ATTACHMENT_CALLER_MISMATCH",
+            ),
+            (
+                target["audience"],
+                identity["audience"],
+                "ATTACHMENT_AUDIENCE_MISMATCH",
+            ),
+        )
+        relationship_blockers = tuple(
+            blocker
+            for observed, expected, blocker in relationship_comparisons
+            if observed != expected
+        )
+        if relationship_blockers:
+            return self._attachment_blocked(*relationship_blockers)
+
         environment = integration_bundle["environment"]
         assert isinstance(environment, str)
         try:
@@ -373,8 +527,6 @@ class ApplicationIntegrationLifecycle:
         if self._attachment_reader is None:
             return self._attachment_blocked("ATTACHMENT_READBACK_UNAVAILABLE")
 
-        target = attachment_bundle["target"]
-        assert isinstance(target, dict)
         resource_reference = target["resource_reference"]
         assert isinstance(resource_reference, str)
         try:
@@ -416,6 +568,26 @@ class ApplicationIntegrationLifecycle:
                 readback.caller_grant,
                 target["caller_grant"],
                 "TARGET_CALLER_GRANT_MISMATCH",
+            ),
+            (
+                readback.application_project_id,
+                target["application_project_id"],
+                "TARGET_PROJECT_MISMATCH",
+            ),
+            (
+                readback.network_reference,
+                target["network_reference"],
+                "TARGET_NETWORK_MISMATCH",
+            ),
+            (
+                readback.subnetwork_reference,
+                target["subnetwork_reference"],
+                "TARGET_SUBNETWORK_MISMATCH",
+            ),
+            (
+                readback.egress_mode,
+                target["egress_mode"],
+                "TARGET_EGRESS_MISMATCH",
             ),
             (
                 readback.audience,

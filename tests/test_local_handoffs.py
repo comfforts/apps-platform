@@ -19,6 +19,7 @@ from infrastructure.operator.local_fixture_preparations import (
     LocalFixturePreparations,
 )
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
+from infrastructure.operator.integration import RegistrationIntent
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -194,6 +195,18 @@ class LocalFixturePreparationsTest(unittest.TestCase):
                 image,
                 integration,
                 deployment,
+            )
+            published = store.publish_registration_intent(
+                request,
+                published,
+                RegistrationIntent(
+                    catalogue_visibility="listed",
+                    catalogue_title="Fixture authenticated",
+                    catalogue_summary="Synthetic authenticated fixture",
+                    attachment_id="primary",
+                    mount_path="/",
+                    forwarding_mode="strip_application_prefix",
+                ),
             )
             observed = store.read(request)
             stale_requests = (

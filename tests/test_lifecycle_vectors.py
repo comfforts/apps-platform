@@ -17,11 +17,11 @@ VECTOR_DIRECTORY = PROJECT_ROOT / "contracts" / "lifecycle" / "test-vectors" / "
 VECTORS = {
     "application-attachment-bundle.staging.synthetic.v1.json": (
         "application-attachment-bundle",
-        "sha256:506d083eb987f392739cdd7087691beb8887eb2d943465c5f0f49ec9fbce0052",
+        "sha256:443fd2dddd7b6bc91533c1e616671eab7fe32f58e2ffc598ed7bb246175d2755",
     ),
     "platform-integration-bundle.staging.synthetic.v1.json": (
         "platform-integration-bundle",
-        "sha256:e9bb4373b4f7ae5ecdb67b68d05f11c434d0bb7cc1a05be1318b8ea50aaa75a5",
+        "sha256:7108636efee7842b364f2d4605dbfe89f4da1bed5e56d872c9e09733bc0494c1",
     ),
     "qualification-evidence.staging.synthetic.v1.json": (
         "qualification-evidence",

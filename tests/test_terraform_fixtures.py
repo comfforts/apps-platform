@@ -150,7 +150,10 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
         for required_control in (
             'destruction_enabled ? "DELETE" : "PREVENT"',
             "deletion_protection  = !var.runtime_configuration.destruction_enabled",
-            'ingress              = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"',
+            'ingress              = "INGRESS_TRAFFIC_INTERNAL_ONLY"',
+            'egress = "ALL_TRAFFIC"',
+            "shared_network_reference",
+            "application_subnet_reference",
             "invoker_iam_disabled = false",
             "max_instance_request_concurrency = 10",
             "min_instance_count = 0",

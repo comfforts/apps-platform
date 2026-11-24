@@ -95,7 +95,7 @@ class LocalDeploymentInputsTest(unittest.TestCase):
         self.assertEqual(reference["generation_digest"], generation.generation_digest)
         self.assertEqual(reference["content_digest"], generation.content_digest)
 
-    def test_bootstrap_input_derives_all_four_exclusive_buckets(self) -> None:
+    def test_platform_bootstrap_input_manages_only_platform_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             working_root = Path(directory) / "work"
             renderer = DeploymentConfigurationRenderer(
@@ -114,15 +114,10 @@ class LocalDeploymentInputsTest(unittest.TestCase):
             variable_mode = os.stat(rendered.variable_file).st_mode & 0o777
 
         self.assertEqual(value["configuration_class"], "operator")
-        self.assertEqual(len(value["state_buckets"]), 4)
+        self.assertEqual(len(value["state_buckets"]), 1)
         self.assertEqual(
             {item["owner_id"] for item in value["state_buckets"]},
-            {
-                "app-platform",
-                "fixture-authenticated",
-                "fixture-public",
-                "fixture-restricted",
-            },
+            {"app-platform"},
         )
         self.assertEqual(variable_mode, 0o600)
 

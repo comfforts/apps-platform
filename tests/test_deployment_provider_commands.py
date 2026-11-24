@@ -19,6 +19,7 @@ from infrastructure.operator.provider_commands import (
     ProviderCommandRequest,
     ProviderCommandResult,
 )
+from tests.environment import FIXTURES_PROJECT_ID
 
 
 PROJECT = "comfforts-platform-non-prod"
@@ -143,6 +144,7 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
             cloud_sdk_configuration=configuration,
             working_root=root,
             runner=fake,
+            fixture_project_id=FIXTURES_PROJECT_ID,
         )
 
     def test_bootstrap_services_are_exact_and_read_back(self) -> None:
@@ -414,7 +416,7 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
         self.assertEqual(reference, resumed)
         self.assertEqual(
             reference,
-            "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+            f"us-west1-docker.pkg.dev/{FIXTURES_PROJECT_ID}/"
             "app-platform-images/fixture@sha256:" + ("d" * 64),
         )
         builds = [
@@ -426,7 +428,7 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
         self.assertEqual(builds[0].timeout_seconds, 900)
         self.assertIn(
             "--substitutions=_IMAGE=us-west1-docker.pkg.dev/"
-            "comfforts-platform-non-prod/app-platform-images/fixture:source-"
+            f"{FIXTURES_PROJECT_ID}/app-platform-images/fixture:source-"
             + ("f" * 40)
             + ",_SOURCE_REVISION="
             + ("f" * 40),
@@ -479,6 +481,7 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
                 cloud_sdk_configuration=configuration,
                 working_root=root,
                 runner=fake,
+                fixture_project_id=FIXTURES_PROJECT_ID,
                 private_state_root=state,
             )
 

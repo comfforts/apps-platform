@@ -14,12 +14,21 @@ resource "google_cloud_run_v2_service" "runtime" {
   labels   = var.runtime_configuration.labels
 
   deletion_protection  = !var.runtime_configuration.destruction_enabled
-  ingress              = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  ingress              = "INGRESS_TRAFFIC_INTERNAL_ONLY"
   invoker_iam_disabled = false
 
   template {
     service_account                  = google_service_account.runtime.email
     max_instance_request_concurrency = 10
+
+    vpc_access {
+      egress = "ALL_TRAFFIC"
+
+      network_interfaces {
+        network    = var.runtime_configuration.shared_network_reference
+        subnetwork = var.runtime_configuration.application_subnet_reference
+      }
+    }
 
     scaling {
       min_instance_count = 0

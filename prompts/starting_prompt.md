@@ -9,7 +9,7 @@ qualifies, rehearses approved destruction/redeployment, and leaves `apps-staging
 deployed and qualified with the three repository-owned Fixture Applications.
 
 Read `AGENTS.md` and follow the complete order in `docs/README.md`. State the slice and authority:
-AP-M9-W10; AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009; ADR-001 through ADR-013;
+AP-M9-W10; AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009; ADR-001 through ADR-014;
 AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-001 through AP-TM-014. Inspect the branch, working
 tree, remotes, and relationship to `origin/main`. Stop on any mismatch; do not pull, reset, switch,
 commit, push, or change repository settings without its applicable owner direction.
@@ -26,18 +26,23 @@ Perform the staging journey from exact merged source:
 2. Verify the pinned Terraform toolchain, exact staging project, active human Cloud SDK account,
    user Application Default Credentials, `gcloud`, and `dig`. Never create or store a service-account
    key or copy a token, OAuth secret, Terraform state, plan, or provider payload into Git.
-3. Run `make platform-deploy ENVIRONMENT=staging`. Keep the interactive wizard in one process.
+3. Run `make fixture-project-bootstrap ENVIRONMENT=staging
+   FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod` to create or verify the dedicated
+   fixture application project, then run `make platform-deploy ENVIRONMENT=staging`. Keep the
+   interactive platform wizard in one process.
    Review each displayed specification/action/plan, use its `y/N` gates, complete Google OAuth and
    Squarespace DNS work only at the displayed checkpoint, and press Enter for immediate readback.
    Enter the OAuth client secret only in Secret Manager, never in the terminal.
-4. Run `make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=<id>` separately for
-   `fixture-public`, `fixture-authenticated`, and `fixture-restricted`. Each invocation must build or
-   reuse the immutable source-bound image, operate only on the selected one of three independent
-   Application State lineages, read back its posture, and activate a complete Registration
-   Generation that preserves the other registrations without operator-authored manifests or bundle
-   fields. The optional `fixture-handoff` command may be run first for any selected fixture when the
-   operator wants to inspect its canonical integration and attachment bundles before registration;
-   it is not required for the normal W10 journey.
+4. Run `make platform-connect-project ENVIRONMENT=staging
+   APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod` and verify that it creates no runtime or
+   route. For `fixture-public`, `fixture-authenticated`, and `fixture-restricted`, separately run
+   `platform-outputs` with the fixture project, matching admission mode and route; pass the printed
+   bundle to `fixture-handoff`; inspect its integration bundle, attachment bundle, and registration
+   intent; then run `platform-register` with those exact files. Each handoff must build or reuse the
+   immutable source-bound image, operate only on the selected one of three independent Application
+   State lineages in the fixture project, and read back its Shared VPC, ingress, IAM, audience, and readiness posture.
+   Each registration must preserve the other registrations. There is no combined fixture
+   deploy-and-register command.
 5. Run `make fixture-status ENVIRONMENT=staging`, `make platform-status ENVIRONMENT=staging`, and
    `make platform-qualify ENVIRONMENT=staging`. Complete browser checkpoints without exporting
    cookies, sessions, assertions, identity claims, screenshots, or application payloads.
@@ -45,7 +50,8 @@ Perform the staging journey from exact merged source:
    and every failed or unavailable AP-EVAL-M9 gate. Do not call staging qualified unless every
    mandatory check passes for those exact bindings.
 7. Only after separately named owner approval for the destructive rehearsal, detach and destroy
-   each Fixture Application through `fixture-destroy`, then run `platform-destroy`. Verify the
+   each Fixture Application through `platform-detach` followed by `fixture-destroy`, then run
+   `platform-destroy`. Verify the
    retained backend, configuration, signing-key, provider-service, recovery, and evidence inventory;
    never target Application State from platform destruction and never issue a blind Terraform
    destroy. Redeploy the platform and fixtures through the same commands and requalify them.

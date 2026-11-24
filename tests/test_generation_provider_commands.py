@@ -8,7 +8,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from infrastructure.operator.integration import RegistrationGenerationProposal
+from infrastructure.operator.integration import (
+    ApplicationProjectConnection,
+    RegistrationGenerationProposal,
+)
 from infrastructure.operator.provider_commands import (
     ClosedGcloudRunner,
     GcloudGenerationProvider,
@@ -16,6 +19,7 @@ from infrastructure.operator.provider_commands import (
     ProviderCommandRequest,
     ProviderCommandResult,
 )
+from tests.environment import FIXTURES_PROJECT_ID
 
 
 PROJECT_ID = "comfforts-platform-non-prod"
@@ -257,6 +261,29 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         executable.chmod(0o700)
         configuration = root / "cloud-sdk"
         configuration.mkdir(mode=0o700)
+        class Connections:
+            @staticmethod
+            def read_project_number(
+                environment: str,
+                project_number: str,
+            ) -> ApplicationProjectConnection:
+                return ApplicationProjectConnection(
+                    environment=environment,
+                    project_id=FIXTURES_PROJECT_ID,
+                    project_number=project_number,
+                    host_project_id=PROJECT_ID,
+                    host_project_number="455651441682",
+                    region=REGION,
+                    network_reference=(
+                        f"projects/{PROJECT_ID}/global/networks/app-platform-shared"
+                    ),
+                    subnetwork_reference=(
+                        f"projects/{PROJECT_ID}/regions/{REGION}/subnetworks/"
+                        f"app-platform-applications-{REGION}"
+                    ),
+                    egress_mode="all-traffic",
+                )
+
         return GcloudGenerationProvider(
             executable=executable,
             cloud_sdk_configuration=configuration,
@@ -267,6 +294,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             service_name=SERVICE,
             configuration_bucket=BUCKET,
             runner=fake,
+            project_connections=Connections(),
         )
 
     def test_stage_uses_create_only_object_and_no_traffic_revision(self) -> None:
@@ -603,9 +631,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                             {
                                 "metadata": {
                                     "annotations": {
-                                        "run.googleapis.com/ingress": (
-                                            "internal-and-cloud-load-balancing"
-                                        )
+                                        "run.googleapis.com/ingress": "internal"
                                     },
                                     "labels": {
                                         "application_id": "fixture-authenticated",
@@ -616,6 +642,22 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                                 },
                                 "spec": {
                                     "template": {
+                                        "metadata": {
+                                            "annotations": {
+                                                "run.googleapis.com/network-interfaces": (
+                                                    '[{"network":"projects/'
+                                                    + PROJECT_ID
+                                                    + '/global/networks/app-platform-shared",'
+                                                    '"subnetwork":"projects/'
+                                                    + PROJECT_ID
+                                                    + '/regions/us-west1/subnetworks/'
+                                                    'app-platform-applications-us-west1"}]'
+                                                ),
+                                                "run.googleapis.com/vpc-access-egress": (
+                                                    "all-traffic"
+                                                ),
+                                            }
+                                        },
                                         "spec": {
                                             "containers": [
                                                 {
@@ -667,7 +709,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
 
         reference = (
             "urn:comfforts:app-platform:gcp:cloud-run:"
-            "455651441682:us-west1:fixture-authenticated"
+            "123456789012:us-west1:fixture-authenticated"
         )
         with tempfile.TemporaryDirectory() as directory:
             fake = AttachmentGcloud(compiled)
@@ -684,6 +726,19 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             "urn:comfforts:app-platform:audience:fixture-authenticated",
         )
         self.assertIn("app-platform-edge-caller", target.caller_grant)
+        self.assertEqual(target.application_project_id, FIXTURES_PROJECT_ID)
+        self.assertEqual(
+            target.network_reference,
+            f"projects/{PROJECT_ID}/global/networks/app-platform-shared",
+        )
+        self.assertEqual(
+            target.subnetwork_reference,
+            (
+                f"projects/{PROJECT_ID}/regions/us-west1/subnetworks/"
+                "app-platform-applications-us-west1"
+            ),
+        )
+        self.assertEqual(target.egress_mode, "all-traffic")
         self.assertEqual(target.blockers, ())
 
         fake.target_environment = "staging"

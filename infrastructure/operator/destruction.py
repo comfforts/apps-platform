@@ -37,12 +37,15 @@ DESTRUCTIBLE_PLATFORM_RESOURCES = (
 
 # These resources require separately approved purge or recovery authority.
 RETAINED_PLATFORM_RESOURCES = (
+    "application-subnet",
     "backend-bucket",
     "configuration-bucket",
     "evidence-bucket",
     "logging-exclusion",
     "provider-service",
     "recovery-copy",
+    "shared-network",
+    "shared-vpc-host",
     "signing-key",
     "state-backend",
 )

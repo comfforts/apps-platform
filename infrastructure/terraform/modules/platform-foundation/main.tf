@@ -19,6 +19,9 @@ locals {
     "run.googleapis.com",
     "secretmanager.googleapis.com",
   ])
+  shared_network_name     = "app-platform-shared"
+  application_subnet_name = "app-platform-applications-${var.foundation_configuration.region}"
+  application_subnet_cidr = "10.20.0.0/24"
 }
 
 resource "google_project_service" "platform" {
@@ -52,6 +55,34 @@ resource "google_storage_bucket" "configuration" {
   retention_policy {
     retention_period = 86400
     is_locked        = false
+  }
+}
+
+resource "google_compute_shared_vpc_host_project" "platform" {
+  project = var.foundation_configuration.project_id
+
+  depends_on = [google_project_service.platform]
+}
+
+resource "google_compute_network" "shared" {
+  project                 = var.foundation_configuration.project_id
+  name                    = local.shared_network_name
+  auto_create_subnetworks = false
+  routing_mode            = "REGIONAL"
+
+  depends_on = [google_compute_shared_vpc_host_project.platform]
+}
+
+resource "google_compute_subnetwork" "applications" {
+  project                  = var.foundation_configuration.project_id
+  name                     = local.application_subnet_name
+  region                   = var.foundation_configuration.region
+  network                  = google_compute_network.shared.id
+  ip_cidr_range            = local.application_subnet_cidr
+  private_ip_google_access = true
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 

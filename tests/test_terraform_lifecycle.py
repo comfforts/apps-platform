@@ -97,7 +97,7 @@ class TerraformLifecycleIntegrationTest(unittest.TestCase):
         self.assertIsNone(result.plan_digest)
         self.assertIn("PROJECT_MISMATCH", [item.code for item in result.violations])
 
-    def test_fixture_plans_use_three_independent_application_lineages(self) -> None:
+    def test_fixture_plans_use_three_prefixes_in_the_fixture_project_bucket(self) -> None:
         fake = FakeTerraformCommands()
         phases = (
             "fixture-public",
@@ -126,7 +126,7 @@ class TerraformLifecycleIntegrationTest(unittest.TestCase):
             list(phases),
         )
         self.assertEqual(len({request.backend_digest for request in fake.requests}), 3)
-        self.assertEqual(len({request.backend_bucket for request in fake.requests}), 3)
+        self.assertEqual(len({request.backend_bucket for request in fake.requests}), 1)
 
     def test_production_refuses_before_render_or_command_invocation(self) -> None:
         fake = FakeTerraformCommands()

@@ -14,7 +14,10 @@ output "policy_summary" {
     configured_labels               = var.runtime_configuration.labels
     runtime_identity_account_id     = var.runtime_configuration.runtime_identity_account_id
     runtime_identity_deletion       = var.runtime_configuration.destruction_enabled ? "DELETE" : "PREVENT"
-    ingress                         = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+    ingress                         = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+    network_reference               = var.runtime_configuration.shared_network_reference
+    subnetwork_reference            = var.runtime_configuration.application_subnet_reference
+    vpc_egress                      = "ALL_TRAFFIC"
     invoker_iam_disabled            = false
     unauthenticated_invocation      = false
     edge_caller_principal           = var.edge_caller_principal

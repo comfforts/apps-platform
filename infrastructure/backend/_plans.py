@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from infrastructure.backend._lifecycle import EnvironmentUnavailableError
+from infrastructure.config.project_identity import fixtures_project_id
 
 
 _GOOGLE_PROVIDER = "registry.terraform.io/hashicorp/google"
@@ -38,6 +39,9 @@ _PHASE_INVENTORIES = {
             "google_monitoring_notification_channel",
             "google_project_iam_member",
             "google_project_service",
+            "google_compute_network",
+            "google_compute_subnetwork",
+            "google_compute_shared_vpc_host_project",
             "google_secret_manager_secret",
             "google_secret_manager_secret_iam_member",
             "google_service_account",
@@ -181,6 +185,9 @@ def plan_policy(
         "module.platform_foundation.google_storage_bucket.configuration",
         "module.platform_foundation.google_kms_key_ring.assertion_signing",
         "module.platform_foundation.google_kms_crypto_key.assertion_signing",
+        "module.platform_foundation.google_compute_shared_vpc_host_project.platform",
+        "module.platform_foundation.google_compute_network.shared",
+        "module.platform_foundation.google_compute_subnetwork.applications",
         "module.platform_controls.google_storage_bucket.evidence",
         "module.platform_controls.google_storage_bucket_iam_member.evidence_owner_reader",
         "module.platform_controls.google_logging_project_exclusion.edge_from_default",
@@ -193,7 +200,11 @@ def plan_policy(
         owner_id=str(inventory["owner_id"]),
         terraform_root=str(inventory["terraform_root"]),
         phase=phase,
-        project_id="comfforts-platform-non-prod",
+        project_id=(
+            fixtures_project_id()
+            if phase.startswith("fixture-")
+            else "comfforts-platform-non-prod"
+        ),
         provider_source=_GOOGLE_PROVIDER,
         provider_service="google",
         allowed_resource_types=tuple(inventory["resource_types"]),

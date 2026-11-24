@@ -310,7 +310,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("separate Application State", requirements)
         self.assertIn("Static Terraform, process-local loopback", requirements)
         self.assertIn("`fixture-handoff`", design)
-        self.assertIn("`fixture-deploy`", design)
+        self.assertIn("`fixture-project-bootstrap`", design)
+        self.assertIn("`platform-connect-project`", design)
         self.assertIn("`fixture-status`", design)
         self.assertIn("`fixture-destroy`", design)
 
@@ -326,7 +327,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_overview = " ".join(overview.split())
 
         self.assertIn(
-            "AP-M9-W9 fixture deployment lifecycle and candidate verification implemented",
+            "AP-M9-W9 fixture deployment lifecycle cross-project correction in progress",
             normalized_index,
         )
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
@@ -334,10 +335,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("AP-M8 | historical", index)
         self.assertIn("AP-M9-W1 — governance rebaseline", index)
         self.assertIn("AP-M9-W11 — production readiness", index)
-        self.assertIn(
-            "no platform environment is currently deployed or qualified",
-            normalized_overview.lower(),
-        )
+        self.assertIn("candidate staging platform resources have been exercised", normalized_overview.lower())
+        self.assertIn("not accepted qualification", normalized_overview.lower())
         self.assertIn("Platform Integration Bundle", overview)
         self.assertIn("Application Attachment Bundle", overview)
         self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", overview)
@@ -390,30 +389,26 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("Applications using\n`authenticated` or `restricted` admission", overview)
         self.assertIn("including a public one, accepts traffic only from the Shared Edge", overview)
         self.assertNotIn("Protected applications", overview)
-        self.assertIn("`fixture-deploy` is a fixture-only orchestration command", overview)
+        self.assertIn("There is intentionally no\ncombined `fixture-deploy` command", overview)
         self.assertIn(
-            "make fixture-handoff ENVIRONMENT=staging "
-            "APPLICATION_ID=fixture-authenticated",
+            "make fixture-handoff \\\n  ENVIRONMENT=staging \\\n  APPLICATION_ID=fixture-public",
             overview,
         )
-        self.assertIn("writes both canonical bundles", overview)
-        self.assertIn("does not register or route the fixture", overview)
-        self.assertIn("preparation_reused: true", overview)
+        self.assertIn("writes the canonical bundle pair and registration intent", normalized_overview)
+        self.assertIn("It never registers or routes the fixture", overview)
+        self.assertIn("FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod", overview)
+        self.assertIn("APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod", overview)
         for fixture_application_id in (
             "fixture-public",
             "fixture-authenticated",
             "fixture-restricted",
         ):
-            self.assertIn(
-                "make fixture-deploy ENVIRONMENT=staging "
-                f"APPLICATION_ID={fixture_application_id}",
-                overview,
-            )
+            self.assertIn(fixture_application_id, overview)
         self.assertIn(
-            "suite-wide by default, or narrowed with an optional `APPLICATION_ID`",
+            "`fixture-status` is suite-wide by default, or narrowed with an optional `APPLICATION_ID`",
             overview,
         )
-        self.assertIn("does not bypass those contracts", overview)
+        self.assertIn("keeping `platform-outputs`, fixture runtime deployment, and", overview)
         self.assertIn("There is no App Platform Make target for deploying a real application", overview)
         self.assertIn("The complete handoff sequence is", overview)
         self.assertIn("Readiness preflight", overview)
@@ -607,9 +602,10 @@ class ProjectAuthorityTest(unittest.TestCase):
                 "ADR-011",
                 "ADR-012",
                 "ADR-013",
+                "ADR-014",
             ],
         )
-        self.assertEqual(decisions.count("Status: Accepted"), 13)
+        self.assertEqual(decisions.count("Status: Accepted"), 14)
         normalized_decisions = " ".join(decisions.split())
         for identifier in (
             "AP-PR-001",
@@ -657,7 +653,7 @@ class ProjectAuthorityTest(unittest.TestCase):
 
         for state_and_operator_decision in (
             "remote GCS backend with native state locking and object versioning",
-            "Each Fixture Application uses a separate state bucket",
+            "fixtures use separate prefixes in one versioned bucket owned by their dedicated fixture application project",
             "at least 90 days old",
             "at least 20 newer generations",
             "No platform root uses `terraform_remote_state`",
@@ -781,7 +777,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-M9-W10",
             "AP-PR-001 through AP-PR-012",
             "AP-QR-001 through AP-QR-009",
-            "ADR-001 through ADR-013",
+            "ADR-001 through ADR-014",
             "AP-EVAL-M9-09",
             "AP-TM-001",
         ):
@@ -790,7 +786,9 @@ class ProjectAuthorityTest(unittest.TestCase):
             "after the AP-M9-W9 fixture-application lifecycle pull request has merged",
             "AP-M9-W10 is the first accepted external staging operation",
             "fixture-handoff",
-            "fixture-deploy",
+            "fixture-project-bootstrap",
+            "platform-connect-project",
+            "platform-register",
             "fixture-status",
             "fixture-destroy",
             "independent Application State lineages",
@@ -1598,7 +1596,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn("AP-M9-W9", document)
             self.assertIn("implemented", document.lower())
         self.assertIn(
-            "Repository implementation through AP-M9-W9 is complete",
+            "AP-M9-W9 remains open for the cross-project fixture correction",
             overview,
         )
         self.assertIn("platform-prepare", overview)
@@ -1632,7 +1630,9 @@ class ProjectAuthorityTest(unittest.TestCase):
             "first accepted external staging operation",
             "platform-deploy",
             "fixture-handoff",
-            "fixture-deploy",
+            "fixture-project-bootstrap",
+            "platform-connect-project",
+            "platform-register",
             "fixture-status",
             "fixture-destroy",
             "Do not request a duplicate",

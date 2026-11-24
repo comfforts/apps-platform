@@ -37,6 +37,15 @@ resource "google_cloud_run_v2_service" "edge" {
     timeout                          = "3600s"
     max_instance_request_concurrency = 20
 
+    vpc_access {
+      egress = "ALL_TRAFFIC"
+
+      network_interfaces {
+        network    = var.edge_configuration.shared_network_reference
+        subnetwork = var.edge_configuration.application_subnet_reference
+      }
+    }
+
     scaling {
       min_instance_count = 0
       max_instance_count = 2

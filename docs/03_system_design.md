@@ -1,17 +1,16 @@
 # App Platform system design
 
-Version 1.8 | Status: Fixture-qualified logical design, implemented AP-M6 runtime and AP-M7
-Terraform profiles, and implemented AP-M9-W8 qualification/destruction controls; no provider operation
-or live infrastructure is deployed
+Version 1.9 | Status: AP-M9-W9 cross-project fixture correction in progress; Candidate Source
+provider operation is not accepted qualification
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
 does not provision infrastructure, activate an application, qualify runtime behavior, or change a
 consuming application.
 
-Requirements: AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006
+Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
-Decisions: ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-006, ADR-007, ADR-008, ADR-009
+Decisions: ADR-001 through ADR-014
 
 ## Design outcome
 
@@ -179,18 +178,19 @@ the exact grammar
 `urn:comfforts:app-platform:gcp:cloud-run:<project-number>:<region>:<service-name>`. It is not a URL,
 credential, Terraform address, or permission to discover arbitrary resources.
 
-The future adapter may resolve only the named Cloud Run service through GCP metadata and IAM. A
+The adapter may resolve only the named Cloud Run service through GCP metadata and IAM. A
 target is activation-eligible only when provider readback establishes that the exact service exists
 in the declared project and region, reports ready, is assigned to the registration's named
 Application State owner, and has an Application-Owner-approved grant for the platform edge caller.
 No independent DNS check is part of ownership proof.
 
-The first live fixtures may use Cloud Run services in the qualification project while preserving
-separate platform and per-fixture state roots. The same reference grammar permits later
-cross-project targets, but same-project evidence does not qualify them. Later cross-project GCP
-applications use a platform-owned Shared VPC host network, with the application project attached
-as a service project through its own adoption procedure. Network attachment does not give Platform
-State ownership of the application's Cloud Run service, IAM policy, data, or Terraform state.
+Provider-backed fixtures and real applications use cross-project attachment. The platform project
+owns a Shared VPC host network and regional application subnet. Each application project attaches
+as a service project through the explicit project-connection lifecycle. Its Cloud Run service
+agent receives read-only host-network discovery and network-user access on only that subnet. The
+service uses Direct VPC egress through the subnet, internal-only ingress, and IAM admission for the
+dedicated edge caller. Network attachment does not give Platform State ownership of the
+application's Cloud Run service, IAM policy, billing, data, or Terraform state.
 
 Protected services require both provider-level direct-invocation denial and application-side
 assertion verification. The load balancer-to-edge and edge-to-application trust details are refined
@@ -764,7 +764,7 @@ limited to these operator operations:
 
 ```text
 preflight  prepare  deploy  status  outputs  register  detach  retire  qualify  destroy
-                 fixture-handoff  fixture-deploy  fixture-status  fixture-destroy
+ fixture-project-bootstrap  platform-connect-project  fixture-handoff  fixture-status  fixture-destroy
 ```
 
 The module owns preflight, discovery, one small operation specification, a fixed readable stage
@@ -890,32 +890,33 @@ approval, progress record, bundle, evidence package, qualification result, Git i
 transcript. This local troubleshooting boundary permits root-cause inspection without treating raw
 provider output as reviewed authority.
 
-After environment deployment, `outputs` compiles a Platform Integration Bundle for one application,
-environment, access mode, route intent, and platform revision. A fixture may consume a bundle whose
+After environment deployment and explicit application-project connection, `outputs` compiles a
+Platform Integration Bundle for one application project, application, environment, access mode,
+route intent, and platform revision. It includes the exact application project, Shared VPC host,
+network, subnet, region, and egress bindings. A fixture may consume a bundle whose
 qualification status is explicitly `unqualified`; real Application Adoption requires the owning
 application to accept the platform's current qualification status. The application deploys through
 Application State and returns an Application Attachment Bundle bound to the platform-bundle digest.
-Registration validates the bundle, provider target, owner, ingress, caller grant, audience, and
-current platform state before activating a complete Registration Generation.
+Registration validates the bundle, provider target project and network, owner, ingress, caller
+grant, audience, and current platform state before activating a complete Registration Generation.
 
 The repository-owned Fixture Application operator acts only as the Application Owner for the three
-synthetic fixtures. One interactive `fixture-deploy` invocation requires a fixture application
-identifier, builds or reuses the immutable fixture image, generates that application's platform
-bundle, plans and applies only its independent Application State root, emits its attachment bundle,
-and activates a complete generation that preserves the other registrations after provider
-readback. The operator invokes it separately for every fixture needed by qualification.
-The optional `fixture-handoff` entry point executes the same selected-fixture path only through
-provider-validated attachment generation, publishes both canonical bundles to mode-`0600` files in
-ignored operator state, returns their paths and digests, and stops before registration. It is an
-Application State mutation, not read-only preparation. `fixture-deploy` first rereads that prepared
-pair and reuses it only when the environment, fixture, source authority, fixture and platform
-revisions, active generation, image, bundle relationship and digests, and provider posture all
-remain exact. A stale pair is not registered; normal generation and reconciliation run again.
-`fixture-status` is read-only and reports all fixtures by default or one optional selection.
-`fixture-destroy` requires the fixture-specific destructive confirmation, operates only on the
-selected fixture Application State, and never destroys Platform State. These commands are the
-executable staging-fixture boundary; Terraform roots and loopback servers alone are not deployment
-capability.
+synthetic fixtures. A one-time `fixture-project-bootstrap` creates or repairs their dedicated
+application project, required services, private versioned state bucket, and image repository.
+`platform-connect-project` attaches that existing project to the platform Shared VPC and records
+the verified connection without creating a runtime or route.
+
+For each fixture, the Platform Operator runs `outputs`, then passes that exact bundle to
+`fixture-handoff`. The handoff builds or reuses the immutable fixture image, plans and applies only
+the selected independent Application State root, emits its attachment bundle and registration
+intent, publishes the canonical files with mode `0600` in ignored operator state, and stops. It is
+an Application State mutation, not read-only preparation. After inspection, the Platform Operator
+runs `register` to activate a complete generation. There is no combined fixture deploy-and-register
+operation. `fixture-status` is read-only and reports all fixtures by default or one optional
+selection. `fixture-destroy` requires the route to have been suspended through `detach`, requires
+the fixture-specific destructive confirmation, operates only on the selected fixture Application
+State, and never destroys Platform State. These commands are the executable staging-fixture
+boundary; Terraform roots and loopback servers alone are not deployment capability.
 
 Detachment is the reversible suspended state. The edge removes the application from the catalogue
 and target routing, reserves its identifier and route, invokes no target, and returns a generic
@@ -934,7 +935,9 @@ retiring their identities.
 Environment destruction creates a separate destructive specification, refuses active attachments,
 requires exact typed confirmation, removes traffic and external DNS safely, respects cache and
 rollback windows, and never destroys Application State. State backends, recovery material, and
-evidence remain until a separately approved purge. Production uses independent authority and a
+evidence remain until a separately approved purge. The Shared VPC host, application network, and
+subnet also remain while application projects are connected; disconnecting those projects is a
+separate destructive operation. Production uses independent authority and a
 stronger confirmation. `platform-prepare` for production returns
 `OWNERSHIP_TRANSFER_REQUIRED` while the Finance-owned production edge or any other requested
 resource has not completed an explicit ownership transfer.
@@ -1180,9 +1183,10 @@ cleanup begins in dry-run and deletion remains owner-approved. Terraform checks 
 larger runtimes, extra environments or edges, unapproved billable services, longer retention, and
 missing `environment`, `managed_by`, `state_owner`, or applicable `application_id` labels.
 
-The platform project pays for Shared Edge and initial same-project qualification resources. Later
-application projects pay for their runtime, data, networking, and provider services unless their
-Application Adoption explicitly records another allocation.
+The platform project pays for Shared Edge and Shared VPC host resources. The dedicated fixture
+project pays for fixture runtimes, images, and state. Other application projects pay for their
+runtime, data, networking use, and provider services unless their Application Adoption explicitly
+records another allocation.
 
 ### AP-M6 networked runtime profile
 
@@ -1599,5 +1603,5 @@ application-owned gate.
 | Terraform state and operator authority | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
 | AP-M7 Terraform configuration profile | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
 | Historical AP-M8 proposal, superseded before execution | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
-| AP-M9 interactive environment lifecycle | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-013 |
+| AP-M9 interactive environment lifecycle | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-014 |
 | Observability, evidence, incidents, and cost | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007, AP-PR-008; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-004, ADR-009 |

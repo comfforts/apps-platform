@@ -50,16 +50,8 @@ class FixtureDeployRequest:
     expected_platform_source_revision: str
     expected_platform_generation: int
     source_authority: str = "accepted"
-
-
-@dataclass(frozen=True, slots=True)
-class FixtureBundleRequest:
-    environment: str
-    application_id: str
-    access_mode: str
-    route_intent: str
-    expected_platform_source_revision: str
-    expected_platform_generation: int
+    integration_bundle: dict[str, Any] | None = None
+    integration_bundle_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +92,7 @@ class FixturePreparation:
     attachment_bundle_digest: str
     integration_bundle_path: str | None = None
     attachment_bundle_path: str | None = None
+    registration_intent_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,38 +104,9 @@ class FixtureHandoffResult:
     integration_bundle_path: str | None
     attachment_bundle_digest: str | None
     attachment_bundle_path: str | None
+    registration_intent_path: str | None = None
     preparation_reused: bool = False
     blockers: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class FixtureRegistrationRequest:
-    environment: str
-    integration_bundles: tuple[dict[str, Any], ...]
-    deployments: tuple[FixtureApplicationDeployment, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class FixtureRegistrationReadback:
-    active: bool
-    generation: int
-    generation_digest: str
-    application_ids: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class FixtureDeployResult:
-    outcome: str
-    image_reference: str | None
-    application_ids: tuple[str, ...]
-    registration_generation: int | None
-    registration_generation_digest: str | None
-    blockers: tuple[str, ...] = ()
-    preparation_reused: bool = False
-    integration_bundle_digest: str | None = None
-    integration_bundle_path: str | None = None
-    attachment_bundle_digest: str | None = None
-    attachment_bundle_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +115,7 @@ class FixtureApplicationStatus:
     lifecycle: str
     target_exists: bool
     target_ready: bool
+    route_ready: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,11 +157,6 @@ class FixtureCommandError(RuntimeError):
 class FixtureCommands(Protocol):
     """Closed side-effect boundary consumed by the fixture lifecycle core."""
 
-    def integration_bundle(
-        self,
-        request: FixtureBundleRequest,
-    ) -> dict[str, Any]: ...
-
     def build_image(self, request: FixtureImageRequest) -> FixtureImageReadback: ...
 
     def deploy_application(
@@ -214,11 +174,6 @@ class FixtureCommands(Protocol):
         request: FixtureDeployRequest,
         preparation: FixturePreparation,
     ) -> FixturePreparation: ...
-
-    def register(
-        self,
-        request: FixtureRegistrationRequest,
-    ) -> FixtureRegistrationReadback: ...
 
     def status(
         self,
@@ -248,17 +203,6 @@ class FixtureSuiteLifecycle:
             self._terminal.write(f"▸ Stage {index}/{total} · {title}")
 
     @staticmethod
-    def _blocked(*blockers: str) -> FixtureDeployResult:
-        return FixtureDeployResult(
-            outcome="blocked",
-            image_reference=None,
-            application_ids=(),
-            registration_generation=None,
-            registration_generation_digest=None,
-            blockers=tuple(sorted(set(blockers))),
-        )
-
-    @staticmethod
     def _handoff_blocked(
         request: FixtureDeployRequest,
         *blockers: str,
@@ -271,6 +215,7 @@ class FixtureSuiteLifecycle:
             integration_bundle_path=None,
             attachment_bundle_digest=None,
             attachment_bundle_path=None,
+            registration_intent_path=None,
             blockers=tuple(sorted(set(blockers))),
         )
 
@@ -409,20 +354,9 @@ class FixtureSuiteLifecycle:
                 )
                 return prepared, True, ()
 
-            bundle = self._commands.integration_bundle(
-                FixtureBundleRequest(
-                    environment=request.environment,
-                    application_id=definition.application_id,
-                    access_mode=definition.access_mode,
-                    route_intent=definition.route_intent,
-                    expected_platform_source_revision=(
-                        request.expected_platform_source_revision
-                    ),
-                    expected_platform_generation=(
-                        request.expected_platform_generation
-                    ),
-                )
-            )
+            bundle = request.integration_bundle
+            if bundle is None:
+                return None, False, ("INTEGRATION_BUNDLE_REQUIRED",)
             if not self._bundle_matches(bundle, definition, request):
                 return None, False, ("INTEGRATION_BUNDLE_MISMATCH",)
 
@@ -525,56 +459,8 @@ class FixtureSuiteLifecycle:
             integration_bundle_path=preparation.integration_bundle_path,
             attachment_bundle_digest=preparation.attachment_bundle_digest,
             attachment_bundle_path=preparation.attachment_bundle_path,
+            registration_intent_path=preparation.registration_intent_path,
             preparation_reused=reused,
-        )
-
-    def deploy(self, request: FixtureDeployRequest) -> FixtureDeployResult:
-        """Deploy and register exactly one selected Fixture Application."""
-
-        definition, blocker = self._definition(request)
-        if definition is None:
-            return self._blocked(blocker or "FIXTURE_REQUEST_INVALID")
-        preparation, reused, blockers = self._prepare(
-            request,
-            definition,
-            total_stages=3,
-            preparation_stage_title="Deploy the Fixture Application",
-            reuse_stage_title="Reuse the Verified Fixture Application",
-        )
-        if preparation is None:
-            return self._blocked(*blockers)
-        self._announce_stage(3, 3, "Register and Activate the Fixture Route")
-        try:
-            registration = self._commands.register(
-                FixtureRegistrationRequest(
-                    environment=request.environment,
-                    integration_bundles=(preparation.integration_bundle,),
-                    deployments=(preparation.deployment,),
-                )
-            )
-        except FixtureCommandError as error:
-            return self._blocked(str(error) or "FIXTURE_COMMAND_FAILED")
-
-        application_ids = (preparation.deployment.application_id,)
-        if (
-            not registration.active
-            or registration.generation < 1
-            or registration.application_ids != application_ids
-            or re.fullmatch(r"sha256:[0-9a-f]{64}", registration.generation_digest)
-            is None
-        ):
-            return self._blocked("FIXTURE_REGISTRATION_READBACK_MISMATCH")
-        return FixtureDeployResult(
-            outcome="deployed",
-            image_reference=preparation.image.reference,
-            application_ids=application_ids,
-            registration_generation=registration.generation,
-            registration_generation_digest=registration.generation_digest,
-            preparation_reused=reused,
-            integration_bundle_digest=preparation.integration_bundle_digest,
-            integration_bundle_path=preparation.integration_bundle_path,
-            attachment_bundle_digest=preparation.attachment_bundle_digest,
-            attachment_bundle_path=preparation.attachment_bundle_path,
         )
 
     def status(
@@ -612,7 +498,7 @@ class FixtureSuiteLifecycle:
             )
 
     def destroy(self, request: FixtureDestroyRequest) -> FixtureDestroyResult:
-        """Detach and destroy one selected fixture Application State lineage."""
+        """Destroy one already detached fixture Application State lineage."""
 
         if (
             request.environment != "staging"
@@ -655,12 +541,10 @@ __all__ = (
     "FixtureApplicationDeployRequest",
     "FixtureApplicationDeployment",
     "FixtureApplicationStatus",
-    "FixtureBundleRequest",
     "FixtureCommandError",
     "FixtureCommands",
     "FixtureDefinition",
     "FixtureDeployRequest",
-    "FixtureDeployResult",
     "FixtureDestroyReadback",
     "FixtureDestroyRequest",
     "FixtureDestroyResult",
@@ -668,8 +552,6 @@ __all__ = (
     "FixtureImageRequest",
     "FixtureHandoffResult",
     "FixturePreparation",
-    "FixtureRegistrationReadback",
-    "FixtureRegistrationRequest",
     "FixtureSuiteLifecycle",
     "FixtureStatusResult",
 )

@@ -6,10 +6,13 @@
     "reference_kind": "platform",
     "state_owner": "platform",
     "owner_id": "app-platform",
+    "project_id": "synthetic-platform",
     "project_number": "123456789012",
     "region": "us-west1",
     "platform_issuer": "https://apps.example.invalid/_platform",
     "public_key_reference": "https://apps.example.invalid/.well-known/jwks.json",
-    "edge_caller_principal": "serviceAccount:synthetic-edge-caller@synthetic-platform.iam.gserviceaccount.com"
+    "edge_caller_principal": "serviceAccount:synthetic-edge-caller@synthetic-platform.iam.gserviceaccount.com",
+    "shared_network_reference": "projects/synthetic-platform/global/networks/synthetic-shared",
+    "application_subnet_reference": "projects/synthetic-platform/regions/us-west1/subnetworks/synthetic-applications"
   }
 }

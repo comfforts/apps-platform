@@ -26,7 +26,10 @@ run "plans_isolated_restricted_fixture" {
 
   assert {
     condition = (
-      module.fixture_application.policy_summary.ingress == "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" &&
+      module.fixture_application.policy_summary.ingress == "INGRESS_TRAFFIC_INTERNAL_ONLY" &&
+      module.fixture_application.policy_summary.network_reference == "projects/synthetic-platform/global/networks/synthetic-shared" &&
+      module.fixture_application.policy_summary.subnetwork_reference == "projects/synthetic-platform/regions/us-west1/subnetworks/synthetic-applications" &&
+      module.fixture_application.policy_summary.vpc_egress == "ALL_TRAFFIC" &&
       !module.fixture_application.policy_summary.invoker_iam_disabled &&
       !module.fixture_application.policy_summary.unauthenticated_invocation &&
       module.fixture_application.policy_summary.edge_caller_role == "roles/run.invoker" &&

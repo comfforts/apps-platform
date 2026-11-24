@@ -67,9 +67,7 @@ _HOSTNAME = "apps-staging.comfforts.com"
 _IMAGE_PACKAGE = (
     f"{_REGION}-docker.pkg.dev/{_PROJECT_ID}/app-platform-images/shared-edge"
 )
-_FIXTURE_IMAGE_PACKAGE = (
-    f"{_REGION}-docker.pkg.dev/{_PROJECT_ID}/app-platform-images/fixture"
-)
+_PROJECT_ID_PATTERN = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]")
 _SOURCE_REVISION = re.compile(r"[0-9a-f]{40}")
 _VERSION_REFERENCE = re.compile(
     r"projects/comfforts-platform-non-prod/locations/us-west1/keyRings/"
@@ -179,12 +177,23 @@ class GcloudDeploymentProvider:
         cloud_sdk_configuration: Path,
         working_root: Path,
         runner: DeploymentProviderRunner,
+        fixture_project_id: str,
         private_state_root: Path | None = None,
     ) -> None:
         self._executable = executable.resolve()
         self._cloud_sdk_configuration = cloud_sdk_configuration.resolve()
         self._working_root = working_root.resolve()
         self._runner = runner
+        if (
+            _PROJECT_ID_PATTERN.fullmatch(fixture_project_id) is None
+            or fixture_project_id == _PROJECT_ID
+        ):
+            raise ValueError("fixture project ID must be explicit and separate")
+        self._fixture_project_id = fixture_project_id
+        self._fixture_image_package = (
+            f"{_REGION}-docker.pkg.dev/{fixture_project_id}/"
+            "app-platform-images/fixture"
+        )
         self._private_state_root: Path | None = None
         if not self._executable.is_file():
             raise ValueError("an absolute Cloud SDK executable is required")
@@ -259,8 +268,8 @@ class GcloudDeploymentProvider:
             raise DeploymentProviderError(code)
         return result
 
-    def _common(self) -> tuple[str, ...]:
-        return (f"--project={_PROJECT_ID}", "--quiet")
+    def _common(self, project_id: str = _PROJECT_ID) -> tuple[str, ...]:
+        return (f"--project={project_id}", "--quiet")
 
     def _run_common(
         self,
@@ -283,10 +292,11 @@ class GcloudDeploymentProvider:
         config_failure_code: str,
         phase: str,
         *arguments: str,
+        project_id: str = _PROJECT_ID,
     ) -> ProviderCommandResult:
         result = self._try(
             *arguments,
-            *self._common(),
+            *self._common(project_id),
             timeout_seconds=900,
         )
         if result.returncode == 0:
@@ -435,6 +445,7 @@ class GcloudDeploymentProvider:
         package: str,
         source_revision: str,
         invalid_code: str,
+        project_id: str = _PROJECT_ID,
     ) -> str | None:
         if _SOURCE_REVISION.fullmatch(source_revision) is None:
             raise ValueError("source revision must be exact")
@@ -446,7 +457,7 @@ class GcloudDeploymentProvider:
             "describe",
             tagged_image,
             "--format=value(image_summary.digest)",
-            *self._common(),
+            *self._common(project_id),
         )
         if result.returncode != 0:
             return None
@@ -464,9 +475,10 @@ class GcloudDeploymentProvider:
 
     def read_fixture_image(self, source_revision: str) -> str | None:
         return self._read_image(
-            _FIXTURE_IMAGE_PACKAGE,
+            self._fixture_image_package,
             source_revision,
             "FIXTURE_IMAGE_READBACK_INVALID",
+            self._fixture_project_id,
         )
 
     def publish_shared_edge_image(self, source_revision: str) -> str:
@@ -513,7 +525,7 @@ class GcloudDeploymentProvider:
             or config.is_symlink()
         ):
             raise DeploymentProviderError("FIXTURE_IMAGE_BUILD_CONFIG_INVALID")
-        tagged_image = f"{_FIXTURE_IMAGE_PACKAGE}:source-{source_revision}"
+        tagged_image = f"{self._fixture_image_package}:source-{source_revision}"
         self._run_cloud_build(
             "FIXTURE_IMAGE_BUILD_FAILED",
             "FIXTURE_IMAGE_BUILD_CONFIG_INVALID",
@@ -526,6 +538,7 @@ class GcloudDeploymentProvider:
                 f"--substitutions=_IMAGE={tagged_image},"
                 f"_SOURCE_REVISION={source_revision}"
             ),
+            project_id=self._fixture_project_id,
         )
         observed = self.read_fixture_image(source_revision)
         if observed is None:

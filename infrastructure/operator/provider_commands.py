@@ -11,6 +11,7 @@ from typing import Any, Protocol
 
 from infrastructure.operator.integration import RegistrationGenerationProposal
 from infrastructure.operator.integration import AttachmentTargetReadback
+from infrastructure.operator.integration import ApplicationProjectConnectionReader
 from infrastructure.operator.local_generation import (
     GenerationProvider,
     ProviderGenerationActivation,
@@ -159,6 +160,7 @@ class GcloudGenerationProvider(GenerationProvider):
         service_name: str,
         configuration_bucket: str,
         runner: ProviderCommandRunner,
+        project_connections: ApplicationProjectConnectionReader | None = None,
     ) -> None:
         self._executable = executable.resolve()
         self._cloud_sdk_configuration = cloud_sdk_configuration.resolve()
@@ -169,6 +171,7 @@ class GcloudGenerationProvider(GenerationProvider):
         self._service_name = service_name
         self._configuration_bucket = configuration_bucket
         self._runner = runner
+        self._project_connections = project_connections
         if not self._executable.is_file():
             raise ValueError("an absolute Cloud SDK executable is required")
         if (
@@ -746,7 +749,11 @@ class GcloudGenerationProvider(GenerationProvider):
     @staticmethod
     def _service_environment(service: dict[str, Any]) -> dict[str, str]:
         try:
-            values = service["spec"]["template"]["spec"]["containers"][0]["env"]
+            template = service["spec"]["template"]
+            containers = template.get("containers")
+            if containers is None:
+                containers = template["spec"]["containers"]
+            values = containers[0]["env"]
         except (KeyError, IndexError, TypeError) as error:
             raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID") from error
         if not isinstance(values, list):
@@ -769,27 +776,54 @@ class GcloudGenerationProvider(GenerationProvider):
     ) -> AttachmentTargetReadback:
         """Read one exact Cloud Run attachment and its edge-caller IAM grant."""
 
-        prefix = (
-            "urn:comfforts:app-platform:gcp:cloud-run:"
-            f"{self._project_number}:{self._region}:"
-        )
-        application_id = resource_reference.removeprefix(prefix)
+        prefix = "urn:comfforts:app-platform:gcp:cloud-run:"
+        parts = resource_reference.removeprefix(prefix).split(":")
         if (
             environment != "staging"
             or not resource_reference.startswith(prefix)
-            or not application_id
+            or len(parts) != 3
+            or self._project_connections is None
+        ):
+            raise GenerationProviderError("ATTACHMENT_REFERENCE_INVALID")
+        project_number, region, service_name = parts
+        try:
+            connection = self._project_connections.read_project_number(
+                environment,
+                project_number,
+            )
+        except (OSError, ValueError) as error:
+            raise GenerationProviderError("APPLICATION_PROJECT_NOT_CONNECTED") from error
+        if (
+            connection.project_number != project_number
+            or connection.region != region
+            or region != self._region
+            or not service_name
             or any(
                 character not in "abcdefghijklmnopqrstuvwxyz0123456789-"
-                for character in application_id
+                for character in service_name
             )
         ):
             raise GenerationProviderError("ATTACHMENT_REFERENCE_INVALID")
-        service = self._try_describe_named_service(application_id)
+        service_result = self._try_run(
+            "run",
+            "services",
+            "describe",
+            service_name,
+            f"--region={region}",
+            "--format=json",
+            f"--project={connection.project_id}",
+            "--quiet",
+        )
+        service = (
+            None
+            if service_result.returncode != 0
+            else self._json("ATTACHMENT_TARGET_READBACK_INVALID", service_result.stdout)
+        )
         if service is None:
             return AttachmentTargetReadback(
                 exists=False,
                 ready=False,
-                owner_application_id=application_id,
+                owner_application_id="",
                 adapter_kind="gcp-cloud-run-v1",
                 resource_reference=resource_reference,
                 ingress_mode="unavailable",
@@ -821,24 +855,71 @@ class GcloudGenerationProvider(GenerationProvider):
             label_blockers.append("TARGET_STATE_OWNER_LABEL_MISMATCH")
         if labels.get("environment") != "qualification":
             label_blockers.append("TARGET_ENVIRONMENT_LABEL_MISMATCH")
-        if labels.get("application_id") != application_id:
+        owner_application_id = labels.get("application_id")
+        if (
+            not isinstance(owner_application_id, str)
+            or not owner_application_id
+            or any(
+                character not in "abcdefghijklmnopqrstuvwxyz0123456789-"
+                for character in owner_application_id
+            )
+        ):
             label_blockers.append("TARGET_APPLICATION_LABEL_MISMATCH")
+        provider_ingress = annotations.get("run.googleapis.com/ingress")
+        if provider_ingress is None:
+            provider_ingress = service.get("ingress")
         ingress = (
             "shared_edge_only"
-            if annotations.get("run.googleapis.com/ingress")
-            == "internal-and-cloud-load-balancing"
+            if provider_ingress in {"internal", "INGRESS_TRAFFIC_INTERNAL_ONLY"}
             else "unverified"
         )
+        template = service.get("spec", {}).get("template", {})
+        template_annotations = (
+            template.get("metadata", {}).get("annotations", {})
+            if isinstance(template, dict)
+            else {}
+        )
+        network_reference = None
+        subnetwork_reference = None
+        egress_mode = None
+        if isinstance(template_annotations, dict):
+            raw_interfaces = template_annotations.get(
+                "run.googleapis.com/network-interfaces"
+            )
+            if isinstance(raw_interfaces, str):
+                try:
+                    interfaces = json.loads(raw_interfaces)
+                except json.JSONDecodeError:
+                    interfaces = None
+                if isinstance(interfaces, list) and len(interfaces) == 1:
+                    interface = interfaces[0]
+                    if isinstance(interface, dict):
+                        network_reference = interface.get("network")
+                        subnetwork_reference = interface.get("subnetwork")
+            if template_annotations.get("run.googleapis.com/vpc-access-egress") == "all-traffic":
+                egress_mode = "all-traffic"
+        vpc_access = template.get("vpcAccess") if isinstance(template, dict) else None
+        if isinstance(vpc_access, dict):
+            interfaces = vpc_access.get("networkInterfaces")
+            if isinstance(interfaces, list) and len(interfaces) == 1:
+                interface = interfaces[0]
+                if isinstance(interface, dict):
+                    network_reference = interface.get("network")
+                    subnetwork_reference = interface.get("subnetwork")
+            if vpc_access.get("egress") == "ALL_TRAFFIC":
+                egress_mode = "all-traffic"
         policy = self._json(
             "ATTACHMENT_IAM_READBACK_INVALID",
-            self._run_common(
+            self._run(
                 "ATTACHMENT_IAM_READBACK_FAILED",
                 "run",
                 "services",
                 "get-iam-policy",
-                application_id,
+                service_name,
                 f"--region={self._region}",
                 "--format=json",
+                f"--project={connection.project_id}",
+                "--quiet",
             ).stdout,
         )
         bindings = policy.get("bindings")
@@ -865,12 +946,20 @@ class GcloudGenerationProvider(GenerationProvider):
         return AttachmentTargetReadback(
             exists=True,
             ready=ready,
-            owner_application_id=application_id,
+            owner_application_id=(
+                owner_application_id
+                if isinstance(owner_application_id, str)
+                else ""
+            ),
             adapter_kind="gcp-cloud-run-v1",
             resource_reference=resource_reference,
             ingress_mode=ingress,
             caller_grant=caller_grant,
             audience=environment_values.get("APP_PLATFORM_ASSERTION_AUDIENCE"),
+            application_project_id=connection.project_id,
+            network_reference=network_reference,
+            subnetwork_reference=subnetwork_reference,
+            egress_mode=egress_mode,
             blockers=tuple(sorted(label_blockers)),
         )
 

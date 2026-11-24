@@ -57,6 +57,12 @@
       "maxLength": 19,
       "pattern": "^[1-9][0-9]{5,18}$"
     },
+    "projectId": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 30,
+      "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+    },
     "region": {
       "type": "string",
       "minLength": 2,
@@ -137,11 +143,14 @@
         "reference_kind",
         "state_owner",
         "owner_id",
+        "project_id",
         "project_number",
         "region",
         "platform_issuer",
         "public_key_reference",
-        "edge_caller_principal"
+        "edge_caller_principal",
+        "shared_network_reference",
+        "application_subnet_reference"
       ],
       "properties": {
         "reference_kind": {
@@ -152,6 +161,9 @@
         },
         "owner_id": {
           "const": "app-platform"
+        },
+        "project_id": {
+          "$ref": "#/$defs/projectId"
         },
         "project_number": {
           "$ref": "#/$defs/projectNumber"
@@ -167,6 +179,14 @@
         },
         "edge_caller_principal": {
           "$ref": "#/$defs/serviceAccountPrincipal"
+        },
+        "shared_network_reference": {
+          "type": "string",
+          "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/global/networks/[a-z][a-z0-9-]{0,61}[a-z0-9]$"
+        },
+        "application_subnet_reference": {
+          "type": "string",
+          "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/regions/[a-z](?:[a-z0-9-]{0,61}[a-z0-9])/subnetworks/[a-z][a-z0-9-]{0,61}[a-z0-9]$"
         }
       }
     },

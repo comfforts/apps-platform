@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlsplit
 import webbrowser
 
+from infrastructure.config.project_identity import fixtures_project_id
 from infrastructure.operator._core import LifecycleOperator
 from infrastructure.operator._interfaces import (
     DiscoverySnapshot,
@@ -800,6 +801,7 @@ def _local_deployment_executor(
                 project_root,
                 configuration,
             ),
+            fixture_project_id=fixtures_project_id(),
             private_state_root=resolved_state,
         )
     except (OSError, RuntimeError, ValueError):
@@ -944,6 +946,9 @@ def _local_generation_provider(
         ClosedGcloudRunner,
         GcloudGenerationProvider,
     )
+    from infrastructure.operator.local_project_connections import (
+        LocalProjectConnectionStore,
+    )
 
     executable_name = shutil.which("gcloud")
     configured = os.environ.get("CLOUDSDK_CONFIG")
@@ -972,6 +977,9 @@ def _local_generation_provider(
         service_name="app-platform-edge",
         configuration_bucket="comfforts-ap-stg-455651441682-configuration",
         runner=runner,
+        project_connections=LocalProjectConnectionStore(
+            LocalFilesystem(project_root, state_root)
+        ),
     )
 
 
@@ -990,6 +998,9 @@ def build_local_integration(
         LocalPlatformIntegrationReader,
     )
     from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
+    from infrastructure.operator.local_project_connections import (
+        LocalProjectConnectionStore,
+    )
 
     resolved_project = project_root.resolve()
     filesystem = LocalFilesystem(resolved_project, state_root)
@@ -1009,6 +1020,7 @@ def build_local_integration(
         ),
         attachment_reader=provider,
         generation_control=generations if provider is not None else None,
+        project_connections=LocalProjectConnectionStore(filesystem),
         terminal=ConsoleTerminal(),
     )
 
@@ -1048,6 +1060,9 @@ def build_local_fixture_operator(
     )
     from infrastructure.operator.local_integration import (
         LocalPlatformIntegrationReader,
+    )
+    from infrastructure.operator.local_project_connections import (
+        LocalProjectConnectionStore,
     )
 
     resolved_project = project_root.resolve()
@@ -1099,6 +1114,7 @@ def build_local_fixture_operator(
             resolved_project,
             configuration,
         ),
+        fixture_project_id=fixtures_project_id(),
         private_state_root=resolved_state,
     )
     generation_provider = _local_generation_provider(resolved_project, resolved_state)
@@ -1119,6 +1135,7 @@ def build_local_fixture_operator(
         platform,
         attachment_reader=generation_provider,
         generation_control=generations,
+        project_connections=LocalProjectConnectionStore(filesystem),
         terminal=terminal,
     )
     fixture_terraform_commands = LocalFixtureDeploymentCommands(
@@ -1152,6 +1169,56 @@ def build_local_fixture_operator(
     )
 
 
+def build_local_project_lifecycle(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+):
+    """Construct explicit project bootstrap/connection operations."""
+
+    from infrastructure.operator.local_project_connections import (
+        GcloudApplicationProjectProvider,
+        LocalProjectConnectionStore,
+    )
+    from infrastructure.operator.project_connections import (
+        ApplicationProjectLifecycle,
+    )
+    from infrastructure.operator.source_authority import source_authority_blockers
+
+    resolved_project = project_root.resolve()
+    snapshot = LocalGit(resolved_project).inspect()
+    blockers = source_authority_blockers(snapshot, "staging", source_authority)
+    if blockers:
+        raise RuntimeError(blockers[0])
+    terminal = ConsoleTerminal()
+    executable_name = shutil.which("gcloud")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
+    verified = _verified_gcp_session(
+        ProfileGcp(
+            Path(executable_name).resolve() if executable_name else None,
+            configuration,
+        ),
+        state_root,
+        terminal,
+    )
+    filesystem = LocalFilesystem(resolved_project, verified.state_root)
+    return ApplicationProjectLifecycle(
+        GcloudApplicationProjectProvider(
+            verified.executable,
+            verified.configuration,
+            resolved_project,
+            fixtures_project_id(),
+        ),
+        LocalProjectConnectionStore(filesystem),
+        terminal,
+    )
+
+
 def build_local_fixture_status_operator(
     project_root: Path,
     state_root: Path,
@@ -1169,6 +1236,10 @@ def build_local_fixture_status_operator(
     from infrastructure.operator.local_integration import (
         LocalPlatformIntegrationReader,
     )
+    from infrastructure.operator.local_project_connections import (
+        LocalProjectConnectionStore,
+    )
+    import httpx
 
     resolved_project = project_root.resolve()
     resolved_state = state_root.resolve()
@@ -1183,12 +1254,33 @@ def build_local_fixture_status_operator(
         generations,
         initial_generation_binder=generations,
     )
+    def route_ready(application_id: str) -> bool:
+        try:
+            with httpx.Client(
+                follow_redirects=False,
+                timeout=10.0,
+                trust_env=False,
+            ) as client:
+                response = client.get(
+                    f"https://apps-staging.comfforts.com/{application_id}"
+                )
+        except httpx.HTTPError:
+            return False
+        if 200 <= response.status_code < 300:
+            return True
+        return (
+            300 <= response.status_code < 400
+            and bool(response.headers.get("location"))
+        )
+
     return LocalFixtureStatusOperator(
         ApplicationIntegrationLifecycle(
             platform,
             attachment_reader=provider,
             generation_control=generations,
-        )
+            project_connections=LocalProjectConnectionStore(filesystem),
+        ),
+        route_ready,
     )
 
 
@@ -1213,6 +1305,9 @@ def build_local_qualification(
     from infrastructure.operator.local_integration import (
         LocalPlatformIntegrationReader,
     )
+    from infrastructure.operator.local_project_connections import (
+        GcloudApplicationProjectProvider,
+    )
     from infrastructure.operator.local_qualification import (
         LiveGenerationRollbackExercise,
         LocalQualificationStateReader,
@@ -1221,7 +1316,6 @@ def build_local_qualification(
         QualificationLifecycle,
         QualificationSuiteEvaluator,
     )
-
     resolved_project = project_root.resolve()
     terminal = ConsoleTerminal()
     executable_name = shutil.which("gcloud")
@@ -1258,6 +1352,12 @@ def build_local_qualification(
         LocalApplicationHandoffs(filesystem),
         provider,
     )
+    fixture_project = GcloudApplicationProjectProvider(
+        verified.executable,
+        verified.configuration,
+        resolved_project,
+        fixtures_project_id(),
+    ).read_project(fixtures_project_id())
     probe = StagingQualificationProbe(
         HttpxQualificationClient(),
         LoopbackBrowserQualification(SystemBrowserLauncher(), terminal),
@@ -1267,6 +1367,7 @@ def build_local_qualification(
             LocalReviewedGenerationControl(generations),
             terminal,
         ),
+        fixture_project,
     )
     return QualificationLifecycle(state_reader, QualificationSuiteEvaluator(probe))
 

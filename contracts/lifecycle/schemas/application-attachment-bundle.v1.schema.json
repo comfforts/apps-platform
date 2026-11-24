@@ -66,6 +66,10 @@
         "owner_application_id",
         "adapter_kind",
         "resource_reference",
+        "application_project_id",
+        "network_reference",
+        "subnetwork_reference",
+        "egress_mode",
         "ingress_mode",
         "caller_grant",
         "audience"
@@ -79,6 +83,10 @@
           "maxLength": 324,
           "pattern": "^urn:comfforts:app-platform:gcp:cloud-run:[1-9][0-9]{5,18}:[a-z][a-z0-9-]{1,61}[a-z0-9]:[a-z][a-z0-9-]{1,61}[a-z0-9]$"
         },
+        "application_project_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"},
+        "network_reference": {"type": "string", "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/global/networks/[a-z][a-z0-9-]{1,61}[a-z0-9]$"},
+        "subnetwork_reference": {"type": "string", "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/regions/[a-z][a-z0-9-]{1,61}[a-z0-9]/subnetworks/[a-z][a-z0-9-]{1,61}[a-z0-9]$"},
+        "egress_mode": {"const": "all-traffic"},
         "ingress_mode": {"const": "shared_edge_only"},
         "caller_grant": {
           "type": "string",

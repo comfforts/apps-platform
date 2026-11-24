@@ -13,6 +13,13 @@ from infrastructure.operator.live_qualification import (
     StagingQualificationProbe,
 )
 from infrastructure.operator.qualification import QualificationProbeRequest
+from infrastructure.operator.project_connections import (
+    ApplicationProjectReadback,
+    NETWORK_REFERENCE,
+    PLATFORM_PROJECT_ID,
+    SUBNETWORK_REFERENCE,
+)
+from tests.environment import FIXTURES_PROJECT_ID
 from tests.test_qualification_suite import readback
 
 
@@ -101,6 +108,10 @@ class Targets:
                 if application_id == "fixture-public"
                 else f"urn:comfforts:app-platform:audience:{application_id}"
             ),
+            application_project_id=FIXTURES_PROJECT_ID,
+            network_reference=NETWORK_REFERENCE,
+            subnetwork_reference=SUBNETWORK_REFERENCE,
+            egress_mode="all-traffic",
         )
 
 
@@ -113,6 +124,20 @@ class Lifecycle:
 
 
 class LiveQualificationProbeTest(unittest.TestCase):
+    @staticmethod
+    def _fixture_project() -> ApplicationProjectReadback:
+        return ApplicationProjectReadback(
+            project_id=FIXTURES_PROJECT_ID,
+            exists=True,
+            project_number="123456789012",
+            state_bucket_ready=True,
+            artifact_repository_ready=True,
+            host_project_id=PLATFORM_PROJECT_ID,
+            network_viewer_granted=True,
+            subnet_user_granted=True,
+            fixture_ownership_matches=True,
+        )
+
     @staticmethod
     def _current():  # type: ignore[no-untyped-def]
         current = readback()
@@ -132,7 +157,13 @@ class LiveQualificationProbeTest(unittest.TestCase):
     def test_all_closed_checks_pass_through_exact_live_adapters(self) -> None:
         browser = Browser()
         current = self._current()
-        probe = StagingQualificationProbe(Http(), browser, Targets(), Lifecycle())  # type: ignore[arg-type]
+        probe = StagingQualificationProbe(
+            Http(),
+            browser,
+            Targets(),
+            Lifecycle(),
+            self._fixture_project(),
+        )  # type: ignore[arg-type]
         checks = (
             "admission-identity",
             "assertion-jwks",
@@ -162,6 +193,7 @@ class LiveQualificationProbeTest(unittest.TestCase):
             Browser(BrowserQualificationResult(False, False, False)),
             Targets(),
             Lifecycle(),
+            self._fixture_project(),
         )  # type: ignore[arg-type]
 
         result = probe.evaluate(
@@ -171,6 +203,26 @@ class LiveQualificationProbeTest(unittest.TestCase):
         self.assertEqual(result.outcome, "fail")
         self.assertEqual(result.blockers, ("LIVE_ADMISSION_IDENTITY_MISMATCH",))
         self.assertNotIn("cookie", repr(result.observation).lower())
+
+    def test_attachment_qualification_requires_live_project_connection(self) -> None:
+        probe = StagingQualificationProbe(
+            Http(),
+            Browser(),
+            Targets(),
+            Lifecycle(),
+            replace(self._fixture_project(), subnet_user_granted=False),
+        )  # type: ignore[arg-type]
+
+        result = probe.evaluate(
+            QualificationProbeRequest(
+                "attachment-posture",
+                (),
+                self._current(),
+            )
+        )
+
+        self.assertEqual(result.outcome, "fail")
+        self.assertEqual(result.blockers, ("LIVE_ATTACHMENT_POSTURE_MISMATCH",))
 
 
 if __name__ == "__main__":

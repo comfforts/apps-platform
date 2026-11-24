@@ -54,10 +54,12 @@ or otherwise rewrite that record.
 The normal accepted staging journey is:
 
 ```bash
+make fixture-project-bootstrap ENVIRONMENT=staging \
+  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
 make platform-deploy ENVIRONMENT=staging
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-public
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-restricted
+make platform-connect-project ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
+# For each fixture: platform-outputs, fixture-handoff, inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging
 make platform-qualify ENVIRONMENT=staging
 make platform-status ENVIRONMENT=staging
@@ -217,14 +219,21 @@ not necessarily qualified; status reports those states separately.
 Applications remain responsible for their own runtime, data, state, secrets, and feature
 authorization. The platform and application exchange non-secret, digest-bound bundles:
 
-1. Run `platform-outputs` for one application, route, and admission mode.
-2. Give the resulting Platform Integration Bundle to the Application Owner.
-3. The Application Owner deploys the application through its own lifecycle and state.
-4. The Application Owner returns an Application Attachment Bundle bound to the integration-bundle
+1. Run `platform-connect-project` once for the application project in this environment. It attaches
+   only that existing project to the platform Shared VPC and verifies subnet access for its Cloud
+   Run service agent.
+2. Run `platform-outputs` for that project, one application, route, and admission mode.
+3. Give the resulting Platform Integration Bundle to the Application Owner.
+4. The Application Owner deploys the application through its own lifecycle and state.
+5. The Application Owner returns an Application Attachment Bundle bound to the integration-bundle
    digest.
-5. Run `platform-register` with those bundles and the reviewed registration intent.
-6. The platform validates provider posture and activates one complete immutable registration
+6. Run `platform-register` with those bundles and the reviewed registration intent.
+7. The platform validates project, network, ingress, IAM, audience, and target posture and activates one complete immutable registration
    generation.
+
+Project connection does not create a runtime, application backend, image, route, registration, or
+qualification. Every provider command names its project explicitly; do not switch the active
+gcloud project merely to connect or operate an application.
 
 Use `platform-detach` for a reversible maintenance or replacement cycle. Detachment removes the
 application from routing while reserving its identifier and route. Use `platform-retire` only for
@@ -235,16 +244,53 @@ permanent retirement; it cannot be reversed.
 The synthetic fixtures exercise the same bundle and registration path as real applications:
 
 ```bash
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-public
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-restricted
-make fixture-status ENVIRONMENT=staging
+make fixture-project-bootstrap ENVIRONMENT=staging \
+  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
+make platform-connect-project ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
 ```
 
-Each deployment targets one required fixture identifier and creates or updates only that fixture's
-independent Application State. It reads back that target before activating a complete Registration
-Generation that preserves the other registrations. Run the command separately for every fixture
-needed by qualification.
+The bootstrap is idempotent and normally runs once. It creates or repairs the dedicated fixture
+application project, enables its required services, and creates its private versioned state bucket
+and image repository. Google Cloud assigns the new project's numeric identifier. Bootstrap reads
+that project number back and prints it; the operator never supplies or derives it. The later
+project-connection operation reads the number again and writes it into the private connection
+record consumed by bundle generation and fixture deployment. Bootstrap creates no runtime or
+route. The connection is also idempotent and
+normally runs once after the platform network exists.
+
+For each fixture, generate its project-scoped bundle, deploy its application-owned runtime, inspect
+the handoff, and register it explicitly. For example:
+
+```bash
+make platform-outputs \
+  ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod \
+  APPLICATION_ID=fixture-public \
+  ACCESS_MODE=public \
+  ROUTE_INTENT=/fixture-public \
+  PLATFORM_SOURCE_REVISION=<active-platform-revision> \
+  PLATFORM_GENERATION=<active-registration-generation>
+
+make fixture-handoff \
+  ENVIRONMENT=staging \
+  APPLICATION_ID=fixture-public \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json
+
+# Inspect all three printed files without editing them.
+make platform-register \
+  ENVIRONMENT=staging \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v1.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v1.json
+
+make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-public
+```
+
+Repeat for the authenticated and restricted fixture with the matching admission mode and route.
+Each fixture root uses an independent prefix in the fixture-project state bucket and creates only
+that fixture's Application State. `platform-register` reads back the target before activating a
+complete Registration Generation that preserves the other registrations.
 
 Do not redeploy the platform merely because the repository revision running a fixture command is
 newer than the deployed platform revision. The command validates its own source admission, reads
@@ -253,38 +299,42 @@ binds both revisions independently. Run `platform-deploy` first only when platfo
 state must change. Accepted qualification is a separate claim and requires an Accepted Source
 platform deployment.
 
-`fixture-deploy` also performs the selected fixture's bundle handoff. It generates the Platform
-Integration Bundle, deploys that fixture, receives and validates its Application Attachment Bundle,
-and registers it. Its terminal output identifies the current step as stage 1/3, 2/3, or 3/3:
-resolve the platform handoff, deploy or reuse the fixture application, then register and activate
-the fixture route. Do not run `platform-outputs` or `platform-register` separately for that fixture.
-
-When you want to inspect those exact bundles before registration, use the optional handoff stop for
-that fixture:
-
-```bash
-make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
-# Inspect the integration_bundle_path and attachment_bundle_path printed by the command.
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
-```
-
 `fixture-handoff` is not read-only preparation. It builds or reuses the immutable image, plans and
 applies the selected fixture's Application State, validates provider posture, and writes the two
-canonical non-secret bundle files beneath `.platform-operator/`; it does not activate a Registration
-Generation or make the route available. It labels the same first two steps as stage 1/2 and 2/2.
+canonical non-secret bundle files and registration intent beneath `.platform-operator/`; it does
+not activate a Registration Generation or make the route available. It labels the steps as stage
+1/2 and 2/2.
 Stage 2/2 is `Prepare the Fixture Application Handoff`: it may deploy or reconcile Application
 State, but it never registers or activates the route. Inspect the files without editing them.
 
-The subsequent `fixture-deploy` retains its normal complete automation. It rereads the prepared
-pair and proceeds directly to registration only when the environment, fixture identifier, source
-authority, fixture source, platform source and active generation, immutable image, bundle digests
-and relationship, and current provider posture remain exact. Otherwise it generates a current
-handoff and reconciles the fixture again before registration. `preparation_reused: true` in the
-command result confirms reuse. Running `fixture-handoff` is optional.
+Registration is always the separate `platform-register` step. If the handoff must be regenerated,
+rerun it with the current Platform Integration Bundle and inspect the newly printed files before
+registration. There is no combined fixture deploy-and-register shortcut.
+
+### One-time transition from the former same-project fixture
+
+If staging still contains a fixture created by the former same-project implementation, remove that
+fixture through the source-admitted predecessor revision before beginning the cross-project
+sequence. From a clean branch whose pushed upstream still points to that exact predecessor, use
+the same `SOURCE_AUTHORITY` that created the fixture, run `platform-detach` for the active fixture,
+and then run its former `fixture-destroy`. A detached commit does not satisfy Candidate Source
+admission. Confirm with provider and Terraform-state readback that the old Cloud Run service and
+its Application State are gone. Do not delete the old service or edit its state by hand. Then
+return to the cross-project revision and run `fixture-project-bootstrap`,
+`platform-deploy`, `platform-connect-project`, `platform-outputs`, `fixture-handoff`, and
+`platform-register` in the documented order. The route remains reserved during this transition and
+is unavailable until the new attachment is registered.
+
+This transition is needed only for fixture state that predates the dedicated fixture project. New
+fixture revisions remain in `comfforts-app-fixtures-nonprod` and use the normal detach, destroy,
+handoff, and register lifecycle.
 
 `fixture-status` reconciles all three fixture registrations and provider targets by default. During
 an individual rollout or investigation, add `APPLICATION_ID=<fixture-application-id>` to narrow the
-read-only result to one fixture.
+read-only result to one fixture. `target_ready` is Cloud Run/provider posture;
+`route_ready` is a separate HTTPS read of the platform route and becomes true only for a successful
+response or a real authentication redirect. An active registration and ready target do not by
+themselves make `route_ready` true.
 
 ## Qualify an environment
 
@@ -395,10 +445,12 @@ A clean pushed branch containing current `origin/main` may exercise staging befo
 
 ```bash
 git push -u origin HEAD
+make fixture-project-bootstrap ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
 make platform-deploy ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-public SOURCE_AUTHORITY=candidate
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated SOURCE_AUTHORITY=candidate
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-restricted SOURCE_AUTHORITY=candidate
+make platform-connect-project ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
+# For each fixture: platform-outputs, fixture-handoff, inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 ```
@@ -448,9 +500,11 @@ The command refuses to continue while active attachments or ownership blockers r
 traffic and external DNS in the controlled order, verifies each transition, and never issues a
 blind root destroy. Platform destruction never destroys Application State.
 
-Backend state, recovery material, retained configuration, signing keys, provider services, and
-evidence may remain after ordinary destruction. Purging retained material is a separate operation,
-not an automatic final step.
+Backend state, recovery material, retained configuration, signing keys, provider services,
+evidence, and the Shared VPC host/network/subnet may remain after ordinary destruction. The network
+remains because connected application projects are outside ordinary platform-destruction scope;
+removing their connection is a separate destructive authority. Purging retained material is a
+separate operation, not an automatic final step.
 
 ## Production
 

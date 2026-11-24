@@ -1,7 +1,7 @@
 # App Platform architecture decision records
 
-Version 0.8 | Status: accepted decisions through the AP-M9 operator-driven environment lifecycle;
-no platform infrastructure is deployed
+Version 0.9 | Status: accepted decisions through the AP-M9 cross-project fixture lifecycle;
+candidate staging infrastructure exists but has not been accepted or qualified
 
 These records capture hard-to-reverse App Platform boundaries. They are authoritative only for this
 project and do not transfer ownership of an existing application's resources. Requirement
@@ -252,7 +252,7 @@ qualification evidence schema remain system-design and evaluation decisions.
 
 ## ADR-005 · Qualify the first Live topology on GCP with Cloud Run attachments
 
-Status: Accepted
+Status: Accepted; fixture-project topology superseded by ADR-014
 
 Requirements: AP-PR-001, AP-PR-002, AP-PR-003, AP-PR-007, AP-PR-008, AP-PR-009,
 AP-QR-001, AP-QR-002, AP-QR-003, AP-QR-005, AP-QR-006
@@ -292,13 +292,9 @@ the declared project and region, a ready target, the named Application State own
 Ownership Manifest, and an application-owner-authorized grant to the platform edge caller. This
 joint proof binds the target to the registration without transferring management authority.
 
-The first live Fixture Application targets may share the qualification project with the platform,
-but each retains a separate Terraform state root and remains Application State. The reference form
-also permits a later target in an application-owned GCP project. Later cross-project GCP
-attachments use a platform-owned Shared VPC host network, with each application project attached
-as a service project through its own adoption procedure. The platform owns only the host network
-and edge identity, while the Application Owner continues to own its Cloud Run service, runtime IAM,
-data, and Application State. Cross-project behavior requires its own later evidence.
+Fixture Applications and real applications use the cross-project attachment topology defined by
+ADR-014. The typed reference resolves the target project explicitly; co-location with the platform
+project is not qualification evidence for an independently owned application.
 
 Protected Cloud Run targets must deny unauthenticated direct invocation and accept the dedicated
 edge caller through provider IAM in addition to independently verifying the application-bound
@@ -332,8 +328,8 @@ and cutover remain explicit, separately approved operator actions.
   make that distinction explicit.
 - The edge remains a hostname-wide concentration of risk and requires later IAM, identity,
   rollback, observability, and cost evidence before Live qualification.
-- A same-project fixture result does not qualify cross-project Shared VPC attachment or any real
-  application adoption.
+- Cross-project fixture evidence qualifies only the attachment mechanics it actually exercises; it
+  does not adopt or qualify a real application.
 - This decision selects topology only. It creates no Terraform configuration, provider resource,
   DNS record, certificate, credential, deployment, or Live evidence.
 
@@ -441,7 +437,8 @@ and qualified.
 
 ## ADR-007 · Separate state roots and use federated protected-main operations
 
-Status: Accepted; routine GitHub-Actions-only execution superseded by ADR-011
+Status: Accepted; routine GitHub-Actions-only execution superseded by ADR-011 and fixture-bucket
+placement refined by ADR-014
 
 Requirements: AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009, AP-QR-001, AP-QR-003,
 AP-QR-004, AP-QR-005, AP-QR-006
@@ -476,10 +473,12 @@ Application State. A future real application owns its backend in its own project
 chain; the platform never relocates that state into these roots.
 
 The bootstrap and platform roots use a dedicated platform-state bucket with distinct object
-prefixes because both are Platform State. Each Fixture Application uses a separate state bucket so
-the platform and other fixtures can be denied object access at the bucket boundary. Bucket names
-are environment configuration selected only after global-name availability is checked; they are
-not embedded in reusable modules or contracts.
+prefixes because both are Platform State. Repository-owned fixtures use separate prefixes in one
+versioned bucket owned by their dedicated fixture application project, as refined by ADR-014.
+Their Terraform roots remain independent. A real application owns its own backend under its own
+project and authority chain. Bucket names are environment configuration selected only after
+global-name availability is checked; reusable modules and public application contracts do not
+assume access to another owner's backend.
 
 Every state bucket uses uniform bucket-level access, public-access prevention, object versioning,
 and recovery history that retains a noncurrent version until it is at least 90 days old and at
@@ -784,10 +783,11 @@ longer retention, backup or PITR enablement, CDN, WAF, HSM, or missing ownership
 resources use at least `environment`, `managed_by`, `state_owner`, and, where applicable,
 `application_id` labels.
 
-The platform project pays for Shared Edge resources and the initial same-project qualification
-fixtures. A future application-owned project pays for its runtime, data, networking, and provider
-services unless an Application Adoption explicitly approves another allocation. Cross-project
-references never give the platform access to application billing or Terraform state.
+The platform project pays for Shared Edge resources and Shared VPC host resources. The dedicated fixture
+application project pays for fixture runtimes, images, state, and service-project usage. Another
+application-owned project pays for its runtime, data, networking use, and provider services unless
+an Application Adoption explicitly approves another allocation. Cross-project references never
+give the platform access to application billing or Terraform state.
 
 ### Considered alternatives
 
@@ -1012,3 +1012,74 @@ destruction.
   identities or weakening retirement.
 - Production ownership cannot be inferred from a matching hostname or resource name.
 - Platform destruction refuses active attachments and never destroys Application State.
+
+## ADR-014 · Qualify cross-project attachment through an explicit Shared VPC connection
+
+Status: Accepted
+
+Requirements: AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009, AP-PR-010, AP-PR-011, AP-PR-012,
+AP-QR-001, AP-QR-002, AP-QR-004 through AP-QR-009
+
+### Context
+
+The first provider-backed fixture implementation placed its Cloud Run targets in the platform
+project. That proved bundle and registration behavior but did not prove the central ownership
+claim that an independently owned application project can attach to the Shared Edge without
+transferring its runtime or state. Treating same-project fixtures as a substitute would leave the
+Finance Assistant and every other external application to discover the real network, IAM,
+project, billing, and state boundaries during adoption.
+
+### Decision
+
+The staging platform project is the platform-owned Shared VPC host. It owns the custom network, the regional
+application subnet, the Shared Edge, and the edge-caller identity. Each application project is an
+explicit Shared VPC service project. Its Cloud Run service uses Direct VPC egress through the
+platform subnet, denies public ingress, grants `roles/run.invoker` only to the platform edge
+caller, and independently verifies the platform assertion when identity is delivered.
+
+Connecting a project is an explicit platform operation performed once per environment/project
+pair. It reads the exact project number, attaches only that project to the named host, grants its
+Cloud Run service agent read-only host-network discovery and network-user access only on the
+application subnet, reads the result back, and writes a private non-secret connection record. It
+creates no application runtime or route.
+`platform-outputs` refuses an application project without that verified connection and includes
+the application project identity plus exact host-network, subnet, region, and egress references in
+the application-scoped Platform Integration Bundle.
+
+Repository fixtures run in the dedicated staging project selected explicitly through
+`FIXTURES_PROJECT_ID`; the current staging operator value is
+`comfforts-app-fixtures-nonprod`. A one-time interactive fixture-project bootstrap creates or
+repairs that project under the reviewed parent and billing account, enables only the required
+services, and creates its versioned private Terraform-state bucket and image repository. Google
+Cloud assigns the project number. The bootstrap reads it back, and project connection records and
+application bundles persist that provider identity; no fixture project number is configured or
+hardcoded. The three
+fixture roots retain independent state prefixes in that fixture-owned bucket. Platform bootstrap
+continues to create only the platform-state bucket and never manages fixture Application State.
+
+Fixture operation intentionally exposes the same ownership handoff as a real application. The
+operator connects the fixture project, generates the application-scoped Platform Integration
+Bundle, and passes it to `fixture-handoff`. That command builds and deploys only the selected
+fixture runtime through fixture-owned state and returns an Application Attachment Bundle plus a
+registration intent. It never activates a route. The Platform Operator inspects the handoff and
+runs `platform-register` to validate provider posture and atomically activate a Registration
+Generation. There is no combined `fixture-deploy` command.
+
+Destruction preserves the same separation. `platform-detach` first suspends and reserves the
+route. `fixture-destroy` then destroys only the selected fixture root after provider readback shows
+the route is suspended. Platform destruction never destroys the fixture project, bucket, runtime,
+or state. Project disconnection and project deletion are separate future destructive authorities.
+
+### Consequences
+
+- Successful fixture qualification exercises the same project, network, IAM, bundle, attachment,
+  and registration seams required by an external GCP application.
+- An application owner need not switch the active gcloud project; every bounded command names its
+  target project explicitly.
+- A verified project connection is required before bundle generation, but it is not application
+  deployment, adoption, registration, or qualification.
+- Fixtures remain repository-owned test applications, while their runtime, image, and Terraform
+  state remain Application State outside the platform project.
+- A real application still supplies its own deployment, status, recovery, and destruction
+  commands; fixture commands are executable reference behavior, not platform authority over real
+  applications.

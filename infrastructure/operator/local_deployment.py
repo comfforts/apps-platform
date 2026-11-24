@@ -337,17 +337,15 @@ class DeploymentConfigurationRenderer:
         declarations = backend_declarations("staging")
         unique: dict[str, dict[str, str]] = {}
         for declaration in declarations:
+            if declaration.state_owner != "platform":
+                continue
             unique.setdefault(
                 declaration.owner_id,
                 {
                     "state_owner": declaration.state_owner,
                     "owner_id": declaration.owner_id,
                     "bucket_name": declaration.bucket,
-                    "backend_prefix": (
-                        "platform"
-                        if declaration.owner_id == "app-platform"
-                        else declaration.prefix
-                    ),
+                    "backend_prefix": "platform",
                 },
             )
         return {

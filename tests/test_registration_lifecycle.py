@@ -10,6 +10,7 @@ import unittest
 
 from contracts.lifecycle import lifecycle_digest
 from infrastructure.operator.integration import (
+    ApplicationProjectConnection,
     ApplicationIntegrationLifecycle,
     AttachmentTargetReadback,
     GenerationActivationReadback,
@@ -22,6 +23,7 @@ from infrastructure.operator.integration import (
     RegistrationEntry,
     RegistrationIntent,
 )
+from tests.environment import FIXTURES_PROJECT_ID
 
 
 SOURCE_REVISION = "a" * 40
@@ -50,6 +52,29 @@ class FakePlatformReader:
     def read_platform(self, environment: str) -> PlatformIntegrationState:
         del environment
         return self.state
+
+    def read_connection(
+        self,
+        environment: str,
+        project_id: str,
+    ) -> ApplicationProjectConnection:
+        return ApplicationProjectConnection(
+            environment=environment,
+            project_id=project_id,
+            project_number="123456789012",
+            host_project_id="comfforts-platform-non-prod",
+            host_project_number="455651441682",
+            region="us-west1",
+            network_reference=(
+                "projects/comfforts-platform-non-prod/global/networks/"
+                "app-platform-shared"
+            ),
+            subnetwork_reference=(
+                "projects/comfforts-platform-non-prod/regions/us-west1/subnetworks/"
+                "app-platform-applications-us-west1"
+            ),
+            egress_mode="all-traffic",
+        )
 
 
 class FakeAttachmentReader:
@@ -198,7 +223,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
     ) -> dict[str, object]:
         application_id = str(bundle["application_id"])
         resource_reference = (
-            "urn:comfforts:app-platform:gcp:cloud-run:455651441682:"
+            "urn:comfforts:app-platform:gcp:cloud-run:123456789012:"
             f"us-west1:{application_id}{suffix}"
         )
         identity = bundle["identity"]
@@ -218,6 +243,10 @@ class RegistrationLifecycleTest(unittest.TestCase):
                 "owner_application_id": application_id,
                 "adapter_kind": "gcp-cloud-run-v1",
                 "resource_reference": resource_reference,
+                "application_project_id": FIXTURES_PROJECT_ID,
+                "network_reference": bundle["network"]["network_reference"],
+                "subnetwork_reference": bundle["network"]["subnetwork_reference"],
+                "egress_mode": "all-traffic",
                 "ingress_mode": "shared_edge_only",
                 "caller_grant": EDGE_CALLER,
                 "audience": identity["audience"],
@@ -232,6 +261,10 @@ class RegistrationLifecycleTest(unittest.TestCase):
             ingress_mode="shared_edge_only",
             caller_grant=EDGE_CALLER,
             audience=identity["audience"],
+            application_project_id=FIXTURES_PROJECT_ID,
+            network_reference=bundle["network"]["network_reference"],
+            subnetwork_reference=bundle["network"]["subnetwork_reference"],
+            egress_mode="all-traffic",
         )
         return attachment
 

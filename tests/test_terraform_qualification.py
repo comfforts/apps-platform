@@ -326,7 +326,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertNotIn("id-token: write", check_workflow)
         self.assertNotIn("terraform apply", check_workflow)
 
-    def test_status_preserves_ap_m7_and_routes_next_work_to_ap_m9_w10(self) -> None:
+    def test_status_preserves_history_and_routes_next_work_to_ap_m9_w10(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(
@@ -355,7 +355,10 @@ class TerraformQualificationGateTest(unittest.TestCase):
         )
         self.assertIn("Do not request a duplicate", normalized_prompt)
         self.assertIn("Run the complete credential-free `make check` gate", prompt)
-        self.assertIn("no platform environment is deployed or qualified", combined)
+        self.assertIn(
+            "candidate staging exists but is not accepted qualification",
+            combined,
+        )
         for false_claim in (
             "AP-M7 is deployed",
             "AP-M7 is Live-qualified",

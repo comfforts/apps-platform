@@ -445,7 +445,7 @@ class OperatorLifecycleTest(unittest.TestCase):
         with mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
             code = operator_main(
                 ["status", "--environment", "staging"],
-                operator_factory=failing_factory,
+                preflight_factory=failing_factory,
             )
         result = json.loads(stdout.getvalue())
         transcript = stderr.getvalue()

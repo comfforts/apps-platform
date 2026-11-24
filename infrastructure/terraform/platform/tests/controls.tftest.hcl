@@ -102,9 +102,6 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
       module.platform_controls.policy_summary.artifacts.retained_roles == ["active", "rollback", "candidate"] &&
       module.platform_controls.policy_summary.artifacts.most_recent_versions_per_service == 3 &&
       toset(module.platform_controls.policy_summary.artifacts.package_name_prefixes) == toset([
-        "fixture-authenticated",
-        "fixture-public",
-        "fixture-restricted",
         "shared-edge",
       ]) &&
       module.platform_controls.policy_summary.artifacts.rollback_window_hours == 24 &&
@@ -112,7 +109,7 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
       module.platform_controls.policy_summary.artifacts.deletion_policy == "PREVENT" &&
       module.platform_controls.policy_summary.artifacts.image_publication == "deferred"
     )
-    error_message = "Artifact Registry cleanup must remain dry-run-first and retain active, rollback, and candidate images for every qualification service"
+    error_message = "Artifact Registry cleanup must remain dry-run-first and retain active, rollback, and candidate Shared Edge images"
   }
 
   assert {

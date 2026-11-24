@@ -1,20 +1,24 @@
 variable "fixture_configuration" {
   description = "Complete Version 1 non-secret configuration for fixture-authenticated."
   type = object({
-    contract_version      = number
-    configuration_kind    = string
-    configuration_class   = string
-    project_id            = string
-    project_number        = string
-    region                = string
-    application_id        = string
-    state_owner           = string
-    service_name          = string
-    image_digest          = string
-    admission_mode        = string
-    assertion_audience    = string
-    platform_issuer       = string
-    edge_caller_principal = string
+    contract_version             = number
+    configuration_kind           = string
+    configuration_class          = string
+    project_id                   = string
+    project_number               = string
+    region                       = string
+    application_id               = string
+    state_owner                  = string
+    service_name                 = string
+    image_digest                 = string
+    admission_mode               = string
+    assertion_audience           = string
+    platform_issuer              = string
+    edge_caller_principal        = string
+    network_host_project_id      = string
+    shared_network_reference     = string
+    application_subnet_reference = string
+    vpc_egress                   = string
     labels = object({
       environment    = string
       managed_by     = string
@@ -66,7 +70,10 @@ variable "fixture_configuration" {
     condition = (
       can(regex("^https://[A-Za-z0-9.-]+(?:/[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]*)?$", var.fixture_configuration.platform_issuer)) &&
       can(regex("^serviceAccount:[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\\.iam\\.gserviceaccount\\.com$", var.fixture_configuration.edge_caller_principal)) &&
-      endswith(var.fixture_configuration.edge_caller_principal, "@${var.fixture_configuration.project_id}.iam.gserviceaccount.com")
+      can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.fixture_configuration.network_host_project_id)) &&
+      var.fixture_configuration.vpc_egress == "all-traffic" &&
+      startswith(var.fixture_configuration.shared_network_reference, "projects/${var.fixture_configuration.network_host_project_id}/global/networks/") &&
+      startswith(var.fixture_configuration.application_subnet_reference, "projects/${var.fixture_configuration.network_host_project_id}/regions/${var.fixture_configuration.region}/subnetworks/")
     )
     error_message = "platform issuer and edge caller must be canonical non-secret references in the configured project."
   }
@@ -83,8 +90,9 @@ variable "fixture_configuration" {
 
   validation {
     condition = var.fixture_configuration.configuration_class == "synthetic" || (
-      var.fixture_configuration.project_id == "comfforts-platform-non-prod" &&
-      var.fixture_configuration.project_number == "455651441682" &&
+      can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.fixture_configuration.project_id)) &&
+      var.fixture_configuration.project_id != "comfforts-platform-non-prod" &&
+      var.fixture_configuration.network_host_project_id == "comfforts-platform-non-prod" &&
       var.fixture_configuration.region == "us-west1" &&
       var.fixture_configuration.platform_issuer == "https://apps-staging.comfforts.com/_platform" &&
       !strcontains(var.fixture_configuration.image_digest, "synthetic") &&
@@ -103,14 +111,17 @@ variable "destruction_enabled" {
 variable "platform_reference" {
   description = "Typed non-secret Platform State reference consumed as data."
   type = object({
-    reference_kind        = string
-    state_owner           = string
-    owner_id              = string
-    project_number        = string
-    region                = string
-    platform_issuer       = string
-    public_key_reference  = string
-    edge_caller_principal = string
+    reference_kind               = string
+    state_owner                  = string
+    owner_id                     = string
+    project_id                   = string
+    project_number               = string
+    region                       = string
+    platform_issuer              = string
+    public_key_reference         = string
+    edge_caller_principal        = string
+    shared_network_reference     = string
+    application_subnet_reference = string
   })
 
   validation {
@@ -135,10 +146,12 @@ variable "platform_reference" {
 
   validation {
     condition = (
-      var.platform_reference.project_number == var.fixture_configuration.project_number &&
+      var.platform_reference.project_id == var.fixture_configuration.network_host_project_id &&
       var.platform_reference.region == var.fixture_configuration.region &&
       var.platform_reference.platform_issuer == var.fixture_configuration.platform_issuer &&
       var.platform_reference.edge_caller_principal == var.fixture_configuration.edge_caller_principal &&
+      var.platform_reference.shared_network_reference == var.fixture_configuration.shared_network_reference &&
+      var.platform_reference.application_subnet_reference == var.fixture_configuration.application_subnet_reference &&
       endswith(var.platform_reference.platform_issuer, "/_platform") &&
       var.platform_reference.public_key_reference == "${trimsuffix(var.platform_reference.platform_issuer, "/_platform")}/.well-known/jwks.json"
     )

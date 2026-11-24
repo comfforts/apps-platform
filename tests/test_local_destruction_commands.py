@@ -37,6 +37,9 @@ OUTPUTS = {
 RETAINED_ADDRESSES = (
     'module.platform_foundation.google_project_service.platform["run.googleapis.com"]',
     "module.platform_foundation.google_storage_bucket.configuration",
+    "module.platform_foundation.google_compute_shared_vpc_host_project.platform",
+    "module.platform_foundation.google_compute_network.shared",
+    "module.platform_foundation.google_compute_subnetwork.applications",
     "module.platform_foundation.google_kms_key_ring.assertion_signing",
     "module.platform_foundation.google_kms_crypto_key.assertion_signing",
     "module.platform_controls.google_storage_bucket.evidence",

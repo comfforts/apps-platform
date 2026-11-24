@@ -13,6 +13,8 @@ variable "edge_configuration" {
     edge_caller_service_account_id = string
     image_digest                   = string
     configuration_bucket           = string
+    shared_network_reference       = string
+    application_subnet_reference   = string
     registration_generation = object({
       source_revision   = string
       generation        = number

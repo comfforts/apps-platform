@@ -99,7 +99,10 @@ The first staging qualification must deploy the public, authenticated, and restr
 through separate Application State, exchange the same versioned bundles required of a real
 application, and exercise deployment, registration, detachment, destruction, redeployment, and
 reactivation. Static Terraform, process-local loopback, or an undeployed fixture image is not
-staging qualification.
+staging qualification. Provider-backed fixtures must run in an application project separate from
+the platform project and use the same explicit Shared VPC project connection, internal ingress,
+edge-caller IAM, project-scoped bundle, and registration boundaries required by an independently
+owned GCP application. A same-project fixture cannot qualify cross-project application attachment.
 
 ### AP-PR-009 · Explicit application adoption
 

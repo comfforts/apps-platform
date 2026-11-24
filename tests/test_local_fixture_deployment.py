@@ -24,6 +24,7 @@ from infrastructure.operator.local_fixture_deployment import (
     FixtureConfigurationRenderer,
     LocalFixtureDeploymentCommands,
 )
+from tests.environment import FIXTURES_PROJECT_ID
 from infrastructure.operator.integration import AttachmentTargetReadback
 
 
@@ -31,7 +32,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_REVISION = "a" * 40
 SPECIFICATION_DIGEST = "sha256:" + ("b" * 64)
 IMAGE_REFERENCE = (
-    "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+    f"us-west1-docker.pkg.dev/{FIXTURES_PROJECT_ID}/"
     "app-platform-images/fixture@sha256:"
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 )
@@ -77,6 +78,24 @@ def _bundle(application_id: str, access_mode: str) -> dict[str, object]:
                 else None
             ),
             "edge_caller_reference": EDGE_CALLER,
+        },
+        "application_project": {
+            "project_id": FIXTURES_PROJECT_ID,
+            "project_number": "123456789012",
+        },
+        "network": {
+            "host_project_id": "comfforts-platform-non-prod",
+            "host_project_number": "455651441682",
+            "region": "us-west1",
+            "network_reference": (
+                "projects/comfforts-platform-non-prod/global/networks/"
+                "app-platform-shared"
+            ),
+            "subnetwork_reference": (
+                "projects/comfforts-platform-non-prod/regions/us-west1/"
+                "subnetworks/app-platform-applications-us-west1"
+            ),
+            "egress_mode": "all-traffic",
         },
         "attachment_contract": {
             "adapter_kind": "gcp-cloud-run-v1",
@@ -332,7 +351,7 @@ class FakeTerraform:
             "attachment_id": "primary",
             "adapter_kind": "gcp-cloud-run-v1",
             "resource_reference": (
-                "urn:comfforts:app-platform:gcp:cloud-run:455651441682:"
+                "urn:comfforts:app-platform:gcp:cloud-run:123456789012:"
                 f"us-west1:{request.owner_id}"
             ),
             "audience": configuration["assertion_audience"],

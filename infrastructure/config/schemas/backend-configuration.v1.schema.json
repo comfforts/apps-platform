@@ -35,8 +35,8 @@
     },
     "state_buckets": {
       "type": "array",
-      "minItems": 4,
-      "maxItems": 4,
+      "minItems": 1,
+      "maxItems": 1,
       "uniqueItems": true,
       "items": {
         "$ref": "#/$defs/stateBucket"

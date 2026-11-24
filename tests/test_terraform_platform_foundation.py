@@ -60,6 +60,9 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             [
                 ("google_project_service", "platform"),
                 ("google_storage_bucket", "configuration"),
+                ("google_compute_shared_vpc_host_project", "platform"),
+                ("google_compute_network", "shared"),
+                ("google_compute_subnetwork", "applications"),
                 ("google_service_account", "edge_runtime"),
                 ("google_service_account", "edge_caller"),
                 ("google_storage_bucket_iam_member", "edge_configuration_reader"),
@@ -103,6 +106,8 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             "depends_on = [google_project_service.platform]",
             'retained_only                  = var.destruction_mode == "retained"',
             'deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"',
+            'auto_create_subnetworks = false',
+            'private_ip_google_access = true',
         ):
             self.assertIn(required_control, module)
         self.assertNotIn('"iamcredentials.googleapis.com"', module)
@@ -131,7 +136,6 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             'resource "google_kms_crypto_key_version"',
             "rotation_period",
             "google_cloud_run",
-            "google_compute_",
             "google_dns_",
             "google_logging_",
             "google_billing_",

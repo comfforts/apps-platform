@@ -6,7 +6,7 @@ variables {
   backend_configuration = jsondecode(file("../../config/examples/backend.synthetic.v1.json"))
 }
 
-run "plans_four_exclusive_recoverable_backends" {
+run "plans_one_exclusive_recoverable_platform_backend" {
   command = plan
 
   assert {
@@ -14,9 +14,9 @@ run "plans_four_exclusive_recoverable_backends" {
       output.bootstrap_phase_output.contract_version == 1 &&
       output.bootstrap_phase_output.output_kind == "bootstrap" &&
       output.bootstrap_phase_output.environment == "staging" &&
-      length(output.bootstrap_phase_output.lineages) == 5
+      length(output.bootstrap_phase_output.lineages) == 2
     )
-    error_message = "bootstrap must expose one closed typed output with five lineages"
+    error_message = "bootstrap must expose one closed typed output with two platform lineages"
   }
 
   assert {
@@ -49,9 +49,6 @@ run "plans_four_exclusive_recoverable_backends" {
       ]) == toset([
       "platform:app-platform:bootstrap",
       "platform:app-platform:platform",
-      "application:fixture-public:fixtures/fixture-public",
-      "application:fixture-authenticated:fixtures/fixture-authenticated",
-      "application:fixture-restricted:fixtures/fixture-restricted",
     ])
     error_message = "backend access intent must remain exclusive and root-scoped"
   }

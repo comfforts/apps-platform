@@ -259,7 +259,9 @@ access.
 References are treated as inert data; offline validation performs no fetch or provider discovery.
 The immutable application identifier, attachment identifier, mount, forwarding mode, identity
 requirement, and ownership entry must agree. Secrets and Terraform state addresses are forbidden.
-Provider adapters resolve only their own typed references with least-privilege credentials.
+Provider adapters resolve only their own typed references with least-privilege credentials. The
+referenced project number must resolve to an explicitly connected application project, and target
+readback must match that project's approved Shared VPC network and subnet.
 
 **Evidence:** `C` covers unsupported kinds, malformed references, secrets, duplicate ownership, and
 cross-registration conflicts. `F` covers attachment selection and application isolation. `L`
@@ -276,7 +278,10 @@ grant, ownership readback, target request, or Live qualification has occurred.
 spoofs the platform identity header against a publicly reachable origin.
 
 **Required controls:** Application State restricts protected runtime ingress to the Shared Edge
-caller using provider or network controls. The Shared Edge strips visitor-supplied identity headers.
+caller using both internal-only Shared VPC ingress and Cloud Run IAM. Only the application
+project's Cloud Run service agent receives read-only host-network discovery and network-user access
+on the application subnet, and only the platform edge caller receives runtime invocation. The
+Shared Edge strips visitor-supplied identity headers.
 The application independently verifies the signed assertion and application-specific audience. A
 header alone never compensates for a public protected origin.
 
@@ -361,7 +366,10 @@ management.
 **Required controls:** The State Ownership Manifest assigns each canonical resource reference to
 one owner. Platform lifecycle never mutates application-owned runtime or data; application
 lifecycle never mutates Shared Edge resources. Cross-state exchange is versioned reference data,
-not backend access. Destructive actions identify exact targets and require explicit review.
+not backend access. Platform bootstrap manages only platform state; the fixture project owns its
+runtime, image repository, and state bucket. Destructive actions identify exact targets and require
+explicit review. Route detachment precedes application destruction and remains a separate platform
+operation.
 
 **Evidence:** `C` rejects duplicate owners and ownership/type mismatches. `F` covers independent
 fixture and platform lifecycle. `L` covers state inventories, plans, readback, and destructive-action
@@ -784,7 +792,8 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   partial write, stale generation, or relationship mismatch is never accepted as a registration
   input.
 - **AP-TM-008 and AP-TM-009:** Environment, Platform State, Fixture Application State, and real
-  Application State remain distinct. Bundles are reference exchange, not backend access. Detach,
+  Application State remain distinct. Fixture runtimes and state live in a dedicated application
+  project attached through an explicit Shared VPC connection. Bundles are reference exchange, not backend access. Detach,
   retire, application destruction, platform destruction, and environment destruction cannot cross
   an owner.
 - **AP-TM-010:** Terminal prompts never accept a secret payload. OAuth secrets enter Secret Manager
@@ -870,7 +879,7 @@ pass:
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
 | Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
-| Executable fixture image, independent Application State plans, attachment handoff, registration, status, destruction, and staging Candidate Source admission | AP-M9-W9 acceptance before candidate verification or the first accepted staging operation |
+| Dedicated fixture project, explicit Shared VPC connection, executable fixture image, independent Application State plans, project-scoped handoff, separate registration, status, destruction, and staging Candidate Source admission | AP-M9-W9 acceptance before candidate verification or the first accepted staging operation |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |

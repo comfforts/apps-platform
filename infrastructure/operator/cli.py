@@ -28,6 +28,7 @@ from infrastructure.operator.local import (
     build_local_fixture_status_operator,
     build_local_integration,
     build_local_operator,
+    build_local_project_lifecycle,
     build_local_qualification,
 )
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
@@ -54,9 +55,10 @@ def _parser() -> argparse.ArgumentParser:
             "register",
             "retire",
             "status",
+            "fixture-project-bootstrap",
+            "platform-connect-project",
             "destroy",
             "fixture-handoff",
-            "fixture-deploy",
             "fixture-status",
             "fixture-destroy",
         ),
@@ -93,6 +95,7 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--application-id")
+    parser.add_argument("--application-project-id")
     parser.add_argument(
         "--access-mode",
         choices=("authenticated", "public", "restricted"),
@@ -163,6 +166,17 @@ def _default_fixture_status_factory(  # type: ignore[no-untyped-def]
     source_authority: str,
 ):
     return build_local_fixture_status_operator(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+    )
+
+
+def _default_project_factory(  # type: ignore[no-untyped-def]
+    state_directory: Path,
+    source_authority: str,
+):
+    return build_local_project_lifecycle(
         PROJECT_ROOT,
         state_directory,
         source_authority,
@@ -259,6 +273,7 @@ def _main(
     ] = _default_destruction_factory,
     fixture_factory: Callable[[Path, str], object] = _default_fixture_factory,
     fixture_status_factory: Callable[[Path, str], object] = _default_fixture_status_factory,
+    project_factory: Callable[[Path, str], object] = _default_project_factory,
 ) -> int:
     parser = _parser()
     arguments = parser.parse_args(argv)
@@ -267,7 +282,7 @@ def _main(
     selected_fixture = (
         str(_required(arguments, "application_id"))
         if arguments.operation
-        in {"fixture-handoff", "fixture-deploy", "fixture-destroy"}
+        in {"fixture-handoff", "fixture-destroy"}
         else None
     )
     _trace_invocation(arguments, selected_fixture)
@@ -280,7 +295,7 @@ def _main(
     }:
         selected_operator_factory = (
             preflight_factory
-            if arguments.operation in {"cancel", "preflight"}
+            if arguments.operation in {"cancel", "preflight", "status"}
             else operator_factory
         )
         operator = selected_operator_factory(
@@ -304,11 +319,28 @@ def _main(
             return 2
     elif arguments.operation in {
         "fixture-handoff",
-        "fixture-deploy",
         "fixture-destroy",
     }:
         try:
             fixture = fixture_factory(
+                arguments.state_directory,
+                arguments.source_authority,
+            )
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+    elif arguments.operation in {
+        "fixture-project-bootstrap",
+        "platform-connect-project",
+    }:
+        try:
+            projects = project_factory(
                 arguments.state_directory,
                 arguments.source_authority,
             )
@@ -427,49 +459,60 @@ def _main(
         )
         return 0 if result.outcome in {"cancelled", "unchanged"} else 2
 
-    if arguments.operation == "fixture-deploy":
-        result = fixture.deploy(
-            arguments.environment,
-            selected_fixture,
-        )
+    if arguments.operation == "fixture-project-bootstrap":
+        project_id = str(_required(arguments, "application_project_id"))
+        result = projects.bootstrap_fixture(arguments.environment, project_id)
         _print(
             {
-                "application_ids": list(result.application_ids),
                 "blockers": list(result.blockers),
                 "environment": arguments.environment,
-                "image_reference": result.image_reference,
                 "outcome": result.outcome,
+                "project_id": result.project_id,
+                "project_number": result.project_number,
                 "source_authority": arguments.source_authority,
-                "registration_generation": result.registration_generation,
-                "registration_generation_digest": (
-                    result.registration_generation_digest
-                ),
-                "preparation_reused": result.preparation_reused,
-                "integration_bundle_digest": result.integration_bundle_digest,
-                "integration_bundle_path": result.integration_bundle_path,
-                "attachment_bundle_digest": result.attachment_bundle_digest,
-                "attachment_bundle_path": result.attachment_bundle_path,
             }
         )
-        if result.outcome == "deployed":
-            route = (
-                f"https://apps-staging.comfforts.com/{selected_fixture}"
-            )
-            print("Fixture registration activated successfully.", file=sys.stderr)
-            print(f"  Application: {selected_fixture}", file=sys.stderr)
-            print(f"  Route: {route}", file=sys.stderr)
-            print(
-                "  The selected registration is active; use fixture-status and the "
-                "route to verify live delivery.",
-                file=sys.stderr,
-            )
-            print(file=sys.stderr)
-        return 0 if result.outcome == "deployed" else 2
+        return 0 if result.outcome in {"bootstrapped", "unchanged"} else 2
+
+    if arguments.operation == "platform-connect-project":
+        project_id = str(_required(arguments, "application_project_id"))
+        result = projects.connect(arguments.environment, project_id)
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "connection_path": result.connection_path,
+                "environment": arguments.environment,
+                "outcome": result.outcome,
+                "project_id": result.project_id,
+                "project_number": result.project_number,
+                "source_authority": arguments.source_authority,
+            }
+        )
+        return 0 if result.outcome == "connected" else 2
 
     if arguments.operation == "fixture-handoff":
+        integration_bundle_path = Path(
+            _required(arguments, "integration_bundle")
+        )
+        try:
+            integration_bundle = _load_input(
+                integration_bundle_path,
+                "platform-integration-bundle",
+            )
+        except ValueError:
+            _print(
+                {
+                    "blockers": ["INTEGRATION_BUNDLE_INVALID"],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
         result = fixture.handoff(
             arguments.environment,
             selected_fixture,
+            integration_bundle,
+            str(integration_bundle_path.resolve()),
         )
         _print(
             {
@@ -483,6 +526,7 @@ def _main(
                 "integration_bundle_path": result.integration_bundle_path,
                 "outcome": result.outcome,
                 "preparation_reused": result.preparation_reused,
+                "registration_intent_path": result.registration_intent_path,
                 "source_authority": arguments.source_authority,
             }
         )
@@ -498,8 +542,12 @@ def _main(
                 file=sys.stderr,
             )
             print(
-                "  The fixture Application State exists, but it is not registered or "
-                "routable until fixture-deploy succeeds.",
+                f"  Registration intent: {result.registration_intent_path}",
+                file=sys.stderr,
+            )
+            print(
+                "  The fixture runtime exists in the application project, but its route "
+                "is inactive. Inspect both bundles, then run platform-register.",
                 file=sys.stderr,
             )
             print(file=sys.stderr)
@@ -518,6 +566,7 @@ def _main(
                         "lifecycle": item.lifecycle,
                         "target_exists": item.target_exists,
                         "target_ready": item.target_ready,
+                        "route_ready": item.route_ready,
                     }
                     for item in result.applications
                 ],
@@ -685,21 +734,23 @@ def _main(
                 expected_generation=int(
                     _required(arguments, "platform_generation")
                 ),
+                application_project_id=str(
+                    _required(arguments, "application_project_id")
+                ),
             )
         )
         output_path: str | None = None
         if result.bundle is not None and result.bundle_digest is not None:
-            output_path = (
+            relative_output_path = (
                 f"environments/{arguments.environment}/bundles/"
                 f"{result.bundle['application_id']}/"
                 f"{result.bundle_digest[7:]}.v1.json"
             )
+            filesystem = LocalFilesystem(PROJECT_ROOT, arguments.state_directory)
+            output_path = str(filesystem.state_path(relative_output_path))
             try:
-                LocalFilesystem(
-                    PROJECT_ROOT,
-                    arguments.state_directory,
-                ).write_state(
-                    output_path,
+                filesystem.write_state(
+                    relative_output_path,
                     canonical_lifecycle_bytes(
                         result.bundle,
                         "platform-integration-bundle",
@@ -882,6 +933,7 @@ def main(
     ] = _default_destruction_factory,
     fixture_factory: Callable[[Path, str], object] = _default_fixture_factory,
     fixture_status_factory: Callable[[Path, str], object] = _default_fixture_status_factory,
+    project_factory: Callable[[Path, str], object] = _default_project_factory,
 ) -> int:
     try:
         return _main(
@@ -893,6 +945,7 @@ def main(
             destruction_factory=destruction_factory,
             fixture_factory=fixture_factory,
             fixture_status_factory=fixture_status_factory,
+            project_factory=project_factory,
         )
     except Exception as error:
         arguments = list(argv) if argv is not None else sys.argv[1:]

@@ -8,6 +8,9 @@ output "foundation_reference" {
     oauth_secret_id                = try(google_secret_manager_secret.edge_oauth[0].id, null)
     session_database               = try(google_firestore_database.sessions[0].name, null)
     signing_key_id                 = google_kms_crypto_key.assertion_signing.id
+    shared_network_reference       = google_compute_network.shared.id
+    application_subnet_reference   = google_compute_subnetwork.applications.id
+    application_subnet_cidr        = google_compute_subnetwork.applications.ip_cidr_range
   }
 }
 
@@ -63,6 +66,16 @@ output "policy_summary" {
       separated               = local.edge_runtime_principal != local.edge_caller_principal
       deletion_policy         = local.destruction_enabled ? "DELETE" : "PREVENT"
       service_account_keys    = false
+    }
+    networking = {
+      shared_vpc_host_project = var.foundation_configuration.project_id
+      network_name            = local.shared_network_name
+      network_reference       = google_compute_network.shared.id
+      subnetwork_name         = local.application_subnet_name
+      subnetwork_reference    = google_compute_subnetwork.applications.id
+      subnetwork_cidr         = local.application_subnet_cidr
+      private_google_access   = true
+      application_connection  = "explicit-platform-connect-project"
     }
     oauth = {
       secret_id              = var.foundation_configuration.oauth_secret_id

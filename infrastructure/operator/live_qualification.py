@@ -18,6 +18,12 @@ from websockets.sync.client import connect as websocket_connect
 
 from infrastructure.operator._interfaces import OperatorTerminal
 from infrastructure.operator.integration import AttachmentTargetReader
+from infrastructure.operator.project_connections import (
+    ApplicationProjectReadback,
+    NETWORK_REFERENCE,
+    PLATFORM_PROJECT_ID,
+    SUBNETWORK_REFERENCE,
+)
 from infrastructure.operator.qualification import (
     QualificationProbeOutcome,
     QualificationProbeRequest,
@@ -347,11 +353,13 @@ class StagingQualificationProbe:
         browser: LoopbackBrowserQualification,
         targets: AttachmentTargetReader,
         lifecycle: QualificationLifecycleExercise,
+        fixture_project: ApplicationProjectReadback,
     ) -> None:
         self._http = http
         self._browser = browser
         self._targets = targets
         self._lifecycle = lifecycle
+        self._fixture_project = fixture_project
         self._browser_result: BrowserQualificationResult | None = None
 
     @staticmethod
@@ -429,14 +437,28 @@ class StagingQualificationProbe:
             else self._fail(check_id, "LIVE_ASSERTION_JWKS_MISMATCH")
         )
 
-    @staticmethod
-    def _target_reference(application_id: str) -> str:
+    def _target_reference(self, application_id: str) -> str:
+        project_number = self._fixture_project.project_number
+        if project_number is None:
+            raise ValueError("fixture project number is unavailable")
         return (
             "urn:comfforts:app-platform:gcp:cloud-run:"
-            f"455651441682:us-west1:{application_id}"
+            f"{project_number}:us-west1:{application_id}"
         )
 
     def _target_posture(self, request: QualificationProbeRequest) -> bool:
+        project = self._fixture_project
+        if (
+            not project.exists
+            or project.project_number is None
+            or not project.state_bucket_ready
+            or not project.artifact_repository_ready
+            or not project.fixture_ownership_matches
+            or project.host_project_id != PLATFORM_PROJECT_ID
+            or not project.network_viewer_granted
+            or not project.subnet_user_granted
+        ):
+            return False
         modes = {
             "fixture-authenticated": "authenticated",
             "fixture-public": "public",
@@ -458,6 +480,11 @@ class StagingQualificationProbe:
                 or target.ingress_mode != "shared_edge_only"
                 or target.caller_grant != _EDGE_CALLER
                 or target.audience != expected_audience
+                or target.application_project_id != project.project_id
+                or target.network_reference != NETWORK_REFERENCE
+                or target.subnetwork_reference != SUBNETWORK_REFERENCE
+                or target.egress_mode != "all-traffic"
+                or target.blockers
             ):
                 return False
         return True

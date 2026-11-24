@@ -221,18 +221,18 @@ class InfrastructureConfigurationTest(unittest.TestCase):
             _codes(validate_configuration(platform, "platform", allow_synthetic=True)),
         )
 
-    def test_backend_policy_enforces_four_exclusive_state_owners(self) -> None:
+    def test_platform_bootstrap_rejects_application_state_ownership(self) -> None:
         backend = _example("backend.synthetic.v1.json")
         buckets = backend["state_buckets"]
         assert isinstance(buckets, list)
-        assert isinstance(buckets[1], dict)
-        buckets[1]["owner_id"] = "fixture-restricted"
-        buckets[1]["bucket_name"] = "synthetic-platform-state"
+        assert isinstance(buckets[0], dict)
+        buckets[0]["state_owner"] = "application"
+        buckets[0]["owner_id"] = "fixture-public"
+        buckets[0]["backend_prefix"] = "fixtures/fixture-public"
 
         violations = validate_configuration(backend, "backend", allow_synthetic=True)
         self.assertIn(("OWNER_CONFLICT", "/state_buckets"), _codes(violations))
-        self.assertIn(("OWNER_CONFLICT", "/state_buckets/1/bucket_name"), _codes(violations))
-        self.assertIn(("OWNER_CONFLICT", "/state_buckets/3/owner_id"), _codes(violations))
+        self.assertIn(("OWNER_CONFLICT", "/state_buckets/0/owner_id"), _codes(violations))
 
     def test_fixture_and_cross_state_ownership_remain_application_scoped(self) -> None:
         fixture = _example("fixture-public.synthetic.v1.json")

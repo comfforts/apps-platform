@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from contracts.lifecycle import validate_lifecycle_document
 from infrastructure.operator._interfaces import StageContext, StageExecution
@@ -16,14 +16,11 @@ from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationDeployment,
     FixtureApplicationStatus,
     FixtureApplicationDeployRequest,
-    FixtureBundleRequest,
     FixtureCommandError,
     FixtureDeployRequest,
     FixtureImageReadback,
     FixtureImageRequest,
     FixturePreparation,
-    FixtureRegistrationReadback,
-    FixtureRegistrationRequest,
     FixtureDestroyReadback,
     FixtureDestroyRequest,
     FixtureStatusResult,
@@ -31,7 +28,6 @@ from infrastructure.operator.fixture_lifecycle import (
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
     IntegrationBundleRequest,
-    LifecycleChangeRequest,
     RegistrationIntent,
     PlatformIntegrationReader,
 )
@@ -77,6 +73,7 @@ def _status(
     integration: ApplicationIntegrationLifecycle,
     environment: str,
     application_id: str | None = None,
+    route_readiness: Callable[[str], bool] | None = None,
 ) -> FixtureStatusResult:
     application_ids = (
         (application_id,)
@@ -101,6 +98,13 @@ def _status(
                 item.lifecycle,
                 item.target_exists,
                 item.target_ready,
+                (
+                    item.lifecycle == "active"
+                    and item.target_exists
+                    and item.target_ready
+                    and route_readiness is not None
+                    and route_readiness(item.application_id)
+                ),
             )
             for item in readback.applications
         ),
@@ -133,25 +137,6 @@ class LocalFixtureLifecycleCommands:
         self._handoffs = handoffs
         self._terminal = terminal
         self._preparations = preparations
-
-    def integration_bundle(self, request: FixtureBundleRequest) -> dict[str, Any]:
-        result = self._integration.outputs(
-            IntegrationBundleRequest(
-                environment=request.environment,
-                application_id=request.application_id,
-                access_mode=request.access_mode,
-                route_intent=request.route_intent,
-                expected_platform_source_revision=(
-                    request.expected_platform_source_revision
-                ),
-                expected_generation=request.expected_platform_generation,
-            )
-        )
-        if result.outcome != "generated" or result.bundle is None:
-            raise FixtureCommandError(
-                result.blockers[0] if result.blockers else "INTEGRATION_BUNDLE_FAILED"
-            )
-        return result.bundle
 
     def build_image(self, request: FixtureImageRequest) -> FixtureImageReadback:
         try:
@@ -234,10 +219,14 @@ class LocalFixtureLifecycleCommands:
             reference = json.loads(execution.outputs[0][1])
             identity = request.integration_bundle["identity"]
             attachment_contract = request.integration_bundle["attachment_contract"]
+            application_project = request.integration_bundle["application_project"]
+            network = request.integration_bundle["network"]
             if (
                 not isinstance(reference, dict)
                 or not isinstance(identity, dict)
                 or not isinstance(attachment_contract, dict)
+                or not isinstance(application_project, dict)
+                or not isinstance(network, dict)
             ):
                 raise TypeError
             attachment = {
@@ -257,6 +246,10 @@ class LocalFixtureLifecycleCommands:
                     "owner_application_id": reference["owner_id"],
                     "adapter_kind": reference["adapter_kind"],
                     "resource_reference": reference["resource_reference"],
+                    "application_project_id": application_project["project_id"],
+                    "network_reference": network["network_reference"],
+                    "subnetwork_reference": network["subnetwork_reference"],
+                    "egress_mode": network["egress_mode"],
                     "ingress_mode": attachment_contract["ingress_mode"],
                     "caller_grant": identity["edge_caller_reference"],
                     "audience": reference["audience"],
@@ -317,11 +310,16 @@ class LocalFixtureLifecycleCommands:
         if self._preparations is None:
             return preparation
         try:
-            return self._preparations.publish(
+            published = self._preparations.publish(
                 request,
                 preparation.image,
                 preparation.integration_bundle,
                 preparation.deployment,
+            )
+            return self._preparations.publish_registration_intent(
+                request,
+                published,
+                self._intent(request.application_id),
             )
         except (FileExistsError, OSError, ValueError) as error:
             raise FixtureCommandError(
@@ -377,56 +375,6 @@ class LocalFixtureLifecycleCommands:
             ),
         )
 
-    def register(
-        self,
-        request: FixtureRegistrationRequest,
-    ) -> FixtureRegistrationReadback:
-        if (
-            len(request.integration_bundles) != 1
-            or len(request.deployments) != 1
-        ):
-            raise FixtureCommandError("FIXTURE_SELECTION_INVALID")
-        bundle = request.integration_bundles[0]
-        deployment = request.deployments[0]
-        result = self._integration.register(
-            bundle,
-            deployment.attachment_bundle,
-            self._intent(deployment.application_id),
-        )
-        if (
-            result.outcome not in {"activated", "unchanged"}
-            or result.generation is None
-            or result.generation_digest is None
-        ):
-            raise FixtureCommandError(
-                result.blockers[0] if result.blockers else "FIXTURE_REGISTRATION_FAILED"
-            )
-        if self._handoffs is not None:
-            try:
-                for bundle, deployment in zip(
-                    request.integration_bundles,
-                    request.deployments,
-                    strict=True,
-                ):
-                    record = self._handoffs.from_bundles(
-                        bundle,
-                        deployment.attachment_bundle,
-                        result.generation,
-                        result.generation_digest,
-                    )
-                    if not self._handoffs.record(record):
-                        raise ValueError("handoff readback mismatch")
-            except (FileExistsError, ValueError) as error:
-                raise FixtureCommandError("APPLICATION_HANDOFF_RECORD_FAILED") from error
-        return FixtureRegistrationReadback(
-            active=True,
-            generation=result.generation,
-            generation_digest=result.generation_digest,
-            application_ids=tuple(
-                deployment.application_id for deployment in request.deployments
-            ),
-        )
-
     def status(
         self,
         environment: str,
@@ -440,26 +388,23 @@ class LocalFixtureLifecycleCommands:
     ) -> FixtureDestroyReadback:
         if self._terminal is None:
             raise FixtureCommandError("FIXTURE_DESTRUCTION_TERMINAL_UNAVAILABLE")
-        detached = self._integration.detach(
-            LifecycleChangeRequest(
-                environment=request.environment,
-                application_id=request.application_id,
-                expected_platform_source_revision=(
-                    request.expected_platform_source_revision
-                ),
-                expected_generation_digest=(
-                    request.expected_registration_generation_digest
-                ),
-            )
+        detached = self._integration.status_applications(
+            request.environment,
+            (request.application_id,),
         )
         if (
-            detached.outcome not in {"activated", "unchanged"}
+            detached.outcome != "read"
             or detached.generation is None
             or detached.generation_digest is None
+            or detached.generation != request.expected_platform_generation
+            or detached.generation_digest
+            != request.expected_registration_generation_digest
+            or len(detached.applications) != 1
+            or detached.applications[0].application_id != request.application_id
+            or detached.applications[0].lifecycle != "suspended"
+            or not detached.applications[0].target_exists
         ):
-            raise FixtureCommandError(
-                detached.blockers[0] if detached.blockers else "FIXTURE_DETACH_FAILED"
-            )
+            raise FixtureCommandError("FIXTURE_ROUTE_MUST_BE_DETACHED")
 
         expected = (
             f"DESTROY {request.environment} FIXTURE {request.application_id} "
@@ -622,82 +567,12 @@ class LocalFixtureOperator:
         self._handoffs = handoffs
         self._source_authority = validate_source_authority(source_authority)
 
-    def deploy(
-        self,
-        environment: str,
-        application_id: str,
-    ):  # type: ignore[no-untyped-def]
-        from infrastructure.operator.fixture_lifecycle import (
-            FixtureDeployRequest,
-            FixtureDeployResult,
-        )
-
-        try:
-            source = self._git.inspect()
-        except Exception:
-            return FixtureDeployResult(
-                "blocked",
-                None,
-                (),
-                None,
-                None,
-                ("FIXTURE_SOURCE_READBACK_FAILED",),
-            )
-        try:
-            platform = self._platform.read_platform(environment)
-        except PlatformIntegrationReadbackError as error:
-            return FixtureDeployResult(
-                "blocked",
-                None,
-                (),
-                None,
-                None,
-                (error.code,),
-            )
-        except Exception:
-            return FixtureDeployResult(
-                "blocked",
-                None,
-                (),
-                None,
-                None,
-                ("PLATFORM_INTEGRATION_READBACK_FAILED",),
-            )
-        blockers = list(
-            source_authority_blockers(
-                source,
-                environment,
-                self._source_authority,
-            )
-        )
-        if platform.environment != environment or platform.lifecycle_state != "deployed":
-            blockers.append("PLATFORM_NOT_DEPLOYED")
-        if blockers:
-            return FixtureDeployResult(
-                "blocked",
-                None,
-                (),
-                None,
-                None,
-                tuple(sorted(set(blockers))),
-            )
-        return self._lifecycle.deploy(
-            FixtureDeployRequest(
-                environment=environment,
-                application_id=application_id,
-                fixture_source_revision=source.revision,
-                expected_platform_source_revision=(
-                    platform.platform_source_revision
-                ),
-                expected_platform_generation=platform.generation,
-                source_authority=self._source_authority,
-            )
-        )
-
     def handoff(
         self,
         environment: str,
         application_id: str,
+        integration_bundle: dict[str, Any],
+        integration_bundle_path: str,
     ):  # type: ignore[no-untyped-def]
         from infrastructure.operator.fixture_lifecycle import (
             FixtureDeployRequest,
@@ -771,6 +646,8 @@ class LocalFixtureOperator:
                 ),
                 expected_platform_generation=platform.generation,
                 source_authority=self._source_authority,
+                integration_bundle=integration_bundle,
+                integration_bundle_path=integration_bundle_path,
             )
         )
 
@@ -874,15 +751,25 @@ class LocalFixtureOperator:
 class LocalFixtureStatusOperator:
     """Expose only the read-only registration/provider reconciliation."""
 
-    def __init__(self, integration: ApplicationIntegrationLifecycle) -> None:
+    def __init__(
+        self,
+        integration: ApplicationIntegrationLifecycle,
+        route_readiness: Callable[[str], bool],
+    ) -> None:
         self._integration = integration
+        self._route_readiness = route_readiness
 
     def status(
         self,
         environment: str,
         application_id: str | None = None,
     ) -> FixtureStatusResult:
-        return _status(self._integration, environment, application_id)
+        return _status(
+            self._integration,
+            environment,
+            application_id,
+            self._route_readiness,
+        )
 
 
 __all__ = (

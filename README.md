@@ -101,9 +101,11 @@ replacement.
 ### Fixture and adopted applications
 
 A Fixture Application is a repository-owned synthetic application used to qualify platform
-behavior. It deploys through independent Application State and exchanges the same integration and
-attachment bundles as a real application. A real application remains outside platform authority
-until its Application Owner adopts the platform contracts and performs its own deployment and
+behavior. Its runtime, images, and independent Terraform roots live in the dedicated fixture
+application project, not the platform project. That project attaches to the platform Shared VPC as
+a service project and exchanges the same project-scoped integration and attachment bundles as a
+real application. A real application remains outside platform authority until its Application
+Owner connects its project, adopts the platform contracts, and performs its own deployment and
 release process.
 
 The included fixture suite demonstrates the three admission modes:
@@ -142,23 +144,17 @@ application deploys its own runtime and state
 platform-register -> immutable Registration Generation -> routed application
 ```
 
-That is the contract sequence for every application. For the repository-owned fixtures,
-`fixture-deploy` is a fixture-only orchestration command that performs the complete sequence for one
-required `APPLICATION_ID`: it generates that fixture's Platform Integration Bundle, deploys its
-independent Application State, receives and validates its Application Attachment Bundle, and
-activates a complete immutable Registration Generation while preserving other registrations. The
-operator runs it once for each fixture to be deployed and does not run `platform-outputs` or
-`platform-register` separately for that fixture. The command narrates this work as three numbered
-stages: resolve the platform handoff, deploy or reuse the fixture application, and register and
-activate the fixture route.
+That is the contract sequence for every application, including repository-owned fixtures. The
+platform first connects the application project, then `platform-outputs` creates one project- and
+application-scoped Platform Integration Bundle. The application deployment consumes that bundle
+and returns an Application Attachment Bundle. Only `platform-register` can activate the route.
 
-For an optional inspection stop, `fixture-handoff` performs the same selected-fixture journey only
-through validated Application Attachment Bundle generation. It deploys or reconciles that
-fixture's Application State, writes both canonical bundles beneath `.platform-operator/`, prints
-their paths and digests, and does not register or route the fixture. A later `fixture-deploy` keeps
-its normal end-to-end behavior but reuses that prepared pair when the environment, application,
-source authority, fixture source, platform source and generation, bundle digests, image, and live
-target posture still match. It regenerates and reconciles when any binding has changed.
+For fixtures, `fixture-handoff` is the application-owned middle of that sequence. It builds and
+deploys one selected fixture in the dedicated fixture project, validates its live target, writes
+the canonical bundle pair and registration intent beneath `.platform-operator/`, prints their
+paths and digests, and stops. It never registers or routes the fixture. There is intentionally no
+combined `fixture-deploy` command: keeping `platform-outputs`, fixture runtime deployment, and
+`platform-register` visible proves the same ownership handoff required by an external application.
 
 Environment operation follows this lifecycle:
 
@@ -352,24 +348,62 @@ must be continued from its exact source or explicitly closed with `platform-canc
 ### Accepted staging operation
 
 Accepted Source is the default. It requires a clean current `main` revision. The normal staging
-journey is:
+journey begins with two one-time project operations:
 
 ```bash
+make fixture-project-bootstrap \
+  ENVIRONMENT=staging \
+  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
 make platform-deploy ENVIRONMENT=staging
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-public
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-restricted
-make fixture-status ENVIRONMENT=staging
-make platform-qualify ENVIRONMENT=staging
-make platform-status ENVIRONMENT=staging
+make platform-connect-project \
+  ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
 ```
 
-Each `fixture-deploy` includes bundle generation and registration for the selected synthetic
-fixture. It invokes the same underlying integration and registration lifecycle used by
-`platform-outputs` and `platform-register`; it does not bypass those contracts. The separate Make
-targets are used for applications whose deployment is owned outside this repository.
-`fixture-status` is suite-wide by default, or narrowed with an optional `APPLICATION_ID` during an
-individual deployment or investigation.
+`fixture-project-bootstrap` creates or repairs only the dedicated fixture application project,
+its required services, its private versioned state bucket, and its image repository. It is
+idempotent and normally runs only once unless that project is deleted. Google Cloud assigns the
+project number when the project is created; the bootstrap command reads it back and prints it. The
+operator does not configure a fixture project-number variable. `platform-connect-project` reads
+that number again and persists it in the private project-connection record used by bundle and
+runtime operations. `platform-connect-project`
+attaches the application project to the platform Shared VPC and grants its Cloud Run service agent
+read-only host-network discovery plus network-user access only on the application subnet. It is
+also idempotent. Neither command creates a fixture runtime or route.
+
+For each selected fixture, use the full platform/application handoff. This example shows the
+public fixture; use the corresponding application ID, admission mode, and route for the other two:
+
+```bash
+make platform-status ENVIRONMENT=staging
+
+make platform-outputs \
+  ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod \
+  APPLICATION_ID=fixture-public \
+  ACCESS_MODE=public \
+  ROUTE_INTENT=/fixture-public \
+  PLATFORM_SOURCE_REVISION=<active-platform-revision> \
+  PLATFORM_GENERATION=<active-registration-generation>
+
+make fixture-handoff \
+  ENVIRONMENT=staging \
+  APPLICATION_ID=fixture-public \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json
+
+# Inspect the three paths printed by fixture-handoff without editing them.
+make platform-register \
+  ENVIRONMENT=staging \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v1.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v1.json
+
+make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-public
+```
+
+Repeat that application-scoped sequence for `fixture-authenticated` with
+`ACCESS_MODE=authenticated` and for `fixture-restricted` with `ACCESS_MODE=restricted`. After the
+required fixtures are active, run `platform-qualify` and `platform-status`.
 
 A repository revision change alone does not require another `platform-deploy`. Fixture commands
 validate their own current source independently, then consume the provider-verified active
@@ -384,21 +418,13 @@ binding, moves traffic to that revision, and verifies the active binding again. 
 currently registered route on the same catalogue while the edge implementation changes. External
 application revisions remain independent and do not require a platform redeployment.
 
-To inspect one fixture's generated bundles before registration, insert this optional command before
-that fixture's ordinary deploy:
-
-```bash
-make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
-# Inspect the two paths printed by the command without editing either canonical file.
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
-```
-
 `fixture-handoff` is mutating: it deploys or reconciles only the selected fixture's Application
-State, but stops before Registration Generation activation. If every recorded binding is still
-current, the following `fixture-deploy` reports `preparation_reused: true` and proceeds directly to
-registration. Its output uses the corresponding first two numbered stages and labels the second
-`Prepare the Fixture Application Handoff` so the registration boundary remains explicit. The
-normal staging journey does not require this optional inspection command.
+State, but stops before Registration Generation activation. The inspection boundary is mandatory
+for fixtures because the fixture flow deliberately demonstrates the same separate-owner handoff as
+a real application. Rerunning the handoff reuses the exact prepared pair only while the source,
+project connection, platform generation, image, bundle digests, and live target remain current.
+`fixture-status` is suite-wide by default, or narrowed with an optional `APPLICATION_ID`, so an
+operator can inspect the whole qualification suite or diagnose one fixture without mutation.
 
 `platform-deploy` remains active across OAuth and DNS checkpoints. Ordinary reviewed plans use one
 `y/N` confirmation. Typed confirmation is reserved for destruction, retirement, ownership
@@ -466,10 +492,12 @@ merge:
 
 ```bash
 git push -u origin HEAD
+make fixture-project-bootstrap ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
 make platform-deploy ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-public SOURCE_AUTHORITY=candidate
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated SOURCE_AUTHORITY=candidate
-make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=fixture-restricted SOURCE_AUTHORITY=candidate
+make platform-connect-project ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
+# For each fixture: platform-outputs, fixture-handoff, inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 ```
@@ -489,16 +517,17 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-cancel ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Confirm and close only an active private deployment record so changed source can prepare fresh intent; no Terraform or cloud mutation |
 | `make platform-deploy ENVIRONMENT=<name>` | Reuse a fresh current approval or prepare one, then deploy, checkpoint, read back, and safely resume the shared platform |
 | `make platform-status ENVIRONMENT=<name>` | Report checkout, recorded deployment, active runtime, execution, and qualification state without mutation |
-| `make platform-outputs ...` | Generate one application-scoped Platform Integration Bundle |
+| `make fixture-project-bootstrap ENVIRONMENT=staging FIXTURES_PROJECT_ID=<project-id>` | Idempotently create or repair the selected fixture application project, state bucket, and image repository; read back its provider-assigned project number; create no runtime or route |
+| `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |
+| `make platform-outputs ...` | Generate one application- and project-scoped Platform Integration Bundle from a verified project connection |
 | `make platform-register ...` | Validate an application attachment and activate a complete immutable generation |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
 | `make platform-qualify ENVIRONMENT=<name>` | Evaluate the exact platform and fixture revisions and write redacted evidence |
 | `make platform-destroy ENVIRONMENT=<name>` | Compile, confirm, execute, and resume safe platform destruction |
-| `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id>` | Deploy one selected fixture, write its inspectable bundle pair, and stop before registration |
-| `make fixture-deploy ENVIRONMENT=staging APPLICATION_ID=<id>` | Generate the bundle, build and deploy independent state, validate the attachment, and register one selected fixture |
-| `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Reconcile every fixture by default, or one selected fixture, without mutation |
-| `make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=<id>` | Detach and destroy one fixture's Application State |
+| `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and registration intent, and stop before registration |
+| `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
+| `make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=<id>` | After `platform-detach`, destroy only one fixture's Application State |
 
 Production uses a separate profile, state, identity, OAuth client, DNS/TLS resources, evidence, and
 destructive authority. Preparation currently stops with `OWNERSHIP_TRANSFER_REQUIRED` while
@@ -510,13 +539,15 @@ or replace those resources.
 For an application that is not a repository-owned fixture, the platform and Application Owner
 perform separate operations:
 
-1. The Platform Operator generates a Platform Integration Bundle for one application, route,
-   access mode, environment, platform revision, and Registration Generation.
-2. The Application Owner consumes that bundle and deploys the runtime through its own Application
+1. The Platform Operator connects the existing application project to the environment's Shared
+   VPC. This is normally a once-per-environment project operation.
+2. The Platform Operator generates a Platform Integration Bundle for that project, application,
+   route, access mode, environment, platform revision, and Registration Generation.
+3. The Application Owner consumes that bundle and deploys the runtime through its own Application
    State and release authority.
-3. The Application Owner returns an Application Attachment Bundle bound to the exact integration-
+4. The Application Owner returns an Application Attachment Bundle bound to the exact integration-
    bundle digest.
-4. The Platform Operator validates the bundle, target, owner, ingress, edge-caller grant, audience,
+5. The Platform Operator validates the bundle, target, owner, network, ingress, edge-caller grant, audience,
    and current platform state, then activates a complete Registration Generation.
 
 The complete handoff sequence is:
@@ -524,8 +555,13 @@ The complete handoff sequence is:
 ```bash
 make platform-status ENVIRONMENT=staging
 
+make platform-connect-project \
+  ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=<application-project-id>
+
 make platform-outputs \
   ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=<application-project-id> \
   APPLICATION_ID=<application-id> \
   ACCESS_MODE=<public|authenticated|restricted> \
   ROUTE_INTENT=/<route> \
@@ -545,9 +581,10 @@ make platform-register \
 make platform-status ENVIRONMENT=staging
 ```
 
-There is no App Platform Make target for deploying a real application's runtime. That operation is
+`platform-connect-project` does not create or manage the application's runtime, state bucket,
+image repository, data, or route. There is no App Platform Make target for deploying a real application's runtime. That operation is
 intentionally supplied and authorized by the application's own repository. Apps Platform owns the
-two surrounding commands: `platform-outputs` creates the application-specific handoff, and
+project connection and the two surrounding commands: `platform-outputs` creates the application-specific handoff, and
 `platform-register` validates the returned attachment and activates the new complete Registration
 Generation.
 
@@ -562,8 +599,9 @@ temporary outage or test cycle.
 
 Before destroying the platform, detach every active application and destroy application-owned
 assets through each Application Owner's lifecycle. `platform-destroy` refuses active attachments
-and never targets Application State. Backend, recovery, and evidence retention remain separate from
-ordinary platform destruction.
+and never targets Application State. Backend, recovery, evidence, and the Shared VPC connection
+foundation remain protected after ordinary platform destruction. Disconnecting application
+projects and purging those retained resources require separate destructive authority.
 
 ## Maintain the project
 
@@ -589,10 +627,10 @@ environment is deployed or qualified.
 
 ## Operational readiness
 
-Repository implementation through AP-M9-W9 is complete and deterministically verified. No platform
-environment is currently deployed or qualified by this repository's recorded evidence. AP-M9-W10
-owns the first accepted staging operation, and production remains blocked on explicit ownership
-transfer and application adoption.
+AP-M9-W9 remains open for the cross-project fixture correction. Candidate staging platform
+resources have been exercised, but Candidate Source is not accepted qualification and the fixture
+attachment topology has not yet passed. AP-M9-W10 owns the first accepted staging qualification,
+and production remains blocked on explicit ownership transfer and application adoption.
 
 See [the documentation index](docs/README.md) for the current work-package sequence, evidence
 boundary, and historical delivery record.

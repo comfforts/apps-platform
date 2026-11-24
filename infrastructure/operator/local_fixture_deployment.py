@@ -27,8 +27,6 @@ from infrastructure.operator.local_deployment import (
 )
 
 
-_PROJECT_ID = "comfforts-platform-non-prod"
-_PROJECT_NUMBER = "455651441682"
 _REGION = "us-west1"
 _FIXTURE_MODES = {
     "fixture-public": "public",
@@ -89,11 +87,18 @@ class FixtureConfigurationRenderer:
             )
             identity = bundle["identity"]
             endpoints = bundle["endpoints"]
-            if not isinstance(identity, dict) or not isinstance(endpoints, dict):
+            application_project = bundle["application_project"]
+            network = bundle["network"]
+            if not all(
+                isinstance(value, dict)
+                for value in (identity, endpoints, application_project, network)
+            ):
                 raise TypeError
             external_origin = endpoints["external_origin"]
             edge_caller = identity["edge_caller_reference"]
             audience = identity["audience"]
+            project_id = application_project["project_id"]
+            project_number = application_project["project_number"]
         except (KeyError, TypeError) as error:
             raise LocalDeploymentInputError("FIXTURE_INPUT_INCOMPLETE") from error
         if (
@@ -105,6 +110,12 @@ class FixtureConfigurationRenderer:
             or not isinstance(external_origin, str)
             or external_origin != "https://apps-staging.comfforts.com"
             or not isinstance(edge_caller, str)
+            or project_id != request.project_id
+            or not isinstance(project_number, str)
+            or network.get("host_project_id") != "comfforts-platform-non-prod"
+            or network.get("host_project_number") != "455651441682"
+            or network.get("region") != _REGION
+            or network.get("egress_mode") != "all-traffic"
             or (access_mode == "public" and audience is not None)
             or (access_mode != "public" and not isinstance(audience, str))
         ):
@@ -115,8 +126,8 @@ class FixtureConfigurationRenderer:
             "contract_version": 1,
             "configuration_kind": "fixture",
             "configuration_class": "operator",
-            "project_id": _PROJECT_ID,
-            "project_number": _PROJECT_NUMBER,
+            "project_id": project_id,
+            "project_number": project_number,
             "region": _REGION,
             "application_id": request.owner_id,
             "state_owner": "application",
@@ -126,6 +137,10 @@ class FixtureConfigurationRenderer:
             "assertion_audience": audience,
             "platform_issuer": platform_issuer,
             "edge_caller_principal": edge_caller,
+            "network_host_project_id": network["host_project_id"],
+            "shared_network_reference": network["network_reference"],
+            "application_subnet_reference": network["subnetwork_reference"],
+            "vpc_egress": network["egress_mode"],
             "labels": {
                 "environment": "qualification",
                 "managed_by": "terraform",
@@ -139,11 +154,14 @@ class FixtureConfigurationRenderer:
             "reference_kind": "platform",
             "state_owner": "platform",
             "owner_id": "app-platform",
-            "project_number": _PROJECT_NUMBER,
+            "project_id": network["host_project_id"],
+            "project_number": network["host_project_number"],
             "region": _REGION,
             "platform_issuer": platform_issuer,
             "public_key_reference": f"{external_origin}/.well-known/jwks.json",
             "edge_caller_principal": edge_caller,
+            "shared_network_reference": network["network_reference"],
+            "application_subnet_reference": network["subnetwork_reference"],
         }
 
         root = self._workspace.prepare_phase(request.phase)
@@ -284,7 +302,7 @@ class LocalFixtureDeploymentCommands:
             "adapter_kind": "gcp-cloud-run-v1",
             "resource_reference": (
                 "urn:comfforts:app-platform:gcp:cloud-run:"
-                f"{_PROJECT_NUMBER}:{_REGION}:{request.owner_id}"
+                f"{configuration['project_number']}:{_REGION}:{request.owner_id}"
             ),
             "audience": expected_audience,
         }
@@ -324,9 +342,15 @@ class LocalFixtureDeploymentCommands:
                     planned.request,
                     planned.rendered.terraform_root,
                 )
+                variables = json.loads(
+                    planned.rendered.variable_file.read_bytes()
+                )
+                project_number = variables["fixture_configuration"][
+                    "project_number"
+                ]
                 resource_reference = (
                     "urn:comfforts:app-platform:gcp:cloud-run:"
-                    f"{_PROJECT_NUMBER}:{_REGION}:{planned.request.owner_id}"
+                    f"{project_number}:{_REGION}:{planned.request.owner_id}"
                 )
                 target = self._target_reader.read_target(
                     request.environment,

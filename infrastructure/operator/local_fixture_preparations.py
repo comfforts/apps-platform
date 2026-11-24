@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import stat
+from dataclasses import replace
 from typing import Any
 
 from contracts.lifecycle import (
@@ -19,6 +20,7 @@ from infrastructure.operator.fixture_lifecycle import (
     FixtureImageReadback,
     FixturePreparation,
 )
+from infrastructure.operator.integration import RegistrationIntent
 from infrastructure.operator.local import LocalFilesystem
 
 
@@ -203,6 +205,7 @@ class LocalFixturePreparations:
             raise ValueError("stored fixture preparation manifest mismatch")
         integration_relative = f"{base}/platform-integration-bundle.v1.json"
         attachment_relative = f"{base}/application-attachment-bundle.v1.json"
+        intent_relative = f"{base}/registration-intent.v1.json"
         integration = self._document(
             self._read_private(integration_relative),
             "platform-integration-bundle",
@@ -211,6 +214,15 @@ class LocalFixturePreparations:
             self._read_private(attachment_relative),
             "application-attachment-bundle",
         )
+        intent_payload = self._read_private(intent_relative)
+        if intent_payload is None:
+            return None
+        try:
+            intent_value = json.loads(intent_payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError("stored registration intent is invalid") from error
+        if intent_payload != _canonical(intent_value) + b"\n":
+            raise ValueError("stored registration intent is not canonical")
         if (
             lifecycle_digest(integration, "platform-integration-bundle")
             != metadata["integration_bundle_digest"]
@@ -252,6 +264,9 @@ class LocalFixturePreparations:
             ),
             attachment_bundle_path=str(
                 self._filesystem.state_path(attachment_relative)
+            ),
+            registration_intent_path=str(
+                self._filesystem.state_path(intent_relative)
             ),
         )
 
@@ -329,10 +344,53 @@ class LocalFixturePreparations:
             _canonical(metadata) + b"\n",
             replace=True,
         )
-        observed = self.read(request)
-        if observed is None:
-            raise ValueError("fixture preparation readback is unavailable")
-        return observed
+        return FixturePreparation(
+            image=image,
+            integration_bundle=integration_bundle,
+            deployment=deployment,
+            integration_bundle_digest=integration_digest,
+            attachment_bundle_digest=attachment_digest,
+            integration_bundle_path=str(
+                self._filesystem.state_path(integration_relative)
+            ),
+            attachment_bundle_path=str(
+                self._filesystem.state_path(attachment_relative)
+            ),
+        )
+
+    def publish_registration_intent(
+        self,
+        request: FixtureDeployRequest,
+        preparation: FixturePreparation,
+        intent: RegistrationIntent,
+    ) -> FixturePreparation:
+        current = self._read_private(self._current_path(request))
+        if current is None:
+            raise ValueError("fixture preparation is unavailable")
+        metadata = self._validate_metadata(json.loads(current))
+        base = self._base_path(request, str(metadata["preparation_digest"]))
+        relative = f"{base}/registration-intent.v1.json"
+        document = {
+            "attachment_id": intent.attachment_id,
+            "catalogue_summary": intent.catalogue_summary,
+            "catalogue_title": intent.catalogue_title,
+            "catalogue_visibility": intent.catalogue_visibility,
+            "forwarding_mode": intent.forwarding_mode,
+            "mount_path": intent.mount_path,
+            "restricted_members": [
+                {"issuer": issuer, "subject": subject}
+                for issuer, subject in intent.restricted_members
+            ],
+        }
+        self._filesystem.write_state(
+            relative,
+            _canonical(document) + b"\n",
+            replace=False,
+        )
+        return replace(
+            preparation,
+            registration_intent_path=str(self._filesystem.state_path(relative)),
+        )
 
 
 __all__ = ("LocalFixturePreparations",)

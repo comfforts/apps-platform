@@ -14,7 +14,7 @@ from infrastructure.backend import (
 
 
 class BackendLifecycleTest(unittest.TestCase):
-    def test_staging_defines_five_lineages_over_four_exclusive_buckets(self) -> None:
+    def test_staging_defines_six_lineages_over_two_owner_buckets(self) -> None:
         declarations = backend_declarations("staging")
 
         self.assertEqual(
@@ -41,7 +41,7 @@ class BackendLifecycleTest(unittest.TestCase):
         )
         self.assertEqual(
             len({declaration.bucket for declaration in declarations}),
-            4,
+            2,
         )
         self.assertEqual(
             len(

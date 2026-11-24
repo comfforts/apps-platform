@@ -20,6 +20,8 @@
     "deployment_progress_digest",
     "endpoints",
     "identity",
+    "application_project",
+    "network",
     "attachment_contract",
     "qualification_status"
   ],
@@ -49,6 +51,8 @@
     "deployment_progress_digest": {"$ref": "#/$defs/digest"},
     "endpoints": {"$ref": "#/$defs/endpoints"},
     "identity": {"$ref": "#/$defs/identity"},
+    "application_project": {"$ref": "#/$defs/applicationProject"},
+    "network": {"$ref": "#/$defs/network"},
     "attachment_contract": {"$ref": "#/$defs/attachmentContract"},
     "qualification_status": {"enum": ["qualified", "unqualified"]}
   },
@@ -131,6 +135,28 @@
       "properties": {
         "adapter_kind": {"const": "gcp-cloud-run-v1"},
         "ingress_mode": {"const": "shared_edge_only"}
+      }
+    },
+    "applicationProject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "project_number"],
+      "properties": {
+        "project_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"},
+        "project_number": {"type": "string", "pattern": "^[1-9][0-9]{5,18}$"}
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host_project_id", "host_project_number", "region", "network_reference", "subnetwork_reference", "egress_mode"],
+      "properties": {
+        "host_project_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"},
+        "host_project_number": {"type": "string", "pattern": "^[1-9][0-9]{5,18}$"},
+        "region": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]$"},
+        "network_reference": {"type": "string", "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/global/networks/[a-z][a-z0-9-]{1,61}[a-z0-9]$"},
+        "subnetwork_reference": {"type": "string", "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/regions/[a-z][a-z0-9-]{1,61}[a-z0-9]/subnetworks/[a-z][a-z0-9-]{1,61}[a-z0-9]$"},
+        "egress_mode": {"const": "all-traffic"}
       }
     }
   }

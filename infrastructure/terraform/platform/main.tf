@@ -88,9 +88,6 @@ module "platform_controls" {
     owner_principal           = "user:${local.foundation.notification_email}"
     labels                    = var.platform_configuration.labels
     artifact_packages = [
-      "fixture-authenticated",
-      "fixture-public",
-      "fixture-restricted",
       "shared-edge",
     ]
   }
@@ -117,6 +114,8 @@ module "shared_edge" {
     edge_caller_service_account_id = module.platform_foundation.foundation_reference.edge_caller_service_account_id
     image_digest                   = local.shared_edge.edge_image_digest
     configuration_bucket           = local.foundation.configuration_bucket
+    shared_network_reference       = module.platform_foundation.foundation_reference.shared_network_reference
+    application_subnet_reference   = module.platform_foundation.foundation_reference.application_subnet_reference
     registration_generation        = local.shared_edge.registration_generation
     binding_versions = {
       compiler               = 1

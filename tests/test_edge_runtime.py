@@ -1398,7 +1398,11 @@ class CloudRunAttachmentTest(unittest.TestCase):
         self,
     ) -> None:
         resource = replace(self.resource(), project_number="840919308355")
-        canonical_name = resource.provider_name
+        requested_name = resource.provider_name
+        canonical_name = (
+            "projects/comfforts-fixtures-nonprod/locations/us-west1/"
+            "services/alpha-app"
+        )
         target_uri = (
             "https://alpha-app-840919308355.us-west1.run.app"
         )
@@ -1439,10 +1443,10 @@ class CloudRunAttachmentTest(unittest.TestCase):
 
         metadata = asyncio.run(provider.describe(resource))
 
-        self.assertEqual(client.service_requests, [canonical_name])
+        self.assertEqual(client.service_requests, [requested_name])
         self.assertEqual(
             client.policy_requests,
-            [{"resource": canonical_name}],
+            [{"resource": requested_name}],
         )
         self.assertEqual(
             metadata,

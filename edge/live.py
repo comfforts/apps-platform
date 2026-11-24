@@ -313,7 +313,12 @@ def build_live_app(
         identity_store=FirestoreIdentityStore(clients.firestore),
         clock=clock,
         token_source=tokens,
-        assertion_issuer=AssertionIssuer(assertion_keys, clock, tokens),
+        assertion_issuer=AssertionIssuer(
+            assertion_keys,
+            clock,
+            tokens,
+            issuer=f"{settings.external_origin}/_platform",
+        ),
         verification_key_source=assertion_keys,
         application_proxy=application_proxy,
         trusted_client_classifier=ScopeTrustedClientClassifier(),

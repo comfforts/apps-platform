@@ -155,19 +155,21 @@ inventory scoping, and redacted readback. A later live staging rehearsal must pr
 recorded fixture project remains active, disconnected, free of the approved removable inventory,
 and able to be bootstrapped and connected again without changing its project identity.
 
-## Environment-derived platform project identity
+## Environment-derived platform project identity and hostname
 
 ### Problem
 
-The staging platform project ID and project number are repeated as literals across operator,
-configuration, backend, Terraform-policy, contract-validation, runtime, and test code. Although
-these values identify the platform Shared VPC host rather than the fixture application project,
-duplicating them makes environment selection difficult to audit and creates a risk that one
-consumer retains stale staging identity after another is updated.
+The staging platform project ID, project number, and platform hostname are repeated as literals
+across operator, configuration, backend, Terraform-policy, contract-validation, runtime, and test
+code. Although the project values identify the platform Shared VPC host rather than the fixture
+application project, all three values bind operations to one Platform Environment. Duplicating
+them makes environment selection difficult to audit and creates a risk that one consumer retains
+stale staging identity or hostname after another is updated.
 
 The fixture project now has explicit `FIXTURES_PROJECT_ID` and `FIXTURES_PROJECT_NAME` inputs and
-a provider-discovered project number. The platform project needs an equally clear environment boundary without making
-provider-assigned identity implicit or allowing an operator to select an unrelated project.
+a provider-discovered project number. The platform project and hostname need an equally clear
+environment boundary without making provider-assigned identity implicit or allowing an operator
+to select an unrelated project or hostname.
 
 ### Proposed configuration interface
 
@@ -176,23 +178,27 @@ Introduce explicit environment inputs for the selected platform project:
 ```text
 PLATFORM_PROJECT_ID=<exact-project-id>
 PLATFORM_PROJECT_NUMBER=<provider-assigned-project-number>
+PLATFORM_HOSTNAME=<exact-environment-hostname>
 ```
 
-The selected environment profile remains authoritative for the allowed project identity. Operator
-startup must validate both values against the profile and provider readback before any plan,
-mutation, bundle generation, registration, qualification, or destruction. An environment variable
-is configuration input, not proof of ownership. Missing, malformed, mismatched, or unreadable
-identity must fail closed with a precise blocker.
+The selected environment profile remains authoritative for the allowed project identity and
+hostname. Operator startup must validate all three values against the profile and the applicable
+provider or DNS readback before any plan, mutation, bundle generation, registration,
+qualification, or destruction. An environment variable is configuration input, not proof of
+ownership. Missing, malformed, mismatched, or unreadable identity or hostname must fail closed
+with a precise blocker.
 
-Use one typed configuration resolver to supply the validated project identity to all consumers.
-Remove repeated staging project-ID and project-number literals from Python modules, Terraform
-policy checks, backend naming, runtime settings, contract validation, operator adapters, and
-non-synthetic tests. Derive project-number-based bucket names and provider references from that
-validated identity instead of embedding complete staging resource names.
+Use one typed configuration resolver to supply the validated project identity and hostname to all
+consumers. Remove repeated staging project-ID, project-number, and hostname literals from Python
+modules, Terraform policy checks, backend naming, runtime settings, contract validation, operator
+adapters, and non-synthetic tests. Derive project-number-based bucket names, provider references,
+external origins, issuer and callback URLs, DNS/TLS bindings, and route URLs from those validated
+values instead of embedding complete staging resource names or hostnames.
 
-Synthetic fixtures and negative tests may retain clearly named fictional project IDs and numbers.
-The checked-in staging environment profile may retain the reviewed real values because it is the
-repository authority against which environment input and provider readback are validated.
+Synthetic fixtures and negative tests may retain clearly named fictional project IDs, numbers,
+and hostnames. The checked-in staging environment profile may retain the reviewed real values
+because it is the repository authority against which environment input and provider or DNS
+readback are validated.
 
 ### Safety and migration requirements
 
@@ -201,24 +207,28 @@ repository authority against which environment input and provider readback are v
 - Do not obtain authority solely from ambient `gcloud` configuration.
 - Verify that `PLATFORM_PROJECT_ID` resolves to `PLATFORM_PROJECT_NUMBER` before an external
   operation.
+- Require `PLATFORM_HOSTNAME` to be the exact normalized hostname selected by the environment
+  profile; ambient DNS resolution alone does not establish ownership or operation authority.
 - Keep production disabled until its separately approved environment profile and ownership are
   available.
-- Do not rename or migrate existing buckets, Terraform state, Shared VPC resources, identities, or
-  provider resources as a side effect of replacing literals.
+- Do not rename or migrate existing buckets, Terraform state, Shared VPC resources, identities,
+  DNS records, certificates, OAuth callbacks, or provider resources as a side effect of replacing
+  literals.
 - Ensure private historical records remain readable when they contain the same verified project
-  identity.
+  identity and hostname.
 - Keep `make check` credential-free by supplying deterministic test environment values through the
   Makefile and test helpers.
 
 ### Completion evidence
 
 Implementation is complete when a repository-wide search finds no real staging platform project
-ID or project-number literal outside the authoritative staging profile, explicit operator examples,
-and migration documentation. Deterministic tests must cover missing values, malformed values,
-project-ID mismatch, project-number mismatch, provider-readback mismatch, correct derivation of
-resource names, and unchanged historical-record compatibility. A later authenticated staging
-readback must confirm that the resolved identity still points to the existing platform project and
-does not propose resource replacement or state migration.
+ID, project-number, or hostname literal outside the authoritative staging profile, explicit
+operator examples, and migration documentation. Deterministic tests must cover missing values,
+malformed values, project-ID mismatch, project-number mismatch, hostname mismatch,
+provider-readback mismatch, DNS-readback mismatch where applicable, correct derivation of resource
+names and URLs, and unchanged historical-record compatibility. A later authenticated staging
+readback must confirm that the resolved identity and hostname still point to the existing platform
+environment and do not propose resource replacement, DNS/TLS replacement, or state migration.
 
 ## Legacy same-project fixture state-bucket disposition
 

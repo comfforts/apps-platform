@@ -116,6 +116,7 @@ def assertion_components(
         FixedTokenSource(
             correlation_ids or ["correlation-012345678901234"]
         ),
+        issuer="https://apps-staging.comfforts.com/_platform",
     )
     return issuer, keys
 
@@ -2500,7 +2501,7 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         )
         assertion = handoff.requests[0].verified_identity_assertion
         verifier = ApplicationIdentityVerifier(
-            expected_issuer="https://accounts.google.com",
+            expected_issuer="https://apps-staging.comfforts.com/_platform",
             expected_audience=(
                 "urn:comfforts:app-platform:audience:alpha-app"
             ),
@@ -2515,6 +2516,10 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertNotEqual(assertion, "visitor-controlled-forged-value")
         self.assertTrue(result.accepted)
         assert result.identity is not None
+        self.assertEqual(
+            result.identity.issuer,
+            "https://apps-staging.comfforts.com/_platform",
+        )
         self.assertEqual(result.identity.subject, "verified-subject")
         self.assertEqual(result.identity.issued_at, 10_000)
         self.assertEqual(result.identity.expires_at, 10_060)

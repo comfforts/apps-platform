@@ -620,6 +620,9 @@ class GenerationProviderCommandsTest(unittest.TestCase):
 
         class AttachmentGcloud(FakeGcloud):
             target_environment = str(fixture_labels["environment"])
+            identity_audience: str | None = (
+                "urn:comfforts:app-platform:audience:fixture-authenticated"
+            )
 
             def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
                 arguments = request.argv[1:]
@@ -631,7 +634,16 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                             {
                                 "metadata": {
                                     "annotations": {
-                                        "run.googleapis.com/ingress": "internal"
+                                        "run.googleapis.com/ingress": "internal",
+                                        **(
+                                            {
+                                                "comfforts.com/identity-audience": (
+                                                    self.identity_audience
+                                                )
+                                            }
+                                            if self.identity_audience is not None
+                                            else {}
+                                        ),
                                     },
                                     "labels": {
                                         "application_id": "fixture-authenticated",
@@ -747,6 +759,16 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         self.assertEqual(
             mismatched.blockers,
             ("TARGET_ENVIRONMENT_LABEL_MISMATCH",),
+        )
+
+        fake.target_environment = str(fixture_labels["environment"])
+        fake.identity_audience = None
+        missing_identity_audience = provider.read_target("staging", reference)
+
+        self.assertIsNone(missing_identity_audience.audience)
+        self.assertEqual(
+            missing_identity_audience.blockers,
+            ("TARGET_IDENTITY_AUDIENCE_MISMATCH",),
         )
 
 

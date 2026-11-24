@@ -50,6 +50,7 @@ run "plans_isolated_authenticated_fixture" {
     condition = (
       module.fixture_application.policy_summary.admission_mode == "authenticated" &&
       module.fixture_application.policy_summary.assertion_audience == "urn:comfforts:app-platform:audience:fixture-authenticated" &&
+      module.fixture_application.policy_summary.identity_audience_annotation == "urn:comfforts:app-platform:audience:fixture-authenticated" &&
       module.fixture_application.policy_summary.platform_issuer == "https://apps.example.invalid/_platform" &&
       module.fixture_application.policy_summary.public_key_reference == "https://apps.example.invalid/.well-known/jwks.json" &&
       module.fixture_application.policy_summary.configured_labels.environment == "qualification" &&

@@ -50,6 +50,7 @@ run "plans_isolated_public_fixture" {
     condition = (
       module.fixture_application.policy_summary.admission_mode == "public" &&
       module.fixture_application.policy_summary.assertion_audience == "" &&
+      module.fixture_application.policy_summary.identity_audience_annotation == null &&
       module.fixture_application.policy_summary.platform_issuer == "https://apps.example.invalid/_platform" &&
       module.fixture_application.policy_summary.public_key_reference == "https://apps.example.invalid/.well-known/jwks.json" &&
       module.fixture_application.policy_summary.configured_labels.environment == "qualification" &&

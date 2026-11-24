@@ -9,6 +9,7 @@ output "policy_summary" {
     application_id                  = var.runtime_configuration.application_id
     admission_mode                  = var.runtime_configuration.admission_mode
     assertion_audience              = var.runtime_configuration.assertion_audience
+    identity_audience_annotation    = try(google_cloud_run_v2_service.runtime.annotations["comfforts.com/identity-audience"], null)
     platform_issuer                 = var.runtime_configuration.platform_issuer
     public_key_reference            = var.runtime_configuration.public_key_reference
     configured_labels               = var.runtime_configuration.labels

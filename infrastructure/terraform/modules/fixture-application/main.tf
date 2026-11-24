@@ -12,6 +12,9 @@ resource "google_cloud_run_v2_service" "runtime" {
   location = var.runtime_configuration.region
   name     = var.runtime_configuration.service_name
   labels   = var.runtime_configuration.labels
+  annotations = var.runtime_configuration.assertion_audience == "" ? {} : {
+    "comfforts.com/identity-audience" = var.runtime_configuration.assertion_audience
+  }
 
   deletion_protection  = !var.runtime_configuration.destruction_enabled
   ingress              = "INGRESS_TRAFFIC_INTERNAL_ONLY"

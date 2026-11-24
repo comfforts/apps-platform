@@ -165,6 +165,7 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
             "APP_PLATFORM_ISSUER",
             "APP_PLATFORM_PUBLIC_KEY_REFERENCE",
             "APP_PLATFORM_ASSERTION_AUDIENCE",
+            '"comfforts.com/identity-audience"',
         ):
             self.assertIn(required_control, module)
 

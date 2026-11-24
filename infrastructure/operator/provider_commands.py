@@ -844,6 +844,9 @@ class GcloudGenerationProvider(GenerationProvider):
         ):
             raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID")
         environment_values = self._service_environment(service)
+        identity_audience = annotations.get("comfforts.com/identity-audience")
+        if identity_audience is not None and not isinstance(identity_audience, str):
+            raise GenerationProviderError("ATTACHMENT_TARGET_READBACK_INVALID")
         ready = any(
             isinstance(item, dict)
             and item.get("type") == "Ready"
@@ -855,6 +858,10 @@ class GcloudGenerationProvider(GenerationProvider):
             label_blockers.append("TARGET_STATE_OWNER_LABEL_MISMATCH")
         if labels.get("environment") != "qualification":
             label_blockers.append("TARGET_ENVIRONMENT_LABEL_MISMATCH")
+        if identity_audience != environment_values.get(
+            "APP_PLATFORM_ASSERTION_AUDIENCE"
+        ):
+            label_blockers.append("TARGET_IDENTITY_AUDIENCE_MISMATCH")
         owner_application_id = labels.get("application_id")
         if (
             not isinstance(owner_application_id, str)
@@ -955,7 +962,7 @@ class GcloudGenerationProvider(GenerationProvider):
             resource_reference=resource_reference,
             ingress_mode=ingress,
             caller_grant=caller_grant,
-            audience=environment_values.get("APP_PLATFORM_ASSERTION_AUDIENCE"),
+            audience=identity_audience,
             application_project_id=connection.project_id,
             network_reference=network_reference,
             subnetwork_reference=subnetwork_reference,

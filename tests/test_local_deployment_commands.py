@@ -438,7 +438,10 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             generation=2,
             generation_digest="sha256:" + "2" * 64,
             content_digest="sha256:" + "3" * 64,
-            object_name="generations/2/compiled-shared-edge.v1.json",
+            object_name=(
+                "environments/staging/generations/2/"
+                "compiled-shared-edge.v1.json"
+            ),
             object_generation=84,
         )
         new_image = (

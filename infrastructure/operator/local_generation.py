@@ -330,19 +330,25 @@ class LocalRegistrationGenerationControl:
         if proposal is None:
             raise ValueError("active runtime generation proposal is missing")
         generation = proposal.registration_set.get("generation")
-        expected_object = (
-            "generations/1/compiled.json"
-            if generation == 1
-            and proposal.registration_set.get("previous_generation_digest") is None
-            else (
+        expected_objects = {
+            (
+                f"environments/{binding.environment}/generations/"
+                f"{binding.generation}/compiled-shared-edge.v1.json"
+            ),
+            (
                 f"generations/{binding.generation_digest[7:]}/"
                 "compiled-shared-edge.v1.json"
-            )
-        )
+            ),
+        }
+        if (
+            generation == 1
+            and proposal.registration_set.get("previous_generation_digest") is None
+        ):
+            expected_objects.add("generations/1/compiled.json")
         if (
             generation != binding.generation
             or proposal.content_digest != binding.content_digest
-            or binding.object_name != expected_object
+            or binding.object_name not in expected_objects
             or binding.object_generation < 1
             or not binding.revision_name
             or not binding.image_reference

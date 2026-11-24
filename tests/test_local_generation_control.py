@@ -246,6 +246,45 @@ class LocalGenerationControlTest(unittest.TestCase):
             "b" * 40,
         )
 
+    def test_rebinds_numbered_generation_to_verified_runtime_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            current_proposal = proposal(3, previous=_digest("2"))
+            control, provider = self._control(directory)
+            publication = control.publish(current_proposal)
+            control.activate(
+                "staging",
+                publication.publication_reference,
+                current_proposal.generation_digest,
+            )
+            binding = ProviderGenerationBinding(
+                environment="staging",
+                revision_name="app-platform-edge-g3-current-source",
+                platform_source_revision="b" * 40,
+                image_reference=(
+                    "us-west1-docker.pkg.dev/example/edge@sha256:" + "9" * 64
+                ),
+                generation=3,
+                generation_digest=current_proposal.generation_digest,
+                content_digest=current_proposal.content_digest,
+                object_name=(
+                    "environments/staging/generations/3/"
+                    "compiled-shared-edge.v1.json"
+                ),
+                object_generation=43,
+            )
+            provider.active_binding = binding
+
+            control.record_active_runtime(binding)
+            current = LocalReviewedGenerationControl(control).current("staging")
+
+        assert current is not None
+        self.assertEqual(current.proposal, current_proposal)
+        self.assertTrue(
+            current.publication_reference.endswith(
+                ":revision:app-platform-edge-g3-current-source"
+            )
+        )
+
     def test_rejects_deployed_initial_generation_binding_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             binding = ProviderGenerationBinding(

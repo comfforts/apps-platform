@@ -96,6 +96,7 @@ class FakeTerraform:
     migrated: int = 0
     recovered_taints: list[str] = field(default_factory=list)
     refresh_only_plans: list[bool] = field(default_factory=list)
+    read_outputs: list[str] = field(default_factory=list)
     state_addresses: tuple[str, ...] = ()
 
     def create_plan(
@@ -204,6 +205,7 @@ class FakeTerraform:
         output_name: str,
     ) -> object:
         del request
+        self.read_outputs.append(output_name)
         if output_name == "bootstrap_phase_output":
             return {
                 "contract_version": 1,
@@ -598,7 +600,7 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
 
     def test_foundation_and_edge_readbacks_feed_later_stages(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            commands, _, _, _, work = self._commands(directory)
+            commands, terraform, _, _, work = self._commands(directory)
             foundation = _context(
                 "foundation",
                 ("foundation-reference", "oauth-secret-container"),
@@ -663,6 +665,14 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
         self.assertEqual(
             dict(edge_result.outputs)["hostname"],
             "apps-staging.comfforts.com",
+        )
+        self.assertEqual(
+            terraform.read_outputs,
+            [
+                "foundation_phase_output",
+                "shared_edge_phase_output",
+                "foundation_phase_output",
+            ],
         )
         self.assertTrue(
             variables["platform_configuration"]["shared_edge"]["tls_enabled"]

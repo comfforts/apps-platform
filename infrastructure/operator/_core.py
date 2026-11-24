@@ -17,6 +17,7 @@ from typing import Any
 
 from contracts.lifecycle import load_lifecycle_document, validate_lifecycle_material
 from infrastructure.operator._interfaces import (
+    DeploymentCheckResult,
     DiscoverySnapshot,
     ActivePlatformSourceReader,
     ExecutionResult,
@@ -26,6 +27,7 @@ from infrastructure.operator._interfaces import (
     PreflightResult,
     PrepareResult,
     StageContext,
+    StageCheck,
     StageExecution,
     StatusResult,
 )
@@ -463,6 +465,8 @@ class LifecycleOperator:
             ("upstream_branch", snapshot.upstream_branch),
             ("upstream_revision", snapshot.upstream_revision),
             ("origin_main_ancestor", snapshot.origin_main_ancestor),
+            ("working_tree_digest", snapshot.working_tree_digest),
+            ("untracked_path_count", snapshot.untracked_path_count),
         )
         for name, value in values:
             self._adapters.terminal.write(
@@ -514,6 +518,23 @@ class LifecycleOperator:
     ) -> list[str]:
         return list(
             source_authority_blockers(snapshot, environment, self._source_authority)
+        )
+
+    def _check_source_blockers(
+        self,
+        snapshot: GitSnapshot,
+        environment: str,
+    ) -> tuple[str, ...]:
+        """Return source diagnostics relevant to a non-authoritative check."""
+
+        return tuple(
+            sorted(
+                {
+                    blocker
+                    for blocker in self._source_blockers(snapshot, environment)
+                    if blocker != "SOURCE_NOT_CLEAN"
+                }
+            )
         )
 
     @staticmethod
@@ -1220,6 +1241,41 @@ class LifecycleOperator:
                 outputs[(stage_id, str(output["name"]))] = str(output["value"])
         return closed, outputs
 
+    def _latest_successful_outputs(
+        self,
+        environment: str,
+    ) -> dict[tuple[str, str], str]:
+        directory = f"{self._state_directory(environment)}/progress"
+        for relative_path in self._adapters.filesystem.list_state(
+            directory,
+            suffix=".final.v1.json",
+        ):
+            value = self._read_json_state(relative_path)
+            if value is None:
+                continue
+            normalized = self._normalize_progress(value, environment)
+            if normalized is None or normalized.get("status") != "succeeded":
+                continue
+            specification_digest = normalized.get("specification_digest")
+            if not isinstance(specification_digest, str):
+                continue
+            try:
+                specification = self._load_specification(
+                    environment,
+                    specification_digest,
+                )
+            except ValueError:
+                continue
+            workflow = str(specification["workflow"])
+            if (
+                not self._valid_progress(normalized, environment, workflow)
+                or validate_lifecycle_material(normalized)
+            ):
+                continue
+            _, outputs = self._closed_outputs(normalized)
+            return outputs
+        return {}
+
     @staticmethod
     def _stage_inputs(
         stage: dict[str, Any],
@@ -1678,12 +1734,17 @@ class LifecycleOperator:
             environment,
             report_blockers=False,
         )
-        source_blockers = (
+        all_source_blockers = (
             tuple(sorted(set(self._source_blockers(git, environment))))
             if git is not None
             else ()
         )
-        source_codes = set(source_blockers)
+        source_blockers = (
+            self._check_source_blockers(git, environment)
+            if mode == "development" and git is not None
+            else all_source_blockers
+        )
+        source_codes = set(all_source_blockers)
         readiness_blockers = tuple(
             blocker for blocker in all_blockers if blocker not in source_codes
         )
@@ -1718,6 +1779,183 @@ class LifecycleOperator:
             (),
             source_blockers,
             operational_ready,
+        )
+
+    def deploy_check(self, environment: str) -> DeploymentCheckResult:
+        """Rehearse current working-tree deployment boundaries without mutation."""
+
+        profile, profile_digest, git, discoveries, all_blockers = self._readiness(
+            environment,
+            report_blockers=False,
+        )
+        if git is None:
+            blockers = tuple(sorted(set(all_blockers or ("ENVIRONMENT_DISABLED",))))
+            self._report_blockers(blockers)
+            return DeploymentCheckResult("blocked", False, (), (), blockers)
+
+        all_source_blockers = tuple(
+            sorted(set(self._source_blockers(git, environment)))
+        )
+        source_blockers = self._check_source_blockers(git, environment)
+        source_codes = set(all_source_blockers)
+        readiness_blockers = tuple(
+            blocker for blocker in all_blockers if blocker not in source_codes
+        )
+        self._report_development_source_diagnostics(source_blockers)
+        self._report_blockers(readiness_blockers)
+        if readiness_blockers:
+            return DeploymentCheckResult(
+                "blocked",
+                False,
+                source_blockers,
+                (),
+                readiness_blockers,
+            )
+        self._report_verified_session(discoveries)
+        if self._adapters.checker is None:
+            blockers = self._adapters.check_blockers or (
+                "DEPLOYMENT_CHECK_ADAPTER_UNAVAILABLE",
+            )
+            self._report_blockers(blockers)
+            return DeploymentCheckResult(
+                "blocked",
+                not all_source_blockers,
+                source_blockers,
+                (),
+                blockers,
+            )
+
+        try:
+            current_digest = self._current_specification_digest(environment)
+            if current_digest is not None:
+                self._load_specification(environment, current_digest)
+            progress = self._load_progress(environment)
+        except ValueError as error:
+            message = str(error)
+            blocker = (
+                "PROGRESS_READBACK_FAILED"
+                if "progress" in message
+                else "SPECIFICATION_READBACK_FAILED"
+            )
+            self._report_blockers((blocker,))
+            return DeploymentCheckResult(
+                "blocked",
+                not all_source_blockers,
+                source_blockers,
+                (),
+                (blocker,),
+            )
+
+        outputs = self._latest_successful_outputs(environment)
+        if progress is not None:
+            _, current_outputs = self._closed_outputs(progress)
+            outputs.update(current_outputs)
+        prospective = self._specification(
+            environment,
+            profile_digest,
+            git.revision,
+        )
+        specification_digest = _digest(prospective)
+        checked: list[tuple[str, StageCheck]] = []
+        blockers: list[str] = []
+        fresh_outputs: set[tuple[str, str]] = set()
+        announced_operator_stages: set[int] = set()
+        for stage_template in _DEPLOYMENT_STAGES:
+            stage = dict(stage_template)
+            stage_id = str(stage["stage_id"])
+            operator_stage, operator_title = _OPERATOR_STAGE_PRESENTATION[stage_id]
+            if operator_stage not in announced_operator_stages:
+                self._adapters.terminal.write(
+                    f"▸ Check {operator_stage}/{_OPERATOR_STAGE_COUNT} · "
+                    f"{operator_title}"
+                )
+                announced_operator_stages.add(operator_stage)
+
+            missing = [
+                f"{producer}.{name}"
+                for producer, name in stage["consumes"]
+                if (str(producer), str(name)) not in outputs
+            ]
+            if missing:
+                result = StageCheck(
+                    "deferred",
+                    summary={"missing_inputs": missing},
+                )
+                checked.append((stage_id, result))
+                self._adapters.terminal.write(
+                    f"Deployment check {stage_id}: deferred; missing "
+                    + ", ".join(missing)
+                    + "."
+                )
+                continue
+
+            if stage_id in {"runtime-activation", "external-dns", "readback"}:
+                stale = [
+                    f"{producer}.{name}"
+                    for producer, name in stage["consumes"]
+                    if (str(producer), str(name)) not in fresh_outputs
+                ]
+                if stale:
+                    result = StageCheck(
+                        "deferred",
+                        summary={"requires_fresh_inputs": stale},
+                    )
+                    checked.append((stage_id, result))
+                    self._adapters.terminal.write(
+                        f"Deployment check {stage_id}: deferred; current-source "
+                        "outputs are not yet available for "
+                        + ", ".join(stale)
+                        + "."
+                    )
+                    continue
+
+            inputs = self._stage_inputs(stage, outputs)
+            context_stage = {
+                **stage,
+                "consumes": [
+                    {"stage_id": producer, "output_name": name}
+                    for producer, name in stage["consumes"]
+                ],
+            }
+            result = self._adapters.checker.check(
+                StageContext(
+                    environment=environment,
+                    source_revision=git.revision,
+                    specification_digest=specification_digest,
+                    stage=MappingProxyType(context_stage),
+                    inputs=inputs,
+                )
+            )
+            expected_outputs = tuple(str(name) for name in stage["produces"])
+            actual_outputs = tuple(name for name, _ in result.outputs)
+            if result.outputs and actual_outputs != expected_outputs:
+                result = StageCheck(
+                    "blocked",
+                    plan_digest=result.plan_digest,
+                    summary=result.summary,
+                    blockers=("STAGE_CHECK_OUTPUT_MISMATCH",),
+                )
+            checked.append((stage_id, result))
+            self._adapters.terminal.write(
+                f"Deployment check {stage_id}: {result.outcome}."
+            )
+            if result.outcome == "blocked":
+                blockers.extend(result.blockers or ("DEPLOYMENT_CHECK_FAILED",))
+            for name, value in result.outputs:
+                outputs[(stage_id, name)] = value
+                if result.outcome == "pass":
+                    fresh_outputs.add((stage_id, name))
+
+        unique_blockers = tuple(sorted(set(blockers)))
+        return DeploymentCheckResult(
+            "blocked" if unique_blockers else "rehearsed",
+            not all_source_blockers,
+            source_blockers,
+            tuple(checked),
+            unique_blockers,
+            git.revision,
+            git.working_tree_digest,
+            git.untracked_path_count,
         )
 
     def prepare(self, environment: str) -> PrepareResult:

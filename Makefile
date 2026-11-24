@@ -19,7 +19,7 @@ REGISTRATION_INTENT ?=
 
 export FIXTURES_PROJECT_ID FIXTURES_PROJECT_NAME
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-prepare platform-cancel platform-deploy platform-status fixture-project-bootstrap platform-connect-project platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-handoff fixture-status fixture-destroy
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-preflight-check platform-prepare platform-cancel platform-deploy platform-deploy-check platform-status fixture-project-bootstrap platform-connect-project platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-handoff fixture-status fixture-destroy
 
 ## Install pinned Terraform dependencies into the ignored project-local mirror.
 terraform-setup:
@@ -62,6 +62,10 @@ operator-check:
 platform-preflight:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator preflight --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --preflight-mode "$(PREFLIGHT_MODE)"
 
+## Run real readiness diagnostics from an uncommitted working tree; grants no source authority.
+platform-preflight-check:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator preflight --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --preflight-mode development
+
 ## Prepare and explicitly approve one complete lifecycle specification.
 platform-prepare:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator prepare --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
@@ -73,6 +77,10 @@ platform-cancel:
 ## Prepare, approve, and execute one exact deployment in the same interactive process.
 platform-deploy: terraform-setup
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" $(if $(SPECIFICATION_DIGEST),--specification-digest "$(SPECIFICATION_DIGEST)",)
+
+## Rehearse current working-tree deployment plans and readback without approval or mutation.
+platform-deploy-check: terraform-setup
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy-check --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
 
 ## Report local desired and execution state without changing it.
 platform-status:

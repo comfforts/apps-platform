@@ -98,6 +98,30 @@ class LocalFilesystem:
         except FileNotFoundError:
             return None
 
+    def list_state(
+        self,
+        relative_directory: str,
+        *,
+        suffix: str,
+    ) -> tuple[str, ...]:
+        directory = self.state_path(relative_directory)
+        try:
+            candidates = tuple(
+                path
+                for path in directory.iterdir()
+                if path.name.endswith(suffix) and path.is_file() and not path.is_symlink()
+            )
+        except FileNotFoundError:
+            return ()
+        ordered = sorted(
+            candidates,
+            key=lambda path: (path.stat().st_mtime_ns, path.name),
+            reverse=True,
+        )
+        return tuple(
+            str(path.resolve().relative_to(self._state_root)) for path in ordered
+        )
+
     def write_state(
         self,
         relative_path: str,
@@ -193,18 +217,36 @@ class LocalGit:
             capture_output=True,
             text=True,
         )
+        status = _run_git(
+            self.project_root,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+        )
+        tracked_diff = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(self.project_root),
+                "diff",
+                "--binary",
+                "HEAD",
+                "--",
+            ],
+            check=True,
+            capture_output=True,
+        ).stdout
+        working_tree_digest = (
+            "sha256:"
+            + hashlib.sha256(status.encode("utf-8") + b"\0" + tracked_diff).hexdigest()
+            if status
+            else None
+        )
         return GitSnapshot(
             repository=_repository_identity(remote),
             revision=_run_git(self.project_root, "rev-parse", "HEAD"),
             branch=_run_git(self.project_root, "branch", "--show-current"),
-            clean=not bool(
-                _run_git(
-                    self.project_root,
-                    "status",
-                    "--porcelain=v1",
-                    "--untracked-files=all",
-                )
-            ),
+            clean=not bool(status),
             main_revision=_run_git(self.project_root, "rev-parse", "main"),
             origin_main_revision=_run_git(
                 self.project_root,
@@ -214,6 +256,10 @@ class LocalGit:
             upstream_branch=upstream_branch,
             upstream_revision=upstream_revision,
             origin_main_ancestor=ancestor.returncode == 0,
+            working_tree_digest=working_tree_digest,
+            untracked_path_count=sum(
+                1 for line in status.splitlines() if line.startswith("?? ")
+            ),
         )
 
 
@@ -724,6 +770,8 @@ def _local_deployment_executor(
     state_root: Path,
     gcp: ProfileGcp,
     terminal: ConsoleTerminal,
+    *,
+    check_only: bool = False,
 ) -> _DeploymentExecutorResult:
     """Arm real staging commands only when every local human-session seam exists."""
 
@@ -767,7 +815,9 @@ def _local_deployment_executor(
         configuration = verified.configuration
         resolved_state = verified.state_root
         session = verified.facts
-        working_root = resolved_state / "work/deployment"
+        working_root = resolved_state / (
+            "work/deployment-check" if check_only else "work/deployment"
+        )
         working_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         working_root.chmod(0o700)
     except RuntimeError as error:
@@ -787,6 +837,7 @@ def _local_deployment_executor(
                 ("HOME", str(Path.home().resolve())),
             ),
             private_state_root=resolved_state,
+            plan_lock=not check_only,
         )
     except (OSError, RuntimeError, ValueError):
         return _DeploymentExecutorResult(
@@ -880,6 +931,7 @@ def build_local_operator(
     source_authority: str = "accepted",
     *,
     arm_executor: bool = True,
+    arm_checker: bool = False,
 ) -> LifecycleOperator:
     """Construct the local operator around the active human Cloud SDK session."""
 
@@ -905,6 +957,17 @@ def build_local_operator(
             terminal,
         )
         if arm_executor
+        else _DeploymentExecutorResult(None)
+    )
+    checking = (
+        _local_deployment_executor(
+            resolved_project,
+            state_root,
+            gcp,
+            terminal,
+            check_only=True,
+        )
+        if arm_checker
         else _DeploymentExecutorResult(None)
     )
     filesystem = LocalFilesystem(resolved_project, state_root)
@@ -933,9 +996,27 @@ def build_local_operator(
             clock=SystemClock(),
             executor=execution.executor,
             execution_blockers=execution.blockers,
+            checker=checking.executor,  # type: ignore[arg-type]
+            check_blockers=checking.blockers,
         ),
         source_authority=source_authority,
         active_source_reader=active_source_reader,
+    )
+
+
+def build_local_deployment_check(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+) -> LifecycleOperator:
+    """Construct the real read-only working-tree deployment rehearsal."""
+
+    return build_local_operator(
+        project_root,
+        state_root,
+        source_authority,
+        arm_executor=False,
+        arm_checker=True,
     )
 
 

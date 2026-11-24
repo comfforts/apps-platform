@@ -592,6 +592,12 @@ class LocalDeploymentCommands:
                         False,
                         blockers=("TERRAFORM_PLAN_CONTEXT_MISSING",),
                     )
+                foundation_value = self._terraform.read_output(
+                    planned.request,
+                    planned.rendered.terraform_root,
+                    "foundation_phase_output",
+                )
+                self._foundation_references(foundation_value)
                 edge, address = self._edge_references(
                     value,
                     tls_enabled=planned.shared_edge_tls_enabled,

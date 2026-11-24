@@ -136,6 +136,63 @@ def _fixture_observation(application_id: str) -> dict[str, object]:
 
 
 class PlanPolicyTest(unittest.TestCase):
+    def test_bootstrap_accepts_only_exact_legacy_fixture_bucket_forget_actions(
+        self,
+    ) -> None:
+        policy = plan_policy(
+            "staging",
+            "bootstrap",
+            SOURCE_REVISION,
+            destructive=False,
+        )
+        addresses = tuple(
+            f'module.state_bucket["{application_id}"].google_storage_bucket.state'
+            for application_id in (
+                "fixture-public",
+                "fixture-authenticated",
+                "fixture-restricted",
+            )
+        )
+        observation: dict[str, object] = {
+            "environment": "staging",
+            "source_revision": SOURCE_REVISION,
+            "state_owner": "platform",
+            "owner_id": "app-platform",
+            "terraform_root": "infrastructure/terraform/bootstrap",
+            "phase": "bootstrap",
+            "provider": {
+                "source": "registry.terraform.io/hashicorp/google",
+                "service": "google",
+                "project_id": "comfforts-platform-non-prod",
+                "configuration": "explicit",
+            },
+            "changes": [
+                {
+                    "address": address,
+                    "resource_type": "google_storage_bucket",
+                    "provider_source": "registry.terraform.io/hashicorp/google",
+                    "actions": ["forget"],
+                }
+                for address in addresses
+            ],
+        }
+
+        accepted = evaluate_plan(policy, observation)
+        self.assertTrue(accepted.accepted)
+        self.assertEqual(accepted.violations, ())
+
+        observation["changes"] = [
+            {
+                "address": "module.state_bucket[\"unknown\"].google_storage_bucket.state",
+                "resource_type": "google_storage_bucket",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["forget"],
+            }
+        ]
+        rejected = evaluate_plan(policy, observation)
+        self.assertFalse(rejected.accepted)
+        self.assertIn("ACTION_PROHIBITED", [item.code for item in rejected.violations])
+
     def test_accepted_summary_is_canonical_redacted_and_order_independent(self) -> None:
         policy = plan_policy(
             "staging",
@@ -258,6 +315,85 @@ class PlanPolicyTest(unittest.TestCase):
             [change["actions"] for change in result.canonical_summary["changes"]],
             [["no-op"], ["create"], ["no-op"]],
         )
+
+    def test_shared_edge_accepts_exact_cross_project_foundation_migration(self) -> None:
+        policy = plan_policy(
+            "staging",
+            "shared-edge",
+            SOURCE_REVISION,
+            destructive=False,
+        )
+        observation = _shared_edge_observation()
+        observation["changes"] = [
+            {
+                "address": address,
+                "resource_type": resource_type,
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": [action],
+            }
+            for address, resource_type, action in (
+                (
+                    "module.platform_controls."
+                    "google_artifact_registry_repository.qualification_images[0]",
+                    "google_artifact_registry_repository",
+                    "update",
+                ),
+                (
+                    "module.platform_foundation."
+                    "google_compute_shared_vpc_host_project.platform",
+                    "google_compute_shared_vpc_host_project",
+                    "create",
+                ),
+                (
+                    "module.platform_foundation."
+                    "google_compute_subnetwork.applications",
+                    "google_compute_subnetwork",
+                    "create",
+                ),
+                (
+                    "module.platform_foundation.google_compute_network.shared",
+                    "google_compute_network",
+                    "create",
+                ),
+            )
+        ]
+
+        result = evaluate_plan(policy, observation)
+
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.violations, ())
+
+    def test_shared_edge_rejects_unsafe_cross_project_migration_actions(self) -> None:
+        policy = plan_policy(
+            "staging",
+            "shared-edge",
+            SOURCE_REVISION,
+            destructive=False,
+        )
+        for actions in (["delete"], ["delete", "create"], ["update"]):
+            with self.subTest(actions=actions):
+                observation = _shared_edge_observation()
+                observation["changes"] = [
+                    {
+                        "address": (
+                            "module.platform_foundation."
+                            "google_compute_network.shared"
+                        ),
+                        "resource_type": "google_compute_network",
+                        "provider_source": (
+                            "registry.terraform.io/hashicorp/google"
+                        ),
+                        "actions": actions,
+                    }
+                ]
+
+                result = evaluate_plan(policy, observation)
+
+                self.assertFalse(result.accepted)
+                self.assertIn(
+                    "INHERITED_RESOURCE_MUTATION_PROHIBITED",
+                    [item.code for item in result.violations],
+                )
 
     def test_shared_edge_owns_runtime_impersonation_enablement_and_binding(
         self,

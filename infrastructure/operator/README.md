@@ -15,6 +15,8 @@ staging project selected:
 
 ```bash
 make platform-preflight ENVIRONMENT=staging
+make platform-preflight-check ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make platform-deploy-check ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-prepare ENVIRONMENT=staging
 make platform-status ENVIRONMENT=staging
 make platform-deploy ENVIRONMENT=staging
@@ -98,17 +100,25 @@ Neither stream includes tokens, secret values, raw provider payloads, Terraform 
 plans.
 
 The default `PREFLIGHT_MODE=operational` enforces the selected Accepted or Candidate Source policy.
-For local code maintenance, `PREFLIGHT_MODE=development` runs the same read-only profile, Git,
-GitHub, GCP, ADC, Terraform-tool, and DNS checks but reports source-admission findings separately
+For local code maintenance, `platform-preflight-check` runs the same read-only profile, Git,
+GitHub, GCP, ADC, Terraform-tool, and DNS checks. It skips `SOURCE_NOT_CLEAN`, because the command
+exists to inspect uncommitted changes, and reports other source-admission findings separately
 without making them block the diagnostic run:
 
 ```bash
-make platform-preflight ENVIRONMENT=staging PREFLIGHT_MODE=development
+make platform-preflight-check ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 ```
 
-Development mode is accepted only by `platform-preflight`. It never arms an executor, creates or
-approves a specification, writes lifecycle state, runs Terraform setup or planning, emits an
-operational artifact, or changes a provider.
+The preflight check never arms an executor, creates or approves a specification, writes lifecycle
+state, runs Terraform setup or planning, emits an operational artifact, or changes a provider.
+
+`platform-deploy-check` constructs the separate read-only checker and uses the working tree plus
+real provider and Terraform state. It validates retained specification/progress records, plans with
+state locking disabled, evaluates the normal plan policy, deletes each ephemeral saved plan, and
+returns stage-level `pass`, `would-change`, `manual`, `deferred`, or `blocked` results. The checker
+interface exposes no apply, provider-action, checkpoint-execution, approval, or lifecycle-state
+write method. `SOURCE_NOT_CLEAN` is omitted; other source-admission findings remain visible but
+non-blocking, and the result grants no operational authority.
 
 Standalone preparation repeats those checks and remains an optional specification dry run. It
 writes, displays, and approves the complete private specification without an external mutation.

@@ -129,6 +129,7 @@ class ClosedSubprocessRunner:
             "platform-state-read",
             "platform-state-recovery",
             "application-state-read",
+            "diagnostic-plan",
         }:
             raise ValueError("command authority is outside the approved set")
         if request.authority == "bootstrap-state-migration":
@@ -162,6 +163,19 @@ class ClosedSubprocessRunner:
             )
             if request.argv != expected:
                 raise ValueError("platform state recovery command is not exact")
+        if request.authority == "diagnostic-plan":
+            arguments = request.argv[1:]
+            if (
+                not arguments
+                or arguments[0] != "plan"
+                or "-input=false" not in arguments
+                or "-lock=false" not in arguments
+                or "-detailed-exitcode" not in arguments
+                or "-lock=true" in arguments
+                or "-lock-timeout=0s" in arguments
+                or "-destroy" in arguments
+            ):
+                raise ValueError("diagnostic Terraform plan command is not bounded")
         if Path(request.argv[0]).name == "terraform":
             prohibited = _PROHIBITED_TERRAFORM_ARGUMENTS
             if request.authority == "bootstrap-state-migration":
@@ -170,6 +184,8 @@ class ClosedSubprocessRunner:
                 prohibited = prohibited - {"state"}
             if request.authority == "platform-state-recovery":
                 prohibited = prohibited - {"untaint"}
+            if request.authority == "diagnostic-plan":
+                prohibited = prohibited - {"-lock=false"}
             if any(argument in prohibited for argument in request.argv[1:]):
                 raise ValueError("prohibited Terraform operation or argument")
             if any(
@@ -207,12 +223,14 @@ class TerraformCliAdapter:
         runner: CommandRunner,
         operator_environment: tuple[tuple[str, str], ...] = (),
         private_state_root: Path | None = None,
+        plan_lock: bool = True,
     ) -> None:
         self._executable = executable.resolve()
         self._cli_configuration = cli_configuration.resolve()
         self._working_root = working_root.resolve()
         self._runner = runner
         self._operator_environment = tuple(sorted(operator_environment))
+        self._plan_lock = plan_lock
         self._private_state_root: Path | None = None
         if not self._working_root.is_dir():
             raise ValueError("Terraform working root does not exist")
@@ -595,17 +613,23 @@ class TerraformCliAdapter:
         plan_arguments = [
             "plan",
             "-input=false",
-            "-lock=true",
-            "-lock-timeout=0s",
+            f"-lock={'true' if self._plan_lock else 'false'}",
             "-detailed-exitcode",
         ]
+        if self._plan_lock:
+            plan_arguments.append("-lock-timeout=0s")
         if destroy:
             plan_arguments.append("-destroy")
         if refresh_only:
             plan_arguments.append("-refresh-only")
         plan_arguments.extend((f"-var-file={variables}", f"-out={plan_path}"))
         planned = self._runner.run(
-            self._request(root, plan_environment, *plan_arguments)
+            self._request(
+                root,
+                plan_environment,
+                *plan_arguments,
+                authority="ordinary" if self._plan_lock else "diagnostic-plan",
+            )
         )
         if planned.returncode not in {0, 2}:
             failure = self._plan_failure(planned.stderr)

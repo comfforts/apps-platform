@@ -832,7 +832,8 @@ human-operable and does not provide leverage for the operator.
 ### Decision
 
 AP-M9 exposes one focused interactive lifecycle through the prepare, deploy, status, outputs,
-register, detach, retire, qualify, and destroy operations. Stable environment decisions live in a
+register, detach, retire, qualify, and destroy operations, plus explicit read-only preflight and
+deployment checks for local maintenance. Stable environment decisions live in a
 small Environment Profile. Preparation discovers or derives available non-secret facts and creates
 one canonical Deployment Specification containing the environment, source, profile, operation,
 and fixed workflow identity. Deployment creates exact plans and generated facts just in time,
@@ -913,6 +914,11 @@ interactive interface.
   profile, tool, authentication, project, ownership, and discovery checks. It reports blockers but
   creates no specification, digest, approval, progress, plan, local deployment state, or external
   mutation.
+- `platform-preflight-check` and `platform-deploy-check` may inspect a dirty working tree but never
+  report `SOURCE_NOT_CLEAN` or admit that tree as operational source. Other source findings remain
+  non-blocking diagnostics. The deeper check uses real provider readback and lock-free exact
+  planning, deletes ephemeral plans, reports unavailable later-stage inputs as deferred, and has no
+  approval, apply, provider-action, checkpoint-execution, or lifecycle-state-write interface.
 - `platform-deploy` performs preparation, review, approval, and deployment in one process;
   `platform-prepare` remains an optional read-only preview. When that preview has already stored a
   current approved specification, deploy discovers and reuses it after freshness validation
@@ -1057,6 +1063,23 @@ application bundles persist that provider identity; no fixture project number is
 hardcoded. The three
 fixture roots retain independent state prefixes in that fixture-owned bucket. Platform bootstrap
 continues to create only the platform-state bucket and never manages fixture Application State.
+
+The transition from the former same-project fixture layout is non-destructive. Platform bootstrap
+moves the retained platform bucket out of the former multi-owner Terraform module address, then
+releases only the three known legacy fixture-bucket bindings from Platform State with
+`destroy = false`. The bootstrap plan policy permits `forget` only for those exact historical
+addresses and continues to prohibit every bucket deletion. The legacy buckets and their retained
+object versions therefore remain physically intact but unmanaged after the migration. Their later
+retention, export, or purge requires a separate destructive lifecycle and is not part of platform
+deployment or fixture destruction.
+
+Because an already-deployed Shared Edge requires a refresh-only foundation plan, the first
+cross-project reconciliation creates the Shared VPC network, subnet, and host-project binding in
+the later normal Shared Edge plan. That plan also updates the existing qualification image
+repository for cross-project fixture use. Plan policy admits only those four exact inherited
+addresses with their exact create or update actions; every other inherited mutation, replacement,
+or deletion remains prohibited. Shared Edge readback revalidates the foundation output before the
+stage can close.
 
 Fixture operation intentionally exposes the same ownership handoff as a real application. The
 operator connects the fixture project, generates the application-scoped Platform Integration

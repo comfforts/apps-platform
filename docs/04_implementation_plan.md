@@ -1825,6 +1825,13 @@ profile, tool, authentication, project, ownership, and discovery checks used bef
 reports exact blockers, and stops before specification generation, digest publication, approval,
 executor construction, private lifecycle-state writes, or external mutation.
 
+W9 also exposes `platform-preflight-check` and `platform-deploy-check` for uncommitted maintenance.
+They retain real profile, session, project, provider, private-record, Terraform-state, rendering,
+and plan-policy checks while skipping `SOURCE_NOT_CLEAN` and treating other source findings as
+diagnostics. The deployment check uses
+lock-free ephemeral plans and cannot approve, apply, execute an action or checkpoint, write
+operational lifecycle state, or become deployment or qualification evidence.
+
 W9 finally simplifies the repository implementation without changing the operator command
 sequence: it replaces the generic stage graph and append-only journal chain with one fixed readable
 deployment workflow and one atomic private progress record; removes intermediate preflight,

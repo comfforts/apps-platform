@@ -233,6 +233,14 @@ approval, writing lifecycle state, or mutating an external system. Ordinary revi
 applications use one clear `y/N` confirmation after the plan is shown. Typed phrases are reserved
 for destruction, purge, ownership transfer, and similarly irreversible actions.
 
+Local maintenance must provide explicit preflight and deployment checks that can inspect a dirty,
+unpushed working tree without admitting it as Accepted or Candidate Source. The deployment check
+must read and validate retained operator records, refresh actual provider and Terraform state,
+render current configuration, and apply normal plan policy wherever existing generated inputs make
+planning possible. It must not approve intent, acquire a state lock, apply a plan, execute a
+provider action or manual checkpoint, change operational lifecycle state, or claim that a
+successful read-only rehearsal proves a future mutation will succeed.
+
 ### AP-QR-008 · Environment isolation
 
 Every Platform Environment must have distinct configuration, state, identities, OAuth client,

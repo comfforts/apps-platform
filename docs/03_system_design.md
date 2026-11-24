@@ -763,7 +763,7 @@ AP-M9 presents one deep Python lifecycle module through thin Make targets. Its e
 limited to these operator operations:
 
 ```text
-preflight  prepare  deploy  status  outputs  register  detach  retire  qualify  destroy
+preflight  preflight-check  deploy-check  prepare  deploy  status  outputs  register  detach  retire  qualify  destroy
  fixture-project-bootstrap  platform-connect-project  fixture-handoff  fixture-status  fixture-destroy
 ```
 
@@ -796,6 +796,15 @@ DNS discovery adapters. Its result contains only `ready` or `blocked` plus block
 not invoke specification generation, canonical state writes, approval, executor construction,
 planning, or mutation. Preparation consumes the same readiness logic and then continues into
 specification generation and approval.
+
+The two local-maintenance checks are diagnostic interfaces, not operational source authorities.
+`preflight-check` runs preflight with source-admission failures demoted to explicit diagnostics.
+`deploy-check` additionally validates retained specification/progress state and supplies each
+currently resolvable fixed stage to a read-only checker. Terraform stages render from the working
+tree, refresh remote state with locking disabled, run the normal plan policy, and delete their
+ephemeral saved plan. Missing generated predecessor outputs produce `deferred`; manual checkpoints
+produce `manual`. The checker exposes reads and plan creation only and cannot approve, apply,
+execute a provider action, complete a checkpoint, or write operational lifecycle state.
 
 Before default deployment prepares new intent, it reads the private current-specification pointer
 and canonical specification and revalidates the current source, profile, environment, human
@@ -1017,8 +1026,11 @@ ordered violations and no consumable plan digest.
 
 Foundation and Shared Edge share one Terraform root and Platform State lineage. A Shared Edge plan
 may therefore include exact `module.platform_foundation` and `module.platform_controls` resources
-from the preceding phase only as `no-op` or `read` observations. Their resource types and module
-prefixes remain closed; a create, update, delete, replacement, unexpected prefix, or unknown type
+from the preceding phase only as `no-op` or `read` observations. The sole migration exception is
+the first cross-project fixture reconciliation: policy admits the exact Shared VPC network,
+application subnet, and host-project binding creates plus the exact qualification image-repository
+update. Those addresses and actions are closed and the stage rereads the foundation output.
+Every other inherited create, update, delete, replacement, unexpected prefix, or unknown type
 fails policy instead of acquiring Shared Edge authority.
 
 A failed Shared Edge apply can leave a valid partial `module.shared_edge[0]` inventory in that same

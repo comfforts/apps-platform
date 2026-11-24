@@ -186,14 +186,28 @@ local maintenance, run the same real read-only checks without admitting the work
 operational source:
 
 ```bash
-make platform-preflight ENVIRONMENT=staging PREFLIGHT_MODE=development
+make platform-preflight-check ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 ```
 
-Development preflight reports dirty, unpushed, stale, or non-main source as non-blocking source
+Development preflight deliberately skips `SOURCE_NOT_CLEAN` because inspecting uncommitted changes
+is its purpose. It reports other unpushed, stale, or non-main source findings as non-blocking source
 diagnostics while continuing to enforce profile, authentication, project, tool, and discovery
 checks. Its result distinguishes `ready` for development from `operational_ready`. This mode exists
 only for preflight; it cannot prepare, approve, plan, deploy, publish a bundle, qualify, or mutate an
 external system.
+
+Before committing or pushing a platform change, run the deeper read-only rehearsal:
+
+```bash
+make platform-deploy-check ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+```
+
+It validates retained private specifications and progress, renders the working-tree Terraform,
+refreshes real remote state without locking it, and applies the normal plan policy to every stage
+whose inputs already exist. It reports stages as `pass`, `would-change`, `manual`, `deferred`, or
+`blocked`. It never approves intent, applies a plan, executes a provider action, changes current
+progress, or grants Accepted or Candidate Source authority. A successful rehearsal means only that
+no current read-only blocker was found; apply-time and manual-checkpoint failures remain possible.
 
 Operator narration is written to standard error. The final compact JSON result remains the only
 standard-output record, so a human receives a readable execution trace while automation can parse
@@ -311,6 +325,11 @@ It reports `ready` or `blocked` with exact blocker codes. It does not install a 
 change authentication or project selection, resolve ownership, write operator state, or publish a
 specification digest. Correct the reported prerequisite and rerun it. The command is optional:
 `platform-deploy` performs the same checks before any mutation.
+
+While changing the repository locally, use `make platform-preflight-check` for prerequisite checks
+and `make platform-deploy-check` for the complete read-only deployment rehearsal described above.
+Both accept a dirty working tree and omit `SOURCE_NOT_CLEAN`. Other source-admission findings remain
+visible without treating that tree as operational source.
 
 ### Optional specification preparation and review
 
@@ -515,9 +534,11 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | Command | Purpose |
 | --- | --- |
 | `make platform-preflight ENVIRONMENT=<name>` | Report current source, tool, authentication, project, ownership, and provider-readiness blockers without creating lifecycle state |
+| `make platform-preflight-check ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Run the same real prerequisite checks against an uncommitted working tree without granting source authority |
 | `make platform-prepare ENVIRONMENT=<name>` | Optionally prepare and review a complete specification without external mutation |
 | `make platform-cancel ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Confirm and close only an active private deployment record so changed source can prepare fresh intent; no Terraform or cloud mutation |
 | `make platform-deploy ENVIRONMENT=<name>` | Reuse a fresh current approval or prepare one, then deploy, checkpoint, read back, and safely resume the shared platform |
+| `make platform-deploy-check ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Rehearse working-tree state compatibility, provider readback, and plan policy without approval, apply, provider mutation, or lifecycle-state writes |
 | `make platform-status ENVIRONMENT=<name>` | Report checkout, recorded deployment, active runtime, execution, and qualification state without mutation |
 | `make fixture-project-bootstrap ENVIRONMENT=staging FIXTURES_PROJECT_ID=<project-id> FIXTURES_PROJECT_NAME="<display-name>"` | Idempotently create or repair the selected fixture application project, state bucket, and image repository; read back its provider-assigned project number; create no runtime or route |
 | `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |

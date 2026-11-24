@@ -20,6 +20,8 @@ class GitSnapshot:
     upstream_branch: str | None = None
     upstream_revision: str | None = None
     origin_main_ancestor: bool = False
+    working_tree_digest: str | None = None
+    untracked_path_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +65,31 @@ class StageExecution:
     plan_digest: str | None = None
     manual_acknowledgement: str = "not-required"
     blockers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class StageCheck:
+    """Read-only rehearsal result for one deployment stage."""
+
+    outcome: str
+    outputs: tuple[tuple[str, str], ...] = ()
+    plan_digest: str | None = None
+    summary: dict[str, Any] | None = None
+    blockers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class DeploymentCheckResult:
+    """Read-only working-tree rehearsal that grants no source authority."""
+
+    outcome: str
+    operational_ready: bool
+    source_admission_blockers: tuple[str, ...]
+    stages: tuple[tuple[str, StageCheck], ...]
+    blockers: tuple[str, ...] = ()
+    source_revision: str | None = None
+    working_tree_digest: str | None = None
+    untracked_path_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +165,13 @@ class FilesystemAdapter(Protocol):
 
     def read_state(self, relative_path: str) -> bytes | None: ...
 
+    def list_state(
+        self,
+        relative_directory: str,
+        *,
+        suffix: str,
+    ) -> tuple[str, ...]: ...
+
     def write_state(
         self,
         relative_path: str,
@@ -155,6 +189,10 @@ class StageExecutor(Protocol):
     def execute(self, context: StageContext) -> StageExecution: ...
 
 
+class StageChecker(Protocol):
+    def check(self, context: StageContext) -> StageCheck: ...
+
+
 @dataclass(frozen=True, slots=True)
 class OperatorAdapters:
     """All ambient and side-effecting dependencies of the lifecycle core."""
@@ -169,3 +207,5 @@ class OperatorAdapters:
     clock: ClockAdapter
     executor: StageExecutor | None = None
     execution_blockers: tuple[str, ...] = ()
+    checker: StageChecker | None = None
+    check_blockers: tuple[str, ...] = ()

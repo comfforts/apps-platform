@@ -24,6 +24,7 @@ from infrastructure.operator.integration import (
 from infrastructure.operator.local import (
     LocalFilesystem,
     build_local_destruction,
+    build_local_deployment_check,
     build_local_fixture_operator,
     build_local_fixture_status_operator,
     build_local_integration,
@@ -47,6 +48,7 @@ def _parser() -> argparse.ArgumentParser:
         choices=(
             "cancel",
             "deploy",
+            "deploy-check",
             "detach",
             "outputs",
             "preflight",
@@ -126,6 +128,17 @@ def _default_preflight_factory(
         state_directory,
         source_authority,
         arm_executor=False,
+    )
+
+
+def _default_deployment_check_factory(
+    state_directory: Path,
+    source_authority: str,
+) -> LifecycleOperator:
+    return build_local_deployment_check(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
     )
 
 
@@ -248,6 +261,8 @@ def _trace_invocation(
     print(f"  source authority: {arguments.source_authority}", file=sys.stderr)
     if arguments.operation == "preflight":
         print(f"  preflight mode: {arguments.preflight_mode}", file=sys.stderr)
+    if arguments.operation == "deploy-check":
+        print("  check mode: working-tree diagnostic", file=sys.stderr)
     print(
         f"  fixture selected: {selected_fixture or 'none'}",
         file=sys.stderr,
@@ -262,6 +277,9 @@ def _main(
     preflight_factory: Callable[
         [Path, str], LifecycleOperator
     ] = _default_preflight_factory,
+    deployment_check_factory: Callable[
+        [Path, str], LifecycleOperator
+    ] = _default_deployment_check_factory,
     integration_factory: Callable[
         [Path, str], ApplicationIntegrationLifecycle
     ] = _default_integration_factory,
@@ -289,15 +307,17 @@ def _main(
     if arguments.operation in {
         "cancel",
         "deploy",
+        "deploy-check",
         "preflight",
         "prepare",
         "status",
     }:
-        selected_operator_factory = (
-            preflight_factory
-            if arguments.operation in {"cancel", "preflight", "status"}
-            else operator_factory
-        )
+        if arguments.operation == "deploy-check":
+            selected_operator_factory = deployment_check_factory
+        elif arguments.operation in {"cancel", "preflight", "status"}:
+            selected_operator_factory = preflight_factory
+        else:
+            selected_operator_factory = operator_factory
         operator = selected_operator_factory(
             arguments.state_directory,
             arguments.source_authority,
@@ -419,6 +439,47 @@ def _main(
             }
         )
         return 0 if result.ready else 2
+
+    if arguments.operation == "deploy-check":
+        result = operator.deploy_check(arguments.environment)
+        stages = [
+            {
+                "blockers": list(stage.blockers),
+                "outcome": stage.outcome,
+                "plan_digest": stage.plan_digest,
+                "stage_id": stage_id,
+                "summary": stage.summary,
+            }
+            for stage_id, stage in result.stages
+        ]
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "operational_ready": result.operational_ready,
+                "outcome": result.outcome,
+                "source_admission_blockers": list(
+                    result.source_admission_blockers
+                ),
+                "source_authority": arguments.source_authority,
+                "source_revision": result.source_revision,
+                "stages": stages,
+                "untracked_path_count": result.untracked_path_count,
+                "working_tree_digest": result.working_tree_digest,
+            }
+        )
+        if result.outcome == "rehearsed":
+            print(
+                "Deployment check completed without a current read-only blocker.",
+                file=sys.stderr,
+            )
+            print(
+                "This diagnostic grants no source authority and does not prove that "
+                "a later apply or manual checkpoint will succeed.",
+                file=sys.stderr,
+            )
+            print(file=sys.stderr)
+        return 0 if result.outcome == "rehearsed" else 2
 
     if arguments.operation == "prepare":
         result = operator.prepare(arguments.environment)
@@ -922,6 +983,9 @@ def main(
     preflight_factory: Callable[
         [Path, str], LifecycleOperator
     ] = _default_preflight_factory,
+    deployment_check_factory: Callable[
+        [Path, str], LifecycleOperator
+    ] = _default_deployment_check_factory,
     integration_factory: Callable[
         [Path, str], ApplicationIntegrationLifecycle
     ] = _default_integration_factory,
@@ -940,6 +1004,7 @@ def main(
             argv,
             operator_factory=operator_factory,
             preflight_factory=preflight_factory,
+            deployment_check_factory=deployment_check_factory,
             integration_factory=integration_factory,
             qualification_factory=qualification_factory,
             destruction_factory=destruction_factory,

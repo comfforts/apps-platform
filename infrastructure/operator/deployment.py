@@ -19,6 +19,7 @@ from infrastructure.backend import (
 )
 from infrastructure.operator._interfaces import (
     OperatorTerminal,
+    StageCheck,
     StageContext,
     StageExecution,
     Waiter,
@@ -457,9 +458,21 @@ class DeploymentExecutor:
             isinstance(change, dict)
             and isinstance(change.get("actions"), list)
             and any(
-                action in {"create", "delete", "update"}
+                action in {"create", "delete", "forget", "update"}
                 for action in change["actions"]
             )
+            for change in changes
+        )
+
+    @staticmethod
+    def _plan_changes(summary: dict[str, Any]) -> bool:
+        changes = summary.get("changes")
+        if not isinstance(changes, list):
+            return True
+        return any(
+            isinstance(change, dict)
+            and isinstance(change.get("actions"), list)
+            and tuple(change["actions"]) not in {("no-op",), ("read",)}
             for change in changes
         )
 
@@ -1096,6 +1109,149 @@ class DeploymentExecutor:
         except KeyError:
             return self._failure("DEPLOYMENT_STAGE_UNAVAILABLE")
         return self._execute_terraform(context, stage_id, phase)
+
+    def _check_terraform(
+        self,
+        context: StageContext,
+        stage_id: str,
+        phase: str,
+    ) -> StageCheck:
+        observer = _ArtifactObserver(self._commands, context)
+        try:
+            evaluated = prepare_phase_plan(
+                context.environment,
+                phase,
+                context.source_revision,
+                self._working_root,
+                observer,
+                destructive=False,
+            )
+        except EnvironmentUnavailableError as error:
+            return StageCheck("blocked", blockers=(str(error),))
+        except DeploymentCommandError as error:
+            failed = self._terraform_plan_failure(error)
+            return StageCheck("blocked", blockers=failed.blockers)
+
+        artifact = observer.artifact
+        try:
+            if not evaluated.accepted:
+                failed = self._plan_policy_failure(evaluated.violations)
+                return StageCheck("blocked", blockers=failed.blockers)
+            if (
+                observer.request is None
+                or artifact is None
+                or evaluated.plan_digest is None
+                or evaluated.canonical_summary is None
+            ):
+                return StageCheck("blocked", blockers=("PLAN_BINDING_INCOMPLETE",))
+
+            summary = evaluated.canonical_summary
+            outputs: tuple[tuple[str, str], ...] = ()
+            request = TerraformReadbackRequest(
+                stage_id=stage_id,
+                phase=phase,
+                environment=context.environment,
+                source_revision=context.source_revision,
+                specification_digest=context.specification_digest,
+                inputs=context.inputs,
+            )
+            try:
+                readback = self._commands.readback_terraform(request)
+            except DeploymentCommandError:
+                readback = None
+            if readback is not None and readback.matched:
+                expected = self._expected_outputs(context)
+                if tuple(name for name, _ in readback.outputs) == expected:
+                    outputs = readback.outputs
+
+            changed = self._plan_changes(summary)
+            if not changed and not outputs and self._expected_outputs(context):
+                return StageCheck(
+                    "blocked",
+                    plan_digest=evaluated.plan_digest,
+                    summary=summary,
+                    blockers=("TERRAFORM_READBACK_OUTPUT_MISMATCH",),
+                )
+            return StageCheck(
+                "would-change" if changed else "pass",
+                outputs=outputs,
+                plan_digest=evaluated.plan_digest,
+                summary=summary,
+            )
+        finally:
+            if artifact is not None:
+                try:
+                    artifact.saved_plan_path.unlink(missing_ok=True)
+                except OSError:
+                    self._terminal.write(
+                        "Deployment check could not remove its ephemeral saved plan."
+                    )
+
+    def check(self, context: StageContext) -> StageCheck:
+        """Rehearse one stage without approval, mutation, or lifecycle-state writes."""
+
+        stage_id = str(context.stage.get("stage_id", ""))
+        if context.environment == "production":
+            return StageCheck("blocked", blockers=("OWNERSHIP_TRANSFER_REQUIRED",))
+        if stage_id in _READ_ONLY_STAGES:
+            try:
+                readback = self._commands.read_stage(context)
+            except DeploymentCommandError as error:
+                return StageCheck("blocked", blockers=(str(error),))
+            if not readback.matched:
+                return StageCheck(
+                    "blocked",
+                    blockers=readback.blockers or ("STAGE_READBACK_MISMATCH",),
+                )
+            return StageCheck("pass", outputs=readback.outputs)
+        if stage_id in _ACTION_STAGES:
+            try:
+                proposal = self._commands.prepare_action(context)
+            except DeploymentCommandError as error:
+                return StageCheck("blocked", blockers=(str(error),))
+            summary = {"action": proposal.action, "summary": proposal.summary}
+            if self._safe_canonical(summary) is None:
+                return StageCheck("blocked", blockers=("PROHIBITED_ACTION_MATERIAL",))
+            if stage_id == "runtime-activation":
+                return StageCheck("would-change", summary=summary)
+            try:
+                readback = self._commands.readback_action(context)
+            except DeploymentCommandError as error:
+                return StageCheck(
+                    "would-change",
+                    summary=summary,
+                    blockers=(str(error),),
+                )
+            expected = self._expected_outputs(context)
+            if readback.matched and tuple(
+                name for name, _ in readback.outputs
+            ) == expected:
+                return StageCheck("pass", outputs=readback.outputs, summary=summary)
+            return StageCheck(
+                "would-change",
+                outputs=readback.outputs,
+                summary=summary,
+                blockers=readback.blockers,
+            )
+        if stage_id in _MANUAL_STAGES:
+            try:
+                checkpoint = self._commands.prepare_manual_checkpoint(context)
+            except DeploymentCommandError as error:
+                return StageCheck("blocked", blockers=(str(error),))
+            return StageCheck(
+                "manual",
+                summary={
+                    "checkpoint": checkpoint.checkpoint,
+                    "instruction_names": [
+                        name for name, _ in checkpoint.instructions
+                    ],
+                },
+            )
+        try:
+            phase = _TERRAFORM_PHASES[stage_id]
+        except KeyError:
+            return StageCheck("blocked", blockers=("DEPLOYMENT_STAGE_UNAVAILABLE",))
+        return self._check_terraform(context, stage_id, phase)
 
 
 __all__ = (

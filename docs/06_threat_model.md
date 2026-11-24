@@ -815,7 +815,11 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   ownership, and readable provider facts before automatically reusing current approved intent;
   current blockers stop rather than being hidden by regeneration. Standalone preflight exposes the
   same blocker set but cannot create or approve intent, initialize an executor, write lifecycle
-  state, plan, or mutate. Prepared fixture handoff reuse additionally requires the exact source
+  state, plan, or mutate. Local-maintenance preflight and deployment checks may inspect dirty or
+  unpushed source but label it diagnostic and never grant Accepted or Candidate authority. The
+  deployment check may create only an ephemeral lock-free plan beneath private working storage;
+  it cannot approve, apply, execute a provider action or checkpoint, write operational state, or
+  emit qualification evidence. Prepared fixture handoff reuse additionally requires the exact source
   authority, application and platform revisions, active generation, image, bundle digests, and live
   target posture; source equality alone is insufficient.
 - **AP-TM-012:** Preparation inventories every billable resource and destruction names every target.

@@ -28,17 +28,16 @@ run "plans_one_exclusive_recoverable_platform_backend" {
   }
 
   assert {
-    condition = alltrue([
-      for bucket in values(module.state_bucket) :
-      bucket.policy_summary.uniform_bucket_level_access &&
-      bucket.policy_summary.public_access_prevention == "enforced" &&
-      bucket.policy_summary.object_versioning_enabled &&
-      bucket.policy_summary.noncurrent_version_retention_days >= 90 &&
-      bucket.policy_summary.newer_versions_to_retain >= 20 &&
-      !bucket.policy_summary.force_destroy &&
-      bucket.policy_summary.deletion_policy == "PREVENT" &&
-      bucket.policy_summary.iam_binding == "deferred"
-    ])
+    condition = (
+      module.platform_state_bucket.policy_summary.uniform_bucket_level_access &&
+      module.platform_state_bucket.policy_summary.public_access_prevention == "enforced" &&
+      module.platform_state_bucket.policy_summary.object_versioning_enabled &&
+      module.platform_state_bucket.policy_summary.noncurrent_version_retention_days >= 90 &&
+      module.platform_state_bucket.policy_summary.newer_versions_to_retain >= 20 &&
+      !module.platform_state_bucket.policy_summary.force_destroy &&
+      module.platform_state_bucket.policy_summary.deletion_policy == "PREVENT" &&
+      module.platform_state_bucket.policy_summary.iam_binding == "deferred"
+    )
     error_message = "every state bucket must retain the complete recovery and non-destruction policy"
   }
 
@@ -54,19 +53,12 @@ run "plans_one_exclusive_recoverable_platform_backend" {
   }
 
   assert {
-    condition = alltrue([
-      for owner_id, bucket in module.state_bucket :
-      bucket.policy_summary.configured_labels.environment == "staging" &&
-      bucket.policy_summary.configured_labels.managed_by == "terraform" &&
-      bucket.policy_summary.configured_labels.state_owner == (
-        owner_id == "app-platform" ? "platform" : "application"
-      ) &&
-      (
-        owner_id == "app-platform" ?
-        !contains(keys(bucket.policy_summary.configured_labels), "application_id") :
-        bucket.policy_summary.configured_labels.application_id == owner_id
-      )
-    ])
+    condition = (
+      module.platform_state_bucket.policy_summary.configured_labels.environment == "staging" &&
+      module.platform_state_bucket.policy_summary.configured_labels.managed_by == "terraform" &&
+      module.platform_state_bucket.policy_summary.configured_labels.state_owner == "platform" &&
+      !contains(keys(module.platform_state_bucket.policy_summary.configured_labels), "application_id")
+    )
     error_message = "state bucket labels must identify the exact environment and exclusive owner"
   }
 }

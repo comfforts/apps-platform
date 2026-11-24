@@ -1615,6 +1615,13 @@ specification and final snapshot and starts fresh current-workflow progress. A r
 predecessor must remain an active-operation conflict, and malformed retained progress must return a
 named readback blocker rather than `OPERATOR_INTERNAL_ERROR`.
 
+Exercise both local-maintenance checks from dirty and unpushed source. Prove preflight-check retains
+every non-source prerequisite blocker. Prove deploy-check validates retained records, uses actual
+read-only provider state, renders current Terraform, plans without a state lock, applies normal
+policy, deletes ephemeral plans, distinguishes `would-change`, `manual`, and `deferred`, and never
+creates approval, specification, progress, operational evidence, provider mutation, or source
+authority.
+
 #### AP-EVAL-M9-04 · State, Terraform, operator session, plans, and ownership
 
 Verify deployable bootstrap/foundation/edge phases preserve independent state ownership, locking,
@@ -1625,6 +1632,8 @@ implicit provider default, replacement, unexpected destroy, state push, force-un
 automatic recovery. Verify the platform bootstrap manages only the platform-state bucket; the
 dedicated fixture project owns its versioned fixture-state bucket and independent root prefixes.
 Verify the lifecycle creates no operation-identity or impersonation fleet.
+Verify deployment checking rejects the same destructive, replacement, ownership, provider, and
+scope violations as deployment while never invoking apply or acquiring the remote state lock.
 
 #### AP-EVAL-M9-05 · Interactive staging deployment, OAuth, DNS, and TLS
 

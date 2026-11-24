@@ -1,30 +1,33 @@
 locals {
-  state_buckets = {
-    for bucket in var.backend_configuration.state_buckets : bucket.owner_id => bucket
-  }
-  state_bucket_labels = {
-    for owner_id, bucket in local.state_buckets : owner_id => merge(
-      {
-        environment = "staging"
-        managed_by  = "terraform"
-        state_owner = bucket.state_owner
-      },
-      bucket.state_owner == "application" ? {
-        application_id = owner_id
-      } : {}
-    )
+  platform_state_bucket = one(var.backend_configuration.state_buckets)
+  platform_state_bucket_labels = {
+    environment = "staging"
+    managed_by  = "terraform"
+    state_owner = local.platform_state_bucket.state_owner
   }
 }
 
-module "state_bucket" {
-  source   = "../modules/state-bucket"
-  for_each = local.state_buckets
+module "platform_state_bucket" {
+  source = "../modules/state-bucket"
 
   project_id = var.backend_configuration.project_id
   location   = var.backend_configuration.region
   bucket_configuration = {
-    bucket_name = each.value.bucket_name
-    labels      = local.state_bucket_labels[each.key]
+    bucket_name = local.platform_state_bucket.bucket_name
+    labels      = local.platform_state_bucket_labels
   }
   recovery_policy = var.backend_configuration.recovery_policy
+}
+
+moved {
+  from = module.state_bucket["app-platform"]
+  to   = module.platform_state_bucket
+}
+
+removed {
+  from = module.state_bucket
+
+  lifecycle {
+    destroy = false
+  }
 }

@@ -3,6 +3,7 @@
 from infrastructure.operator._core import LifecycleOperator
 from infrastructure.operator._interfaces import (
     DiscoverySnapshot,
+    DeploymentCheckResult,
     ExecutionResult,
     GitSnapshot,
     OperatorInterrupted,
@@ -11,6 +12,7 @@ from infrastructure.operator._interfaces import (
     PreflightResult,
     PrepareResult,
     StageContext,
+    StageCheck,
     StageExecution,
     StatusResult,
 )
@@ -73,6 +75,7 @@ from infrastructure.operator.rollback import (
 
 __all__ = (
     "DiscoverySnapshot",
+    "DeploymentCheckResult",
     "DeploymentExecutor",
     "DESTRUCTIBLE_PLATFORM_RESOURCES",
     "RETAINED_PLATFORM_RESOURCES",
@@ -129,6 +132,7 @@ __all__ = (
     "RollbackRequest",
     "RollbackResult",
     "StageContext",
+    "StageCheck",
     "StageExecution",
     "StatusResult",
     "compile_destruction_specification",

@@ -113,6 +113,34 @@ _PHASE_EXACT_RESOURCE_ADDRESSES = {
         ),
     },
 }
+_PHASE_EXACT_FORGET_ADDRESSES = {
+    "bootstrap": frozenset(
+        f'module.state_bucket["{application_id}"].google_storage_bucket.state'
+        for application_id in (
+            "fixture-public",
+            "fixture-authenticated",
+            "fixture-restricted",
+        )
+    ),
+}
+_PHASE_EXACT_INHERITED_MUTATIONS = {
+    "shared-edge": {
+        (
+            "module.platform_controls.google_artifact_registry_repository."
+            "qualification_images[0]"
+        ): frozenset({("update",)}),
+        (
+            "module.platform_foundation."
+            "google_compute_shared_vpc_host_project.platform"
+        ): frozenset({("create",)}),
+        (
+            "module.platform_foundation.google_compute_subnetwork.applications"
+        ): frozenset({("create",)}),
+        (
+            "module.platform_foundation.google_compute_network.shared"
+        ): frozenset({("create",)}),
+    },
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -432,6 +460,11 @@ def _change_summaries(
             elif (
                 inherited_read_only_resource
                 and normalized_actions not in {("no-op",), ("read",)}
+                and normalized_actions
+                not in _PHASE_EXACT_INHERITED_MUTATIONS.get(
+                    policy.phase,
+                    {},
+                ).get(safe_address, frozenset())
             ):
                 violations.append(
                     _violation(
@@ -479,6 +512,12 @@ def _change_summaries(
                         actions=normalized_actions,
                     )
                 )
+            elif (
+                normalized_actions == ("forget",)
+                and safe_address
+                in _PHASE_EXACT_FORGET_ADDRESSES.get(policy.phase, frozenset())
+            ):
+                pass
             elif (
                 len(normalized_actions) != 1
                 or normalized_actions[0] not in policy.allowed_actions

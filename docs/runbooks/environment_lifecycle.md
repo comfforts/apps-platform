@@ -87,6 +87,30 @@ install tools, change authentication or project selection, create a specificatio
 for approval, write private lifecycle state, or change an external resource. Correct a reported
 prerequisite and rerun preflight. You may omit it because deployment performs the same checks.
 
+## Check uncommitted deployment changes
+
+During local maintenance, run the two development checks before committing or pushing:
+
+```bash
+make platform-preflight-check ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make platform-deploy-check ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+```
+
+`platform-preflight-check` runs real prerequisite discovery and skips `SOURCE_NOT_CLEAN` because a
+working-tree check is intended to inspect uncommitted changes. Unpushed, stale, or non-main source
+findings remain diagnostics. `platform-deploy-check` additionally validates the
+existing private specification and progress records, renders the current working-tree Terraform,
+refreshes real provider state without acquiring a Terraform state lock, and applies normal plan
+policy to every stage whose generated inputs are already available. It may write private failure
+diagnostics and disposable working files, but it never changes a specification, approval, current
+pointer, progress record, Terraform state, or provider resource.
+
+Read every `blocked` stage before continuing. `deferred` means that an exact plan depends on an
+output that only a preceding real deployment stage can create. `manual` identifies an OAuth or DNS
+checkpoint that the diagnostic does not perform. `rehearsed` means no current read-only blocker was
+found; it is not deployment, source admission, qualification, or proof that a later apply will
+succeed.
+
 ## Optional preparation
 
 Use preparation when you want to review and approve the complete specification before the
@@ -170,8 +194,9 @@ For local maintenance of preflight behavior, use:
 make platform-preflight ENVIRONMENT=staging PREFLIGHT_MODE=development
 ```
 
-This runs the real read-only checks but reports source-admission findings separately as development
-diagnostics. `ready: true` means the development checks passed; `operational_ready: false` means the
+This runs the real read-only checks, skips `SOURCE_NOT_CLEAN`, and reports other source-admission
+findings separately as development diagnostics. `ready: true` means the development checks passed;
+`operational_ready: false` means the
 same source still cannot authorize preparation or deployment. Authentication, project, profile,
 tool, DNS, and discovery failures remain blocking. Development preflight writes no lifecycle state
 and has no executor, Terraform-plan, provider-mutation, bundle, evidence, or qualification path.
@@ -330,6 +355,29 @@ is unavailable until the new attachment is registered.
 This transition is needed only for fixture state that predates the dedicated fixture project. New
 fixture revisions remain in `comfforts-fixtures-nonprod` and use the normal detach, destroy,
 handoff, and register lifecycle.
+
+The first `platform-deploy` from the cross-project revision also reconciles the former bootstrap
+state. Review its bootstrap plan carefully. It must show the existing platform-state bucket as an
+unchanged move to its dedicated module address and exactly these three state-only removals:
+
+- `fixture-public` state bucket: `forget`, never `delete`;
+- `fixture-authenticated` state bucket: `forget`, never `delete`; and
+- `fixture-restricted` state bucket: `forget`, never `delete`.
+
+An approved apply removes only those obsolete Terraform bindings. It does not delete the buckets,
+their retained object versions, or any other provider resource. Stop if the plan proposes any
+destruction, an unknown `forget` action, or a change to the platform-state bucket. Do not delete or
+edit the legacy buckets manually; their eventual retention, export, or purge is a separately
+governed backlog lifecycle.
+
+On an environment with an existing Shared Edge, the foundation plan is refresh-only and cannot
+create the new cross-project network resources. The later normal Shared Edge plan is therefore
+expected to show exactly these inherited migration changes: create the platform Shared VPC
+network, application subnet, and host-project binding, and update the qualification image
+repository for fixture-project use. It may also reconcile Shared Edge resources owned by that
+phase. Stop for any other inherited create or update, any replacement or deletion, or a failed
+foundation-output readback. This exception is exact migration authority, not general permission
+for the Shared Edge phase to mutate foundation resources.
 
 `fixture-status` reconciles all three fixture registrations and provider targets by default. During
 an individual rollout or investigation, add `APPLICATION_ID=<fixture-application-id>` to narrow the

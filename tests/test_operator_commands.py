@@ -175,6 +175,44 @@ class OperatorCommandTest(unittest.TestCase):
         self.assertNotIn("before", json.dumps(artifact.observation))
         self.assertNotIn("after", json.dumps(artifact.observation))
 
+    def test_diagnostic_plan_disables_remote_state_locking(self) -> None:
+        plan_json = {
+            "format_version": "1.2",
+            "terraform_version": "1.17.2",
+            "resource_changes": [],
+        }
+        runner = FakeRunner(
+            [
+                CommandResult(0, b"", b""),
+                CommandResult(0, b"", b""),
+                CommandResult(0, json.dumps(plan_json).encode(), b""),
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "private"
+            workspace.mkdir(mode=0o700)
+            root = workspace / "root"
+            root.mkdir(mode=0o700)
+            request = _phase_request(root)
+            self._private_file(request.backend_path, b'terraform { backend "gcs" {} }\n')
+            variables = self._private_file(workspace / "values.json", b"{}\n")
+            terraform = self._private_file(workspace / "terraform", b"binary")
+            cli_config = self._private_file(workspace / "terraform.rc", b"config")
+            adapter = TerraformCliAdapter(
+                terraform,
+                cli_config,
+                workspace,
+                runner,
+                plan_lock=False,
+            )
+
+            adapter.create_plan(request, root, variables)
+
+        plan = runner.requests[1]
+        self.assertIn("-lock=false", plan.argv)
+        self.assertNotIn("-lock=true", plan.argv)
+        self.assertNotIn("-lock-timeout=0s", plan.argv)
+
     def test_plan_normalizes_tool_created_file_permissions(self) -> None:
         plan_json = {
             "format_version": "1.2",

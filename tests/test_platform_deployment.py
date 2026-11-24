@@ -527,6 +527,33 @@ class PlatformDeploymentTest(unittest.TestCase):
         self.assertEqual(commands.applied, [])
         self.assertEqual(len(commands.readbacks), 1)
 
+    def test_deployment_check_plans_and_reads_without_confirmation_or_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(root)
+            terminal = FakeTerminal([])
+            executor = DeploymentExecutor(root, terminal, commands)
+
+            result = executor.check(
+                _context("bootstrap", ("backend-reference",))
+            )
+
+            self.assertEqual(result.outcome, "would-change")
+            self.assertRegex(result.plan_digest or "", r"^sha256:[0-9a-f]{64}$")
+            self.assertEqual(result.outputs, (("backend-reference", "verified-backend"),))
+            self.assertEqual(commands.applied, [])
+            self.assertEqual(terminal.confirmations, [])
+            self.assertEqual(len(commands.readbacks), 1)
+            self.assertEqual(list(root.glob("*.tfplan")), [])
+
+    def test_state_forget_is_a_real_apply_change(self) -> None:
+        self.assertTrue(
+            DeploymentExecutor._requires_apply(
+                {"changes": [{"actions": ["forget"]}]}
+            )
+        )
+
     def test_policy_refusal_never_confirms_applies_or_reads_back(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "work"

@@ -20,6 +20,7 @@ from infrastructure.operator import (
     LifecycleOperator,
     OperatorInterrupted,
     OperatorAdapters,
+    StageCheck,
     StageContext,
     StageExecution,
 )
@@ -127,6 +128,25 @@ class FakeExecutor:
 
 
 @dataclass
+class FakeChecker:
+    scripted: list[StageCheck] = field(default_factory=list)
+    calls: list[str] = field(default_factory=list)
+
+    def check(self, context: StageContext) -> StageCheck:
+        stage_id = str(context.stage["stage_id"])
+        self.calls.append(stage_id)
+        if self.scripted:
+            return self.scripted.pop(0)
+        return StageCheck(
+            "pass",
+            tuple(
+                (str(name), f"checked-{name}")
+                for name in context.stage["produces"]
+            ),
+        )
+
+
+@dataclass
 class FakeActiveSourceReader:
     revision: str
 
@@ -213,6 +233,8 @@ class OperatorLifecycleTest(unittest.TestCase):
         blocker: str | None = None,
         executor: FakeExecutor | None = None,
         execution_blockers: tuple[str, ...] = (),
+        checker: FakeChecker | None = None,
+        check_blockers: tuple[str, ...] = (),
         active_source_reader: FakeActiveSourceReader | None = None,
     ) -> tuple[LifecycleOperator, FakeTerminal]:
         selected_terminal = terminal or FakeTerminal([True])
@@ -245,6 +267,8 @@ class OperatorLifecycleTest(unittest.TestCase):
             clock=FixedClock(),
             executor=executor,
             execution_blockers=execution_blockers,
+            checker=checker,
+            check_blockers=check_blockers,
         )
         return (
             LifecycleOperator(
@@ -312,7 +336,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             "\n".join(blocked_terminal.messages),
         )
 
-    def test_development_preflight_reports_source_without_enforcing_it(self) -> None:
+    def test_development_preflight_skips_dirty_source_without_admitting_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "operator"
             operator, terminal = self._operator(
@@ -322,22 +346,83 @@ class OperatorLifecycleTest(unittest.TestCase):
             )
 
             development = operator.preflight("staging", mode="development")
+            development_trace = "\n".join(terminal.messages)
             operational = operator.preflight("staging")
 
         self.assertTrue(development.ready)
         self.assertFalse(development.operational_ready)
         self.assertEqual(development.blockers, ())
-        self.assertEqual(
-            development.source_admission_blockers,
-            ("SOURCE_NOT_CLEAN",),
-        )
+        self.assertEqual(development.source_admission_blockers, ())
         self.assertFalse(operational.ready)
         self.assertEqual(operational.blockers, ("SOURCE_NOT_CLEAN",))
         self.assertFalse(state.exists())
-        self.assertIn(
-            "Development source diagnostic SOURCE_NOT_CLEAN:",
-            "\n".join(terminal.messages),
+        self.assertNotIn("SOURCE_NOT_CLEAN", development_trace)
+
+    def test_deploy_check_rehearses_dirty_source_without_writing_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "operator"
+            checker = FakeChecker()
+            operator, terminal = self._operator(
+                state,
+                git=FakeGit(clean=False),
+                terminal=FakeTerminal([]),
+                checker=checker,
+            )
+
+            result = operator.deploy_check("staging")
+
+        self.assertEqual(result.outcome, "rehearsed")
+        self.assertFalse(result.operational_ready)
+        self.assertEqual(result.source_admission_blockers, ())
+        self.assertEqual(len(result.stages), 12)
+        self.assertEqual(
+            checker.calls,
+            [
+                "preflight",
+                "bootstrap-services",
+                "bootstrap",
+                "foundation",
+                "image-publish",
+                "generation-publish",
+                "oauth-configuration",
+                "shared-edge",
+                "runtime-activation",
+                "external-dns",
+                "tls-readiness",
+                "readback",
+            ],
         )
+        self.assertFalse(state.exists())
+        trace = "\n".join(terminal.messages)
+        self.assertIn("▸ Check 1/7", trace)
+        self.assertIn("Deployment check bootstrap: pass.", trace)
+
+    def test_deploy_check_reports_exact_stage_blocker_without_writing_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "operator"
+            checker = FakeChecker(
+                scripted=[
+                    StageCheck("pass"),
+                    StageCheck(
+                        "blocked",
+                        blockers=("BOOTSTRAP_SERVICE_READBACK_FAILED",),
+                    ),
+                ]
+            )
+            operator, _ = self._operator(
+                state,
+                terminal=FakeTerminal([]),
+                checker=checker,
+            )
+
+            result = operator.deploy_check("staging")
+
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(
+            result.blockers,
+            ("BOOTSTRAP_SERVICE_READBACK_FAILED",),
+        )
+        self.assertFalse(state.exists())
 
     def test_cli_development_preflight_is_explicit_and_machine_readable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -366,11 +451,38 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertTrue(result["ready"])
         self.assertFalse(result["operational_ready"])
         self.assertEqual(result["preflight_mode"], "development")
-        self.assertEqual(
-            result["source_admission_blockers"],
-            ["SOURCE_NOT_CLEAN"],
-        )
+        self.assertEqual(result["source_admission_blockers"], [])
         self.assertIn("  preflight mode: development", stderr.getvalue())
+
+    def test_cli_deploy_check_is_explicit_and_machine_readable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            operator, _ = self._operator(
+                Path(directory) / "operator",
+                git=FakeGit(clean=False),
+                terminal=FakeTerminal([]),
+                checker=FakeChecker(),
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
+                code = operator_main(
+                    [
+                        "deploy-check",
+                        "--environment",
+                        "staging",
+                        "--source-authority",
+                        "candidate",
+                    ],
+                    deployment_check_factory=lambda _path, _authority: operator,
+                )
+            result = json.loads(stdout.getvalue())
+
+        self.assertEqual(code, 0)
+        self.assertEqual(result["outcome"], "rehearsed")
+        self.assertEqual(result["source_admission_blockers"], [])
+        self.assertEqual(len(result["stages"]), 12)
+        self.assertIn("  check mode: working-tree diagnostic", stderr.getvalue())
+        self.assertIn("grants no source authority", stderr.getvalue())
 
     def test_cli_cancel_is_local_machine_readable_and_repeatable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -164,3 +164,37 @@ project-ID mismatch, project-number mismatch, provider-readback mismatch, correc
 resource names, and unchanged historical-record compatibility. A later authenticated staging
 readback must confirm that the resolved identity still points to the existing platform project and
 does not propose resource replacement or state migration.
+
+## Legacy same-project fixture state-bucket disposition
+
+### Problem
+
+The cross-project fixture transition releases the three former same-project fixture state buckets
+from Platform State without destroying them. This is intentionally safer than allowing ordinary
+`platform-deploy` or `fixture-destroy` to purge retained Terraform state, but it leaves the legacy
+buckets and their object versions in the platform project until their disposition is reviewed.
+
+### Proposed lifecycle
+
+Add a separate inventory-and-disposition workflow that:
+
+- resolves the exact former `fixture-public`, `fixture-authenticated`, and `fixture-restricted`
+  bucket identities from historical provider-backed state;
+- proves that no active or recoverable same-project fixture still depends on them;
+- inventories object versions, retention constraints, ownership labels, IAM, and billable storage;
+- lets the owner choose a documented retention period, a controlled export, or a permanent purge;
+- rejects unknown buckets, objects, principals, or ownership markers; and
+- requires an exact typed destructive confirmation before any purge.
+
+The workflow must not be folded into `platform-deploy`, `platform-destroy`, `fixture-destroy`, or
+fixture-project cleanup. A Terraform `forget` action is evidence only that configuration no longer
+manages a resource; it is not evidence that provider data was deleted or that retention is no
+longer required.
+
+### Completion evidence
+
+Deterministic tests must cover exact legacy-bucket selection, active dependency rejection,
+retention-policy refusal, unknown-resource refusal, export-before-purge behavior, interruption,
+and idempotent readback. Live evidence must identify the reviewed buckets by immutable provider
+identity and prove either their approved retention posture or their completed purge without
+touching the platform-state bucket or dedicated fixture-project state.

@@ -19,7 +19,10 @@ from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlsplit
 import webbrowser
 
-from infrastructure.config.project_identity import fixtures_project_id
+from infrastructure.config.project_identity import (
+    fixtures_project_id,
+    fixtures_project_name,
+)
 from infrastructure.operator._core import LifecycleOperator
 from infrastructure.operator._interfaces import (
     DiscoverySnapshot,
@@ -1213,6 +1216,7 @@ def build_local_project_lifecycle(
             verified.configuration,
             resolved_project,
             fixtures_project_id(),
+            fixtures_project_name(),
         ),
         LocalProjectConnectionStore(filesystem),
         terminal,
@@ -1357,6 +1361,7 @@ def build_local_qualification(
         verified.configuration,
         resolved_project,
         fixtures_project_id(),
+        fixtures_project_name(),
     ).read_project(fixtures_project_id())
     probe = StagingQualificationProbe(
         HttpxQualificationClient(),

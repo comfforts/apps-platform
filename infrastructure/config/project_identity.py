@@ -7,6 +7,7 @@ import re
 
 
 _PROJECT_ID = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]")
+_PROJECT_NAME = re.compile(r"[A-Za-z0-9 '!\-]{4,30}")
 
 
 def fixtures_project_id(environment: dict[str, str] | None = None) -> str:
@@ -20,6 +21,17 @@ def fixtures_project_id(environment: dict[str, str] | None = None) -> str:
     return selected
 
 
+def fixtures_project_name(environment: dict[str, str] | None = None) -> str:
+    """Return the explicit fixture display name or fail before provider access."""
+
+    selected = (environment or os.environ).get("FIXTURES_PROJECT_NAME", "")
+    if _PROJECT_NAME.fullmatch(selected) is None:
+        raise ValueError(
+            "FIXTURES_PROJECT_NAME must be a valid 4-30 character GCP project name"
+        )
+    return selected
+
+
 def fixture_state_bucket(project_id: str) -> str:
     """Derive the fixture-owned state bucket from one validated project ID."""
 
@@ -28,4 +40,8 @@ def fixture_state_bucket(project_id: str) -> str:
     return f"{project_id}-state"
 
 
-__all__ = ("fixture_state_bucket", "fixtures_project_id")
+__all__ = (
+    "fixture_state_bucket",
+    "fixtures_project_id",
+    "fixtures_project_name",
+)

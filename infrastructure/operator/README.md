@@ -20,13 +20,14 @@ make platform-status ENVIRONMENT=staging
 make platform-deploy ENVIRONMENT=staging
 make fixture-project-bootstrap \
   ENVIRONMENT=staging \
-  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
+  FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod \
+  FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"
 make platform-connect-project \
   ENVIRONMENT=staging \
-  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
 make platform-outputs \
   ENVIRONMENT=staging \
-  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod \
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-authenticated \
   ACCESS_MODE=authenticated \
   ROUTE_INTENT=/fixture-authenticated \

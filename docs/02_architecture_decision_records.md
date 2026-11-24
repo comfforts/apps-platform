@@ -1047,8 +1047,9 @@ the application project identity plus exact host-network, subnet, region, and eg
 the application-scoped Platform Integration Bundle.
 
 Repository fixtures run in the dedicated staging project selected explicitly through
-`FIXTURES_PROJECT_ID`; the current staging operator value is
-`comfforts-app-fixtures-nonprod`. A one-time interactive fixture-project bootstrap creates or
+`FIXTURES_PROJECT_ID`; its display name is selected separately through
+`FIXTURES_PROJECT_NAME`. The current staging operator values are
+`comfforts-fixtures-nonprod` and `Comfforts Fixtures Non-Prod`. A one-time interactive fixture-project bootstrap creates or
 repairs that project under the reviewed parent and billing account, enables only the required
 services, and creates its versioned private Terraform-state bucket and image repository. Google
 Cloud assigns the project number. The bootstrap reads it back, and project connection records and

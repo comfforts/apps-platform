@@ -7,17 +7,19 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from infrastructure.operator.project_connections import (
     ApplicationProjectLifecycle,
     ApplicationProjectReadback,
     PLATFORM_PROJECT_ID,
 )
+from infrastructure.config.project_identity import fixtures_project_name
 from infrastructure.operator.local_project_connections import (
     GcloudApplicationProjectProvider,
     ProjectCommandError,
 )
-from tests.environment import FIXTURES_PROJECT_ID
+from tests.environment import FIXTURES_PROJECT_ID, FIXTURES_PROJECT_NAME
 
 
 class Terminal:
@@ -96,6 +98,45 @@ class Provider:
 
 
 class ApplicationProjectLifecycleTest(unittest.TestCase):
+    def test_fixture_project_name_is_an_explicit_validated_environment_value(self) -> None:
+        self.assertEqual(
+            fixtures_project_name(
+                {"FIXTURES_PROJECT_NAME": "Comfforts Test Fixtures"}
+            ),
+            "Comfforts Test Fixtures",
+        )
+        with self.assertRaisesRegex(ValueError, "4-30 character"):
+            fixtures_project_name(
+                {"FIXTURES_PROJECT_NAME": "Comfforts App Fixtures Non-Prod"}
+            )
+
+    def test_project_command_failure_reports_the_exact_safe_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            provider = GcloudApplicationProjectProvider(
+                root / "gcloud",
+                root / "config",
+                root,
+                FIXTURES_PROJECT_ID,
+                FIXTURES_PROJECT_NAME,
+            )
+            completed = subprocess.CompletedProcess(
+                ("gcloud",),
+                1,
+                "",
+                "INVALID_ARGUMENT: rejected provider request",
+            )
+            with patch("subprocess.run", return_value=completed):
+                with self.assertRaisesRegex(
+                    ProjectCommandError,
+                    "FIXTURE_PROJECT_CREATE_INVALID_ARGUMENT",
+                ):
+                    provider._run(
+                        "projects",
+                        "create",
+                        FIXTURES_PROJECT_ID,
+                    )
+
     def test_fixture_bootstrap_uses_the_bounded_storage_command(self) -> None:
         class RecordingProvider(GcloudApplicationProjectProvider):
             def __init__(self, root: Path) -> None:
@@ -104,6 +145,7 @@ class ApplicationProjectLifecycleTest(unittest.TestCase):
                     root / "config",
                     root,
                     FIXTURES_PROJECT_ID,
+                    FIXTURES_PROJECT_NAME,
                 )
                 self.commands: list[tuple[str, ...]] = []
 
@@ -140,6 +182,17 @@ class ApplicationProjectLifecycleTest(unittest.TestCase):
         self.assertFalse(
             any(command[:2] == ("storage", "storage") for command in provider.commands)
         )
+        create = next(
+            command
+            for command in provider.commands
+            if command[:2] == ("projects", "create")
+        )
+        display_name = next(
+            argument.removeprefix("--name=")
+            for argument in create
+            if argument.startswith("--name=")
+        )
+        self.assertLessEqual(len(display_name), 30)
 
     def test_fixture_bootstrap_refuses_an_existing_project_under_another_parent(self) -> None:
         class ConflictingProvider(GcloudApplicationProjectProvider):
@@ -164,6 +217,7 @@ class ApplicationProjectLifecycleTest(unittest.TestCase):
                 root / "config",
                 root,
                 FIXTURES_PROJECT_ID,
+                FIXTURES_PROJECT_NAME,
             )
             with self.assertRaisesRegex(
                 ProjectCommandError,
@@ -278,6 +332,7 @@ class ApplicationProjectLifecycleTest(unittest.TestCase):
                 root / "config",
                 root,
                 FIXTURES_PROJECT_ID,
+                FIXTURES_PROJECT_NAME,
             ).read_project(FIXTURES_PROJECT_ID)
 
         self.assertEqual(readback.project_number, "987654321098")

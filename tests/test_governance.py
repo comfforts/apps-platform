@@ -396,8 +396,9 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertIn("writes the canonical bundle pair and registration intent", normalized_overview)
         self.assertIn("It never registers or routes the fixture", overview)
-        self.assertIn("FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod", overview)
-        self.assertIn("APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod", overview)
+        self.assertIn("FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod", overview)
+        self.assertIn('FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"', overview)
+        self.assertIn("APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod", overview)
         for fixture_application_id in (
             "fixture-public",
             "fixture-authenticated",

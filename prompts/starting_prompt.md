@@ -27,14 +27,15 @@ Perform the staging journey from exact merged source:
    user Application Default Credentials, `gcloud`, and `dig`. Never create or store a service-account
    key or copy a token, OAuth secret, Terraform state, plan, or provider payload into Git.
 3. Run `make fixture-project-bootstrap ENVIRONMENT=staging
-   FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod` to create or verify the dedicated
+   FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod
+   FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"` to create or verify the dedicated
    fixture application project, then run `make platform-deploy ENVIRONMENT=staging`. Keep the
    interactive platform wizard in one process.
    Review each displayed specification/action/plan, use its `y/N` gates, complete Google OAuth and
    Squarespace DNS work only at the displayed checkpoint, and press Enter for immediate readback.
    Enter the OAuth client secret only in Secret Manager, never in the terminal.
 4. Run `make platform-connect-project ENVIRONMENT=staging
-   APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod` and verify that it creates no runtime or
+   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod` and verify that it creates no runtime or
    route. For `fixture-public`, `fixture-authenticated`, and `fixture-restricted`, separately run
    `platform-outputs` with the fixture project, matching admission mode and route; pass the printed
    bundle to `fixture-handoff`; inspect its integration bundle, attachment bundle, and registration

@@ -55,10 +55,11 @@ The normal accepted staging journey is:
 
 ```bash
 make fixture-project-bootstrap ENVIRONMENT=staging \
-  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
+  FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod \
+  FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"
 make platform-deploy ENVIRONMENT=staging
 make platform-connect-project ENVIRONMENT=staging \
-  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
 # For each fixture: platform-outputs, fixture-handoff, inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging
 make platform-qualify ENVIRONMENT=staging
@@ -245,9 +246,10 @@ The synthetic fixtures exercise the same bundle and registration path as real ap
 
 ```bash
 make fixture-project-bootstrap ENVIRONMENT=staging \
-  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
+  FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod \
+  FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"
 make platform-connect-project ENVIRONMENT=staging \
-  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
 ```
 
 The bootstrap is idempotent and normally runs once. It creates or repairs the dedicated fixture
@@ -265,7 +267,7 @@ the handoff, and register it explicitly. For example:
 ```bash
 make platform-outputs \
   ENVIRONMENT=staging \
-  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod \
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-public \
   ACCESS_MODE=public \
   ROUTE_INTENT=/fixture-public \
@@ -326,7 +328,7 @@ return to the cross-project revision and run `fixture-project-bootstrap`,
 is unavailable until the new attachment is registered.
 
 This transition is needed only for fixture state that predates the dedicated fixture project. New
-fixture revisions remain in `comfforts-app-fixtures-nonprod` and use the normal detach, destroy,
+fixture revisions remain in `comfforts-fixtures-nonprod` and use the normal detach, destroy,
 handoff, and register lifecycle.
 
 `fixture-status` reconciles all three fixture registrations and provider targets by default. During
@@ -446,10 +448,11 @@ A clean pushed branch containing current `origin/main` may exercise staging befo
 ```bash
 git push -u origin HEAD
 make fixture-project-bootstrap ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
-  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
+  FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod \
+  FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"
 make platform-deploy ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-connect-project ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
-  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
 # For each fixture: platform-outputs, fixture-handoff, inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate

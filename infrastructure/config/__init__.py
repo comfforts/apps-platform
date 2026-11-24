@@ -9,12 +9,14 @@ from infrastructure.config.validation import (
 from infrastructure.config.project_identity import (
     fixture_state_bucket,
     fixtures_project_id,
+    fixtures_project_name,
 )
 
 __all__ = (
     "ConfigurationResult",
     "fixture_state_bucket",
     "fixtures_project_id",
+    "fixtures_project_name",
     "load_configuration_document",
     "load_configuration_schemas",
     "validate_configuration",

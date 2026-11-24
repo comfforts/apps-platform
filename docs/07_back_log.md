@@ -110,8 +110,8 @@ these values identify the platform Shared VPC host rather than the fixture appli
 duplicating them makes environment selection difficult to audit and creates a risk that one
 consumer retains stale staging identity after another is updated.
 
-The fixture project now has an explicit `FIXTURES_PROJECT_ID` input and a provider-discovered
-project number. The platform project needs an equally clear environment boundary without making
+The fixture project now has explicit `FIXTURES_PROJECT_ID` and `FIXTURES_PROJECT_NAME` inputs and
+a provider-discovered project number. The platform project needs an equally clear environment boundary without making
 provider-assigned identity implicit or allowing an operator to select an unrelated project.
 
 ### Proposed configuration interface

@@ -6,7 +6,8 @@ PREFLIGHT_MODE ?= operational
 SPECIFICATION_DIGEST ?=
 APPLICATION_ID ?=
 APPLICATION_PROJECT_ID ?=
-FIXTURES_PROJECT_ID ?= comfforts-app-fixtures-nonprod
+FIXTURES_PROJECT_ID ?= comfforts-fixtures-nonprod
+FIXTURES_PROJECT_NAME ?= Comfforts Fixtures Non-Prod
 ACCESS_MODE ?=
 ROUTE_INTENT ?=
 PLATFORM_SOURCE_REVISION ?=
@@ -16,7 +17,7 @@ INTEGRATION_BUNDLE ?=
 ATTACHMENT_BUNDLE ?=
 REGISTRATION_INTENT ?=
 
-export FIXTURES_PROJECT_ID
+export FIXTURES_PROJECT_ID FIXTURES_PROJECT_NAME
 
 .PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-prepare platform-cancel platform-deploy platform-status fixture-project-bootstrap platform-connect-project platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-handoff fixture-status fixture-destroy
 
@@ -79,7 +80,7 @@ platform-status:
 
 ## Create or repair the dedicated fixture application project; creates no runtime or route.
 fixture-project-bootstrap:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-project-bootstrap --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-project-id "$(FIXTURES_PROJECT_ID)"
+	FIXTURES_PROJECT_ID="$(FIXTURES_PROJECT_ID)" FIXTURES_PROJECT_NAME="$(FIXTURES_PROJECT_NAME)" PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-project-bootstrap --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-project-id "$(FIXTURES_PROJECT_ID)"
 
 ## Attach one existing application project to the platform Shared VPC; creates no runtime or route.
 platform-connect-project:

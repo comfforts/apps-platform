@@ -11,7 +11,10 @@ import tempfile
 from typing import Sequence
 
 from infrastructure.operator.local import LocalFilesystem
-from infrastructure.config.project_identity import fixture_state_bucket
+from infrastructure.config.project_identity import (
+    fixture_state_bucket,
+    fixtures_project_name,
+)
 from infrastructure.operator.integration import ApplicationProjectConnection
 from infrastructure.operator.project_connections import (
     ApplicationProjectReadback,
@@ -151,6 +154,7 @@ class GcloudApplicationProjectProvider:
         cloud_sdk_configuration: Path,
         working_root: Path,
         fixture_project_id: str,
+        fixture_project_name: str,
     ) -> None:
         self._executable = executable.resolve()
         self._configuration = cloud_sdk_configuration.resolve()
@@ -158,6 +162,9 @@ class GcloudApplicationProjectProvider:
         if _PROJECT_ID.fullmatch(fixture_project_id) is None:
             raise ValueError("fixture project ID must be exact")
         self._fixture_project_id = fixture_project_id
+        self._fixture_project_name = fixtures_project_name(
+            {"FIXTURES_PROJECT_NAME": fixture_project_name}
+        )
         self._fixture_state_bucket = fixture_state_bucket(fixture_project_id)
 
     def _run(
@@ -177,8 +184,57 @@ class GcloudApplicationProjectProvider:
             timeout=120,
         )
         if check and completed.returncode != 0:
-            raise ProjectCommandError("PROJECT_COMMAND_FAILED", arguments)
+            raise ProjectCommandError(
+                self._command_failure_code(arguments, completed.stderr),
+                arguments,
+            )
         return completed
+
+    @staticmethod
+    def _command_failure_code(
+        arguments: Sequence[str],
+        stderr: str,
+    ) -> str:
+        prefixes = (
+            (("projects", "create"), "FIXTURE_PROJECT_CREATE"),
+            (("billing", "projects", "link"), "FIXTURE_PROJECT_BILLING_LINK"),
+            (("services", "enable"), "FIXTURE_PROJECT_SERVICE_ENABLE"),
+            (("storage", "buckets", "create"), "FIXTURE_STATE_BUCKET_CREATE"),
+            (("storage", "buckets", "update"), "FIXTURE_STATE_BUCKET_UPDATE"),
+            (
+                ("artifacts", "repositories", "create"),
+                "FIXTURE_ARTIFACT_REPOSITORY_CREATE",
+            ),
+            (
+                ("artifacts", "repositories", "update"),
+                "FIXTURE_ARTIFACT_REPOSITORY_UPDATE",
+            ),
+            (
+                ("compute", "shared-vpc", "associated-projects", "add"),
+                "APPLICATION_PROJECT_SHARED_VPC_CONNECT",
+            ),
+            (
+                ("projects", "add-iam-policy-binding"),
+                "APPLICATION_PROJECT_NETWORK_VIEWER_GRANT",
+            ),
+            (
+                ("compute", "networks", "subnets", "add-iam-policy-binding"),
+                "APPLICATION_PROJECT_SUBNET_USER_GRANT",
+            ),
+        )
+        boundary = "PROJECT_COMMAND"
+        for prefix, code in prefixes:
+            if tuple(arguments[: len(prefix)]) == prefix:
+                boundary = code
+                break
+        normalized = stderr.upper()
+        if "PERMISSION_DENIED" in normalized or "DOES NOT HAVE PERMISSION" in normalized:
+            return f"{boundary}_PERMISSION_DENIED"
+        if "INVALID_ARGUMENT" in normalized:
+            return f"{boundary}_INVALID_ARGUMENT"
+        if "ALREADY_EXISTS" in normalized or "ALREADY EXISTS" in normalized:
+            return f"{boundary}_CONFLICT"
+        return f"{boundary}_FAILED"
 
     def _json(self, *arguments: str) -> object | None:
         completed = self._run(*arguments, "--format=json", check=False)
@@ -415,7 +471,7 @@ class GcloudApplicationProjectProvider:
                 "create",
                 project_id,
                 f"{flag}={parent_id}",
-                "--name=Comfforts App Fixtures Non-Prod",
+                f"--name={self._fixture_project_name}",
             )
         elif self._parent_reference(current.get("parent")) != self._parent_reference(
             parent

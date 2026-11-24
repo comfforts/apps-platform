@@ -209,6 +209,10 @@ class ContractSchemaTest(unittest.TestCase):
             "platform-retire:",
         ):
             self.assertIn(application_target, makefile)
+        self.assertIn(
+            'FIXTURES_PROJECT_NAME="$(FIXTURES_PROJECT_NAME)"',
+            makefile,
+        )
         self.assertNotIn("fixture-deploy:", makefile)
         self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 23)
 

@@ -353,11 +353,12 @@ journey begins with two one-time project operations:
 ```bash
 make fixture-project-bootstrap \
   ENVIRONMENT=staging \
-  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
+  FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod \
+  FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"
 make platform-deploy ENVIRONMENT=staging
 make platform-connect-project \
   ENVIRONMENT=staging \
-  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
 ```
 
 `fixture-project-bootstrap` creates or repairs only the dedicated fixture application project,
@@ -379,7 +380,7 @@ make platform-status ENVIRONMENT=staging
 
 make platform-outputs \
   ENVIRONMENT=staging \
-  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod \
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-public \
   ACCESS_MODE=public \
   ROUTE_INTENT=/fixture-public \
@@ -493,10 +494,11 @@ merge:
 ```bash
 git push -u origin HEAD
 make fixture-project-bootstrap ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
-  FIXTURES_PROJECT_ID=comfforts-app-fixtures-nonprod
+  FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod \
+  FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"
 make platform-deploy ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-connect-project ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
-  APPLICATION_PROJECT_ID=comfforts-app-fixtures-nonprod
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
 # For each fixture: platform-outputs, fixture-handoff, inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
@@ -517,7 +519,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-cancel ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Confirm and close only an active private deployment record so changed source can prepare fresh intent; no Terraform or cloud mutation |
 | `make platform-deploy ENVIRONMENT=<name>` | Reuse a fresh current approval or prepare one, then deploy, checkpoint, read back, and safely resume the shared platform |
 | `make platform-status ENVIRONMENT=<name>` | Report checkout, recorded deployment, active runtime, execution, and qualification state without mutation |
-| `make fixture-project-bootstrap ENVIRONMENT=staging FIXTURES_PROJECT_ID=<project-id>` | Idempotently create or repair the selected fixture application project, state bucket, and image repository; read back its provider-assigned project number; create no runtime or route |
+| `make fixture-project-bootstrap ENVIRONMENT=staging FIXTURES_PROJECT_ID=<project-id> FIXTURES_PROJECT_NAME="<display-name>"` | Idempotently create or repair the selected fixture application project, state bucket, and image repository; read back its provider-assigned project number; create no runtime or route |
 | `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |
 | `make platform-outputs ...` | Generate one application- and project-scoped Platform Integration Bundle from a verified project connection |
 | `make platform-register ...` | Validate an application attachment and activate a complete immutable generation |

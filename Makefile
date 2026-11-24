@@ -74,11 +74,11 @@ platform-prepare:
 platform-cancel:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator cancel --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
 
-## Prepare, approve, and execute one exact deployment in the same interactive process.
+## Check platform readiness, then prepare, approve, and execute fresh exact plans.
 platform-deploy: terraform-setup
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" $(if $(SPECIFICATION_DIGEST),--specification-digest "$(SPECIFICATION_DIGEST)",)
 
-## Rehearse current working-tree deployment plans and readback without approval or mutation.
+## Classify current working-tree platform readiness without approval or mutation.
 platform-deploy-check: terraform-setup
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy-check --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
 
@@ -94,7 +94,7 @@ fixture-project-bootstrap:
 platform-connect-project:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-connect-project --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-project-id "$(APPLICATION_PROJECT_ID)"
 
-## Check platform plans, project connection, services, and access-mode handoff prerequisites without mutation.
+## Require platform readiness, then check project connection, services, and handoff inputs.
 application-handoff-check: terraform-setup
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator application-handoff-check --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)" --application-project-id "$(APPLICATION_PROJECT_ID)" --access-mode "$(ACCESS_MODE)" --route-intent "$(ROUTE_INTENT)" --platform-source-revision "$(PLATFORM_SOURCE_REVISION)" --platform-generation "$(PLATFORM_GENERATION)"
 

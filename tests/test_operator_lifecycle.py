@@ -358,7 +358,7 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertFalse(state.exists())
         self.assertNotIn("SOURCE_NOT_CLEAN", development_trace)
 
-    def test_deploy_check_rehearses_dirty_source_without_writing_state(self) -> None:
+    def test_deploy_check_reports_platform_ready_without_writing_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "operator"
             checker = FakeChecker()
@@ -371,7 +371,9 @@ class OperatorLifecycleTest(unittest.TestCase):
 
             result = operator.deploy_check("staging")
 
-        self.assertEqual(result.outcome, "rehearsed")
+        self.assertEqual(result.outcome, "ready")
+        self.assertTrue(result.platform_ready)
+        self.assertFalse(result.reconciliation_required)
         self.assertFalse(result.operational_ready)
         self.assertEqual(result.source_admission_blockers, ())
         self.assertEqual(len(result.stages), 12)
@@ -397,6 +399,33 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertIn("▸ Check 1/7", trace)
         self.assertIn("Deployment check bootstrap: pass.", trace)
 
+    def test_deploy_check_requires_reconciliation_for_missing_platform_service(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "operator"
+            checker = FakeChecker(
+                scripted=[
+                    StageCheck("pass"),
+                    StageCheck(
+                        "would-change",
+                        blockers=("BOOTSTRAP_SERVICES_READBACK_MISMATCH",),
+                    ),
+                ]
+            )
+            operator, _ = self._operator(
+                state,
+                terminal=FakeTerminal([]),
+                checker=checker,
+            )
+
+            result = operator.deploy_check("staging")
+
+        self.assertEqual(result.outcome, "reconciliation-required")
+        self.assertFalse(result.platform_ready)
+        self.assertTrue(result.reconciliation_required)
+        self.assertFalse(state.exists())
+
     def test_deploy_check_reports_exact_stage_blocker_without_writing_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "operator"
@@ -418,6 +447,7 @@ class OperatorLifecycleTest(unittest.TestCase):
             result = operator.deploy_check("staging")
 
         self.assertEqual(result.outcome, "blocked")
+        self.assertFalse(result.platform_ready)
         self.assertEqual(
             result.blockers,
             ("BOOTSTRAP_SERVICE_READBACK_FAILED",),
@@ -478,7 +508,9 @@ class OperatorLifecycleTest(unittest.TestCase):
             result = json.loads(stdout.getvalue())
 
         self.assertEqual(code, 0)
-        self.assertEqual(result["outcome"], "rehearsed")
+        self.assertEqual(result["outcome"], "ready")
+        self.assertTrue(result["platform_ready"])
+        self.assertFalse(result["reconciliation_required"])
         self.assertEqual(result["source_admission_blockers"], [])
         self.assertEqual(len(result["stages"]), 12)
         self.assertIn("  check mode: working-tree diagnostic", stderr.getvalue())
@@ -1326,7 +1358,11 @@ class OperatorLifecycleTest(unittest.TestCase):
 
     def test_cli_exposes_combined_deploy_and_progress_digest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            operator, _ = self._operator(Path(directory), executor=FakeExecutor())
+            operator, _ = self._operator(
+                Path(directory),
+                executor=FakeExecutor(),
+                checker=FakeChecker(),
+            )
             stdout = io.StringIO()
             stderr = io.StringIO()
             with mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
@@ -1348,6 +1384,42 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertIn("  fixture selected: none", invocation)
         self.assertTrue(invocation.startswith("Operator invocation:\n"))
         self.assertTrue(invocation.endswith("\n\n"))
+
+    def test_cli_deploy_stops_before_approval_when_platform_check_is_blocked(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "operator"
+            executor = FakeExecutor()
+            operator, terminal = self._operator(
+                state,
+                terminal=FakeTerminal([]),
+                executor=executor,
+                checker=FakeChecker(
+                    scripted=[
+                        StageCheck(
+                            "blocked",
+                            blockers=("TERRAFORM_PLAN_COMMAND_FAILED",),
+                        )
+                    ]
+                ),
+            )
+            stdout = io.StringIO()
+            with mock.patch("sys.stdout", stdout), mock.patch(
+                "sys.stderr", io.StringIO()
+            ):
+                code = operator_main(
+                    ["deploy", "--environment", "staging"],
+                    operator_factory=lambda _path, _authority: operator,
+                )
+            result = json.loads(stdout.getvalue())
+
+        self.assertEqual(code, 2)
+        self.assertEqual(result["outcome"], "blocked")
+        self.assertEqual(result["blockers"], ["TERRAFORM_PLAN_COMMAND_FAILED"])
+        self.assertEqual(executor.calls, [])
+        self.assertEqual(terminal.prompts, [])
+        self.assertFalse(state.exists())
 
     def test_local_gcp_discovery_blocks_wrong_project_without_retaining_token(self) -> None:
         observed = (

@@ -57,12 +57,12 @@ _HANDOFF_CHECK_GUIDANCE = {
         "Cloud Run, and Service Usage before handoff"
     ),
     "PLATFORM_DEPLOYMENT_CHECK_INCOMPLETE": (
-        "one of the bootstrap, foundation, or Shared Edge plans could not be checked; "
-        "inspect platform_stages and its diagnostics"
+        "the platform readiness check is incomplete or blocked; inspect its stage "
+        "results and diagnostics before application handoff"
     ),
-    "PLATFORM_IDENTITY_CONFIGURATION_INCOMPLETE": (
-        "authenticated or restricted handoff requires the platform issuer, JWKS, "
-        "OAuth redirect, client identifier, and application audience"
+    "APPLICATION_IDENTITY_PROJECTION_INVALID": (
+        "the application-scoped bundle does not project the requested access mode, "
+        "platform identity endpoints, client identifier, and application audience"
     ),
     "PLATFORM_RECONCILIATION_REQUIRED": (
         "the current platform Terraform plan would change; review and run "
@@ -147,7 +147,12 @@ def _default_factory(
     state_directory: Path,
     source_authority: str,
 ) -> LifecycleOperator:
-    return build_local_operator(PROJECT_ROOT, state_directory, source_authority)
+    return build_local_operator(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+        arm_checker=True,
+    )
 
 
 def _default_preflight_factory(
@@ -518,6 +523,8 @@ def _main(
                 "environment": arguments.environment,
                 "operational_ready": result.operational_ready,
                 "outcome": result.outcome,
+                "platform_ready": result.platform_ready,
+                "reconciliation_required": result.reconciliation_required,
                 "source_admission_blockers": list(
                     result.source_admission_blockers
                 ),
@@ -528,9 +535,9 @@ def _main(
                 "working_tree_digest": result.working_tree_digest,
             }
         )
-        if result.outcome == "rehearsed":
+        if result.outcome == "ready":
             print(
-                "Deployment check completed without a current read-only blocker.",
+                "Platform readiness check passed without required reconciliation.",
                 file=sys.stderr,
             )
             print(
@@ -539,7 +546,21 @@ def _main(
                 file=sys.stderr,
             )
             print(file=sys.stderr)
-        return 0 if result.outcome == "rehearsed" else 2
+        elif result.outcome == "reconciliation-required":
+            print(
+                "Platform reconciliation is required; review the named stages and "
+                "run platform-deploy.",
+                file=sys.stderr,
+            )
+            print(file=sys.stderr)
+        elif result.outcome == "incomplete":
+            print(
+                "Platform readiness is incomplete because a dependent stage could "
+                "not yet be checked.",
+                file=sys.stderr,
+            )
+            print(file=sys.stderr)
+        return 0 if result.outcome == "ready" else 2
 
     if arguments.operation == "application-handoff-check":
         result = handoff_check.check(
@@ -797,6 +818,32 @@ def _main(
         return 0 if result.outcome == "destroyed" else 2
 
     if arguments.operation == "deploy":
+        readiness = operator.deploy_check(arguments.environment)
+        if readiness.outcome == "blocked":
+            _print(
+                {
+                    "blockers": list(readiness.blockers),
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                    "source_authority": arguments.source_authority,
+                    "specification_digest": None,
+                }
+            )
+            return 2
+        if readiness.outcome == "reconciliation-required":
+            print(
+                "Platform deployment will reconcile the changes identified by "
+                "the read-only readiness check.",
+                file=sys.stderr,
+            )
+            print(file=sys.stderr)
+        elif readiness.outcome == "incomplete":
+            print(
+                "Some later readiness checks are deferred until earlier deployment "
+                "stages produce their inputs; exact stage plans remain mandatory.",
+                file=sys.stderr,
+            )
+            print(file=sys.stderr)
         specification_digest = arguments.specification_digest
         if specification_digest is None:
             prepared = operator.current_approved_specification(

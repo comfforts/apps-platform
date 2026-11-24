@@ -108,9 +108,12 @@ pointer, progress record, Terraform state, or provider resource.
 
 Read every `blocked` stage before continuing. `deferred` means that an exact plan depends on an
 output that only a preceding real deployment stage can create. `manual` identifies an OAuth or DNS
-checkpoint that the diagnostic does not perform. `rehearsed` means no current read-only blocker was
-found; it is not deployment, source admission, qualification, or proof that a later apply will
-succeed.
+checkpoint that the diagnostic does not perform. The final result is `ready` only when the required
+platform services, Platform State, Shared VPC, application subnet, Cloud Router, Cloud NAT, Shared
+Edge, active runtime, TLS, and final readback pass. `reconciliation-required` names platform changes
+for `platform-deploy`; `incomplete` means an earlier real stage must first produce an input; and
+`blocked` means the check itself could not safely continue. None of these results is deployment,
+source admission, qualification, or proof that a later apply will succeed.
 
 ## Optional preparation
 
@@ -327,12 +330,12 @@ make platform-register \
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-public
 ```
 
-`application-handoff-check` is read-only. It uses lock-free ephemeral Terraform plans and live
-provider readback to verify that bootstrap, foundation, and Shared Edge require no reconciliation;
-that the application project exists with Cloud Resource Manager, Compute, IAM, Cloud Run, and
-Service Usage enabled; that the Shared VPC connection and subnet grants remain exact; that the
-requested bundle can be compiled; and, for authenticated or restricted access, that the platform
-identity endpoints, OAuth client identifier, issuer, JWKS endpoint, and audience are present. It
+`application-handoff-check` is read-only. It consumes the explicit platform-ready result rather
+than interpreting internal deployment stages. It then verifies that the application project exists
+with Cloud Resource Manager, Compute, IAM, Cloud Run, and Service Usage enabled; that its Shared VPC
+connection and subnet grants remain exact; that the requested bundle can be compiled; and, for
+authenticated or restricted access, that the application-scoped identity projection contains the
+exact platform endpoints, OAuth client identifier, and application audience. It
 publishes no bundle and writes no operational lifecycle state. `PLATFORM_RECONCILIATION_REQUIRED`
 means run and review `platform-deploy` before attempting the application handoff.
 
@@ -420,11 +423,13 @@ governed backlog lifecycle.
 On an environment with an existing Shared Edge, the foundation plan is refresh-only and cannot
 create the new cross-project network resources. The later normal Shared Edge plan is therefore
 expected to show exactly these inherited migration changes: create the platform Shared VPC
-network, application subnet, and host-project binding, and update the qualification image
-repository for fixture-project use. It may also reconcile Shared Edge resources owned by that
-phase. Stop for any other inherited create or update, any replacement or deletion, or a failed
-foundation-output readback. This exception is exact migration authority, not general permission
-for the Shared Edge phase to mutate foundation resources.
+network, application subnet, host-project binding, application-subnet Cloud Router, and Cloud NAT;
+update the qualification image repository for fixture-project use; and create the edge
+session-store role. The NAT uses provider-managed public addresses and serves only the application
+subnet. It may also reconcile Shared Edge resources owned by that phase. Stop for any other
+inherited create or update, any replacement or deletion, or a failed foundation-output readback.
+This exception is exact migration authority, not general permission for the Shared Edge phase to
+mutate foundation resources.
 
 `fixture-status` reconciles all three fixture registrations and provider targets by default. During
 an individual rollout or investigation, add `APPLICATION_ID=<fixture-application-id>` to narrow the
@@ -609,10 +614,11 @@ traffic and external DNS in the controlled order, verifies each transition, and 
 blind root destroy. Platform destruction never destroys Application State.
 
 Backend state, recovery material, retained configuration, signing keys, provider services,
-evidence, and the Shared VPC host/network/subnet may remain after ordinary destruction. The network
-remains because connected application projects are outside ordinary platform-destruction scope;
-removing their connection is a separate destructive authority. Purging retained material is a
-separate operation, not an automatic final step.
+evidence, and the Shared VPC host/network/subnet may remain after ordinary destruction. The
+billable Cloud NAT and its router are removed with the destructible platform foundation. The
+network remains because connected application projects are outside ordinary platform-destruction
+scope; removing their connection is a separate destructive authority. Purging retained material
+is a separate operation, not an automatic final step.
 
 ## Production
 

@@ -1763,7 +1763,8 @@ typed confirmation, post-confirmation reread, ordered stop-on-failure execution,
 create-only resume state. Destruction refuses active attachments or ownership/inventory mismatch,
 never targets Application State, and retains backends, recovery material, and evidence absent
 separate purge authority. It also retains the Shared VPC host, application network, and subnet
-until separately authorized project disconnection. Guarded shell-free Cloud SDK generation, traffic, attachment, and
+until separately authorized project disconnection, while removing their billable Cloud NAT and
+router during ordinary platform destruction. Guarded shell-free Cloud SDK generation, traffic, attachment, and
 readback adapters are deterministic-test covered but were not invoked. W8 also completes the real
 staging deployment adapter: exact first-run/recovery bootstrap, provider-service enablement,
 digest-pinned and source-allow-listed image build, create-only initial generation, OAuth metadata,
@@ -1828,15 +1829,26 @@ executor construction, private lifecycle-state writes, or external mutation.
 W9 also exposes `platform-preflight-check` and `platform-deploy-check` for uncommitted maintenance.
 They retain real profile, session, project, provider, private-record, Terraform-state, rendering,
 and plan-policy checks while skipping `SOURCE_NOT_CLEAN` and treating other source findings as
-diagnostics. The deployment check uses
-lock-free ephemeral plans and cannot approve, apply, execute an action or checkpoint, write
-operational lifecycle state, or become deployment or qualification evidence.
+diagnostics. The deployment check uses lock-free ephemeral plans, owns required platform-service
+and platform-resource readiness, and reports `ready`, `reconciliation-required`, `incomplete`, or
+`blocked`. It cannot approve, apply, execute an action or checkpoint, write operational lifecycle
+state, or become deployment or qualification evidence. `platform-deploy` consumes the same result
+before approval or mutation, stops on a blocked check, and still creates fresh exact plans for any
+reconciliation it executes.
 
 W9 also exposes `application-handoff-check` as the read-only gate immediately before bundle
-publication. It combines the relevant Terraform rehearsal with fresh application-project service,
-Shared VPC, subnet-permission, platform-state, bundle-input, and access-mode readback. It reports
-platform reconciliation separately from application-project repair and cannot publish a bundle,
-approve or apply a plan, mutate a provider resource, or write operational lifecycle state.
+publication. It consumes platform readiness without decoding deployment stages, then combines fresh
+application-project service, Shared VPC and subnet-permission readback with bundle inputs, access
+mode, and application identity projection. It reports platform reconciliation separately from
+application-project repair and cannot publish a bundle, approve or apply a plan, mutate a provider
+resource, or write operational lifecycle state.
+
+W9 completes all-traffic Direct VPC egress for attached application projects with one
+platform-owned regional Cloud Router and Public Cloud NAT scoped to the application subnet. The
+foundation output and Shared Edge readback bind the exact router, NAT, and egress mode; the bounded
+cross-project migration policy permits only their exact inherited creates. This enables protected
+fixtures to retrieve the public platform JWKS without granting application ownership of shared
+network resources. Fixture rejection logs expose only allowlisted constant verification codes.
 
 W9 finally simplifies the repository implementation without changing the operator command
 sequence: it replaces the generic stage graph and append-only journal chain with one fixed readable

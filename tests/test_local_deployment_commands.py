@@ -98,6 +98,7 @@ class FakeTerraform:
     refresh_only_plans: list[bool] = field(default_factory=list)
     read_outputs: list[str] = field(default_factory=list)
     state_addresses: tuple[str, ...] = ()
+    foundation_nat_name: str | None = "app-platform-applications-us-west1-nat"
 
     def create_plan(
         self,
@@ -236,6 +237,11 @@ class FakeTerraform:
                         "projects/comfforts-platform-non-prod/secrets/"
                         "app-platform-edge-oauth"
                     ),
+                    "application_egress_mode": "all-traffic",
+                    "application_router_name": (
+                        "app-platform-applications-us-west1-router"
+                    ),
+                    "application_nat_name": self.foundation_nat_name,
                 },
                 "controls": {},
             }
@@ -660,7 +666,16 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
             )
 
         self.assertTrue(foundation_result.matched)
-        self.assertIn("signing_key_version", json.loads(reference))
+        foundation_reference = json.loads(reference)
+        self.assertIn("signing_key_version", foundation_reference)
+        self.assertEqual(
+            foundation_reference["foundation"]["application_egress_mode"],
+            "all-traffic",
+        )
+        self.assertEqual(
+            foundation_reference["foundation"]["application_nat_name"],
+            "app-platform-applications-us-west1-nat",
+        )
         self.assertEqual(
             dict(edge_result.outputs)["reserved-address"],
             "34.120.10.20",
@@ -680,6 +695,25 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
         self.assertTrue(
             variables["platform_configuration"]["shared_edge"]["tls_enabled"]
         )
+
+    def test_foundation_readback_rejects_missing_application_nat(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, _, _, work = self._commands(directory)
+            terraform.foundation_nat_name = None
+            foundation = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+            commands.create_terraform_plan(
+                foundation,
+                _request(work, "platform-foundation"),
+            )
+
+            with self.assertRaisesRegex(
+                DeploymentCommandError,
+                "FOUNDATION_READBACK_INVALID",
+            ):
+                self._readback(commands, foundation, "platform-foundation")
 
     def test_renderer_blocker_is_not_hidden_as_plan_command_failure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

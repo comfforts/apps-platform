@@ -25,9 +25,6 @@ _REQUIRED_APPLICATION_SERVICES = frozenset(
         "serviceusage.googleapis.com",
     }
 )
-_PLATFORM_TERRAFORM_STAGES = ("bootstrap", "foundation", "shared-edge")
-
-
 @dataclass(frozen=True, slots=True)
 class ApplicationHandoffCheckRequest:
     environment: str
@@ -76,7 +73,7 @@ class ApplicationHandoffCheck:
         self._projects = projects
 
     @staticmethod
-    def _identity_ready(
+    def _identity_projection_ready(
         access_mode: str,
         application_id: str,
         bundle: dict[str, object],
@@ -119,41 +116,21 @@ class ApplicationHandoffCheck:
     ) -> ApplicationHandoffCheckResult:
         blockers: list[str] = []
         checks: dict[str, str] = {
-            "platform-plans": "blocked",
+            "platform-readiness": "blocked",
             "application-project": "blocked",
             "application-services": "blocked",
             "bundle-contract": "blocked",
-            "platform-identity": "blocked",
+            "application-identity-projection": "blocked",
         }
 
         deployment = self._deployment.deploy_check(request.environment)
         blockers.extend(deployment.blockers)
-        stage_results = dict(deployment.stages)
-        missing_stages = [
-            stage for stage in _PLATFORM_TERRAFORM_STAGES if stage not in stage_results
-        ]
-        changed_stages = [
-            stage
-            for stage in _PLATFORM_TERRAFORM_STAGES
-            if stage in stage_results and stage_results[stage].outcome == "would-change"
-        ]
-        incomplete_stages = [
-            stage
-            for stage in _PLATFORM_TERRAFORM_STAGES
-            if stage in stage_results
-            and stage_results[stage].outcome not in {"pass", "would-change"}
-        ]
-        if changed_stages:
+        if deployment.reconciliation_required:
             blockers.append("PLATFORM_RECONCILIATION_REQUIRED")
-        if missing_stages or incomplete_stages:
+        if not deployment.platform_ready and not deployment.reconciliation_required:
             blockers.append("PLATFORM_DEPLOYMENT_CHECK_INCOMPLETE")
-        if (
-            not deployment.blockers
-            and not changed_stages
-            and not missing_stages
-            and not incomplete_stages
-        ):
-            checks["platform-plans"] = "pass"
+        if deployment.platform_ready:
+            checks["platform-readiness"] = "pass"
 
         try:
             project = self._projects.read_project(request.application_project_id)
@@ -193,14 +170,14 @@ class ApplicationHandoffCheck:
         blockers.extend(bundle_result.blockers)
         if bundle_result.outcome == "generated" and bundle_result.bundle is not None:
             checks["bundle-contract"] = "pass"
-            identity_ready, identity_outcome = self._identity_ready(
+            identity_ready, identity_outcome = self._identity_projection_ready(
                 request.access_mode,
                 request.application_id,
                 bundle_result.bundle,
             )
-            checks["platform-identity"] = identity_outcome
+            checks["application-identity-projection"] = identity_outcome
             if not identity_ready:
-                blockers.append("PLATFORM_IDENTITY_CONFIGURATION_INCOMPLETE")
+                blockers.append("APPLICATION_IDENTITY_PROJECTION_INVALID")
 
         unique_blockers = tuple(sorted(set(blockers)))
         return ApplicationHandoffCheckResult(
@@ -208,11 +185,7 @@ class ApplicationHandoffCheck:
             ready=not unique_blockers,
             blockers=unique_blockers,
             checks=tuple(sorted(checks.items())),
-            platform_stages=tuple(
-                (stage, stage_results[stage])
-                for stage in _PLATFORM_TERRAFORM_STAGES
-                if stage in stage_results
-            ),
+            platform_stages=deployment.stages,
             source_admission_blockers=deployment.source_admission_blockers,
             bundle_digest=bundle_result.bundle_digest,
         )

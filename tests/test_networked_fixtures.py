@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr
+import io
+import json
 import os
 from pathlib import Path
 import unittest
@@ -28,14 +31,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class FakeVerifier:
-    def __init__(self, accepted: bool = True) -> None:
+    def __init__(
+        self,
+        accepted: bool = True,
+        rejection_code: str = "assertion_signature_invalid",
+    ) -> None:
         self.accepted = accepted
+        self.rejection_code = rejection_code
         self.assertions: list[str | None] = []
 
     async def verify(self, assertion: str | None) -> VerificationResult:
         self.assertions.append(assertion)
         if not self.accepted or assertion is None:
-            return VerificationResult(False, "assertion_signature_invalid", None)
+            return VerificationResult(False, self.rejection_code, None)
         return VerificationResult(
             True,
             "identity_verified",
@@ -126,7 +134,7 @@ class NetworkedFixtureTest(unittest.TestCase):
             verifier=verifier,
         )
 
-        with TestClient(app) as client:
+        with redirect_stderr(io.StringIO()), TestClient(app) as client:
             missing = client.get("/")
             accepted = client.get(
                 "/",
@@ -149,7 +157,7 @@ class NetworkedFixtureTest(unittest.TestCase):
             verifier=verifier,
         )
 
-        with TestClient(app) as client:
+        with redirect_stderr(io.StringIO()), TestClient(app) as client:
             rejected = client.get(
                 "/",
                 headers={VERIFIED_IDENTITY_HEADER: "rejected.assertion.value"},
@@ -166,6 +174,34 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertEqual(duplicate.status_code, 401)
         self.assertEqual(verifier.assertions, ["rejected.assertion.value"])
 
+    def test_identity_rejection_logs_only_the_allowlisted_verifier_code(self) -> None:
+        verifier = FakeVerifier(
+            accepted=False,
+            rejection_code="verification_keys_unavailable",
+        )
+        app = create_network_fixture(
+            configuration("authenticated"),
+            verifier=verifier,
+        )
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr), TestClient(app) as client:
+            response = client.get(
+                "/",
+                headers={VERIFIED_IDENTITY_HEADER: "sensitive.assertion.value"},
+            )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(
+            json.loads(stderr.getvalue()),
+            {
+                "application_id": "fixture-authenticated",
+                "diagnostic_code": "verification_keys_unavailable",
+                "event": "fixture_identity_rejected",
+            },
+        )
+        self.assertNotIn("sensitive.assertion.value", stderr.getvalue())
+
     def test_websocket_uses_the_same_admission_boundary(self) -> None:
         public = create_network_fixture(configuration("public"))
         protected = create_network_fixture(
@@ -177,7 +213,7 @@ class NetworkedFixtureTest(unittest.TestCase):
             with client.websocket_connect("/socket") as socket:
                 socket.send_text("synthetic-input")
                 self.assertEqual(socket.receive_text(), "fixture-ready")
-        with TestClient(protected) as client:
+        with redirect_stderr(io.StringIO()), TestClient(protected) as client:
             with self.assertRaises(Exception):
                 with client.websocket_connect("/socket"):
                     pass

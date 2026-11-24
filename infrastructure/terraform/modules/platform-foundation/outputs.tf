@@ -11,6 +11,9 @@ output "foundation_reference" {
     shared_network_reference       = google_compute_network.shared.id
     application_subnet_reference   = google_compute_subnetwork.applications.id
     application_subnet_cidr        = google_compute_subnetwork.applications.ip_cidr_range
+    application_egress_mode        = local.retained_only ? null : "all-traffic"
+    application_router_name        = try(google_compute_router.applications[0].name, null)
+    application_nat_name           = try(google_compute_router_nat.applications[0].name, null)
   }
 }
 
@@ -77,6 +80,16 @@ output "policy_summary" {
       subnetwork_cidr         = local.application_subnet_cidr
       private_google_access   = true
       application_connection  = "explicit-platform-connect-project"
+      application_egress_mode = local.retained_only ? null : "all-traffic"
+      router_name             = try(google_compute_router.applications[0].name, null)
+      nat_name                = try(google_compute_router_nat.applications[0].name, null)
+      nat_type                = local.retained_only ? null : "PUBLIC"
+      nat_ip_allocation       = local.retained_only ? null : "AUTO_ONLY"
+      nat_source              = local.retained_only ? null : "LIST_OF_SUBNETWORKS"
+      nat_source_ranges       = local.retained_only ? [] : ["ALL_IP_RANGES"]
+      nat_endpoint_types      = local.retained_only ? [] : ["ENDPOINT_TYPE_VM"]
+      nat_min_ports_per_vm    = local.retained_only ? null : 64
+      nat_log_filter          = local.retained_only ? null : "ERRORS_ONLY"
     }
     oauth = {
       secret_id              = var.foundation_configuration.oauth_secret_id

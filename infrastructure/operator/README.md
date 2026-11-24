@@ -123,18 +123,20 @@ state, runs Terraform setup or planning, emits an operational artifact, or chang
 `platform-deploy-check` constructs the separate read-only checker and uses the working tree plus
 real provider and Terraform state. It validates retained specification/progress records, plans with
 state locking disabled, evaluates the normal plan policy, deletes each ephemeral saved plan, and
-returns stage-level `pass`, `would-change`, `manual`, `deferred`, or `blocked` results. The checker
-interface exposes no apply, provider-action, checkpoint-execution, approval, or lifecycle-state
-write method. `SOURCE_NOT_CLEAN` is omitted; other source-admission findings remain visible but
-non-blocking, and the result grants no operational authority.
+returns stage-level `pass`, `would-change`, `manual`, `deferred`, or `blocked` results plus an
+explicit platform result of `ready`, `reconciliation-required`, `incomplete`, or `blocked`.
+Required platform services and the platform-owned foundation, Shared VPC egress, Shared Edge,
+active runtime, TLS, and final readback belong to this module. Its interface exposes no apply,
+provider-action, checkpoint-execution, approval, or lifecycle-state write method.
+`SOURCE_NOT_CLEAN` is omitted; other source-admission findings remain visible but non-blocking, and
+the result grants no operational authority. Default deployment consumes this result before approval
+or mutation and still creates fresh exact plans for execution.
 
-`application-handoff-check` reuses that lock-free deployment rehearsal for the Terraform-managed
-platform prerequisites, then reads the named application project, required services, Shared VPC
-and subnet grants, current platform state, and requested access-mode bundle projection. Protected
-applications additionally require the platform issuer, JWKS endpoint, OAuth redirect, OAuth client
-identifier, and application audience. The command publishes no bundle, arms no apply path, and
-writes no operational lifecycle state. Run it immediately before `platform-outputs` with the same
-application-scoped values.
+`application-handoff-check` consumes the platform-ready result without interpreting stage names,
+then reads the named application project, its required services, Shared VPC and subnet grants,
+bundle inputs, and requested access-mode and identity projection. The command publishes no bundle,
+arms no apply path, and writes no operational lifecycle state. Run it immediately before
+`platform-outputs` with the same application-scoped values.
 
 Standalone preparation repeats those checks and remains an optional specification dry run. It
 writes, displays, and approves the complete private specification without an external mutation.

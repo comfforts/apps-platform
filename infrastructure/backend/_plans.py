@@ -40,6 +40,8 @@ _PHASE_INVENTORIES = {
             "google_project_iam_member",
             "google_project_service",
             "google_compute_network",
+            "google_compute_router",
+            "google_compute_router_nat",
             "google_compute_subnetwork",
             "google_compute_shared_vpc_host_project",
             "google_secret_manager_secret",
@@ -138,6 +140,14 @@ _PHASE_EXACT_INHERITED_MUTATIONS = {
         ): frozenset({("create",)}),
         (
             "module.platform_foundation.google_compute_network.shared"
+        ): frozenset({("create",)}),
+        (
+            "module.platform_foundation."
+            "google_compute_router.applications[0]"
+        ): frozenset({("create",)}),
+        (
+            "module.platform_foundation."
+            "google_compute_router_nat.applications[0]"
         ): frozenset({("create",)}),
         (
             "module.platform_foundation.google_project_iam_member."

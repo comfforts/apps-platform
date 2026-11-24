@@ -50,18 +50,34 @@ class FakeProjectReader:
 
 
 def deployment_result(
-    *, shared_edge: StageCheck | None = None
+    *,
+    platform_ready: bool = True,
+    reconciliation_required: bool = False,
+    shared_edge: StageCheck | None = None,
+    stages: tuple[tuple[str, StageCheck], ...] | None = None,
 ) -> DeploymentCheckResult:
     return DeploymentCheckResult(
-        outcome="rehearsed",
+        outcome=(
+            "ready"
+            if platform_ready
+            else (
+                "reconciliation-required"
+                if reconciliation_required
+                else "incomplete"
+            )
+        ),
         operational_ready=True,
         source_admission_blockers=(),
-        stages=(
+        stages=stages
+        or (
+            ("bootstrap-services", StageCheck("pass")),
             ("bootstrap", StageCheck("pass")),
             ("foundation", StageCheck("pass")),
             ("shared-edge", shared_edge or StageCheck("pass")),
         ),
         source_revision=SOURCE_REVISION,
+        platform_ready=platform_ready,
+        reconciliation_required=reconciliation_required,
     )
 
 
@@ -143,17 +159,19 @@ class ApplicationHandoffCheckTest(unittest.TestCase):
         self.assertEqual(
             dict(result.checks),
             {
+                "application-identity-projection": "pass",
                 "application-project": "pass",
                 "application-services": "pass",
                 "bundle-contract": "pass",
-                "platform-identity": "pass",
-                "platform-plans": "pass",
+                "platform-readiness": "pass",
             },
         )
 
     def test_blocks_when_platform_terraform_requires_reconciliation(self) -> None:
         result = self.checker(
             deployment=deployment_result(
+                platform_ready=False,
+                reconciliation_required=True,
                 shared_edge=StageCheck(
                     "would-change",
                     summary={
@@ -173,7 +191,33 @@ class ApplicationHandoffCheckTest(unittest.TestCase):
 
         self.assertFalse(result.ready)
         self.assertIn("PLATFORM_RECONCILIATION_REQUIRED", result.blockers)
-        self.assertEqual(dict(result.checks)["platform-plans"], "blocked")
+        self.assertEqual(dict(result.checks)["platform-readiness"], "blocked")
+
+    def test_platform_service_reconciliation_is_owned_by_deployment_check(
+        self,
+    ) -> None:
+        result = self.checker(
+            deployment=deployment_result(
+                platform_ready=False,
+                reconciliation_required=True,
+                stages=(
+                    (
+                        "bootstrap-services",
+                        StageCheck(
+                            "would-change",
+                            blockers=("BOOTSTRAP_SERVICES_READBACK_MISMATCH",),
+                        ),
+                    ),
+                    ("bootstrap", StageCheck("pass")),
+                    ("foundation", StageCheck("pass")),
+                    ("shared-edge", StageCheck("pass")),
+                ),
+            )
+        ).check(self.request())
+
+        self.assertFalse(result.ready)
+        self.assertIn("PLATFORM_RECONCILIATION_REQUIRED", result.blockers)
+        self.assertEqual(dict(result.checks)["platform-readiness"], "blocked")
 
     def test_blocks_missing_application_services_and_network_grants(self) -> None:
         project = replace(
@@ -207,7 +251,25 @@ class ApplicationHandoffCheckTest(unittest.TestCase):
         )
 
         self.assertTrue(result.ready)
-        self.assertEqual(dict(result.checks)["platform-identity"], "not-required")
+        self.assertEqual(
+            dict(result.checks)["application-identity-projection"],
+            "not-required",
+        )
+
+    def test_protected_mode_rejects_an_invalid_application_identity_projection(
+        self,
+    ) -> None:
+        bundle = protected_bundle()
+        bundle["identity"] = {
+            "oauth_client_id": "client.apps.googleusercontent.com",
+            "audience": "urn:comfforts:app-platform:audience:another-app",
+            "edge_caller_reference": "serviceAccount:edge@example.invalid",
+        }
+
+        result = self.checker(bundle=bundle).check(self.request())
+
+        self.assertFalse(result.ready)
+        self.assertIn("APPLICATION_IDENTITY_PROJECTION_INVALID", result.blockers)
 
     def test_cli_reports_machine_and_human_readable_ready_result(self) -> None:
         checker = self.checker()

@@ -216,6 +216,20 @@ _CURRENT_PROGRESS_STAGES: tuple[tuple[str, tuple[str, ...], str], ...] = tuple(
     )
     for stage in _DEPLOYMENT_STAGES
 )
+_PLATFORM_READINESS_STAGES = frozenset(
+    {
+        "preflight",
+        "bootstrap-services",
+        "bootstrap",
+        "foundation",
+        "image-publish",
+        "generation-publish",
+        "shared-edge",
+        "runtime-activation",
+        "tls-readiness",
+        "readback",
+    }
+)
 _PROGRESS_STAGES_BY_WORKFLOW = {
     _HISTORICAL_WORKFLOW: _HISTORICAL_PROGRESS_STAGES,
     _CURRENT_WORKFLOW: _CURRENT_PROGRESS_STAGES,
@@ -1995,8 +2009,40 @@ class LifecycleOperator:
                     fresh_outputs.add((stage_id, name))
 
         unique_blockers = tuple(sorted(set(blockers)))
+        readiness_results = {
+            stage_id: result
+            for stage_id, result in checked
+            if stage_id in _PLATFORM_READINESS_STAGES
+        }
+        missing_readiness = _PLATFORM_READINESS_STAGES - readiness_results.keys()
+        reconciliation_required = any(
+            result.outcome == "would-change"
+            for result in readiness_results.values()
+        )
+        incomplete = bool(missing_readiness) or any(
+            result.outcome not in {"pass", "would-change", "blocked"}
+            for result in readiness_results.values()
+        )
+        platform_ready = (
+            not unique_blockers
+            and not reconciliation_required
+            and not incomplete
+            and all(
+                result.outcome == "pass"
+                for result in readiness_results.values()
+            )
+        )
+        outcome = (
+            "blocked"
+            if unique_blockers
+            else (
+                "reconciliation-required"
+                if reconciliation_required
+                else ("incomplete" if incomplete else "ready")
+            )
+        )
         return DeploymentCheckResult(
-            "blocked" if unique_blockers else "rehearsed",
+            outcome,
             not all_source_blockers,
             source_blockers,
             tuple(checked),
@@ -2004,6 +2050,8 @@ class LifecycleOperator:
             git.revision,
             git.working_tree_digest,
             git.untracked_path_count,
+            platform_ready,
+            reconciliation_required,
         )
 
     def prepare(self, environment: str) -> PrepareResult:

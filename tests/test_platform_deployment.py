@@ -574,6 +574,46 @@ class PlatformDeploymentTest(unittest.TestCase):
             ("TERRAFORM_OUTPUT_PHASE_MISMATCH",),
         )
 
+    def test_deployment_check_classifies_foundation_readback_drift_as_reconciliation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(
+                root,
+                actions=(),
+                readback_error="FOUNDATION_READBACK_INVALID",
+            )
+            executor = DeploymentExecutor(root, FakeTerminal([]), commands)
+
+            result = executor.check(
+                _context(
+                    "foundation",
+                    ("foundation-reference", "oauth-secret-container"),
+                )
+            )
+
+        self.assertEqual(result.outcome, "would-change")
+        self.assertEqual(result.blockers, ("FOUNDATION_READBACK_INVALID",))
+
+    def test_deployment_check_passes_matching_runtime_activation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "work"
+            root.mkdir(mode=0o700)
+            commands = FakeCommands(root)
+            executor = DeploymentExecutor(root, FakeTerminal([]), commands)
+
+            result = executor.check(
+                _context("runtime-activation", ("active-runtime-binding",))
+            )
+
+        self.assertEqual(result.outcome, "pass")
+        self.assertEqual(
+            result.outputs,
+            (("active-runtime-binding", "verified-runtime"),),
+        )
+
     def test_state_forget_is_a_real_apply_change(self) -> None:
         self.assertTrue(
             DeploymentExecutor._requires_apply(

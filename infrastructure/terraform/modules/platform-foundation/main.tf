@@ -22,6 +22,8 @@ locals {
   shared_network_name     = "app-platform-shared"
   application_subnet_name = "app-platform-applications-${var.foundation_configuration.region}"
   application_subnet_cidr = "10.20.0.0/24"
+  application_router_name = "app-platform-applications-${var.foundation_configuration.region}-router"
+  application_nat_name    = "app-platform-applications-${var.foundation_configuration.region}-nat"
 }
 
 resource "google_project_service" "platform" {
@@ -83,6 +85,42 @@ resource "google_compute_subnetwork" "applications" {
 
   lifecycle {
     prevent_destroy = true
+  }
+}
+
+resource "google_compute_router" "applications" {
+  count = local.retained_only ? 0 : 1
+
+  project = var.foundation_configuration.project_id
+  name    = local.application_router_name
+  region  = var.foundation_configuration.region
+  network = google_compute_network.shared.id
+}
+
+resource "google_compute_router_nat" "applications" {
+  count = local.retained_only ? 0 : 1
+
+  project = var.foundation_configuration.project_id
+  name    = local.application_nat_name
+  router  = google_compute_router.applications[0].name
+  region  = google_compute_router.applications[0].region
+
+  type                                = "PUBLIC"
+  nat_ip_allocate_option              = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat  = "LIST_OF_SUBNETWORKS"
+  endpoint_types                      = ["ENDPOINT_TYPE_VM"]
+  enable_dynamic_port_allocation      = false
+  enable_endpoint_independent_mapping = true
+  min_ports_per_vm                    = 64
+
+  subnetwork {
+    name                    = google_compute_subnetwork.applications.id
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
   }
 }
 

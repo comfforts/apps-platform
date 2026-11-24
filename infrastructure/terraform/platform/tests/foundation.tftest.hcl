@@ -20,9 +20,30 @@ run "plans_identity_and_generation_foundation" {
       output.foundation_phase_output.region == "us-west1" &&
       output.foundation_phase_output.hostname == "apps.example.invalid" &&
       output.foundation_phase_output.foundation.edge_caller_principal == "serviceAccount:app-platform-edge-caller@synthetic-platform.iam.gserviceaccount.com" &&
+      output.foundation_phase_output.foundation.application_egress_mode == "all-traffic" &&
+      output.foundation_phase_output.foundation.application_router_name == "app-platform-applications-us-west1-router" &&
+      output.foundation_phase_output.foundation.application_nat_name == "app-platform-applications-us-west1-nat" &&
       output.shared_edge_phase_output == null
     )
     error_message = "foundation phase must expose only its closed non-secret typed output"
+  }
+
+  assert {
+    condition = (
+      module.platform_foundation.policy_summary.networking.application_egress_mode == "all-traffic" &&
+      module.platform_foundation.policy_summary.networking.router_name == "app-platform-applications-us-west1-router" &&
+      module.platform_foundation.policy_summary.networking.nat_name == "app-platform-applications-us-west1-nat" &&
+      module.platform_foundation.policy_summary.networking.nat_type == "PUBLIC" &&
+      module.platform_foundation.policy_summary.networking.nat_ip_allocation == "AUTO_ONLY" &&
+      module.platform_foundation.policy_summary.networking.nat_source == "LIST_OF_SUBNETWORKS" &&
+      length(module.platform_foundation.policy_summary.networking.nat_source_ranges) == 1 &&
+      module.platform_foundation.policy_summary.networking.nat_source_ranges[0] == "ALL_IP_RANGES" &&
+      length(module.platform_foundation.policy_summary.networking.nat_endpoint_types) == 1 &&
+      module.platform_foundation.policy_summary.networking.nat_endpoint_types[0] == "ENDPOINT_TYPE_VM" &&
+      module.platform_foundation.policy_summary.networking.nat_min_ports_per_vm == 64 &&
+      module.platform_foundation.policy_summary.networking.nat_log_filter == "ERRORS_ONLY"
+    )
+    error_message = "application all-traffic egress must use one bounded logged Public NAT on the application subnet"
   }
 
   assert {

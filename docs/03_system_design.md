@@ -188,9 +188,12 @@ Provider-backed fixtures and real applications use cross-project attachment. The
 owns a Shared VPC host network and regional application subnet. Each application project attaches
 as a service project through the explicit project-connection lifecycle. Its Cloud Run service
 agent receives read-only host-network discovery and network-user access on only that subnet. The
-service uses Direct VPC egress through the subnet, internal-only ingress, and IAM admission for the
-dedicated edge caller. Network attachment does not give Platform State ownership of the
-application's Cloud Run service, IAM policy, billing, data, or Terraform state.
+service uses all-traffic Direct VPC egress through the subnet, internal-only ingress, and IAM
+admission for the dedicated edge caller. A platform-owned regional Cloud Router and Public Cloud
+NAT provide the subnet's controlled public egress, including protected-application retrieval of the
+platform's public JWKS endpoint. Network attachment does not give Platform State ownership of the
+application's Cloud Run service, IAM policy, billing, data, or Terraform state, and applications do
+not own or mutate the shared router or NAT.
 
 Protected services require both provider-level direct-invocation denial and application-side
 assertion verification. The load balancer-to-edge and edge-to-application trust details are refined
@@ -806,18 +809,24 @@ The two local-maintenance checks are diagnostic interfaces, not operational sour
 currently resolvable fixed stage to a read-only checker. Terraform stages render from the working
 tree, refresh remote state with locking disabled, run the normal plan policy, and delete their
 ephemeral saved plan. Missing generated predecessor outputs produce `deferred`; manual checkpoints
-produce `manual`. The checker exposes reads and plan creation only and cannot approve, apply,
-execute a provider action, complete a checkpoint, or write operational lifecycle state.
+produce `manual`. Its deep interface returns explicit platform readiness: `ready`,
+`reconciliation-required`, `incomplete`, or `blocked`. The classification includes required
+platform services and the platform-owned foundation, network egress, Shared Edge, active runtime,
+TLS, and final readback. The checker exposes reads and plan creation only and cannot approve,
+apply, execute a provider action, complete a checkpoint, or write operational lifecycle state.
 
 `application-handoff-check` is the application-scoped readiness boundary immediately before
-`outputs`. It reuses the lock-free deployment checker for bootstrap, foundation, and Shared Edge,
-then performs fresh provider readback for the named application project, its required services,
-Shared VPC host association, host-network viewer grant, and subnet-user grant. It validates the
+`outputs`. It consumes the deployment check's explicit platform-ready result without interpreting
+deployment-stage names, then performs fresh provider readback for the named application project,
+its required services, Shared VPC host association, host-network viewer grant, and subnet-user
+grant. It validates the
 same application, route, access mode, platform revision, and Registration Generation inputs that
 would produce the bundle, but does not publish that bundle. Public mode requires no platform
-identity projection. Authenticated and restricted modes require the platform issuer, JWKS endpoint,
-OAuth redirect, OAuth client identifier, and application-specific audience. The command has no
+identity projection. Authenticated and restricted modes require the exact platform identity values
+and application-specific audience in that application-scoped projection. The command has no
 approval, apply, provider-mutation, bundle-publication, or operational-state-write interface.
+The deployment checker owns the exact application-subnet Cloud Router and NAT requirement;
+missing or changed egress is platform reconciliation, not an application-project repair.
 
 Before default deployment prepares new intent, it reads the private current-specification pointer
 and canonical specification and revalidates the current source, profile, environment, human
@@ -923,6 +932,9 @@ application to accept the platform's current qualification status. The applicati
 Application State and returns an Application Attachment Bundle bound to the platform-bundle digest.
 Registration validates the bundle, provider target project and network, owner, ingress, caller
 grant, audience, and current platform state before activating a complete Registration Generation.
+Protected fixture verification failures emit only an allowlisted constant diagnostic code and the
+fixture identifier. Assertions, identities, tokens, provider exceptions, and request values remain
+absent from the fixture log event.
 
 The repository-owned Fixture Application operator acts only as the Application Owner for the three
 synthetic fixtures. A one-time `fixture-project-bootstrap` creates or repairs their dedicated
@@ -1043,8 +1055,10 @@ Foundation and Shared Edge share one Terraform root and Platform State lineage. 
 may therefore include exact `module.platform_foundation` and `module.platform_controls` resources
 from the preceding phase only as `no-op` or `read` observations. The sole migration exception is
 the first cross-project fixture reconciliation: policy admits the exact Shared VPC network,
-application subnet, and host-project binding creates plus the exact qualification image-repository
-update. Those addresses and actions are closed and the stage rereads the foundation output.
+application subnet, host-project binding, application-subnet Cloud Router, and Cloud NAT creates
+plus the exact qualification image-repository update and edge session-store role creation. Those
+addresses and actions are closed and the stage rereads the foundation output, including exact
+all-traffic, router, and NAT references.
 Every other inherited create, update, delete, replacement, unexpected prefix, or unknown type
 fails policy instead of acquiring Shared Edge authority.
 

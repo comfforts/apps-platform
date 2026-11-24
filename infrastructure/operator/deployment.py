@@ -221,6 +221,11 @@ _POLLING = {
     "external-dns": (12, 10),
     "tls-readiness": (120, 30),
 }
+_RECONCILABLE_TERRAFORM_READBACK = {
+    "BOOTSTRAP_READBACK_INVALID",
+    "FOUNDATION_READBACK_INVALID",
+    "SHARED_EDGE_READBACK_INVALID",
+}
 _TERRAFORM_PLAN_GUIDANCE = {
     "SHARED_EDGE_INPUT_INCOMPLETE": (
         "a required immutable Shared Edge binding is unavailable; inspect the "
@@ -1176,6 +1181,13 @@ class DeploymentExecutor:
 
             changed = self._plan_changes(summary)
             if not changed and not outputs and self._expected_outputs(context):
+                if readback_blocker in _RECONCILABLE_TERRAFORM_READBACK:
+                    return StageCheck(
+                        "would-change",
+                        plan_digest=evaluated.plan_digest,
+                        summary=summary,
+                        blockers=(readback_blocker,),
+                    )
                 return StageCheck(
                     "blocked",
                     plan_digest=evaluated.plan_digest,
@@ -1224,8 +1236,6 @@ class DeploymentExecutor:
             summary = {"action": proposal.action, "summary": proposal.summary}
             if self._safe_canonical(summary) is None:
                 return StageCheck("blocked", blockers=("PROHIBITED_ACTION_MATERIAL",))
-            if stage_id == "runtime-activation":
-                return StageCheck("would-change", summary=summary)
             try:
                 readback = self._commands.readback_action(context)
             except DeploymentCommandError as error:

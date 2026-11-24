@@ -391,6 +391,18 @@ class PlanPolicyTest(unittest.TestCase):
                     "google_compute_network",
                     "create",
                 ),
+                (
+                    "module.platform_foundation."
+                    "google_compute_router.applications[0]",
+                    "google_compute_router",
+                    "create",
+                ),
+                (
+                    "module.platform_foundation."
+                    "google_compute_router_nat.applications[0]",
+                    "google_compute_router_nat",
+                    "create",
+                ),
             )
         ]
 

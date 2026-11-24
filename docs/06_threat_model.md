@@ -284,6 +284,9 @@ on the application subnet, and only the platform edge caller receives runtime in
 Shared Edge strips visitor-supplied identity headers.
 The application independently verifies the signed assertion and application-specific audience. A
 header alone never compensates for a public protected origin.
+All-traffic Direct VPC egress uses the platform-owned application subnet and an exact regional
+Cloud Router and Public Cloud NAT. The NAT serves only that subnet with provider-managed addresses
+and error-only logs; application projects receive no ownership or mutation authority over it.
 
 **Evidence:** `C` can prove only that protected attachments declare the required identity and
 ingress posture. `F` exercises spoofed headers and direct calls to protected fixture entry points,
@@ -478,7 +481,9 @@ accepts identity it can no longer verify.
 **Required controls:** Protected admission and identity verification fail closed. Unknown routes do
 not fall back to an application. Provider failure for one attachment does not reroute to another.
 Configuration retains the Last Reviewed Working Configuration and records unavailable or partial
-status without implying success.
+status without implying success. A protected application must be able to retrieve the public
+platform JWKS through the approved application-subnet NAT. Missing or changed NAT posture blocks
+handoff; runtime retrieval failure produces only a constant, non-sensitive diagnostic code.
 
 **Evidence:** `F` covers logical dependency failure using deterministic adapters. `L` covers actual
 DNS, TLS, key rotation, certificate, provider failure, and recovery behavior.
@@ -496,7 +501,10 @@ dedicated seven-day regional log bucket. The isolated JSON-line logger prevents 
 events from being suppressed or misclassified as unselected text logs. Diagnostics never include
 provider exceptions, visitor identity, OAuth material, query parameters, or session values. The
 application handoff check detects missing Terraform-managed identity prerequisites before bundle
-publication. Live Google login remains unqualified until the corrected platform revision is
+publication, including the platform-owned application-subnet NAT. The networked fixture emits only
+an allowlisted verification result code and its application identifier when assertion verification
+fails; it never logs the assertion, identity, token, provider exception, or request value. Live
+Google login remains unqualified until the corrected platform revision is
 deployed and AP-EVAL-M9-07 passes. Provider availability and disaster recovery beyond the 15-minute
 post-approval rollback objective remain outside the demo commitment.
 

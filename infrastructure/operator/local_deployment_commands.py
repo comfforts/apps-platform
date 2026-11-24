@@ -47,6 +47,8 @@ _PROJECT_ID = "comfforts-platform-non-prod"
 _REGION = "us-west1"
 _HOSTNAME = "apps-staging.comfforts.com"
 _CONFIGURATION_BUCKET = "comfforts-ap-stg-455651441682-configuration"
+_APPLICATION_ROUTER = "app-platform-applications-us-west1-router"
+_APPLICATION_NAT = "app-platform-applications-us-west1-nat"
 _OAUTH_STORE_TARGET = (
     f"projects/{_PROJECT_ID}/secrets/app-platform-edge-oauth"
 )
@@ -513,6 +515,9 @@ class LocalDeploymentCommands:
             or not isinstance(foundation, dict)
             or foundation.get("configuration_bucket") != _CONFIGURATION_BUCKET
             or foundation.get("oauth_secret_id") != _OAUTH_STORE_TARGET
+            or foundation.get("application_egress_mode") != "all-traffic"
+            or foundation.get("application_router_name") != _APPLICATION_ROUTER
+            or foundation.get("application_nat_name") != _APPLICATION_NAT
         ):
             raise DeploymentCommandError("FOUNDATION_READBACK_INVALID")
         try:

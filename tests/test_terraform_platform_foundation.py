@@ -63,6 +63,8 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
                 ("google_compute_shared_vpc_host_project", "platform"),
                 ("google_compute_network", "shared"),
                 ("google_compute_subnetwork", "applications"),
+                ("google_compute_router", "applications"),
+                ("google_compute_router_nat", "applications"),
                 ("google_service_account", "edge_runtime"),
                 ("google_service_account", "edge_caller"),
                 ("google_storage_bucket_iam_member", "edge_configuration_reader"),
@@ -110,6 +112,11 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
             'deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"',
             'auto_create_subnetworks = false',
             'private_ip_google_access = true',
+            'source_subnetwork_ip_ranges_to_nat  = "LIST_OF_SUBNETWORKS"',
+            'source_ip_ranges_to_nat = ["ALL_IP_RANGES"]',
+            'nat_ip_allocate_option              = "AUTO_ONLY"',
+            'endpoint_types                      = ["ENDPOINT_TYPE_VM"]',
+            'filter = "ERRORS_ONLY"',
         ):
             self.assertIn(required_control, module)
         self.assertNotIn('"iamcredentials.googleapis.com"', module)

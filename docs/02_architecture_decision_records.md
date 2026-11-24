@@ -918,12 +918,16 @@ interactive interface.
 - `platform-preflight-check` and `platform-deploy-check` may inspect a dirty working tree but never
   report `SOURCE_NOT_CLEAN` or admit that tree as operational source. Other source findings remain
   non-blocking diagnostics. The deeper check uses real provider readback and lock-free exact
-  planning, deletes ephemeral plans, reports unavailable later-stage inputs as deferred, and has no
-  approval, apply, provider-action, checkpoint-execution, or lifecycle-state-write interface.
-- `application-handoff-check` reuses the Terraform rehearsal and fresh provider readback to verify
-  the named application project, required services, Shared VPC grants, bundle inputs, and
-  admission-mode prerequisites. It publishes no bundle and exposes no mutation interface.
-- `platform-deploy` performs preparation, review, approval, and deployment in one process;
+  planning, deletes ephemeral plans, classifies platform readiness as ready, reconciliation
+  required, incomplete, or blocked, and has no approval, apply, provider-action,
+  checkpoint-execution, or lifecycle-state-write interface.
+- `application-handoff-check` consumes the platform-ready result rather than interpreting internal
+  deployment stages. It then verifies the named application project, its required services, Shared
+  VPC grants, bundle inputs, admission mode, and application identity projection. It publishes no
+  bundle and exposes no mutation interface.
+- `platform-deploy` consumes the same platform-readiness interface before preparation, review,
+  approval, and deployment in one process; a blocked check stops before approval or mutation, while
+  reconciliation-required or incomplete results continue only through fresh exact stage plans.
   `platform-prepare` remains an optional read-only preview. When that preview has already stored a
   current approved specification, deploy discovers and reuses it after freshness validation
   without requiring a copied digest; absent, stale, or unapproved intent returns to preparation.
@@ -1041,11 +1045,16 @@ project, billing, and state boundaries during adoption.
 
 ### Decision
 
-The staging platform project is the platform-owned Shared VPC host. It owns the custom network, the regional
-application subnet, the Shared Edge, and the edge-caller identity. Each application project is an
-explicit Shared VPC service project. Its Cloud Run service uses Direct VPC egress through the
-platform subnet, denies public ingress, grants `roles/run.invoker` only to the platform edge
-caller, and independently verifies the platform assertion when identity is delivered.
+The staging platform project is the platform-owned Shared VPC host. It owns the custom network, the
+regional application subnet, a regional Cloud Router and Public Cloud NAT for that subnet, the
+Shared Edge, and the edge-caller identity. Each application project is an explicit Shared VPC
+service project. Its Cloud Run service uses Direct VPC egress through the platform subnet with
+all-traffic routing, denies public ingress, grants `roles/run.invoker` only to the platform edge
+caller, and independently verifies the platform assertion when identity is delivered. Public
+egress is required for protected applications to retrieve the platform's public JWKS endpoint and
+for later application-owned outbound dependencies without bypassing the approved subnet. The NAT
+uses provider-managed public addresses, serves only the application subnet's VM endpoints, and
+records error-only translation logs; application projects cannot own or mutate it.
 
 Connecting a project is an explicit platform operation performed once per environment/project
 pair. It reads the exact project number, attaches only that project to the named host, grants its
@@ -1056,12 +1065,14 @@ creates no application runtime or route.
 the application project identity plus exact host-network, subnet, region, and egress references in
 the application-scoped Platform Integration Bundle.
 
-Immediately before bundle publication, `application-handoff-check` performs a lock-free read-only
-platform-plan rehearsal and verifies the named application project's required services and live
-Shared VPC grants. It compiles but does not publish the requested bundle projection. Authenticated
-and restricted projections additionally require the platform issuer, JWKS endpoint, OAuth
-redirect, OAuth client identifier, and application audience. Any platform Terraform change is
-reported as reconciliation required rather than being applied by the check.
+Immediately before bundle publication, `application-handoff-check` consumes the explicit result of
+the lock-free platform deployment check. Required platform services and platform-owned Shared VPC,
+subnet, Cloud Router, Cloud NAT, Shared Edge, runtime, TLS, and readback posture are owned by that
+platform check. The handoff check then verifies the named application project's required services
+and live Shared VPC grants and compiles, but does not publish, the requested bundle projection.
+Authenticated and restricted projections additionally require the application-specific audience
+and exact platform identity values. Any platform reconciliation is reported before application
+handoff rather than being inferred from application-project checks.
 
 Repository fixtures run in the dedicated staging project selected explicitly through
 `FIXTURES_PROJECT_ID`; its display name is selected separately through
@@ -1085,13 +1096,13 @@ retention, export, or purge requires a separate destructive lifecycle and is not
 deployment or fixture destruction.
 
 Because an already-deployed Shared Edge requires a refresh-only foundation plan, the first
-cross-project reconciliation creates the Shared VPC network, subnet, and host-project binding in
-the later normal Shared Edge plan. That plan also updates the existing qualification image
-repository for cross-project fixture use. Plan policy admits only five exact inherited addresses
-with their exact create or update actions, including the least-privilege Firestore data role needed
-by the Shared Edge to persist login flows and sessions; every other inherited mutation, replacement,
-or deletion remains prohibited. Shared Edge readback revalidates the foundation output before the
-stage can close.
+cross-project reconciliation creates the Shared VPC network, subnet, host-project binding, Cloud
+Router, and Cloud NAT in the later normal Shared Edge plan. That plan also updates the existing
+qualification image repository for cross-project fixture use. Plan policy admits only seven exact
+inherited addresses with their exact create or update actions, including the least-privilege
+Firestore data role needed by the Shared Edge to persist login flows and sessions; every other
+inherited mutation, replacement, or deletion remains prohibited. Shared Edge readback requires the
+exact all-traffic, router, and NAT references before the stage can close.
 
 Fixture operation intentionally exposes the same ownership handoff as a real application. The
 operator connects the fixture project, generates the application-scoped Platform Integration
@@ -1104,7 +1115,9 @@ Generation. There is no combined `fixture-deploy` command.
 Destruction preserves the same separation. `platform-detach` first suspends and reserves the
 route. `fixture-destroy` then destroys only the selected fixture root after provider readback shows
 the route is suspended. Platform destruction never destroys the fixture project, bucket, runtime,
-or state. Project disconnection and project deletion are separate future destructive authorities.
+or state. Ordinary platform destruction removes the billable Cloud NAT and its router while
+retaining the Shared VPC host, network, and subnet for separately governed project disconnection.
+Project disconnection and project deletion are separate future destructive authorities.
 
 ### Consequences
 

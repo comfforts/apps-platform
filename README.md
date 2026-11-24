@@ -103,8 +103,9 @@ replacement.
 A Fixture Application is a repository-owned synthetic application used to qualify platform
 behavior. Its runtime, images, and independent Terraform roots live in the dedicated fixture
 application project, not the platform project. That project attaches to the platform Shared VPC as
-a service project and exchanges the same project-scoped integration and attachment bundles as a
-real application. A real application remains outside platform authority until its Application
+a service project; all-traffic Direct VPC egress uses the platform-owned application-subnet Cloud
+NAT while ingress and Cloud Run invocation remain restricted. It exchanges the same project-scoped
+integration and attachment bundles as a real application. A real application remains outside platform authority until its Application
 Owner connects its project, adopts the platform contracts, and performs its own deployment and
 release process.
 
@@ -147,7 +148,8 @@ platform-register -> immutable Registration Generation -> routed application
 That is the contract sequence for every application, including repository-owned fixtures. The
 platform first connects the application project. `application-handoff-check` then performs a
 read-only rehearsal of the platform Terraform boundaries and verifies the application project's
-required services, Shared VPC connection, bundle inputs, and access-mode prerequisites.
+required services, Shared VPC connection, platform-owned application-subnet egress, bundle inputs,
+and access-mode prerequisites.
 `platform-outputs` creates the project- and application-scoped Platform Integration Bundle only
 after those checks are ready. The application deployment consumes that bundle and returns an
 Application Attachment Bundle. Only `platform-register` can activate the route.
@@ -172,9 +174,12 @@ prepare -> approve -> deploy -> status -> outputs -> qualify -> destroy
 ```
 
 `platform-deploy` is the normal entry point. In one interactive process it performs read-only
-preparation, displays one complete Deployment Specification, requests approval, creates and shows
-fresh exact Terraform plans, applies only confirmed plans, pauses for Google OAuth and Squarespace
-DNS work, verifies readable results, and atomically records private resume progress.
+platform readiness checking, stops before approval if that check is blocked, performs preparation,
+displays one complete Deployment Specification, requests approval, creates and shows fresh exact
+Terraform plans, applies only confirmed plans, pauses for Google OAuth and Squarespace DNS work,
+verifies readable results, and atomically records private resume progress. A readiness result of
+`reconciliation-required` or `incomplete` does not authorize a mutation; it tells deployment which
+fresh exact stage plans must still be reviewed.
 
 `platform-preflight` is the optional readiness-only command. Use it to find missing tools or
 authentication, a wrong project, an ownership conflict, source drift, or another current blocker.
@@ -208,9 +213,12 @@ make platform-deploy-check ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 It validates retained private specifications and progress, renders the working-tree Terraform,
 refreshes real remote state without locking it, and applies the normal plan policy to every stage
 whose inputs already exist. It reports stages as `pass`, `would-change`, `manual`, `deferred`, or
-`blocked`. It never approves intent, applies a plan, executes a provider action, changes current
-progress, or grants Accepted or Candidate Source authority. A successful rehearsal means only that
-no current read-only blocker was found; apply-time and manual-checkpoint failures remain possible.
+`blocked`, and classifies the platform as `ready`, `reconciliation-required`, `incomplete`, or
+`blocked`. Platform readiness includes required platform services, Platform State, Shared VPC,
+application subnet, Cloud Router, Cloud NAT, Shared Edge, active runtime, TLS, and final readback.
+It never approves intent, applies a plan, executes a provider action, changes current progress, or
+grants Accepted or Candidate Source authority. `ready` remains a read-only result; apply-time and
+manual-checkpoint failures remain possible.
 
 Operator narration is written to standard error. The final compact JSON result remains the only
 standard-output record, so a human receives a readable execution trace while automation can parse
@@ -554,12 +562,12 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-preflight-check ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Run the same real prerequisite checks against an uncommitted working tree without granting source authority |
 | `make platform-prepare ENVIRONMENT=<name>` | Optionally prepare and review a complete specification without external mutation |
 | `make platform-cancel ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Confirm and close only an active private deployment record so changed source can prepare fresh intent; no Terraform or cloud mutation |
-| `make platform-deploy ENVIRONMENT=<name>` | Reuse a fresh current approval or prepare one, then deploy, checkpoint, read back, and safely resume the shared platform |
-| `make platform-deploy-check ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Rehearse working-tree state compatibility, provider readback, and plan policy without approval, apply, provider mutation, or lifecycle-state writes |
+| `make platform-deploy ENVIRONMENT=<name>` | Run platform readiness, stop on an unreadable or invalid check, then reuse or prepare approval and reconcile fresh exact plans, checkpoints, and readback |
+| `make platform-deploy-check ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Classify platform readiness from required services, working-tree state compatibility, provider readback, and lock-free plan policy without mutation |
 | `make platform-status ENVIRONMENT=<name>` | Report checkout, recorded deployment, active runtime, execution, and qualification state without mutation |
 | `make fixture-project-bootstrap ENVIRONMENT=staging FIXTURES_PROJECT_ID=<project-id> FIXTURES_PROJECT_NAME="<display-name>"` | Idempotently create or repair the selected fixture application project, state bucket, and image repository; read back its provider-assigned project number; create no runtime or route |
 | `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |
-| `make application-handoff-check ...` | Read platform Terraform plans and provider state, then verify the application project, required services, Shared VPC grants, bundle inputs, and access-mode prerequisites without publishing a bundle or mutating state |
+| `make application-handoff-check ...` | Require the platform-ready result, then verify the named application project, its services and Shared VPC grants, bundle inputs, access mode, and application identity projection without mutation |
 | `make platform-outputs ...` | Generate one application- and project-scoped Platform Integration Bundle from a verified project connection |
 | `make platform-register ...` | Validate an application attachment and activate a complete immutable generation |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |

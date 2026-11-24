@@ -1620,11 +1620,16 @@ every non-source prerequisite blocker. Prove deploy-check validates retained rec
 read-only provider state, renders current Terraform, plans without a state lock, applies normal
 policy, deletes ephemeral plans, distinguishes `would-change`, `manual`, and `deferred`, and never
 creates approval, specification, progress, operational evidence, provider mutation, or source
-authority.
+authority. Prove its public result is `ready` only when required platform services, Platform State,
+Shared VPC, application-subnet router/NAT, Shared Edge, active runtime, TLS, and final readback pass;
+otherwise prove it distinguishes reconciliation-required, incomplete, and blocked outcomes.
+Invoke default deployment and prove it consumes this result before approval or mutation, stops on a
+blocked check, and replans every executable change at its exact apply boundary.
 
 Exercise `application-handoff-check` for public, authenticated, and restricted requests. Prove it
-blocks on platform Terraform drift, missing application services, stale or absent Shared VPC
-grants, mismatched platform revision or generation, and missing protected-mode identity values.
+consumes platform readiness without interpreting stage names; blocks on platform reconciliation,
+missing application services, stale or absent application-project Shared VPC grants, mismatched
+platform revision or generation, and an invalid application identity projection.
 Prove it succeeds without publishing a bundle, approving or applying a plan, acquiring a state
 lock, changing provider state, or writing operational lifecycle state.
 
@@ -1637,6 +1642,9 @@ binding, and readback. Reject a wrong account or project, cross-root target, alt
 implicit provider default, replacement, unexpected destroy, state push, force-unlock, import, or
 automatic recovery. Verify the platform bootstrap manages only the platform-state bucket; the
 dedicated fixture project owns its versioned fixture-state bucket and independent root prefixes.
+Verify Platform State owns the exact regional Cloud Router and Public Cloud NAT serving only the
+application subnet, with provider-managed addresses, VM endpoints, error-only logging, and
+all-traffic egress. Reject an application-owned, unbounded, differently named, or unlogged NAT.
 Verify the lifecycle creates no operation-identity or impersonation fleet.
 Verify deployment checking rejects the same destructive, replacement, ownership, provider, and
 scope violations as deployment while never invoking apply or acquiring the remote state lock.
@@ -1656,7 +1664,7 @@ the Cloud Run service agent has read-only host-network discovery and network-use
 the application subnet, while neither operation created a runtime or route. Generate public,
 authenticated, and restricted
 application-project-scoped fixture bundles; verify exact project, host network, subnet, region,
-egress, least-data projections, and absence of the OAuth client secret. Before each bundle is
+all-traffic egress, least-data projections, and absence of the OAuth client secret. Before each bundle is
 published, run the application handoff check and prove the platform plans, application services,
 project connection, and access-mode projection are ready without mutation. Deploy each selected fixture
 through its separate Application State invocation in that project; validate its returned attachment
@@ -1685,7 +1693,10 @@ timeouts, concurrency, and redacted completion events. Force each allowlisted id
 failure and verify that its constant diagnostic code is queryable from the dedicated regional log
 bucket while provider exceptions, authorization codes, tokens, identities, sessions, request
 parameters, and payloads remain absent. Record the approved demo limitations without claiming
-general availability or distributed replay prevention.
+general availability or distributed replay prevention. Prove a protected application in the
+connected service project can retrieve the public platform JWKS through the platform-owned
+application-subnet NAT, then deny or remove that egress and verify the application fails closed
+with only `verification_keys_unavailable` in its diagnostic event.
 
 #### AP-EVAL-M9-08 · Rollback, fixture cleanup, platform destruction, and redeployment
 

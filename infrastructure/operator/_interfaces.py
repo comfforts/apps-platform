@@ -90,6 +90,8 @@ class DeploymentCheckResult:
     source_revision: str | None = None
     working_tree_digest: str | None = None
     untracked_path_count: int = 0
+    platform_ready: bool = False
+    reconciliation_required: bool = False
 
 
 @dataclass(frozen=True, slots=True)

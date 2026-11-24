@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 import re
+import sys
 import time
 from typing import Protocol
 from urllib.parse import urlencode, urlsplit
@@ -30,6 +32,38 @@ _FIXTURE_MODES = {
     "fixture-restricted": "restricted",
 }
 _QUALIFICATION_CHALLENGE = re.compile(r"[0-9a-f]{64}")
+_SAFE_IDENTITY_DIAGNOSTICS = {
+    "assertion_key_unknown": "assertion_key_unknown",
+    "assertion_malformed": "assertion_malformed",
+    "assertion_missing": "assertion_missing",
+    "assertion_signature_invalid": "assertion_signature_invalid",
+    "identity_audience_invalid": "identity_audience_invalid",
+    "identity_clock_invalid": "identity_clock_invalid",
+    "identity_contract_invalid": "identity_contract_invalid",
+    "identity_expired": "identity_expired",
+    "identity_issuer_invalid": "identity_issuer_invalid",
+    "identity_lifetime_invalid": "identity_lifetime_invalid",
+    "identity_not_yet_valid": "identity_not_yet_valid",
+    "verification_keys_unavailable": "verification_keys_unavailable",
+}
+
+
+def _write_identity_rejection(application_id: str, code: str) -> None:
+    safe_code = _SAFE_IDENTITY_DIAGNOSTICS.get(
+        code,
+        "identity_verification_rejected",
+    )
+    event = json.dumps(
+        {
+            "application_id": application_id,
+            "diagnostic_code": safe_code,
+            "event": "fixture_identity_rejected",
+        },
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    sys.stderr.write(event + "\n")
 
 
 class NetworkIdentityVerifier(Protocol):
@@ -147,7 +181,10 @@ def create_network_fixture(
         assertion = assertions[0] if assertions else None
         assert verifier is not None
         result = await verifier.verify(assertion)
-        return result.accepted and result.identity is not None
+        if not result.accepted or result.identity is None:
+            _write_identity_rejection(configuration.application_id, result.code)
+            return False
+        return True
 
     async def health(request: Request) -> Response:
         del request

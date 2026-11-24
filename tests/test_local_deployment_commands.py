@@ -99,6 +99,7 @@ class FakeTerraform:
     read_outputs: list[str] = field(default_factory=list)
     state_addresses: tuple[str, ...] = ()
     foundation_nat_name: str | None = "app-platform-applications-us-west1-nat"
+    foundation_egress_ready: bool = True
 
     def create_plan(
         self,
@@ -219,6 +220,25 @@ class FakeTerraform:
                 "lineages": {"bootstrap": {"prefix": "bootstrap"}},
             }
         if output_name == "foundation_phase_output":
+            foundation = {
+                "configuration_bucket": (
+                    "comfforts-ap-stg-455651441682-configuration"
+                ),
+                "oauth_secret_id": (
+                    "projects/comfforts-platform-non-prod/secrets/"
+                    "app-platform-edge-oauth"
+                ),
+            }
+            if self.foundation_egress_ready:
+                foundation.update(
+                    {
+                        "application_egress_mode": "all-traffic",
+                        "application_router_name": (
+                            "app-platform-applications-us-west1-router"
+                        ),
+                        "application_nat_name": self.foundation_nat_name,
+                    }
+                )
             return {
                 "contract_version": 1,
                 "output_kind": "platform-foundation",
@@ -229,20 +249,7 @@ class FakeTerraform:
                 "project_number": "455651441682",
                 "region": "us-west1",
                 "hostname": "apps-staging.comfforts.com",
-                "foundation": {
-                    "configuration_bucket": (
-                        "comfforts-ap-stg-455651441682-configuration"
-                    ),
-                    "oauth_secret_id": (
-                        "projects/comfforts-platform-non-prod/secrets/"
-                        "app-platform-edge-oauth"
-                    ),
-                    "application_egress_mode": "all-traffic",
-                    "application_router_name": (
-                        "app-platform-applications-us-west1-router"
-                    ),
-                    "application_nat_name": self.foundation_nat_name,
-                },
+                "foundation": foundation,
                 "controls": {},
             }
         variables = json.loads(
@@ -741,6 +748,7 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
                 "module.platform_foundation.google_storage_bucket.configuration",
                 "module.shared_edge[0].google_compute_global_address.edge",
             )
+            terraform.foundation_egress_ready = False
             foundation = _context(
                 "foundation",
                 ("foundation-reference", "oauth-secret-container"),
@@ -750,9 +758,79 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
                 foundation,
                 _request(work, "platform-foundation"),
             )
+            readback = self._readback(
+                commands,
+                foundation,
+                "platform-foundation",
+            )
 
         self.assertEqual(terraform.refresh_only_plans, [True])
         self.assertEqual(artifact.observation["planning_mode"], "refresh-only")
+        self.assertTrue(readback.matched)
+        reference = json.loads(dict(readback.outputs)["foundation-reference"])
+        self.assertNotIn(
+            "application_egress_mode",
+            reference["foundation"],
+        )
+
+    def test_shared_edge_readback_requires_egress_after_refresh_only_foundation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, terraform, _, _, work = self._commands(directory)
+            terraform.state_addresses = (
+                "module.shared_edge[0].google_compute_global_address.edge",
+            )
+            terraform.foundation_egress_ready = False
+            foundation = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+            commands.create_terraform_plan(
+                foundation,
+                _request(work, "platform-foundation"),
+            )
+            foundation_result = self._readback(
+                commands,
+                foundation,
+                "platform-foundation",
+            )
+            edge_inputs = (
+                (
+                    "foundation.foundation-reference",
+                    dict(foundation_result.outputs)["foundation-reference"],
+                ),
+                (
+                    "image-publish.shared-edge-image-digest",
+                    "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                    "app-platform-images/shared-edge@sha256:" + "d" * 64,
+                ),
+                (
+                    "oauth-configuration.oauth-client-id",
+                    "123-client.apps.googleusercontent.com",
+                ),
+                (
+                    "oauth-configuration.oauth-secret-version",
+                    "projects/comfforts-platform-non-prod/secrets/"
+                    "app-platform-edge-oauth/versions/1",
+                ),
+                (
+                    "generation-publish.registration-generation-reference",
+                    initial_generation(SOURCE).reference(42),
+                ),
+            )
+            edge = _context(
+                "shared-edge",
+                ("edge-reference", "hostname", "reserved-address"),
+                edge_inputs,
+            )
+            commands.create_terraform_plan(edge, _request(work, "shared-edge"))
+
+            with self.assertRaisesRegex(
+                DeploymentCommandError,
+                "FOUNDATION_READBACK_INVALID",
+            ):
+                self._readback(commands, edge, "shared-edge")
 
     def test_shared_edge_redeployment_preserves_existing_tls_resources(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

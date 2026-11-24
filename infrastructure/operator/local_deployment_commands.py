@@ -200,6 +200,7 @@ class _RenderedPlan:
     rendered: RenderedTerraformInput
     initial_bootstrap: bool = False
     shared_edge_tls_enabled: bool | None = None
+    foundation_egress_required: bool = True
 
 
 class LocalDeploymentCommands:
@@ -379,6 +380,7 @@ class LocalDeploymentCommands:
                 rendered,
                 initial_bootstrap,
                 shared_edge_tls_enabled,
+                foundation_egress_required=not refresh_only,
             )
             self._plans_by_stage[stage_id] = plan
             self._plans_by_request[id(request)] = plan
@@ -502,7 +504,12 @@ class LocalDeploymentCommands:
             raise DeploymentCommandError("BOOTSTRAP_READBACK_INVALID")
         return _canonical(output)
 
-    def _foundation_references(self, value: object) -> tuple[str, str]:
+    def _foundation_references(
+        self,
+        value: object,
+        *,
+        require_application_egress: bool = True,
+    ) -> tuple[str, str]:
         output = _dict(value, "FOUNDATION_READBACK_INVALID")
         foundation = output.get("foundation")
         if (
@@ -515,9 +522,15 @@ class LocalDeploymentCommands:
             or not isinstance(foundation, dict)
             or foundation.get("configuration_bucket") != _CONFIGURATION_BUCKET
             or foundation.get("oauth_secret_id") != _OAUTH_STORE_TARGET
-            or foundation.get("application_egress_mode") != "all-traffic"
-            or foundation.get("application_router_name") != _APPLICATION_ROUTER
-            or foundation.get("application_nat_name") != _APPLICATION_NAT
+            or (
+                require_application_egress
+                and (
+                    foundation.get("application_egress_mode") != "all-traffic"
+                    or foundation.get("application_router_name")
+                    != _APPLICATION_ROUTER
+                    or foundation.get("application_nat_name") != _APPLICATION_NAT
+                )
+            )
         ):
             raise DeploymentCommandError("FOUNDATION_READBACK_INVALID")
         try:
@@ -583,7 +596,12 @@ class LocalDeploymentCommands:
                     (("backend-reference", self._bootstrap_reference(value)),),
                 )
             if request.stage_id == "foundation":
-                foundation, oauth_store_target = self._foundation_references(value)
+                foundation, oauth_store_target = self._foundation_references(
+                    value,
+                    require_application_egress=(
+                        planned.foundation_egress_required
+                    ),
+                )
                 return TerraformReadback(
                     True,
                     (

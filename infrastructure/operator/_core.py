@@ -1170,6 +1170,39 @@ class LifecycleOperator:
             f"{_CURRENT_WORKFLOW}? [y/N] "
         )
 
+    def _confirm_cancelled_resume(
+        self,
+        environment: str,
+        progress: dict[str, Any],
+    ) -> bool:
+        completed = progress["completed"]
+        last_closed_stage = (
+            str(completed[-1]["stage_id"]) if completed else "none"
+        )
+        blockers = ", ".join(progress["blockers"]) or "none recorded"
+        active_stage = str(progress["active_stage"])
+        specification_digest = str(progress["specification_digest"])
+        self._adapters.terminal.write(
+            "\n".join(
+                (
+                    "Cancelled deployment progress detected:",
+                    f"  environment: {environment}",
+                    f"  source revision: {progress['source_revision']}",
+                    f"  specification digest: {specification_digest}",
+                    f"  last closed stage: {last_closed_stage}",
+                    f"  stage to retry: {active_stage}",
+                    f"  cancellation blocker: {blockers}",
+                    "Resuming keeps the completed-stage readbacks and retries only the "
+                    "open stage. Every remaining plan and action still requires its "
+                    "normal confirmation.",
+                )
+            )
+        )
+        return self._adapters.terminal.confirm(
+            f"Resume cancelled deployment {specification_digest} from stage "
+            f"{active_stage}? [y/N] "
+        )
+
     def _report_active_operation_conflict(
         self,
         environment: str,
@@ -1535,8 +1568,23 @@ class LifecycleOperator:
                 "unchanged", progress, _digest(progress), self.status(environment)
             )
         elif progress["status"] == "cancelled":
-            return ExecutionResult(
-                "cancelled", progress, _digest(progress), self.status(environment)
+            if not self._confirm_cancelled_resume(environment, progress):
+                blockers = ("CANCELLED_OPERATION_RESUME_DECLINED",)
+                self._adapters.terminal.write(
+                    "Cancelled deployment progress remains unchanged."
+                )
+                return ExecutionResult(
+                    "cancelled",
+                    progress,
+                    _digest(progress),
+                    self.status(environment),
+                    blockers,
+                )
+            progress = {**progress, "status": "running", "blockers": []}
+            progress_digest = self._store_progress(progress)
+            self._adapters.terminal.write(
+                f"Resuming cancelled deployment from stage "
+                f"{progress['active_stage']}."
             )
         else:
             progress = {**progress, "status": "running", "blockers": []}

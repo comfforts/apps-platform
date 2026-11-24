@@ -407,6 +407,13 @@ revision, or could not be read back.
 Rerun the same command with the same environment and source authority. The lifecycle validates its
 private progress and resumes after the last completed stage.
 
+If the prior result is `cancelled` and the exact source and specification remain selected, the
+rerun displays the last completed stage, stage to retry, and cancellation blocker. Answer its
+separate `y/N` prompt to resume. `y` retries only the open stage; every remaining Terraform plan or
+bounded action still has its normal confirmation. `n` returns
+`CANCELLED_OPERATION_RESUME_DECLINED` and leaves the private record unchanged. Do not edit the
+record or change source merely to escape a declined action confirmation.
+
 Resume is refused when the source, specification, environment, scope, or recorded outputs no longer
 match. `ACTIVE_OPERATION_CONFLICT` prints the active source authority and revision, specification,
 last closed stage, active stage, requested source and specification, and the exact cancellation
@@ -422,7 +429,9 @@ Review the displayed operation and answer its `y/N` confirmation. Cancellation a
 only that private progress record as cancelled and retains its terminal snapshot. It does not run
 Terraform, call a provider, or change a cloud resource. Repeating the command returns `unchanged`
 without asking again. Then rerun `platform-deploy`; it prepares fresh source-bound intent and uses
-fresh plans plus provider readback to reconcile resources created by the earlier operation. Never
+fresh plans plus provider readback to reconcile resources created by the earlier operation. If the
+same exact source and specification are still selected, the cancelled-resume prompt above applies
+instead of preparing different intent. Never
 edit or delete `current-progress.v1.json` by hand. The lifecycle never automatically unlocks state,
 pushes state, imports a resource, broadens scope, or hides a failed readback.
 

@@ -207,12 +207,20 @@ mutation is never repeated. Waiting, cancellation, command failure, policy refus
 readback, unsafe output, and production refusal remain truthful terminal states rather than being
 converted into success or automatic recovery.
 
+A same-source, same-specification rerun of cancelled progress is not automatic recovery. The
+operator first displays the last closed stage, open stage, and retained blocker, then asks whether
+to resume. Approval changes only private progress back to running and retries the open stage; all
+remaining plan and action confirmations still apply. Declining retains the cancelled record byte
+for byte and returns `CANCELLED_OPERATION_RESUME_DECLINED`.
+
 When changed source conflicts with a running or waiting deployment, `platform-cancel` is the only
 supported local reset. It displays and confirms the exact active source, specification, last closed
 stage, and active stage, then atomically marks that progress record cancelled. It never constructs
 an executor, invokes Terraform, calls a provider, edits Terraform state, or changes a cloud
 resource. A repeated cancellation is unchanged. The next deployment creates fresh source-bound
-intent and reconciles existing resources through normal exact plans and readback; operators never
+intent when source changed, or uses the explicit cancelled-resume prompt when the exact source and
+specification remain selected. Both paths reconcile existing resources through normal exact plans
+and readback; operators never
 hand-edit or delete progress to bypass the conflict.
 
 Reconciliation treats the empty first Registration Generation as independently versioned

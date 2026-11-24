@@ -461,6 +461,10 @@ resumable `waiting` result without removing the verified DNS record or platform 
 
 If an operation is interrupted, rerun the same command with the same environment and source
 authority. The lifecycle validates its private progress and resumes after the last closed stage. A
+cancelled operation remains terminal until a same-source, same-specification rerun displays its
+last closed stage, open stage, and cancellation blocker and receives a separate `y/N` resume
+confirmation. Accepting retries only the open stage and preserves every remaining plan/action
+confirmation. Declining leaves the progress record unchanged. A
 changed source, specification, environment, or scope cannot resume that exact operation. When the
 operator deliberately wants to abandon the old private resume position and reconcile from new
 source, run the `platform-cancel` command printed with `ACTIVE_OPERATION_CONFLICT`, review its exact

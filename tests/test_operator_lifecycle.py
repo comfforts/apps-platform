@@ -926,6 +926,109 @@ class OperatorLifecycleTest(unittest.TestCase):
         self.assertEqual(succeeded_record["status"], "succeeded")
         self.assertEqual(terminal_record_count, 1)
 
+    def test_cancelled_same_specification_resumes_only_after_confirmation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            terminal = FakeTerminal([True])
+            executor = FakeExecutor(
+                [
+                    StageExecution("succeeded"),
+                    StageExecution("succeeded"),
+                    StageExecution(
+                        "succeeded",
+                        (("backend-reference", "observed-backend-reference"),),
+                    ),
+                    StageExecution(
+                        "succeeded",
+                        (
+                            (
+                                "foundation-reference",
+                                "observed-foundation-reference",
+                            ),
+                            (
+                                "oauth-secret-container",
+                                "observed-oauth-secret-container",
+                            ),
+                        ),
+                    ),
+                    StageExecution(
+                        "cancelled",
+                        blockers=("ACTION_NOT_CONFIRMED",),
+                    ),
+                ]
+            )
+            operator, _ = self._operator(
+                state,
+                terminal=terminal,
+                executor=executor,
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+
+            cancelled = operator.execute(
+                "staging",
+                prepared.specification_digest,
+            )
+            terminal.approvals.append(True)
+            resumed = operator.execute(
+                "staging",
+                prepared.specification_digest,
+            )
+
+        self.assertEqual(cancelled.outcome, "cancelled")
+        self.assertEqual(resumed.outcome, "succeeded")
+        self.assertEqual(executor.calls.count("preflight"), 1)
+        self.assertEqual(executor.calls.count("foundation"), 1)
+        self.assertEqual(executor.calls.count("image-publish"), 2)
+        self.assertIn(
+            "Resume cancelled deployment",
+            terminal.prompts[-1],
+        )
+        self.assertIn("ACTION_NOT_CONFIRMED", "\n".join(terminal.messages))
+
+    def test_declined_cancelled_retry_preserves_exact_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            terminal = FakeTerminal([True])
+            executor = FakeExecutor(
+                [
+                    StageExecution(
+                        "cancelled",
+                        blockers=("ACTION_NOT_CONFIRMED",),
+                    )
+                ]
+            )
+            operator, _ = self._operator(
+                state,
+                terminal=terminal,
+                executor=executor,
+            )
+            prepared = operator.prepare("staging")
+            assert prepared.specification_digest is not None
+            first = operator.execute("staging", prepared.specification_digest)
+            progress_path = (
+                state / "environments/staging/current-progress.v1.json"
+            )
+            before = progress_path.read_bytes()
+            terminal.approvals.append(False)
+
+            declined = operator.execute(
+                "staging",
+                prepared.specification_digest,
+            )
+            after = progress_path.read_bytes()
+
+        self.assertEqual(first.outcome, "cancelled")
+        self.assertEqual(declined.outcome, "cancelled")
+        self.assertEqual(
+            declined.blockers,
+            ("CANCELLED_OPERATION_RESUME_DECLINED",),
+        )
+        self.assertEqual(before, after)
+        self.assertEqual(executor.calls, ["preflight"])
+
     def test_waiting_failure_and_cancellation_are_not_success(self) -> None:
         for outcome in ("waiting", "failed", "cancelled"):
             with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory:

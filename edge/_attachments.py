@@ -192,24 +192,12 @@ def _unconditional_invokers(policy: Any) -> frozenset[str]:
 class GoogleCloudRunMetadataProvider:
     """Read one exact Cloud Run service and its IAM policy through an injected client."""
 
-    def __init__(
-        self,
-        services_client: Any,
-        *,
-        project_number: str,
-        project_id: str,
-    ) -> None:
+    def __init__(self, services_client: Any) -> None:
         self._services_client = services_client
-        self._project_number = project_number
-        self._project_id = project_id
 
-    def _provider_name(self, resource: CloudRunResource) -> str:
-        if resource.project_number != self._project_number:
-            raise AttachmentUnavailable("Cloud Run resource scope mismatch")
-        return (
-            f"projects/{self._project_id}/locations/{resource.region}/"
-            f"services/{resource.service_name}"
-        )
+    @staticmethod
+    def _provider_name(resource: CloudRunResource) -> str:
+        return resource.provider_name
 
     async def describe(
         self,

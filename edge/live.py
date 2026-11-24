@@ -291,11 +291,7 @@ def build_live_app(
     adapters = RuntimeAdapters(
         generation_source=GoogleCloudStorageGenerationSource(clients.storage),
         attachment_resolver=CloudRunAttachmentResolver(
-            GoogleCloudRunMetadataProvider(
-                clients.cloud_run,
-                project_number=settings.project_number,
-                project_id=settings.project_id,
-            ),
+            GoogleCloudRunMetadataProvider(clients.cloud_run),
             settings.edge_caller_principal,
         ),
         google_oidc=AuthlibGoogleOidc(

@@ -7,7 +7,8 @@ from dataclasses import dataclass
 import logging
 import os
 import re
-from typing import Any, Mapping
+import sys
+from typing import Any, Mapping, TextIO
 from urllib.parse import quote
 
 import google.auth
@@ -76,6 +77,17 @@ _REQUIRED_ENVIRONMENT = (
 
 class LiveConfigurationError(RuntimeError):
     """A safe startup failure caused by incomplete or invalid process input."""
+
+
+def completion_logger(stream: TextIO | None = None) -> logging.Logger:
+    """Build the isolated JSON-line logger consumed by the regional log sink."""
+
+    handler = logging.StreamHandler(stream if stream is not None else sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger = logging.Logger("comfforts.shared_edge.completion", level=logging.INFO)
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,9 +321,7 @@ def build_live_app(
             ((settings.operator_issuer, settings.operator_subject),)
         ),
         correlation_ids=SecureCorrelationIdSource(),
-        completion_events=StructuredLoggingCompletionSink(
-            logging.getLogger("comfforts.shared_edge")
-        ),
+        completion_events=StructuredLoggingCompletionSink(completion_logger()),
     )
     return create_app(settings.runtime_configuration(), adapters)
 
@@ -345,6 +355,7 @@ __all__ = (
     "LiveRuntimeSettings",
     "access_oauth_client_secret",
     "build_live_app",
+    "completion_logger",
     "create_edge_caller_credentials",
     "create_live_app",
 )

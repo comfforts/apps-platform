@@ -104,6 +104,7 @@ class TerraformPlatformControlsTest(unittest.TestCase):
             self.assertIn(required_control, main)
         self.assertNotIn("unique_writer_identity", main)
         self.assertNotIn("unique_writer_identity", outputs)
+        self.assertIn('"diagnostic_code"', outputs)
         self.assertEqual(main.count("exclusions {"), 3)
         for prohibited_field in (
             "assertion",

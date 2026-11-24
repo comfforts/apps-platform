@@ -1,6 +1,6 @@
 # App Platform documentation
 
-Version 1.28 | Status: AP-M9-W9 fixture deployment lifecycle cross-project correction in progress;
+Version 1.29 | Status: AP-M9-W9 fixture deployment lifecycle cross-project correction in progress;
 candidate staging exists but is not accepted qualification
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
+import json
 from pathlib import Path
 import unittest
 
@@ -17,8 +19,10 @@ from edge.live import (
     LiveRuntimeSettings,
     access_oauth_client_secret,
     build_live_app,
+    completion_logger,
     create_edge_caller_credentials,
 )
+from edge._observability import CompletionEvent, StructuredLoggingCompletionSink
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -82,6 +86,28 @@ class _Session:
 
 
 class LiveRuntimeTest(unittest.TestCase):
+    def test_completion_logger_emits_one_parseable_json_line_at_info(self) -> None:
+        stream = io.StringIO()
+        logger = completion_logger(stream)
+        event = CompletionEvent(
+            event_version=1,
+            event_type="request_completion",
+            source_revision="a" * 40,
+            generation_digest="sha256:" + "2" * 64,
+            application_id=None,
+            route_identifier=None,
+            outcome="dependency_unavailable",
+            status_class="5xx",
+            latency_ms=7,
+            correlation_id="request-correlation-live-0001",
+            diagnostic_code="IDENTITY_PROVIDER_CALLBACK_FAILED",
+        )
+
+        asyncio.run(StructuredLoggingCompletionSink(logger).emit(event))
+
+        self.assertEqual(json.loads(stream.getvalue()), event.as_dict())
+        self.assertFalse(logger.propagate)
+
     def test_shared_edge_image_starts_only_the_live_factory_as_nonroot(self) -> None:
         dockerfile = (
             PROJECT_ROOT / "infrastructure/images/shared-edge/Dockerfile"

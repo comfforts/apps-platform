@@ -5,7 +5,6 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 import json
-import logging
 import re
 from typing import Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit
@@ -74,6 +73,7 @@ from ._observability import (
     SecureCorrelationIdSource,
     SOURCE_REVISION_PATTERN,
     correlation_id,
+    record_diagnostic,
     record_outcome,
     record_route,
     runtime_status_document,
@@ -91,7 +91,6 @@ STATUS_PATH = "/_platform/status"
 SESSION_LIFETIME_SECONDS = 8 * 60 * 60
 FLOW_LIFETIME_SECONDS = 10 * 60
 MAX_QUERY_BYTES = 2_048
-_IDENTITY_LOGGER = logging.getLogger("comfforts.shared_edge.identity")
 
 
 def _closed_response(status_code: int, message: str) -> PlainTextResponse:
@@ -528,7 +527,10 @@ def create_app(
                 await adapters.identity_store.put_flow(flow_id, flow)
             except Exception:
                 health.observe("session_store", available=False)
-                _IDENTITY_LOGGER.warning("IDENTITY_STORE_LOGIN_FLOW_WRITE_FAILED")
+                record_diagnostic(
+                    request.scope,
+                    "IDENTITY_STORE_LOGIN_FLOW_WRITE_FAILED",
+                )
                 return _closed_response(503, "identity unavailable")
             health.observe("session_store", available=True)
             try:
@@ -542,7 +544,10 @@ def create_app(
                     raise IdentityUnavailable("identity provider unavailable")
             except Exception:
                 health.observe("identity_provider", available=False)
-                _IDENTITY_LOGGER.warning("IDENTITY_PROVIDER_AUTHORIZATION_FAILED")
+                record_diagnostic(
+                    request.scope,
+                    "IDENTITY_PROVIDER_AUTHORIZATION_FAILED",
+                )
                 return _closed_response(503, "identity unavailable")
             health.observe("identity_provider", available=True)
             response = RedirectResponse(provider_url, status_code=303)
@@ -566,7 +571,10 @@ def create_app(
                 flow = await adapters.identity_store.consume_flow(flow_id)
             except Exception:
                 health.observe("session_store", available=False)
-                _IDENTITY_LOGGER.warning("IDENTITY_STORE_LOGIN_FLOW_READ_FAILED")
+                record_diagnostic(
+                    request.scope,
+                    "IDENTITY_STORE_LOGIN_FLOW_READ_FAILED",
+                )
                 return _closed_response(503, "identity unavailable")
             health.observe("session_store", available=True)
             if (
@@ -592,7 +600,10 @@ def create_app(
                 )
             except Exception:
                 health.observe("identity_provider", available=False)
-                _IDENTITY_LOGGER.warning("IDENTITY_PROVIDER_CALLBACK_FAILED")
+                record_diagnostic(
+                    request.scope,
+                    "IDENTITY_PROVIDER_CALLBACK_FAILED",
+                )
                 return _closed_response(503, "identity unavailable")
             health.observe("identity_provider", available=True)
             session_id = adapters.token_source.token(32)
@@ -606,7 +617,10 @@ def create_app(
                 )
             except Exception:
                 health.observe("session_store", available=False)
-                _IDENTITY_LOGGER.warning("IDENTITY_STORE_SESSION_WRITE_FAILED")
+                record_diagnostic(
+                    request.scope,
+                    "IDENTITY_STORE_SESSION_WRITE_FAILED",
+                )
                 return _closed_response(503, "identity unavailable")
             health.observe("session_store", available=True)
             response = RedirectResponse(return_to, status_code=303)
@@ -636,7 +650,10 @@ def create_app(
                     await adapters.identity_store.delete_session(session_id)
                 except Exception:
                     health.observe("session_store", available=False)
-                    _IDENTITY_LOGGER.warning("IDENTITY_STORE_SESSION_DELETE_FAILED")
+                    record_diagnostic(
+                        request.scope,
+                        "IDENTITY_STORE_SESSION_DELETE_FAILED",
+                    )
                     return _closed_response(503, "identity unavailable")
                 health.observe("session_store", available=True)
             response = RedirectResponse(return_to, status_code=303)

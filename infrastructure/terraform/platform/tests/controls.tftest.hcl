@@ -34,6 +34,7 @@ run "plans_bounded_observability_evidence_retention_and_cost_controls" {
         "component",
         "component_version",
         "correlation_id",
+        "diagnostic_code",
         "event_type",
         "event_version",
         "generation_digest",

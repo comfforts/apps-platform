@@ -4,6 +4,7 @@ locals {
     "component",
     "component_version",
     "correlation_id",
+    "diagnostic_code",
     "event_type",
     "event_version",
     "generation_digest",

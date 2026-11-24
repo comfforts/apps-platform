@@ -5,6 +5,61 @@ sequence. A backlog item is a proposal, not implementation authority. Before wor
 must be reconciled with the product requirements, accepted architecture decisions, threat model,
 evaluation strategy, implementation plan, and an owner-approved delivery slice.
 
+## Platform observability review and operational diagnostics
+
+### Problem
+
+The initial platform observability design intentionally minimizes retained runtime data, but its
+current verification is narrower than the operational lifecycle. Candidate login testing exposed
+two gaps: standalone safe diagnostics were not selected by the dedicated completion-event sink,
+and completion events written through an unconfigured standard logger could be suppressed below
+the logger's inherited warning level. The active correction carries fixed diagnostic codes through
+an exact JSON-line completion event. A broader review is still needed to verify that every retained
+signal is useful, queryable, appropriately protected, and consistent with actual operations.
+
+### Proposed review
+
+Inventory and test the complete staging observability path:
+
+- Shared Edge completion events, allowlisted diagnostic codes, correlation, and adapter health;
+- Cloud Run request, startup, revision, and application-proxy failure signals;
+- Cloud Logging router sinks, exclusions, regional buckets, views, IAM, retention, and query paths;
+- provider audit logs for IAM, Secret Manager, KMS, Cloud Run, networking, DNS/TLS, state, and
+  destructive operations;
+- platform deployment, application handoff, registration, qualification, rollback, and destruction
+  records that operators need for diagnosis;
+- budget, availability, certificate, routing, identity, and dependency signals that may warrant an
+  alert only after measured staging evidence; and
+- runbook commands that report a useful safe result without requiring an operator to understand
+  internal logger or sink implementation.
+
+Prefer a small stable taxonomy of actionable codes and a few task-specific read-only operator
+commands over generalized telemetry machinery. Each signal must name its owner, purpose, source,
+retention, reader, cost, expected response, and prohibited fields. Remove duplicate, unused, or
+unqueryable telemetry instead of retaining it speculatively.
+
+### Safety requirements
+
+- Retain only fixed, reviewed fields; never arbitrary exception text or provider payloads.
+- Exclude OAuth authorization codes, tokens, secrets, cookies, session identifiers, visitor
+  identity, restricted membership, request parameters, bodies, application data, Terraform state,
+  and saved plans.
+- Keep runtime logs owner-readable, regional, time-bounded, and without external export unless a
+  later accepted decision changes that boundary.
+- Treat correlation identifiers as diagnostic labels, never identity or authorization signals.
+- Verify that logging failure cannot change a visitor response or silently weaken fail-closed
+  admission.
+- Do not add dashboards, alerts, exports, long retention, or new paid services without measured
+  need, explicit cost review, and the applicable authority.
+
+### Completion evidence
+
+Deterministic tests must prove exact JSON emission, fixed-code validation, prohibited-data absence,
+sink-filter compatibility, and logging-failure isolation. Live staging evidence must produce and
+query one event for each approved failure class, confirm bucket/view access and seven-day retention,
+and prove the default exclusion and no-export posture. The review must leave a concise operator
+troubleshooting map and explicitly record signals that remain unavailable or intentionally absent.
+
 ## Fixture project disconnect and clean lifecycle
 
 ### Problem

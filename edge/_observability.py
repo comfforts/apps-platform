@@ -41,11 +41,22 @@ OUTCOMES = {
     "rejected",
     "success",
 }
+DIAGNOSTIC_CODES = frozenset(
+    {
+        "IDENTITY_PROVIDER_AUTHORIZATION_FAILED",
+        "IDENTITY_PROVIDER_CALLBACK_FAILED",
+        "IDENTITY_STORE_LOGIN_FLOW_READ_FAILED",
+        "IDENTITY_STORE_LOGIN_FLOW_WRITE_FAILED",
+        "IDENTITY_STORE_SESSION_DELETE_FAILED",
+        "IDENTITY_STORE_SESSION_WRITE_FAILED",
+    }
+)
 
 _CORRELATION_STATE = "comfforts_correlation_id"
 _APPLICATION_STATE = "comfforts_application_id"
 _ROUTE_STATE = "comfforts_route_identifier"
 _OUTCOME_STATE = "comfforts_completion_outcome"
+_DIAGNOSTIC_STATE = "comfforts_diagnostic_code"
 
 
 class CorrelationIdSource(Protocol):
@@ -123,6 +134,7 @@ class CompletionEvent:
     status_class: str
     latency_ms: int
     correlation_id: str
+    diagnostic_code: str | None = None
     component: Literal["shared-edge"] = RUNTIME_COMPONENT
     component_version: str = RUNTIME_VERSION
 
@@ -151,6 +163,11 @@ class CompletionEvent:
             raise ValueError("completion generation digest is invalid")
         if self.outcome not in OUTCOMES:
             raise ValueError("completion outcome is invalid")
+        if (
+            self.diagnostic_code is not None
+            and self.diagnostic_code not in DIAGNOSTIC_CODES
+        ):
+            raise ValueError("completion diagnostic code is invalid")
         if re.fullmatch(r"[1-5]xx|websocket", self.status_class) is None:
             raise ValueError("completion status class is invalid")
         if (
@@ -228,6 +245,14 @@ def record_outcome(scope: Mapping[str, Any], outcome: str) -> None:
     state = scope.get("state")
     if isinstance(state, dict):
         state[_OUTCOME_STATE] = outcome
+
+
+def record_diagnostic(scope: Mapping[str, Any], code: str) -> None:
+    if not isinstance(code, str) or code not in DIAGNOSTIC_CODES:
+        raise ValueError("completion diagnostic code is invalid")
+    state = scope.get("state")
+    if isinstance(state, dict):
+        state[_DIAGNOSTIC_STATE] = code
 
 
 def runtime_status_document(
@@ -372,6 +397,7 @@ class CompletionEventMiddleware:
                 if isinstance(explicit_outcome, str) and explicit_outcome in OUTCOMES
                 else _default_outcome(scope_type, status_code, failed)
             )
+            diagnostic_code = state.get(_DIAGNOSTIC_STATE)
             event = CompletionEvent(
                 event_version=1,
                 event_type="request_completion",
@@ -394,6 +420,12 @@ class CompletionEventMiddleware:
                     max(0, int((finished_at - started_at) * 1_000)),
                 ),
                 correlation_id=request_id,
+                diagnostic_code=(
+                    diagnostic_code
+                    if isinstance(diagnostic_code, str)
+                    and diagnostic_code in DIAGNOSTIC_CODES
+                    else None
+                ),
             )
             if self._sink is not None:
                 try:

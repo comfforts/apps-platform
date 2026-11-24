@@ -56,6 +56,7 @@ from edge._identity import (
     PlatformIdentity,
     PlatformSession,
 )
+from edge._observability import CompletionEvent
 from edge.verification import HttpJwksFetcher, InMemoryJwksFetcher
 
 
@@ -575,6 +576,14 @@ class FixedCorrelationIds:
 
     def new(self) -> str:
         return self._values.pop(0)
+
+
+class RecordingCompletionSink:
+    def __init__(self) -> None:
+        self.events: list[CompletionEvent] = []
+
+    async def emit(self, event: CompletionEvent) -> None:
+        self.events.append(event)
 
 
 class FakeGoogleOidc:
@@ -1991,6 +2000,7 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         oidc = FakeGoogleOidc(
             PlatformIdentity("https://accounts.google.com", "visitor-1")
         )
+        events = RecordingCompletionSink()
         app = create_app(
             configuration,
             RuntimeAdapters(
@@ -2006,27 +2016,25 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
                         "verifier-012345678901234567890123456789012345",
                     ]
                 ),
+                correlation_ids=FixedCorrelationIds(
+                    ["request-correlation-identity-login"]
+                ),
+                completion_events=events,
             ),
         )
 
-        with self.assertLogs(
-            "comfforts.shared_edge.identity", level="WARNING"
-        ) as captured:
-            _, (status, _, body) = asyncio.run(
-                request_during_lifespan(
-                    app,
-                    "/_platform/login",
-                    query_string=b"return_to=%2Falpha",
-                )
+        _, (status, _, body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/login",
+                query_string=b"return_to=%2Falpha",
             )
+        )
 
         self.assertEqual((status, body), (503, b"identity unavailable\n"))
         self.assertEqual(
-            captured.output,
-            [
-                "WARNING:comfforts.shared_edge.identity:"
-                "IDENTITY_STORE_LOGIN_FLOW_WRITE_FAILED"
-            ],
+            events.events[0].diagnostic_code,
+            "IDENTITY_STORE_LOGIN_FLOW_WRITE_FAILED",
         )
         self.assertEqual(oidc.authorization_requests, [])
 
@@ -2258,6 +2266,7 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
             PlatformIdentity("https://accounts.google.com", "visitor-1")
         )
         oidc.failure = RuntimeError("provider included a sensitive diagnostic")
+        events = RecordingCompletionSink()
         app = create_app(
             configuration,
             RuntimeAdapters(
@@ -2266,6 +2275,14 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
                 identity_store=store,
                 clock=FixedClock(1_000),
                 token_source=FixedTokenSource([]),
+                correlation_ids=FixedCorrelationIds(
+                    [
+                        "request-correlation-identity-0001",
+                        "request-correlation-identity-0002",
+                        "request-correlation-identity-0003",
+                    ]
+                ),
+                completion_events=events,
             ),
         )
 
@@ -2284,23 +2301,13 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
             return_to="/alpha",
             expires_at=2_000,
         )
-        with self.assertLogs(
-            "comfforts.shared_edge.identity", level="WARNING"
-        ) as captured:
-            _, (provider_status, _, provider_body) = asyncio.run(
-                request_during_lifespan(
-                    app,
-                    "/_platform/auth/callback",
-                    query_string=b"state=expected-state-0123456789012&code=provider-code",
-                    headers=((b"cookie", f"__Host-comfforts-oidc={flow_id}".encode()),),
-                )
+        _, (provider_status, _, provider_body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/auth/callback",
+                query_string=b"state=expected-state-0123456789012&code=provider-code",
+                headers=((b"cookie", f"__Host-comfforts-oidc={flow_id}".encode()),),
             )
-        self.assertEqual(
-            captured.output,
-            [
-                "WARNING:comfforts.shared_edge.identity:"
-                "IDENTITY_PROVIDER_CALLBACK_FAILED"
-            ],
         )
         store.available = False
         _, (store_status, _, store_body) = asyncio.run(
@@ -2315,6 +2322,14 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertEqual((provider_status, provider_body), (503, b"identity unavailable\n"))
         self.assertEqual((store_status, store_body), (503, b"identity unavailable\n"))
         self.assertNotIn(b"sensitive", provider_body)
+        self.assertEqual(
+            events.events[1].diagnostic_code,
+            "IDENTITY_PROVIDER_CALLBACK_FAILED",
+        )
+        self.assertNotIn(
+            "provider included a sensitive diagnostic",
+            json.dumps(events.events[1].as_dict(), sort_keys=True),
+        )
 
     def test_expired_session_reauthenticates_without_silent_renewal(self) -> None:
         configuration, source = configured_generation(

@@ -1681,8 +1681,11 @@ Exercise HTTPS redirect, certificate, catalogue, routes, mounts, path rewriting,
 Google OIDC/session/logout, authenticated and restricted allow/deny, assertion issuer/audience/time,
 JWKS/key behavior, visitor-header replacement, direct-origin denial, application verification,
 cross-application isolation, failure isolation, HTTP/SSE/WebSocket/upload/download boundaries,
-timeouts, concurrency, and redacted completion events. Record the approved demo limitations without
-claiming general availability or distributed replay prevention.
+timeouts, concurrency, and redacted completion events. Force each allowlisted identity dependency
+failure and verify that its constant diagnostic code is queryable from the dedicated regional log
+bucket while provider exceptions, authorization codes, tokens, identities, sessions, request
+parameters, and payloads remain absent. Record the approved demo limitations without claiming
+general availability or distributed replay prevention.
 
 #### AP-EVAL-M9-08 · Rollback, fixture cleanup, platform destruction, and redeployment
 

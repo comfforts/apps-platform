@@ -341,6 +341,31 @@ Each fixture root uses an independent prefix in the fixture-project state bucket
 that fixture's Application State. `platform-register` reads back the target before activating a
 complete Registration Generation that preserves the other registrations.
 
+For an authenticated or restricted fixture, a successful browser test redirects through Google,
+sets the Platform Session, and returns to the requested fixture route. `identity unavailable` is a
+closed dependency failure, not a successful login. Query only the allowlisted diagnostic field from
+the dedicated regional bucket; never copy the callback URL, authorization code, cookie, token,
+identity, or raw provider response into a terminal transcript or issue:
+
+```bash
+gcloud logging read \
+  'jsonPayload.event_type="request_completion" AND
+   jsonPayload.component="shared-edge" AND
+   jsonPayload.diagnostic_code:*' \
+  --project=<platform-project-id> \
+  --location=<platform-region> \
+  --bucket=<platform-log-bucket-id> \
+  --view=_AllLogs \
+  --freshness=30m \
+  --limit=20 \
+  --format='table(timestamp,jsonPayload.diagnostic_code,jsonPayload.status_class,jsonPayload.correlation_id)'
+```
+
+The code identifies the failed store or provider boundary without retaining the provider exception
+or visitor material. An empty result after a request is itself an observability failure; stop and
+inspect the deployed runtime revision, sink filter, bucket, and JSON-line emission before diagnosing
+the identity provider from unredacted data.
+
 Do not redeploy the platform merely because the repository revision running a fixture command is
 newer than the deployed platform revision. The command validates its own source admission, reads
 the active platform revision and Registration Generation from provider-backed platform state, and

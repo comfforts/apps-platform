@@ -1169,12 +1169,15 @@ make a sink, retention policy, alert, responder, quota, or budget operational.
 
 ### Initial logging, evidence, incident, and cost profile
 
-The edge emits one structured completion event per request or streaming connection into a dedicated
-Cloud Logging bucket in the qualification project and `us-west1`. Seven-day retention and
-owner-only access apply. Events contain only generation, application and route identifiers, coarse
-outcomes, status class, latency, correlation identifier, and non-secret platform versions. They
-exclude identity, visitor metadata, payloads, application data, assertions, sessions, secrets,
-state, saved plans, and stream chunks. Logs have no external sink.
+The edge emits one exact JSON-line structured completion event per request or streaming connection
+into a dedicated Cloud Logging bucket in the qualification project and `us-west1`. The live logger
+uses an isolated `INFO` handler with no human-readable prefix so Cloud Logging parses the record as
+the `jsonPayload` selected by the dedicated sink. Seven-day retention and owner-only access apply.
+Events contain only generation, application and route identifiers, coarse outcomes, status class,
+latency, correlation identifier, non-secret platform versions, and an optional diagnostic code
+from the fixed runtime allowlist. They exclude identity, visitor metadata, payloads, application
+data, assertions, sessions, secrets, provider exceptions, state, saved plans, and stream chunks.
+Logs have no external sink.
 
 Control-plane events record digest-bound plan, apply, activation, rollback, DNS/TLS, key, IAM,
 state, drift, break-glass, incident, and destructive-cleanup outcomes without copying protected

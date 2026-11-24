@@ -833,7 +833,8 @@ human-operable and does not provide leverage for the operator.
 
 AP-M9 exposes one focused interactive lifecycle through the prepare, deploy, status, outputs,
 register, detach, retire, qualify, and destroy operations, plus explicit read-only preflight and
-deployment checks for local maintenance. Stable environment decisions live in a
+deployment checks for local maintenance and a read-only application-handoff check before bundle
+publication. Stable environment decisions live in a
 small Environment Profile. Preparation discovers or derives available non-secret facts and creates
 one canonical Deployment Specification containing the environment, source, profile, operation,
 and fixed workflow identity. Deployment creates exact plans and generated facts just in time,
@@ -919,6 +920,9 @@ interactive interface.
   non-blocking diagnostics. The deeper check uses real provider readback and lock-free exact
   planning, deletes ephemeral plans, reports unavailable later-stage inputs as deferred, and has no
   approval, apply, provider-action, checkpoint-execution, or lifecycle-state-write interface.
+- `application-handoff-check` reuses the Terraform rehearsal and fresh provider readback to verify
+  the named application project, required services, Shared VPC grants, bundle inputs, and
+  admission-mode prerequisites. It publishes no bundle and exposes no mutation interface.
 - `platform-deploy` performs preparation, review, approval, and deployment in one process;
   `platform-prepare` remains an optional read-only preview. When that preview has already stored a
   current approved specification, deploy discovers and reuses it after freshness validation
@@ -1052,6 +1056,13 @@ creates no application runtime or route.
 the application project identity plus exact host-network, subnet, region, and egress references in
 the application-scoped Platform Integration Bundle.
 
+Immediately before bundle publication, `application-handoff-check` performs a lock-free read-only
+platform-plan rehearsal and verifies the named application project's required services and live
+Shared VPC grants. It compiles but does not publish the requested bundle projection. Authenticated
+and restricted projections additionally require the platform issuer, JWKS endpoint, OAuth
+redirect, OAuth client identifier, and application audience. Any platform Terraform change is
+reported as reconciliation required rather than being applied by the check.
+
 Repository fixtures run in the dedicated staging project selected explicitly through
 `FIXTURES_PROJECT_ID`; its display name is selected separately through
 `FIXTURES_PROJECT_NAME`. The current staging operator values are
@@ -1076,8 +1087,9 @@ deployment or fixture destruction.
 Because an already-deployed Shared Edge requires a refresh-only foundation plan, the first
 cross-project reconciliation creates the Shared VPC network, subnet, and host-project binding in
 the later normal Shared Edge plan. That plan also updates the existing qualification image
-repository for cross-project fixture use. Plan policy admits only those four exact inherited
-addresses with their exact create or update actions; every other inherited mutation, replacement,
+repository for cross-project fixture use. Plan policy admits only five exact inherited addresses
+with their exact create or update actions, including the least-privilege Firestore data role needed
+by the Shared Edge to persist login flows and sessions; every other inherited mutation, replacement,
 or deletion remains prohibited. Shared Edge readback revalidates the foundation output before the
 stage can close.
 

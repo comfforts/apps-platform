@@ -1622,6 +1622,12 @@ policy, deletes ephemeral plans, distinguishes `would-change`, `manual`, and `de
 creates approval, specification, progress, operational evidence, provider mutation, or source
 authority.
 
+Exercise `application-handoff-check` for public, authenticated, and restricted requests. Prove it
+blocks on platform Terraform drift, missing application services, stale or absent Shared VPC
+grants, mismatched platform revision or generation, and missing protected-mode identity values.
+Prove it succeeds without publishing a bundle, approving or applying a plan, acquiring a state
+lock, changing provider state, or writing operational lifecycle state.
+
 #### AP-EVAL-M9-04 · State, Terraform, operator session, plans, and ownership
 
 Verify deployable bootstrap/foundation/edge phases preserve independent state ownership, locking,
@@ -1650,7 +1656,9 @@ the Cloud Run service agent has read-only host-network discovery and network-use
 the application subnet, while neither operation created a runtime or route. Generate public,
 authenticated, and restricted
 application-project-scoped fixture bundles; verify exact project, host network, subnet, region,
-egress, least-data projections, and absence of the OAuth client secret. Deploy each selected fixture
+egress, least-data projections, and absence of the OAuth client secret. Before each bundle is
+published, run the application handoff check and prove the platform plans, application services,
+project connection, and access-mode projection are ready without mutation. Deploy each selected fixture
 through its separate Application State invocation in that project; validate its returned attachment
 bundle plus target project, network, internal ingress, edge-caller IAM, audience, and readiness;
 then separately activate a complete Registration Generation preserving prior registrations after

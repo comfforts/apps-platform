@@ -489,8 +489,12 @@ routes remain anonymously usable. AP-M6-W6 fails protected assertion issuance an
 unavailable verification keys closed; public routes may remain anonymous. AP-M6-W7 fails one
 unavailable or mismatched attachment closed without selecting another target. AP-M6-W8 maps local
 transport failure, timeout, malformed response, disconnect, and cancellation to closed outcomes
-without another target. The selected DNS, certificate, activation, and owner-confirmed rollback
-sequence is not implemented or qualified. Provider availability and disaster recovery beyond the
+without another target. AP-M9-W9 Terraform grants only the edge runtime the project-level
+Firestore data role required for login-flow and session entities. Runtime failure diagnostics use
+constant boundary codes and never include provider exceptions, visitor identity, OAuth material,
+or session values. The application handoff check detects missing Terraform-managed identity
+prerequisites before bundle publication. Live Google login remains unqualified until the corrected
+platform revision is deployed and AP-EVAL-M9-07 passes. Provider availability and disaster recovery beyond the
 15-minute post-approval rollback objective remain outside the demo commitment.
 
 ### AP-TM-014 · External migration proposal or fixture mistaken for Application Adoption

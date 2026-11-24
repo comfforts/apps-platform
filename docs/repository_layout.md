@@ -83,8 +83,10 @@ performed a provider request, image build, generation activation, rollback, qual
 
 AP-M9-W9 adds the executable Fixture Application owner lifecycle over the existing image and three
 independent Terraform roots. It introduces shallow `fixture-project-bootstrap`,
-`platform-connect-project`, `fixture-handoff`, `fixture-status`, and `fixture-destroy` targets over
-the deep operator module. The fixture project owns one private state bucket with independent root
+`platform-connect-project`, `application-handoff-check`, `fixture-handoff`, `fixture-status`, and
+`fixture-destroy` targets over the deep operator module. The read-only handoff check combines
+platform-plan, project-service, Shared VPC, bundle-input, and access-mode readback before bundle
+publication. The fixture project owns one private state bucket with independent root
 prefixes and attaches to the platform Shared VPC. Platform outputs, fixture handoff, and platform
 registration remain separate so the fixtures exercise the same cross-owner boundary as an external
 application. The package also includes private pre-registration bundle inspection and exact reuse,

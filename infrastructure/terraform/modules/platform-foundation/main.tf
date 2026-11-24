@@ -153,6 +153,19 @@ resource "google_firestore_field" "session_expiration" {
   deletion_policy = local.destruction_enabled ? "DELETE" : "PREVENT"
 }
 
+resource "google_project_iam_member" "edge_session_store" {
+  count = local.retained_only ? 0 : 1
+
+  project = var.foundation_configuration.project_id
+  role    = "roles/datastore.user"
+  member  = local.edge_runtime_principal
+
+  depends_on = [
+    google_firestore_database.sessions,
+    google_service_account.edge_runtime,
+  ]
+}
+
 resource "google_kms_key_ring" "assertion_signing" {
   project  = var.foundation_configuration.project_id
   location = var.foundation_configuration.region

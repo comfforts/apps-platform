@@ -1,6 +1,6 @@
 # App Platform documentation
 
-Version 1.27 | Status: AP-M9-W9 fixture deployment lifecycle cross-project correction in progress;
+Version 1.28 | Status: AP-M9-W9 fixture deployment lifecycle cross-project correction in progress;
 candidate staging exists but is not accepted qualification
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
@@ -92,7 +92,7 @@ small reviewable commits, merge it, and only then begin the next package.
 9. **AP-M9-W9 — fixture application deployment lifecycle (cross-project correction in progress):**
    immutable fixture images and independent roots in a dedicated fixture application project; an
    explicit Shared VPC project-connection boundary; application-project-scoped integration
-   bundles; separate fixture handoff, platform registration, status, detachment, and fixture
+   bundles; a read-only application handoff readiness check; separate fixture handoff, platform registration, status, detachment, and fixture
    destruction; provider readback; deterministic fake coverage; and staging-only Candidate Source
    admission. The combined `fixture-deploy` shortcut is removed so fixtures exercise the same
    platform/application handoff as an external application.

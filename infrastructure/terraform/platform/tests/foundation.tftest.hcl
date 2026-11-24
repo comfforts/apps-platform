@@ -52,6 +52,7 @@ run "plans_identity_and_generation_foundation" {
       module.platform_foundation.policy_summary.sessions.deletion_policy == "PREVENT" &&
       module.platform_foundation.policy_summary.sessions.ttl_enabled &&
       module.platform_foundation.policy_summary.sessions.absolute_lifetime_seconds == 28800 &&
+      module.platform_foundation.policy_summary.sessions.runtime_data_role == "roles/datastore.user" &&
       !module.platform_foundation.policy_summary.sessions.asynchronous_ttl_is_authorization
     )
     error_message = "Platform Sessions must retain the eight-hour application expiry and bounded Firestore profile without backup or PITR"

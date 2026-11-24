@@ -60,7 +60,8 @@ make fixture-project-bootstrap ENVIRONMENT=staging \
 make platform-deploy ENVIRONMENT=staging
 make platform-connect-project ENVIRONMENT=staging \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
-# For each fixture: platform-outputs, fixture-handoff, inspect, then platform-register.
+# For each fixture: application-handoff-check, platform-outputs, fixture-handoff,
+# inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging
 make platform-qualify ENVIRONMENT=staging
 make platform-status ENVIRONMENT=staging
@@ -248,13 +249,16 @@ authorization. The platform and application exchange non-secret, digest-bound bu
 1. Run `platform-connect-project` once for the application project in this environment. It attaches
    only that existing project to the platform Shared VPC and verifies subnet access for its Cloud
    Run service agent.
-2. Run `platform-outputs` for that project, one application, route, and admission mode.
-3. Give the resulting Platform Integration Bundle to the Application Owner.
-4. The Application Owner deploys the application through its own lifecycle and state.
-5. The Application Owner returns an Application Attachment Bundle bound to the integration-bundle
+2. Run `application-handoff-check` with the intended application, route, admission mode, active
+   platform revision, and Registration Generation. Resolve every blocker before publishing a
+   handoff.
+3. Run `platform-outputs` with the same values.
+4. Give the resulting Platform Integration Bundle to the Application Owner.
+5. The Application Owner deploys the application through its own lifecycle and state.
+6. The Application Owner returns an Application Attachment Bundle bound to the integration-bundle
    digest.
-6. Run `platform-register` with those bundles and the reviewed registration intent.
-7. The platform validates project, network, ingress, IAM, audience, and target posture and activates one complete immutable registration
+7. Run `platform-register` with those bundles and the reviewed registration intent.
+8. The platform validates project, network, ingress, IAM, audience, and target posture and activates one complete immutable registration
    generation.
 
 Project connection does not create a runtime, application backend, image, route, registration, or
@@ -290,6 +294,15 @@ For each fixture, generate its project-scoped bundle, deploy its application-own
 the handoff, and register it explicitly. For example:
 
 ```bash
+make application-handoff-check \
+  ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
+  APPLICATION_ID=fixture-public \
+  ACCESS_MODE=public \
+  ROUTE_INTENT=/fixture-public \
+  PLATFORM_SOURCE_REVISION=<active-platform-revision> \
+  PLATFORM_GENERATION=<active-registration-generation>
+
 make platform-outputs \
   ENVIRONMENT=staging \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
@@ -313,6 +326,15 @@ make platform-register \
 
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-public
 ```
+
+`application-handoff-check` is read-only. It uses lock-free ephemeral Terraform plans and live
+provider readback to verify that bootstrap, foundation, and Shared Edge require no reconciliation;
+that the application project exists with Cloud Resource Manager, Compute, IAM, Cloud Run, and
+Service Usage enabled; that the Shared VPC connection and subnet grants remain exact; that the
+requested bundle can be compiled; and, for authenticated or restricted access, that the platform
+identity endpoints, OAuth client identifier, issuer, JWKS endpoint, and audience are present. It
+publishes no bundle and writes no operational lifecycle state. `PLATFORM_RECONCILIATION_REQUIRED`
+means run and review `platform-deploy` before attempting the application handoff.
 
 Repeat for the authenticated and restricted fixture with the matching admission mode and route.
 Each fixture root uses an independent prefix in the fixture-project state bucket and creates only
@@ -348,7 +370,7 @@ and then run its former `fixture-destroy`. A detached commit does not satisfy Ca
 admission. Confirm with provider and Terraform-state readback that the old Cloud Run service and
 its Application State are gone. Do not delete the old service or edit its state by hand. Then
 return to the cross-project revision and run `fixture-project-bootstrap`,
-`platform-deploy`, `platform-connect-project`, `platform-outputs`, `fixture-handoff`, and
+`platform-deploy`, `platform-connect-project`, `application-handoff-check`, `platform-outputs`, `fixture-handoff`, and
 `platform-register` in the documented order. The route remains reserved during this transition and
 is unavailable until the new attachment is registered.
 
@@ -510,7 +532,8 @@ make fixture-project-bootstrap ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
 make platform-deploy ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-connect-project ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
-# For each fixture: platform-outputs, fixture-handoff, inspect, then platform-register.
+# For each fixture: application-handoff-check, platform-outputs, fixture-handoff,
+# inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 ```

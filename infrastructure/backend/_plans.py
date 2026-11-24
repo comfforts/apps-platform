@@ -139,6 +139,10 @@ _PHASE_EXACT_INHERITED_MUTATIONS = {
         (
             "module.platform_foundation.google_compute_network.shared"
         ): frozenset({("create",)}),
+        (
+            "module.platform_foundation.google_project_iam_member."
+            "edge_session_store[0]"
+        ): frozenset({("create",)}),
     },
 }
 

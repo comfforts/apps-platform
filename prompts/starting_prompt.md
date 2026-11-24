@@ -37,7 +37,9 @@ Perform the staging journey from exact merged source:
 4. Run `make platform-connect-project ENVIRONMENT=staging
    APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod` and verify that it creates no runtime or
    route. For `fixture-public`, `fixture-authenticated`, and `fixture-restricted`, separately run
-   `platform-outputs` with the fixture project, matching admission mode and route; pass the printed
+   `application-handoff-check` with the fixture project, matching admission mode, route, active
+   platform revision, and Registration Generation; resolve every blocker; then run
+   `platform-outputs` with the same values. Pass the printed
    bundle to `fixture-handoff`; inspect its integration bundle, attachment bundle, and registration
    intent; then run `platform-register` with those exact files. Each handoff must build or reuse the
    immutable source-bound image, operate only on the selected one of three independent Application

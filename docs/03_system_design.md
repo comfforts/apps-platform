@@ -356,7 +356,10 @@ The edge creates an opaque Platform Session backed by minimal Firestore Native s
 qualification project and region. The browser cookie is host-only, `Secure`, `HttpOnly`,
 `SameSite=Lax`, and scoped to `/`. The session expires absolutely after eight hours and cannot be
 silently renewed past that boundary. The platform retains no Google access or refresh token and
-does not use Visitor identity to call Google APIs.
+does not use Visitor identity to call Google APIs. The edge runtime alone receives
+`roles/datastore.user`, the lowest project-level predefined role that supplies the required
+Firestore entity read/write permissions; neither the edge caller nor an application identity
+receives session-store access.
 
 A valid session may add Verified Identity Context to a public request, while an absent or invalid
 session leaves a public request anonymous. A protected request without a valid session enters the
@@ -763,7 +766,7 @@ AP-M9 presents one deep Python lifecycle module through thin Make targets. Its e
 limited to these operator operations:
 
 ```text
-preflight  preflight-check  deploy-check  prepare  deploy  status  outputs  register  detach  retire  qualify  destroy
+preflight  preflight-check  deploy-check  application-handoff-check  prepare  deploy  status  outputs  register  detach  retire  qualify  destroy
  fixture-project-bootstrap  platform-connect-project  fixture-handoff  fixture-status  fixture-destroy
 ```
 
@@ -805,6 +808,16 @@ tree, refresh remote state with locking disabled, run the normal plan policy, an
 ephemeral saved plan. Missing generated predecessor outputs produce `deferred`; manual checkpoints
 produce `manual`. The checker exposes reads and plan creation only and cannot approve, apply,
 execute a provider action, complete a checkpoint, or write operational lifecycle state.
+
+`application-handoff-check` is the application-scoped readiness boundary immediately before
+`outputs`. It reuses the lock-free deployment checker for bootstrap, foundation, and Shared Edge,
+then performs fresh provider readback for the named application project, its required services,
+Shared VPC host association, host-network viewer grant, and subnet-user grant. It validates the
+same application, route, access mode, platform revision, and Registration Generation inputs that
+would produce the bundle, but does not publish that bundle. Public mode requires no platform
+identity projection. Authenticated and restricted modes require the platform issuer, JWKS endpoint,
+OAuth redirect, OAuth client identifier, and application-specific audience. The command has no
+approval, apply, provider-mutation, bundle-publication, or operational-state-write interface.
 
 Before default deployment prepares new intent, it reads the private current-specification pointer
 and canonical specification and revalidates the current source, profile, environment, human
@@ -901,7 +914,9 @@ provider output as reviewed authority.
 
 After environment deployment and explicit application-project connection, `outputs` compiles a
 Platform Integration Bundle for one application project, application, environment, access mode,
-route intent, and platform revision. It includes the exact application project, Shared VPC host,
+route intent, and platform revision. The operator first runs `application-handoff-check` with those
+same values and resolves any platform-reconciliation, project-service, connection, or protected-
+identity blocker. The bundle includes the exact application project, Shared VPC host,
 network, subnet, region, and egress bindings. A fixture may consume a bundle whose
 qualification status is explicitly `unqualified`; real Application Adoption requires the owning
 application to accept the platform's current qualification status. The application deploys through
@@ -1261,7 +1276,9 @@ eight hours without renewal. Public routing remains anonymous when session stora
 authenticated and restricted routing fail closed. Restricted admission compares the exact reviewed
 issuer-and-subject pair, never email. Logout deletes server state, clears the cookie, and accepts
 only a root or active registered platform-relative return location. Production provider and store
-adapters are exercised with deterministic local transports; default verification performs no
+failures retain the same generic visitor response while emitting only constant, non-sensitive
+boundary codes that distinguish the session store from the identity provider. Production provider
+and store adapters are exercised with deterministic local transports; default verification performs no
 provider call. AP-M6-W6 replaces the internal admitted identity at the handoff with its signed
 Version 1 assertion.
 

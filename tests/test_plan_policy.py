@@ -136,6 +136,42 @@ def _fixture_observation(application_id: str) -> dict[str, object]:
 
 
 class PlanPolicyTest(unittest.TestCase):
+    def test_shared_edge_allows_only_the_exact_runtime_firestore_grant_reconciliation(
+        self,
+    ) -> None:
+        policy = plan_policy(
+            "staging",
+            "shared-edge",
+            SOURCE_REVISION,
+            destructive=False,
+        )
+        observation = _shared_edge_observation()
+        observation["changes"].append(  # type: ignore[union-attr]
+            {
+                "address": (
+                    "module.platform_foundation.google_project_iam_member."
+                    "edge_session_store[0]"
+                ),
+                "resource_type": "google_project_iam_member",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["create"],
+            }
+        )
+
+        accepted = evaluate_plan(policy, observation)
+
+        self.assertTrue(accepted.accepted)
+        mutated = deepcopy(observation)
+        mutated["changes"][-1]["address"] = (  # type: ignore[index]
+            "module.platform_foundation.google_project_iam_member.unreviewed[0]"
+        )
+        rejected = evaluate_plan(policy, mutated)
+        self.assertFalse(rejected.accepted)
+        self.assertIn(
+            "INHERITED_RESOURCE_MUTATION_PROHIBITED",
+            [item.code for item in rejected.violations],
+        )
+
     def test_bootstrap_accepts_only_exact_legacy_fixture_bucket_forget_actions(
         self,
     ) -> None:

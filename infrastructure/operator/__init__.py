@@ -16,6 +16,11 @@ from infrastructure.operator._interfaces import (
     StageExecution,
     StatusResult,
 )
+from infrastructure.operator.application_handoff_check import (
+    ApplicationHandoffCheck,
+    ApplicationHandoffCheckRequest,
+    ApplicationHandoffCheckResult,
+)
 from infrastructure.operator.deployment import DeploymentExecutor
 from infrastructure.operator.destruction import (
     DESTRUCTIBLE_PLATFORM_RESOURCES,
@@ -74,6 +79,9 @@ from infrastructure.operator.rollback import (
 )
 
 __all__ = (
+    "ApplicationHandoffCheck",
+    "ApplicationHandoffCheckRequest",
+    "ApplicationHandoffCheckResult",
     "DiscoverySnapshot",
     "DeploymentCheckResult",
     "DeploymentExecutor",

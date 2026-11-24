@@ -203,6 +203,7 @@ class ContractSchemaTest(unittest.TestCase):
         for application_target in (
             "fixture-project-bootstrap:",
             "platform-connect-project:",
+            "application-handoff-check:",
             "platform-outputs:",
             "platform-register:",
             "platform-detach:",
@@ -214,7 +215,7 @@ class ContractSchemaTest(unittest.TestCase):
             makefile,
         )
         self.assertNotIn("fixture-deploy:", makefile)
-        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 25)
+        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 26)
 
     def test_contract_layer_runs_from_an_extracted_project_copy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

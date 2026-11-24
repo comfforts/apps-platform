@@ -355,12 +355,8 @@ class GcloudApplicationProjectProvider:
                 and isinstance(billing, str)
                 and billing == platform_billing.get("billingAccountName")
             )
-        services_value = (
-            self._json(
-                "services", "list", "--enabled", f"--project={project_id}"
-            )
-            if project_id == self._fixture_project_id
-            else None
+        services_value = self._json(
+            "services", "list", "--enabled", f"--project={project_id}"
         )
         services: list[str] = []
         if isinstance(services_value, list):

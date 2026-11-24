@@ -41,6 +41,7 @@ output "policy_summary" {
       expiration_field                  = var.foundation_configuration.sessions.expiration_field
       ttl_enabled                       = true
       absolute_lifetime_seconds         = var.foundation_configuration.sessions.absolute_lifetime_seconds
+      runtime_data_role                 = "roles/datastore.user"
       asynchronous_ttl_is_authorization = false
     }
     signing = {

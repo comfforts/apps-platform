@@ -1092,6 +1092,7 @@ def build_local_integration(
         resolved_project,
         state_root,
         source_authority,
+        arm_executor=False,
     )
     provider = _local_generation_provider(resolved_project, state_root)
     generations = LocalRegistrationGenerationControl(filesystem, provider)
@@ -1106,6 +1107,58 @@ def build_local_integration(
         generation_control=generations if provider is not None else None,
         project_connections=LocalProjectConnectionStore(filesystem),
         terminal=ConsoleTerminal(),
+    )
+
+
+def build_local_application_handoff_check(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+):
+    """Construct the read-only application handoff readiness checker."""
+
+    from infrastructure.operator.application_handoff_check import (
+        ApplicationHandoffCheck,
+    )
+    from infrastructure.operator.local_project_connections import (
+        GcloudApplicationProjectProvider,
+    )
+
+    resolved_project = project_root.resolve()
+    terminal = ConsoleTerminal()
+    executable_name = shutil.which("gcloud")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
+    verified = _verified_gcp_session(
+        ProfileGcp(
+            Path(executable_name).resolve() if executable_name else None,
+            configuration,
+        ),
+        state_root,
+        terminal,
+    )
+    return ApplicationHandoffCheck(
+        build_local_deployment_check(
+            resolved_project,
+            verified.state_root,
+            source_authority,
+        ),
+        build_local_integration(
+            resolved_project,
+            verified.state_root,
+            source_authority,
+        ),
+        GcloudApplicationProjectProvider(
+            verified.executable,
+            verified.configuration,
+            resolved_project,
+            fixtures_project_id(),
+            fixtures_project_name(),
+        ),
     )
 
 

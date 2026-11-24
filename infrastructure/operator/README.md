@@ -27,6 +27,14 @@ make fixture-project-bootstrap \
 make platform-connect-project \
   ENVIRONMENT=staging \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
+make application-handoff-check \
+  ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
+  APPLICATION_ID=fixture-authenticated \
+  ACCESS_MODE=authenticated \
+  ROUTE_INTENT=/fixture-authenticated \
+  PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
+  PLATFORM_GENERATION=1
 make platform-outputs \
   ENVIRONMENT=staging \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
@@ -119,6 +127,14 @@ returns stage-level `pass`, `would-change`, `manual`, `deferred`, or `blocked` r
 interface exposes no apply, provider-action, checkpoint-execution, approval, or lifecycle-state
 write method. `SOURCE_NOT_CLEAN` is omitted; other source-admission findings remain visible but
 non-blocking, and the result grants no operational authority.
+
+`application-handoff-check` reuses that lock-free deployment rehearsal for the Terraform-managed
+platform prerequisites, then reads the named application project, required services, Shared VPC
+and subnet grants, current platform state, and requested access-mode bundle projection. Protected
+applications additionally require the platform issuer, JWKS endpoint, OAuth redirect, OAuth client
+identifier, and application audience. The command publishes no bundle, arms no apply path, and
+writes no operational lifecycle state. Run it immediately before `platform-outputs` with the same
+application-scoped values.
 
 Standalone preparation repeats those checks and remains an optional specification dry run. It
 writes, displays, and approves the complete private specification without an external mutation.

@@ -19,7 +19,7 @@ REGISTRATION_INTENT ?=
 
 export FIXTURES_PROJECT_ID FIXTURES_PROJECT_NAME
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-preflight-check platform-prepare platform-cancel platform-deploy platform-deploy-check platform-status fixture-project-bootstrap platform-connect-project platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-handoff fixture-status fixture-destroy
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-preflight-check platform-prepare platform-cancel platform-deploy platform-deploy-check platform-status fixture-project-bootstrap platform-connect-project application-handoff-check platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-handoff fixture-status fixture-destroy
 
 ## Install pinned Terraform dependencies into the ignored project-local mirror.
 terraform-setup:
@@ -53,7 +53,7 @@ terraform-check:
 
 ## Verify the credential-free interactive lifecycle core with deterministic adapters.
 operator-check:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_source_authority tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_local_deployment_inputs tests.test_local_deployment_commands tests.test_deployment_provider_commands tests.test_deployment_dns tests.test_application_integration tests.test_registration_lifecycle tests.test_integration_cli tests.test_local_integration tests.test_local_handoffs tests.test_local_generation_control tests.test_generation_provider_commands tests.test_project_connections tests.test_fixture_deployment_lifecycle tests.test_local_fixture_deployment tests.test_qualification_lifecycle tests.test_qualification_suite tests.test_local_qualification tests.test_live_qualification_browser tests.test_live_qualification_probe tests.test_qualification_destruction_cli tests.test_generation_rollback tests.test_destruction_specification tests.test_destruction_lifecycle tests.test_local_destruction_control tests.test_local_destruction_commands
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_source_authority tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_local_deployment_inputs tests.test_local_deployment_commands tests.test_deployment_provider_commands tests.test_deployment_dns tests.test_application_integration tests.test_application_handoff_check tests.test_registration_lifecycle tests.test_integration_cli tests.test_local_integration tests.test_local_handoffs tests.test_local_generation_control tests.test_generation_provider_commands tests.test_project_connections tests.test_fixture_deployment_lifecycle tests.test_local_fixture_deployment tests.test_qualification_lifecycle tests.test_qualification_suite tests.test_local_qualification tests.test_live_qualification_browser tests.test_live_qualification_probe tests.test_qualification_destruction_cli tests.test_generation_rollback tests.test_destruction_specification tests.test_destruction_lifecycle tests.test_local_destruction_control tests.test_local_destruction_commands
 
 
 ## Platform management commands.
@@ -93,6 +93,10 @@ fixture-project-bootstrap:
 ## Attach one existing application project to the platform Shared VPC; creates no runtime or route.
 platform-connect-project:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-connect-project --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-project-id "$(APPLICATION_PROJECT_ID)"
+
+## Check platform plans, project connection, services, and access-mode handoff prerequisites without mutation.
+application-handoff-check: terraform-setup
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator application-handoff-check --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)" --application-project-id "$(APPLICATION_PROJECT_ID)" --access-mode "$(ACCESS_MODE)" --route-intent "$(ROUTE_INTENT)" --platform-source-revision "$(PLATFORM_SOURCE_REVISION)" --platform-generation "$(PLATFORM_GENERATION)"
 
 ## Generate one application-scoped non-secret integration bundle.
 platform-outputs:

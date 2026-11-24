@@ -241,6 +241,12 @@ planning possible. It must not approve intent, acquire a state lock, apply a pla
 provider action or manual checkpoint, change operational lifecycle state, or claim that a
 successful read-only rehearsal proves a future mutation will succeed.
 
+Before publishing an application handoff, a compact read-only check must combine the relevant
+platform Terraform rehearsal with fresh application-project, required-service, Shared VPC,
+subnet-permission, bundle-input, and access-mode readback. It must explain whether platform
+reconciliation or application-project repair is required and must not publish a bundle, approve or
+apply a plan, write operational lifecycle state, or mutate a provider resource.
+
 ### AP-QR-008 · Environment isolation
 
 Every Platform Environment must have distinct configuration, state, identities, OAuth client,

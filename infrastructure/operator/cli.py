@@ -13,6 +13,10 @@ from contracts.lifecycle import (
     canonical_lifecycle_bytes,
     load_lifecycle_document,
 )
+from infrastructure.operator.application_handoff_check import (
+    ApplicationHandoffCheck,
+    ApplicationHandoffCheckRequest,
+)
 from infrastructure.operator._core import LifecycleOperator
 from infrastructure.operator.destruction import DestructionLifecycle
 from infrastructure.operator.integration import (
@@ -23,6 +27,7 @@ from infrastructure.operator.integration import (
 )
 from infrastructure.operator.local import (
     LocalFilesystem,
+    build_local_application_handoff_check,
     build_local_destruction,
     build_local_deployment_check,
     build_local_fixture_operator,
@@ -39,6 +44,31 @@ from infrastructure.operator.qualification import QualificationLifecycle
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STATE_DIRECTORY = PROJECT_ROOT / ".platform-operator"
+_HANDOFF_CHECK_GUIDANCE = {
+    "APPLICATION_PROJECT_CONNECTION_MISMATCH": (
+        "the application project is not attached to the exact platform Shared VPC "
+        "and subnet grants; inspect and rerun platform-connect-project"
+    ),
+    "APPLICATION_PROJECT_NOT_FOUND": (
+        "the named application project or its numeric identity could not be read"
+    ),
+    "APPLICATION_PROJECT_SERVICES_INCOMPLETE": (
+        "the application project must enable Cloud Resource Manager, Compute, IAM, "
+        "Cloud Run, and Service Usage before handoff"
+    ),
+    "PLATFORM_DEPLOYMENT_CHECK_INCOMPLETE": (
+        "one of the bootstrap, foundation, or Shared Edge plans could not be checked; "
+        "inspect platform_stages and its diagnostics"
+    ),
+    "PLATFORM_IDENTITY_CONFIGURATION_INCOMPLETE": (
+        "authenticated or restricted handoff requires the platform issuer, JWKS, "
+        "OAuth redirect, client identifier, and application audience"
+    ),
+    "PLATFORM_RECONCILIATION_REQUIRED": (
+        "the current platform Terraform plan would change; review and run "
+        "platform-deploy before publishing the application bundle"
+    ),
+}
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -46,6 +76,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "operation",
         choices=(
+            "application-handoff-check",
             "cancel",
             "deploy",
             "deploy-check",
@@ -147,6 +178,17 @@ def _default_integration_factory(
     source_authority: str,
 ) -> ApplicationIntegrationLifecycle:
     return build_local_integration(PROJECT_ROOT, state_directory, source_authority)
+
+
+def _default_application_handoff_check_factory(
+    state_directory: Path,
+    source_authority: str,
+) -> ApplicationHandoffCheck:
+    return build_local_application_handoff_check(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+    )
 
 
 def _default_qualification_factory(
@@ -261,7 +303,7 @@ def _trace_invocation(
     print(f"  source authority: {arguments.source_authority}", file=sys.stderr)
     if arguments.operation == "preflight":
         print(f"  preflight mode: {arguments.preflight_mode}", file=sys.stderr)
-    if arguments.operation == "deploy-check":
+    if arguments.operation in {"application-handoff-check", "deploy-check"}:
         print("  check mode: working-tree diagnostic", file=sys.stderr)
     print(
         f"  fixture selected: {selected_fixture or 'none'}",
@@ -280,6 +322,9 @@ def _main(
     deployment_check_factory: Callable[
         [Path, str], LifecycleOperator
     ] = _default_deployment_check_factory,
+    application_handoff_check_factory: Callable[
+        [Path, str], ApplicationHandoffCheck
+    ] = _default_application_handoff_check_factory,
     integration_factory: Callable[
         [Path, str], ApplicationIntegrationLifecycle
     ] = _default_integration_factory,
@@ -322,6 +367,21 @@ def _main(
             arguments.state_directory,
             arguments.source_authority,
         )
+    elif arguments.operation == "application-handoff-check":
+        try:
+            handoff_check = application_handoff_check_factory(
+                arguments.state_directory,
+                arguments.source_authority,
+            )
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
     elif arguments.operation in {"detach", "outputs", "register", "retire"}:
         try:
             integration = integration_factory(
@@ -480,6 +540,79 @@ def _main(
             )
             print(file=sys.stderr)
         return 0 if result.outcome == "rehearsed" else 2
+
+    if arguments.operation == "application-handoff-check":
+        result = handoff_check.check(
+            ApplicationHandoffCheckRequest(
+                environment=arguments.environment,
+                application_id=str(_required(arguments, "application_id")),
+                application_project_id=str(
+                    _required(arguments, "application_project_id")
+                ),
+                access_mode=str(_required(arguments, "access_mode")),
+                route_intent=str(_required(arguments, "route_intent")),
+                platform_source_revision=str(
+                    _required(arguments, "platform_source_revision")
+                ),
+                platform_generation=int(
+                    _required(arguments, "platform_generation")
+                ),
+            )
+        )
+        _print(
+            {
+                "access_mode": arguments.access_mode,
+                "application_id": arguments.application_id,
+                "application_project_id": arguments.application_project_id,
+                "blockers": list(result.blockers),
+                "bundle_digest": result.bundle_digest,
+                "checks": [
+                    {"name": name, "outcome": outcome}
+                    for name, outcome in result.checks
+                ],
+                "environment": arguments.environment,
+                "outcome": result.outcome,
+                "platform_stages": [
+                    {
+                        "blockers": list(stage.blockers),
+                        "outcome": stage.outcome,
+                        "plan_digest": stage.plan_digest,
+                        "stage_id": stage_id,
+                        "summary": stage.summary,
+                    }
+                    for stage_id, stage in result.platform_stages
+                ],
+                "ready": result.ready,
+                "source_admission_blockers": list(
+                    result.source_admission_blockers
+                ),
+                "source_authority": arguments.source_authority,
+            }
+        )
+        if result.ready:
+            print(
+                "Application handoff check passed. Platform Terraform state, "
+                "project connection, required application services, bundle "
+                "contract, and access-mode prerequisites are ready.",
+                file=sys.stderr,
+            )
+            print(
+                "No bundle, approval, operational lifecycle record, Terraform "
+                "state, or cloud resource was created or changed; ephemeral "
+                "lock-free plans were deleted.",
+                file=sys.stderr,
+            )
+            print(file=sys.stderr)
+        else:
+            print("Application handoff check is blocked:", file=sys.stderr)
+            for blocker in result.blockers:
+                guidance = _HANDOFF_CHECK_GUIDANCE.get(
+                    blocker,
+                    "inspect the named check, plan stage, and private diagnostic",
+                )
+                print(f"  - {blocker}: {guidance}.", file=sys.stderr)
+            print(file=sys.stderr)
+        return 0 if result.ready else 2
 
     if arguments.operation == "prepare":
         result = operator.prepare(arguments.environment)

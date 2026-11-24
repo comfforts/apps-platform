@@ -416,6 +416,42 @@ class ApplicationProjectLifecycleTest(unittest.TestCase):
 
         self.assertEqual(readback.project_number, "987654321098")
 
+    def test_generic_application_project_readback_includes_enabled_services(
+        self,
+    ) -> None:
+        application_project = "application-project"
+
+        class ReadbackProvider(GcloudApplicationProjectProvider):
+            def _json(self, *arguments: str) -> object | None:
+                if arguments == ("projects", "describe", application_project):
+                    return {"projectNumber": "987654321098"}
+                if arguments == (
+                    "services",
+                    "list",
+                    "--enabled",
+                    f"--project={application_project}",
+                ):
+                    return [
+                        {"config": {"name": "run.googleapis.com"}},
+                        {"config": {"name": "compute.googleapis.com"}},
+                    ]
+                return None
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            readback = ReadbackProvider(
+                root / "gcloud",
+                root / "config",
+                root,
+                FIXTURES_PROJECT_ID,
+                FIXTURES_PROJECT_NAME,
+            ).read_project(application_project)
+
+        self.assertEqual(
+            readback.enabled_services,
+            ("compute.googleapis.com", "run.googleapis.com"),
+        )
+
     def test_fixture_bootstrap_is_explicit_idempotent_and_creates_no_runtime(self) -> None:
         provider = Provider(ApplicationProjectReadback(FIXTURES_PROJECT_ID, False))
         terminal = Terminal()

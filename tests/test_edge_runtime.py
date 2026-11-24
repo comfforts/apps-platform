@@ -1981,6 +1981,55 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertEqual(store.flows[flow_id].expires_at, 10_600)
         self.assertEqual(oidc.authorization_requests[0]["code_verifier"], verifier)
 
+    def test_login_reports_only_the_failed_identity_boundary(self) -> None:
+        configuration, source = configured_generation(
+            protected_generation("authenticated"),
+            external_origin="https://apps-staging.comfforts.com",
+        )
+        store = InMemoryIdentityStore()
+        store.available = False
+        oidc = FakeGoogleOidc(
+            PlatformIdentity("https://accounts.google.com", "visitor-1")
+        )
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                google_oidc=oidc,
+                identity_store=store,
+                clock=FixedClock(10_000),
+                token_source=FixedTokenSource(
+                    [
+                        "flow-id-01234567890123456789",
+                        "state-01234567890123456789012",
+                        "nonce-01234567890123456789012",
+                        "verifier-012345678901234567890123456789012345",
+                    ]
+                ),
+            ),
+        )
+
+        with self.assertLogs(
+            "comfforts.shared_edge.identity", level="WARNING"
+        ) as captured:
+            _, (status, _, body) = asyncio.run(
+                request_during_lifespan(
+                    app,
+                    "/_platform/login",
+                    query_string=b"return_to=%2Falpha",
+                )
+            )
+
+        self.assertEqual((status, body), (503, b"identity unavailable\n"))
+        self.assertEqual(
+            captured.output,
+            [
+                "WARNING:comfforts.shared_edge.identity:"
+                "IDENTITY_STORE_LOGIN_FLOW_WRITE_FAILED"
+            ],
+        )
+        self.assertEqual(oidc.authorization_requests, [])
+
     def test_callback_creates_absolute_session_and_authenticated_handoff(self) -> None:
         configuration, source = configured_generation(
             protected_generation("authenticated"),
@@ -2235,13 +2284,23 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
             return_to="/alpha",
             expires_at=2_000,
         )
-        _, (provider_status, _, provider_body) = asyncio.run(
-            request_during_lifespan(
-                app,
-                "/_platform/auth/callback",
-                query_string=b"state=expected-state-0123456789012&code=provider-code",
-                headers=((b"cookie", f"__Host-comfforts-oidc={flow_id}".encode()),),
+        with self.assertLogs(
+            "comfforts.shared_edge.identity", level="WARNING"
+        ) as captured:
+            _, (provider_status, _, provider_body) = asyncio.run(
+                request_during_lifespan(
+                    app,
+                    "/_platform/auth/callback",
+                    query_string=b"state=expected-state-0123456789012&code=provider-code",
+                    headers=((b"cookie", f"__Host-comfforts-oidc={flow_id}".encode()),),
+                )
             )
+        self.assertEqual(
+            captured.output,
+            [
+                "WARNING:comfforts.shared_edge.identity:"
+                "IDENTITY_PROVIDER_CALLBACK_FAILED"
+            ],
         )
         store.available = False
         _, (store_status, _, store_body) = asyncio.run(

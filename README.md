@@ -131,7 +131,7 @@ Platform Operator
     v
 Shared Edge + identity + DNS/TLS intent
     |
-    | platform-outputs
+    | application-handoff-check -> platform-outputs
     v
 Platform Integration Bundle
     |
@@ -145,9 +145,12 @@ platform-register -> immutable Registration Generation -> routed application
 ```
 
 That is the contract sequence for every application, including repository-owned fixtures. The
-platform first connects the application project, then `platform-outputs` creates one project- and
-application-scoped Platform Integration Bundle. The application deployment consumes that bundle
-and returns an Application Attachment Bundle. Only `platform-register` can activate the route.
+platform first connects the application project. `application-handoff-check` then performs a
+read-only rehearsal of the platform Terraform boundaries and verifies the application project's
+required services, Shared VPC connection, bundle inputs, and access-mode prerequisites.
+`platform-outputs` creates the project- and application-scoped Platform Integration Bundle only
+after those checks are ready. The application deployment consumes that bundle and returns an
+Application Attachment Bundle. Only `platform-register` can activate the route.
 
 For fixtures, `fixture-handoff` is the application-owned middle of that sequence. It builds and
 deploys one selected fixture in the dedicated fixture project, validates its live target, writes
@@ -397,6 +400,15 @@ public fixture; use the corresponding application ID, admission mode, and route 
 ```bash
 make platform-status ENVIRONMENT=staging
 
+make application-handoff-check \
+  ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
+  APPLICATION_ID=fixture-public \
+  ACCESS_MODE=public \
+  ROUTE_INTENT=/fixture-public \
+  PLATFORM_SOURCE_REVISION=<active-platform-revision> \
+  PLATFORM_GENERATION=<active-registration-generation>
+
 make platform-outputs \
   ENVIRONMENT=staging \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
@@ -522,7 +534,8 @@ make fixture-project-bootstrap ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
 make platform-deploy ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-connect-project ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
-# For each fixture: platform-outputs, fixture-handoff, inspect, then platform-register.
+# For each fixture: application-handoff-check, platform-outputs, fixture-handoff,
+# inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 ```
@@ -546,6 +559,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-status ENVIRONMENT=<name>` | Report checkout, recorded deployment, active runtime, execution, and qualification state without mutation |
 | `make fixture-project-bootstrap ENVIRONMENT=staging FIXTURES_PROJECT_ID=<project-id> FIXTURES_PROJECT_NAME="<display-name>"` | Idempotently create or repair the selected fixture application project, state bucket, and image repository; read back its provider-assigned project number; create no runtime or route |
 | `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |
+| `make application-handoff-check ...` | Read platform Terraform plans and provider state, then verify the application project, required services, Shared VPC grants, bundle inputs, and access-mode prerequisites without publishing a bundle or mutating state |
 | `make platform-outputs ...` | Generate one application- and project-scoped Platform Integration Bundle from a verified project connection |
 | `make platform-register ...` | Validate an application attachment and activate a complete immutable generation |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |
@@ -586,6 +600,15 @@ make platform-connect-project \
   ENVIRONMENT=staging \
   APPLICATION_PROJECT_ID=<application-project-id>
 
+make application-handoff-check \
+  ENVIRONMENT=staging \
+  APPLICATION_PROJECT_ID=<application-project-id> \
+  APPLICATION_ID=<application-id> \
+  ACCESS_MODE=<public|authenticated|restricted> \
+  ROUTE_INTENT=/<route> \
+  PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
+  PLATFORM_GENERATION=<positive-integer>
+
 make platform-outputs \
   ENVIRONMENT=staging \
   APPLICATION_PROJECT_ID=<application-project-id> \
@@ -611,7 +634,9 @@ make platform-status ENVIRONMENT=staging
 `platform-connect-project` does not create or manage the application's runtime, state bucket,
 image repository, data, or route. There is no App Platform Make target for deploying a real application's runtime. That operation is
 intentionally supplied and authorized by the application's own repository. Apps Platform owns the
-project connection and the two surrounding commands: `platform-outputs` creates the application-specific handoff, and
+project connection and the surrounding checks and commands: `application-handoff-check` verifies
+that the currently deployed platform and connected project can support the requested admission
+mode, `platform-outputs` creates the application-specific handoff, and
 `platform-register` validates the returned attachment and activates the new complete Registration
 Generation.
 

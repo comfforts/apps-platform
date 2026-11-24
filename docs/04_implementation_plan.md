@@ -1638,7 +1638,7 @@ the existing Finance-owned production deployment.
 The normal operator interface is:
 
 ```text
-platform-prepare  platform-deploy  platform-status  platform-outputs
+platform-prepare  platform-deploy  platform-status  application-handoff-check  platform-outputs
 platform-register platform-detach  platform-retire platform-qualify platform-destroy
 fixture-project-bootstrap platform-connect-project fixture-handoff fixture-status fixture-destroy
 ```
@@ -1831,6 +1831,12 @@ and plan-policy checks while skipping `SOURCE_NOT_CLEAN` and treating other sour
 diagnostics. The deployment check uses
 lock-free ephemeral plans and cannot approve, apply, execute an action or checkpoint, write
 operational lifecycle state, or become deployment or qualification evidence.
+
+W9 also exposes `application-handoff-check` as the read-only gate immediately before bundle
+publication. It combines the relevant Terraform rehearsal with fresh application-project service,
+Shared VPC, subnet-permission, platform-state, bundle-input, and access-mode readback. It reports
+platform reconciliation separately from application-project repair and cannot publish a bundle,
+approve or apply a plan, mutate a provider resource, or write operational lifecycle state.
 
 W9 finally simplifies the repository implementation without changing the operator command
 sequence: it replaces the generic stage graph and append-only journal chain with one fixed readable

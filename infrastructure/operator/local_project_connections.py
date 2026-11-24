@@ -387,6 +387,7 @@ class GcloudApplicationProjectProvider:
                 "describe",
                 f"gs://{self._fixture_state_bucket}",
                 f"--project={project_id}",
+                "--raw",
             )
         host = self._json("compute", "shared-vpc", "get-host-project", project_id)
         host_project = None

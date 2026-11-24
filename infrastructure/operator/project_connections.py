@@ -106,17 +106,31 @@ class ApplicationProjectLifecycle:
         )
 
     @staticmethod
-    def _bootstrap_ready(readback: ApplicationProjectReadback) -> bool:
-        return (
-            readback.exists
-            and readback.project_number is not None
-            and readback.parent is not None
-            and readback.billing_account_reference is not None
-            and readback.fixture_ownership_matches
-            and _REQUIRED_SERVICES.issubset(readback.enabled_services)
-            and readback.state_bucket_ready
-            and readback.artifact_repository_ready
-        )
+    def _bootstrap_blockers(
+        readback: ApplicationProjectReadback,
+    ) -> tuple[str, ...]:
+        blockers: list[str] = []
+        if not readback.exists:
+            blockers.append("FIXTURE_PROJECT_NOT_FOUND")
+        if readback.project_number is None:
+            blockers.append("FIXTURE_PROJECT_NUMBER_UNAVAILABLE")
+        if readback.parent is None:
+            blockers.append("FIXTURE_PROJECT_PARENT_UNAVAILABLE")
+        if readback.billing_account_reference is None:
+            blockers.append("FIXTURE_PROJECT_BILLING_UNAVAILABLE")
+        if not readback.fixture_ownership_matches:
+            blockers.append("FIXTURE_PROJECT_OWNERSHIP_MISMATCH")
+        if not _REQUIRED_SERVICES.issubset(readback.enabled_services):
+            blockers.append("FIXTURE_PROJECT_SERVICES_INCOMPLETE")
+        if not readback.state_bucket_ready:
+            blockers.append("FIXTURE_STATE_BUCKET_READBACK_MISMATCH")
+        if not readback.artifact_repository_ready:
+            blockers.append("FIXTURE_ARTIFACT_REPOSITORY_READBACK_MISMATCH")
+        return tuple(blockers)
+
+    @classmethod
+    def _bootstrap_ready(cls, readback: ApplicationProjectReadback) -> bool:
+        return not cls._bootstrap_blockers(readback)
 
     def bootstrap_fixture(
         self,
@@ -187,9 +201,12 @@ class ApplicationProjectLifecycle:
                 before.project_number,
                 blockers=(str(error) or "FIXTURE_PROJECT_BOOTSTRAP_FAILED",),
             )
-        if not self._bootstrap_ready(after):
+        readback_blockers = self._bootstrap_blockers(after)
+        if readback_blockers:
             return self._result(
-                "failed", after, blockers=("FIXTURE_PROJECT_READBACK_MISMATCH",)
+                "failed",
+                after,
+                blockers=readback_blockers,
             )
         self._terminal.write(
             "Fixture project bootstrap completed. The project is ready for an "

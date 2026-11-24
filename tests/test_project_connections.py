@@ -267,6 +267,85 @@ class ApplicationProjectLifecycleTest(unittest.TestCase):
             )
         )
 
+    def test_fixture_bucket_readback_requests_raw_provider_metadata(self) -> None:
+        class RecordingProvider(GcloudApplicationProjectProvider):
+            def __init__(self, root: Path) -> None:
+                super().__init__(
+                    root / "gcloud",
+                    root / "config",
+                    root,
+                    FIXTURES_PROJECT_ID,
+                    FIXTURES_PROJECT_NAME,
+                )
+                self.reads: list[tuple[str, ...]] = []
+
+            def _json(self, *arguments: str) -> object | None:
+                self.reads.append(arguments)
+                if arguments == ("projects", "describe", FIXTURES_PROJECT_ID):
+                    return {
+                        "projectNumber": "123456789012",
+                        "parent": {"type": "organization", "id": "123"},
+                    }
+                if arguments == ("projects", "describe", PLATFORM_PROJECT_ID):
+                    return {"parent": {"type": "organization", "id": "123"}}
+                if arguments[:3] == ("billing", "projects", "describe"):
+                    return {
+                        "billingAccountName": "billingAccounts/ABCDEF-ABCDEF-ABCDEF"
+                    }
+                return None
+
+        with tempfile.TemporaryDirectory() as directory:
+            provider = RecordingProvider(Path(directory))
+            provider.read_project(FIXTURES_PROJECT_ID)
+
+        bucket_read = next(
+            arguments
+            for arguments in provider.reads
+            if arguments[:3] == ("storage", "buckets", "describe")
+        )
+        self.assertIn("--raw", bucket_read)
+
+    def test_fixture_bootstrap_reports_the_exact_readback_mismatch(self) -> None:
+        services = (
+            "artifactregistry.googleapis.com",
+            "cloudbuild.googleapis.com",
+            "cloudresourcemanager.googleapis.com",
+            "compute.googleapis.com",
+            "iam.googleapis.com",
+            "run.googleapis.com",
+            "serviceusage.googleapis.com",
+            "storage.googleapis.com",
+        )
+
+        class StaleBucketProvider(Provider):
+            def bootstrap_fixture_project(self, project_id: str) -> None:
+                self.bootstraps += 1
+
+        provider = StaleBucketProvider(
+            ApplicationProjectReadback(
+                FIXTURES_PROJECT_ID,
+                True,
+                "123456789012",
+                "organization/123456789",
+                "billingAccounts/AAAAAA-BBBBBB-CCCCCC",
+                services,
+                False,
+                True,
+                fixture_ownership_matches=True,
+            )
+        )
+        result = ApplicationProjectLifecycle(
+            provider,
+            Store(),
+            Terminal(),
+        ).bootstrap_fixture("staging", FIXTURES_PROJECT_ID)
+
+        self.assertEqual(result.outcome, "failed")
+        self.assertEqual(
+            result.blockers,
+            ("FIXTURE_STATE_BUCKET_READBACK_MISMATCH",),
+        )
+
     def test_fixture_image_repository_requires_immutable_tags(self) -> None:
         repository = {
             "name": (

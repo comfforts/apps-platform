@@ -1,7 +1,7 @@
 # App Platform repository layout
 
-Version 2.5 | Status: canonical dedicated repository; AP-M9-W9 fixture lifecycle implemented and
-candidate-qualified; AP-M9-W10 Accepted Source operation is next
+Version 2.7 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
+ADR-015 accepted and AP-M9-W10 implementation is next
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -13,8 +13,9 @@ permission to create a resource or perform an external action.
 | `AGENTS.md` | engineering workflow, authority routing, and safety rules |
 | `.github/workflows/` | credential-free repository checks |
 | `README.md`, `GLOSSARY.md` | product entry point and canonical vocabulary |
-| `docs/` | current requirements, decisions, design, plans, evaluation, and runbooks |
+| `docs/` | current requirements, decisions, design, plan compatibility routing, evaluation, and runbooks |
 | `docs/adr/` | canonical architecture-decision index and individual decision records |
+| `docs/plans/` | canonical implementation-plan index, consolidated origin plan, and extracted active delivery plans |
 | `docs/history/` | superseded delivery records with no action authority |
 | `prompts/` | bounded next-task entry points subordinate to current documents |
 | `contracts/` | Version 1 public schemas, compiler, vectors, and bounded loading |

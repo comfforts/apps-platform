@@ -4,6 +4,13 @@ Use this runbook to deploy, inspect, qualify, and remove one App Platform enviro
 environment is one isolated staging or production deployment with its own hostname, cloud project,
 state, identity, OAuth client, DNS and TLS resources, application registrations, and evidence.
 
+> **Identity-model transition:** The commands below currently implement the predecessor model in
+> which restricted members are registration inputs. The accepted target instead uses one
+> environment-wide platform member directory and an explicit identity-delivery choice. That target
+> is not operational yet. Until the implementation lands, use this runbook only to understand or
+> diagnose the current deployment; do not treat a new run as acceptance of the target identity
+> model.
+
 | Environment | Intended hostname | Current operating boundary |
 | --- | --- | --- |
 | `staging` | `apps-staging.comfforts.com` | Available for platform and synthetic fixture operation |
@@ -51,7 +58,7 @@ or otherwise rewrite that record.
 
 ## Normal staging lifecycle
 
-The normal accepted staging journey is:
+The currently implemented predecessor staging journey is:
 
 ```bash
 make fixture-project-bootstrap ENVIRONMENT=staging \

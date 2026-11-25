@@ -1,13 +1,13 @@
 # ADR-003 · Platform admission does not grant application feature access
 
-Status: Accepted; admission membership and identity-delivery clauses are under review for reserved
-ADR-015
+Status: Accepted; admission membership and identity-delivery clauses amended by ADR-015
 
 Requirements: AP-PR-004, AP-PR-005, AP-PR-006, AP-PR-008, AP-QR-002
 
 This record is extracted from the
-[origin architecture decision record](000-origin-architecture-decision-records.md). Until ADR-015
-is recorded and accepted, the decision below remains current.
+[origin architecture decision record](000-origin-architecture-decision-records.md). ADR-015 is
+authoritative where the original decision placed membership in one registration or made public
+identity delivery implicit; the remaining decision stays accepted.
 
 ## Context
 
@@ -21,21 +21,26 @@ platform responsible for product-specific provider plans, rights, and authorizat
 The Shared Edge makes an Admission Decision using the Admission Mode in the Application
 Registration:
 
-- **Public:** a request may reach the application without authentication; verified identity context
-  is not guaranteed.
+- **Public:** a request may reach the application without authentication. Identity Delivery is
+  explicitly `none` or `optional`; an ambient Platform Session alone does not authorize delivery.
 - **Authenticated:** any identity successfully authenticated by the configured identity boundary may
-  reach the application.
-- **Restricted:** only an authenticated identity included by the registration's admission policy may
-  reach the application. Owner-only access is one restricted policy configuration.
+  reach the application, and verified identity delivery is required.
+- **Restricted:** only an authenticated identity with an active entry in the environment's Platform
+  Member Directory may reach the application, and verified identity delivery is required.
+
+Restricted membership is platform-wide operational data governed by ADR-015, not an application
+Feature Entitlement or a member set stored in an Application Registration. An environment with only
+the Platform Owner enrolled produces owner-only restricted access across that environment.
 
 Catalogue visibility is separate from Admission Mode. Being listed does not grant admission, and
 being admitted does not grant a Feature Entitlement.
 
-When authentication occurs, the platform supplies minimal Verified Identity Context through a
-versioned, verifiable contract. An application derives its own immutable Application Principal from
-the verified issuer and subject. Email addresses are display or contact attributes and must not be
-used as application resource-ownership keys. Anonymous requests, forwarded user input, and unsigned
-or unverified identity headers are not verified identity context.
+When the registration permits or requires identity delivery and authentication succeeds, the
+platform supplies minimal Verified Identity Context through a versioned, verifiable contract. An
+application derives its own immutable Application Principal from the verified issuer and subject.
+Email addresses are display or contact attributes and must not be used as membership,
+application-resource-ownership, or account-linking keys. Anonymous requests, forwarded user input,
+and unsigned or unverified identity headers are not verified identity context.
 
 The Application Owner defines and enforces every Feature Entitlement, including provider-plan and
 data-display restrictions. The platform neither interprets those entitlements nor maintains a
@@ -67,7 +72,8 @@ and application-principal derivation contract remain system-design and contract 
 - Fixture qualification must distinguish public, authenticated, and restricted admission.
 - A fixture must prove that an admitted identity can use an unrestricted feature while the fixture
   application denies that identity a market-data-style Feature Entitlement.
-- Anonymous access to a public application cannot imply an Application Principal.
+- Anonymous access to a public application cannot imply an Application Principal; optional
+  Platform Identity requires an explicit registration policy and a valid Platform Session.
 - Applications must implement their own principal mapping, data isolation, feature authorization,
   and entitlement revocation.
 - Expanding Finance Assistant from owner-only admission remains a future Finance Assistant change;

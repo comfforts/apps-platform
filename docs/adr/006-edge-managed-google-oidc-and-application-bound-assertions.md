@@ -1,14 +1,14 @@
 # ADR-006 · Use edge-managed Google OIDC and application-bound ES256 assertions
 
-Status: Accepted; admission membership and identity-delivery clauses are under review for reserved
-ADR-015
+Status: Accepted; admission membership and identity-delivery clauses amended by ADR-015
 
 Requirements: AP-PR-004, AP-PR-005, AP-PR-006, AP-PR-008, AP-QR-002, AP-QR-004,
 AP-QR-005, AP-QR-006
 
 This record is extracted from the
-[origin architecture decision record](000-origin-architecture-decision-records.md). Until ADR-015
-is recorded and accepted, the decision below remains current.
+[origin architecture decision record](000-origin-architecture-decision-records.md). ADR-015 is
+authoritative for Platform Member Directory admission and explicit public identity delivery; the
+remaining trust, session, assertion, signing, and verification decisions stay accepted.
 
 ## Context
 
@@ -38,12 +38,13 @@ platform stores no Google access token or refresh token because it does not call
 Visitor's behalf. OAuth client secrets and transient verification material remain outside Git and
 Terraform state.
 
-A valid Platform Session may supply optional identity to a public route; absence of a session never
-prevents public admission and never invents an identity. Authenticated and restricted routes
-require a valid session. Restricted membership remains reviewed Registration Set configuration and
-matches the exact Google issuer-and-subject pair. Email may be retained only as a display attribute
-in the session boundary; it is not an admission key, assertion claim, Application Principal, or
-resource-ownership key.
+A public registration receives no Platform Identity by default. It may explicitly select optional
+identity delivery; only then may a valid Platform Session produce an assertion, while absence of a
+session never prevents public admission or invents an identity. Authenticated and restricted routes
+require identity delivery and a valid session. Restricted admission additionally performs a current
+exact issuer-and-subject lookup in the environment's Platform Member Directory. Email may be
+retained only as transient display metadata at the session or enrollment boundary; it is not an
+admission key, membership key, assertion claim, Application Principal, or resource-ownership key.
 
 Logout is a platform-reserved operation reachable from the root hostname and from application
 paths. It deletes the server-side Platform Session, clears the cookie, and returns only to a
@@ -99,8 +100,9 @@ and qualified.
   Adoption explicitly replaces or isolates it.
 - A compromise of the environment signer affects every application in that environment, while
   application-specific audiences limit assertion reuse rather than signer blast radius.
-- Firestore session availability and KMS/JWKS availability become protected-admission dependencies
-  and must fail closed without blocking anonymous use of a public route.
+- Firestore session availability, Platform Member Directory availability for restricted routes,
+  and KMS/JWKS availability become protected-admission dependencies. They fail closed at their
+  dependency boundary without blocking anonymous use of a public route.
 - Cloud Run IAM caller authentication remains mandatory and separate from Visitor assertions.
 - This decision selects the trust profile only. It creates no OAuth client, session database, key,
   secret, IAM binding, runtime, or Live evidence.

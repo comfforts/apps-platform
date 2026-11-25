@@ -61,17 +61,27 @@ closed without exposing another application or an internal endpoint.
 
 ### AP-PR-004 · Application admission
 
-An Application Registration must declare an Admission Mode capable of representing public access,
-access for any successfully authenticated identity, and access restricted to an explicitly managed
-set. Owner-only access is a restricted policy, not a separate application type. The Shared Edge must
-apply the declared admission policy before forwarding a request to a protected application.
+An Application Registration must declare an Admission Mode and explicit Identity Delivery policy.
+Public access permits anonymous requests and allows either no Platform Identity delivery or
+optional delivery after a visitor chooses platform login. Authenticated access requires any valid
+Platform Identity. Restricted access requires both a valid Platform Identity and an active entry in
+the selected environment's platform-wide Platform Member Directory. The Shared Edge must apply the
+declared admission policy before forwarding a request to a protected application.
+
+Membership is Platform operational data, not per-application registration configuration. An
+environment containing only the explicitly enrolled Platform Owner is owner-only for every
+restricted route. Google OAuth test-user eligibility, application users, and application Feature
+Entitlements are separate controls and cannot become platform membership implicitly.
 
 ### AP-PR-005 · Verified identity context
 
-When admission depends on authentication, the platform must provide the application with verified,
-stable issuer-and-subject identity context through a versioned contract. Anonymous requests and
-unsigned or unverified identity claims must never be treated as authenticated. Applications remain
-responsible for deriving their own immutable principals and for isolating application-owned data.
+When Identity Delivery is optional or required and a valid Platform Identity exists, the platform
+must provide the application with verified, stable issuer-and-subject identity context through a
+versioned, application-audience-bound contract. It may include only the current visitor's positive,
+minimal membership context; it must never expose the directory or another member. Anonymous
+requests, ambient sessions on a public `none` registration, and unsigned or unverified identity
+claims must never be treated as authenticated. Applications remain responsible for deriving their
+own immutable principals and for isolating application-owned data.
 
 ### AP-PR-006 · Application-owned feature authorization
 
@@ -91,9 +101,9 @@ resources implicitly.
 
 Platform behavior must be implementable and qualifiable with deterministic Fixture Applications
 before any real application migration. Fixtures must exercise catalogue navigation, route
-isolation, public and authenticated admission, restricted admission, verified identity delivery,
-application-owned feature denial, unmatched paths, and lifecycle changes without paid providers or
-production application data.
+isolation, public access with no identity and optional identity, authenticated admission,
+restricted member allow/deny, verified identity delivery, application-owned feature denial,
+unmatched paths, and lifecycle changes without paid providers or production application data.
 
 The first staging qualification must deploy the public, authenticated, and restricted fixtures
 through separate Application State, exchange the same versioned bundles required of a real
@@ -103,6 +113,10 @@ staging qualification. Provider-backed fixtures must run in an application proje
 the platform project and use the same explicit Shared VPC project connection, internal ingress,
 edge-caller IAM, project-scoped bundle, and registration boundaries required by an independently
 owned GCP application. A same-project fixture cannot qualify cross-project application attachment.
+Staging qualification must explicitly bootstrap the initial owner after platform deployment,
+exercise another member's addition, suspension or removal, and reactivation, prove directory
+failure closes restricted admission without changing public or authenticated policy, and restore
+the reviewed member baseline before completion.
 
 ### AP-PR-009 · Explicit application adoption
 
@@ -126,6 +140,12 @@ The lifecycle must keep non-production and production configuration, state, iden
 evidence, and approvals independent. Production preparation must stop when an existing resource has
 another owner; it must never import, replace, or claim that resource implicitly.
 
+Platform deployment may create the Platform Member Directory infrastructure but must not create a
+member. Initial Platform Owner enrollment and later member status, add, suspend, reactivate, and
+remove operations are separate explicit environment-scoped lifecycles with verified identity,
+confirmation, idempotency, and remote readback. A missing local operator cache must never authorize
+owner rebootstrap over a non-empty remote directory.
+
 For an ordinary reversible staging creation or update, the owner's deliberate invocation of the
 named lifecycle command selects the operation, and the same process reviews and confirms the exact
 specification and plans; no separate out-of-band approval is required. Destruction, purge,
@@ -142,12 +162,13 @@ than promoting candidate evidence.
 
 ### AP-PR-011 · Versioned platform and application handoff
 
-The platform must generate a versioned, digest-bound Platform Integration Bundle containing only
-the non-secret environment and identity values a named application needs to deploy an eligible
-attachment. The Application Owner retains deployment authority and returns a versioned Application
-Attachment Bundle identifying the application-owned target and the exact Platform Integration
-Bundle it consumed. The platform must validate the bundle and provider posture before a complete
-Registration Generation may route traffic to the attachment.
+The platform must generate a versioned, digest-bound Platform Integration Bundle containing the
+explicit Admission Mode and Identity Delivery policy plus only the non-secret environment and
+identity values a named application needs to deploy an eligible attachment. The Application Owner
+retains deployment authority and returns a versioned Application Attachment Bundle identifying the
+application-owned target and the exact Platform Integration Bundle it consumed. The platform must
+validate the bundle and provider posture before a complete Registration Generation may route
+traffic to the attachment.
 
 The operator must be able to inspect the exact canonical Platform Integration Bundle and
 Application Attachment Bundle before registration. A repository-owned Fixture Application may
@@ -155,9 +176,9 @@ reuse that prepared pair only while its environment, application, source authori
 source, platform source and generation, bundle digests, immutable image, and provider posture still
 match; inspection never authorizes registration by itself.
 
-An integration bundle must never contain an OAuth client secret, credential payload, Terraform
-state, application provider key, or a platform secret reference that the application is not
-authorized to consume.
+An integration bundle must never contain a Platform Member Directory entry or list, OAuth client
+secret, credential payload, Terraform state, application provider key, or a platform secret
+reference that the application is not authorized to consume.
 
 ### AP-PR-012 · Reversible attachment and terminal retirement
 
@@ -271,6 +292,9 @@ provider-verified.
   data merely because it routes an application.
 - Identity context contains only the fields required by the approved identity contract; it is not a
   shared user profile or a cross-application principal.
+- Platform membership contains only the stable identity key and lifecycle data needed for
+  environment-wide restricted admission; it is not an application user, role, or entitlement
+  database.
 - Provider credentials, plans, use rights, display rights, caching rights, retention rights, and
   spending limits remain application-owned.
 - Catalogue and registration metadata must be safe to expose at their declared visibility and must

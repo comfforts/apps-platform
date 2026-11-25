@@ -21,7 +21,7 @@ The product is designed for two isolated environments:
 | --- | --- |
 | Shared hostname edge, address, load balancing, and TLS | Application runtime and ingress-compatible attachment |
 | Root catalogue and application route reservations | Application data, stores, queues, and providers |
-| Google OAuth client, platform sessions, and assertion signing | Application principals and feature entitlements |
+| Google OAuth client, platform sessions, Platform Member Directory, and assertion signing | Application users, principals, account linking, and feature entitlements |
 | Admission before a request reaches an application | Authorization after the application receives a request |
 | Registration Generations and platform configuration | Application releases and Application State |
 | Platform Integration Bundles | Application Attachment Bundles |
@@ -42,30 +42,43 @@ Admission mode decides who may reach the application through the Shared Edge:
 
 | Mode | Who can reach the application | Identity delivered to the application |
 | --- | --- | --- |
-| `public` | Anonymous visitors; authentication is not required | None for an anonymous visitor; verified identity may be supplied when a valid Platform Session exists |
-| `authenticated` | Any identity successfully authenticated by the configured platform identity provider | A short-lived, signed assertion scoped to that application |
-| `restricted` | Only authenticated identities in the registration's exact issuer-and-subject membership | The same application-scoped signed assertion after membership succeeds |
+| `public` | Anonymous visitors; authentication is not required | Explicitly `none` or `optional`; optional delivery occurs only after the visitor chooses platform login and has a valid Platform Session |
+| `authenticated` | Any identity successfully authenticated by the configured platform identity provider | Required short-lived signed assertion scoped to that application |
+| `restricted` | Only authenticated identities with an active entry in the environment's Platform Member Directory | Required application-scoped signed assertion after current membership succeeds |
 
 `public` describes only the platform's admission decision. A public application may remain fully
 anonymous, or its Application Owner may add application-owned authentication, including a separate
 OAuth client. That authentication, its client and secret, its sessions, and the resulting
 application identity remain outside platform ownership. Adding it does not change the registration
 to `authenticated` and does not turn an application-issued identity into Verified Identity Context.
-If the application instead consumes the optional platform identity available for a visitor with a
-valid Platform Session, it must verify that platform assertion by the same rules described below.
+If the application instead declares optional Platform Identity, it may offer the platform login
+flow and must verify the resulting assertion by the same rules described below. An unrelated
+ambient Platform Session does not override an Identity Delivery policy of `none`.
 
 Applications registered as `authenticated` or `restricted` rely on platform admission for their
 platform-route visitor identity. After admission, each application must independently verify the
 platform assertion's signature, issuer, application-specific audience, time bounds, and contract
 version before deriving an Application Principal. It receives neither the platform OAuth client
 secret nor the identity provider's original token. A `restricted` application additionally
-benefits from the Shared Edge's exact issuer-and-subject membership check, but still performs the
+benefits from the Shared Edge's current Platform Member Directory lookup, but still performs the
 same assertion verification as an `authenticated` application.
 
-Owner-only access is a `restricted` registration containing only the owner's immutable identity.
-Email is not a membership or ownership key. Admission decides whether a request may reach the
-application; the application still decides its own principals, data access, roles, provider rights,
-and feature entitlements.
+Membership is platform-wide within one environment, not a member list in each registration. An
+environment with only its explicitly enrolled Platform Owner is owner-only for every restricted
+route. Email is not a membership or ownership key. Admission decides whether a request may reach
+the application; the application still decides its own users, principals, data access, roles,
+provider rights, and feature entitlements.
+
+Platform deployment creates the directory infrastructure but does not enroll the active Cloud
+Operator automatically. The Platform Owner is enrolled through a separate confirmed operation, and
+later membership changes do not redeploy an application or activate a Registration Generation.
+Only the current visitor's minimal signed context may cross an application boundary; the directory
+and other members never do.
+
+> **Implementation status:** ADR-015 accepts this model, but AP-M9-W10 must still implement and
+> candidate-qualify the Version 2 contracts, member directory, owner enrollment, member lifecycle,
+> and fixture behavior. The deployed W9 candidate and Version 1 contracts remain predecessor
+> evidence and are not Accepted Source qualification for this model.
 
 ### Catalogue visibility
 
@@ -113,9 +126,9 @@ The included fixture suite demonstrates the three admission modes:
 
 | Fixture | Admission | Catalogue | What it demonstrates |
 | --- | --- | --- | --- |
-| `fixture-public` | Public | Listed | Anonymous routing, subpaths, attachment mounts, and forwarding |
+| `fixture-public` | Public | Listed | Anonymous routing plus explicit no-identity and optional-Platform-Identity behavior |
 | `fixture-authenticated` | Authenticated | Unlisted | Platform login, verified identity delivery, and application assertion verification |
-| `fixture-restricted` | Restricted | Listed | Exact membership admission while application-owned feature authorization remains separate |
+| `fixture-restricted` | Restricted | Listed | Platform-wide member allow/deny while application-owned feature authorization remains separate |
 
 These fixtures are qualification assets, not templates that force a real application into the same
 visibility or product behavior. All initial provider-backed attachments use the same Cloud Run
@@ -688,6 +701,7 @@ and task-specific reading router.
 Useful deeper references are:
 
 - [system design](docs/03_system_design.md) for architecture and ownership;
+- [implementation plan index](docs/plans/README.md) for delivery status and the current W10 plan;
 - [contract index](contracts/README.md) for public machine interfaces and compatibility;
 - [threat model](docs/06_threat_model.md) for trust boundaries and required evidence;
 - [repository layout](docs/repository_layout.md) for capability placement;
@@ -703,12 +717,13 @@ environment is deployed or qualified.
 
 ## Operational readiness
 
-AP-M9-W9 is implemented and candidate-qualified. Candidate staging proved the dedicated fixture
-project, Shared VPC attachment, all three admission modes, separate registration, and the
-restricted-fixture detach, destruction, redeployment, and reactivation lifecycle. Candidate Source
-is not Accepted Source qualification. AP-M9-W10 begins only after the W9 pull request merges and
-owns deployment and qualification from clean protected `main`; production remains blocked on
-explicit ownership transfer and application adoption.
+AP-M9-W9 is implemented and candidate-qualified under the predecessor Version 1 membership model.
+Candidate staging proved the dedicated fixture project, Shared VPC attachment, all three admission
+modes, separate registration, and the restricted-fixture detach, destruction, redeployment, and
+reactivation lifecycle. Candidate Source is not Accepted Source qualification. ADR-015 now requires
+AP-M9-W10 to implement and candidate-qualify the Platform Member Directory and explicit Identity
+Delivery before the first Accepted Source staging operation. Production remains blocked on that
+accepted result, explicit ownership transfer, and application adoption.
 
 See [the documentation index](docs/README.md) for the current work-package sequence, evidence
 boundary, and historical delivery record.

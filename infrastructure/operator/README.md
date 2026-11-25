@@ -1,6 +1,7 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W9 implemented and candidate-qualified; AP-M9-W10 Accepted Source staging operation is next
+Status: AP-M9-W9 Version 1 lifecycle implemented and candidate-qualified; AP-M9-W10 Platform Member
+Directory and explicit Identity Delivery implementation is next
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -8,6 +9,9 @@ uses an immutable `StageContext` and an injected `DeploymentExecutor`, so determ
 fakes and the non-fake command boundary exercise the same orchestration interface.
 
 ## Implemented commands
+
+These commands implement the Version 1 predecessor identity model. Their candidate evidence is
+truthful for that model but cannot qualify the accepted Platform Member Directory decision.
 
 The deploy target populates or verifies the checksum-bound local toolchain automatically. The
 operator must already have an active `gcloud` login, user Application Default Credentials, and the
@@ -113,6 +117,21 @@ Neither stream includes tokens, secret values, raw provider payloads, Terraform 
 plans.
 
 The default `PREFLIGHT_MODE=operational` enforces the selected Accepted or Candidate Source policy.
+
+## Planned member lifecycle transition
+
+The next implementation slice adds Version 2 contracts and the smallest member-specific operator
+surface. `platform-deploy` will reconcile the empty Firestore directory infrastructure but will not
+enroll a member. A separate `platform-member-bootstrap-owner` command will enroll the first owner
+only after remote-empty readback, a separately confirmed Google Visitor flow, exact review, and
+idempotent remote readback. Bounded status, add, suspend, reactivate, and remove commands will then
+change environment-wide membership without compiling a Registration Generation or deploying an
+application.
+
+Application handoff inputs will add explicit Identity Delivery: `none` or `optional` for public
+admission and `required` for authenticated or restricted admission. Until that slice implements and
+tests these commands and inputs, they are design authority rather than executable operator
+interfaces; do not infer them from the current Make targets.
 For local code maintenance, `platform-preflight-check` runs the same read-only profile, Git,
 GitHub, GCP, ADC, Terraform-tool, and DNS checks. It skips `SOURCE_NOT_CLEAN`, because the command
 exists to inspect uncommitted changes, and reports other source-admission findings separately

@@ -1,13 +1,14 @@
 # ADR-012 · Exchange versioned non-secret bundles across platform and application ownership
 
-Status: Accepted; identity-delivery projection is under review for reserved ADR-015
+Status: Accepted; identity-delivery projection amended by ADR-015
 
 Requirements: AP-PR-002, AP-PR-007, AP-PR-009, AP-PR-011, AP-PR-012, AP-QR-001 through AP-QR-004,
 AP-QR-006, AP-QR-008, AP-QR-009
 
 This record is extracted from the
-[origin architecture decision record](000-origin-architecture-decision-records.md). Until ADR-015
-is recorded and accepted, the decision below remains current.
+[origin architecture decision record](000-origin-architecture-decision-records.md). ADR-015 is
+authoritative for explicit Identity Delivery and membership exclusion; the remaining cross-owner
+bundle, digest, validation, and ownership decisions stay accepted.
 
 ## Context
 
@@ -18,16 +19,16 @@ the owners and weaken provenance.
 
 ## Decision
 
-The platform produces one Platform Integration Bundle for a named application, environment, access
-mode, and platform revision. The application consumes it under its own authority and returns an
-Application Attachment Bundle bound to the exact platform-bundle digest. Both bundles are closed,
-versioned, canonical, non-secret contracts.
+The platform produces one Platform Integration Bundle for a named application, environment,
+Admission Mode, Identity Delivery policy, and platform revision. The application consumes it under
+its own authority and returns an Application Attachment Bundle bound to the exact platform-bundle
+digest. Both bundles are closed, versioned, canonical, non-secret contracts.
 
-The platform bundle contains only values the application needs, such as hostname, login/logout
-endpoints when applicable, assertion issuer, JWKS URI, application audience, edge-caller identity,
-attachment contract, and qualification status. An OAuth client identifier appears only when the
-consumer interface requires it. The platform-owned OAuth client secret never appears as a value or
-application-readable secret reference.
+The platform bundle contains only values the application needs, such as hostname, explicit identity
+delivery, login/logout endpoints when applicable, assertion issuer, JWKS URI, application audience,
+edge-caller identity, attachment contract, and qualification status. An OAuth client identifier
+appears only when the consumer interface requires it. No bundle contains a member record, member
+list, OAuth client secret, or application-readable reference to that secret.
 
 Registration validates the returned bundle, target metadata, owner, ingress, caller grant,
 audience, and current platform-bundle digest before activation. Neither bundle grants state access

@@ -1,13 +1,14 @@
 # ADR-008 · Activate immutable generations through one reviewed edge revision
 
-Status: Accepted; restricted-membership placement is under review for reserved ADR-015
+Status: Accepted; restricted-membership placement amended by ADR-015
 
 Requirements: AP-PR-001, AP-PR-002, AP-PR-003, AP-PR-004, AP-PR-005, AP-PR-007,
 AP-PR-008, AP-PR-009, AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006
 
 This record is extracted from the
-[origin architecture decision record](000-origin-architecture-decision-records.md). Until ADR-015
-is recorded and accepted, the decision below remains current.
+[origin architecture decision record](000-origin-architecture-decision-records.md). ADR-015 is
+authoritative where the original decision placed member identities in compiled configuration; the
+remaining immutable-generation, activation, readback, rollback, and DNS decisions stay accepted.
 
 ## Context
 
@@ -30,10 +31,10 @@ GCS configuration bucket. New objects use the readable environment-and-generatio
 `environments/<environment>/generations/<number>/compiled-shared-edge.v1.json`; create-only
 publication, the generation digest, content digest, and exact GCS object generation provide the
 immutable binding. Existing initial and digest-addressed object names remain valid historical
-bindings and are never renamed or overwritten. The object is restricted platform configuration:
-it may contain the issuer-and-subject membership required by a restricted Admission Mode, but it
-contains no secret, credential, signed assertion, request payload, or application data and is never
-a public catalogue or evidence artifact.
+bindings and are never renamed or overwritten. The object is restricted platform configuration. It
+contains each application's Admission Mode and Identity Delivery policy but never contains a
+Platform Member Directory entry, member list, secret, credential, signed assertion, request
+payload, or application data and is never a public catalogue or evidence artifact.
 
 Each candidate Cloud Run edge revision is immutable and binds all of these values:
 
@@ -77,8 +78,9 @@ Successful readback must agree across source, state, provider, and runtime. It p
 - the provider inventory agrees with the State Ownership Manifest without reading application
   Terraform state.
 
-Readback records identifiers, digests, coarse outcomes, and limitations only. It never records an
-assertion, session, restricted member set, request body, application data, credential, Terraform
+Readback records identifiers, digests, coarse outcomes, and limitations only. It may confirm the
+directory schema and coarse availability without enumerating membership. It never records an
+assertion, session, member identity or list, request body, application data, credential, Terraform
 state, or saved plan.
 
 Rollback is an owner-confirmed whole-generation operation that returns 100 percent of edge traffic

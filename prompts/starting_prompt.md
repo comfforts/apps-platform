@@ -1,82 +1,62 @@
-# App Platform AP-M9-W10 staging operation handoff
+# App Platform AP-M9-W10 member directory handoff
 
 Continue the separately governed Comfforts App Platform from its canonical repository root.
 
-Use this handoff only after the AP-M9-W9 fixture-application lifecycle pull request has merged and
-protected `main` is current and clean. AP-M9-W10 is the first accepted external staging operation.
-Any pre-merge Candidate Qualification is non-accepted evidence and must not be promoted. W10 deploys,
-qualifies, rehearses approved destruction/redeployment, and leaves `apps-staging.comfforts.com`
-deployed and qualified with the three repository-owned Fixture Applications.
+Use this handoff only after the governance change accepting ADR-015 has merged and protected
+`main` is current and clean. AP-M9-W10 implements and candidate-qualifies the Platform Member
+Directory and explicit Identity Delivery model. It is not the first Accepted Source operation;
+that operation moves to AP-M9-W11.
 
-W9 candidate verification completed at source revision
-`2fd045f6f720fe122103d42b3ebb6d25f5fbdac8`, restored active Registration Generation 8 with digest
-`sha256:07880efea15027c1209c43e93bd91af2c6655c77582a70233c6cb22117462acf`,
-and recorded candidate evidence digest
-`sha256:c066175d280cd452af00ccede3090ad9df22701fc8708ce943aef0f1028d8f19`.
-Use those values only as a diagnostic predecessor. Do not copy them into Accepted Source evidence,
-assume they match the merged revision, or skip fresh source, provider, generation, fixture, and
-qualification readback.
+AP-M9-W9 Candidate Source evidence remains truthful Version 1 predecessor evidence. It must not be
+relabeled as ADR-015 qualification or copied into new evidence. W10 must produce fresh Version 2
+contract, runtime, operator, fixture, and candidate-qualification evidence.
 
-Read `AGENTS.md` and follow the complete order in `docs/README.md`. State the slice and authority:
-AP-M9-W10; AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009; ADR-001 through ADR-014;
-AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-001 through AP-TM-014. Inspect the branch, working
-tree, remotes, and relationship to `origin/main`. Stop on any mismatch; do not pull, reset, switch,
-commit, push, or change repository settings without its applicable owner direction.
+Read `AGENTS.md`, follow the complete order in `docs/README.md`, and read
+`docs/plans/ap_m9_w10_platform_member_directory.md` as the current delivery plan. State the slice and authority:
+AP-M9-W10; AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, and AP-PR-011; AP-QR-001,
+AP-QR-002, AP-QR-004, and AP-QR-006 through AP-QR-009; ADR-003, ADR-004, ADR-006, ADR-008,
+ADR-012, ADR-014, and ADR-015; AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-004 through
+AP-TM-006, AP-TM-008 through AP-TM-010, AP-TM-013, and AP-TM-014. Inspect the branch, working
+tree, remotes, and relationship to `origin/main`. Do not pull, reset, switch, commit, push, mutate
+an external system, or change repository settings without the applicable owner direction.
 
-The owner's deliberate instruction to execute W10, or the owner's deliberate invocation of a named
-deploy command, authorizes ordinary reversible staging creation/update through that command's
-same-process specification and exact-plan confirmations. Do not request a duplicate chat, ticket,
-or out-of-band approval. Destruction, purge, ownership transfer, production cutover, and scope
-expansion retain separately named approval at their boundary.
+Implement the accepted model in a bounded feature branch:
 
-Perform the staging journey from exact merged source:
+1. Add Version 2 registration, compiled-generation, Platform Integration Bundle, Application
+   Attachment Bundle, and Verified Identity Context contracts. Deterministically migrate public
+   registrations to Identity Delivery `none`, authenticated and restricted registrations to
+   `required`, and remove all per-registration member sets. Permit public `optional` only through
+   an explicit reviewed registration update.
+2. Add one environment-scoped Firestore Platform Member Directory. Platform State owns database
+   configuration, indexes, and least-privilege Shared Edge access. Member records are remote
+   operational data, never Terraform input, Git configuration, generation content, bundle data,
+   catalogue data, ordinary terminal output, or retained public evidence.
+3. Enforce public `none` and `optional`, authenticated `required`, and restricted `required` plus
+   active membership. Key members by verified issuer and immutable subject. Deliver only the
+   current visitor's minimal application-audience-bound context. Fail restricted admission closed
+   when membership is absent, inactive, unreadable, or inconsistent. Preserve application-owned
+   principals, users, roles, Feature Entitlements, separate OAuth clients, and explicit account
+   linking.
+4. Add a separately confirmed `platform-member-bootstrap-owner` operation. It must distinguish the
+   Cloud Operator from the Google Visitor, work only against a remotely empty directory, show one
+   non-sensitive exact action, create idempotently, and perform remote readback. Missing local
+   `.platform-operator` state must never permit bootstrap over a non-empty directory.
+5. Add bounded member status, add, suspend, reactivate, and remove operations. Scope every action to
+   one environment and exact remote predecessor, require confirmation for mutation, make identical
+   retries idempotent, and prove membership changes do not compile a Registration Generation or
+   deploy an application.
+6. Update the compiler, Shared Edge, operator, fixture applications, in-memory fakes, documentation,
+   and focused deterministic tests together. Keep the established top-level Make lifecycle; add
+   only the smallest member-specific and Identity Delivery inputs required by ADR-015.
+7. Run the complete credential-free `make check` gate. With owner direction for Candidate Source
+   staging testing, explicitly bootstrap the owner, add a second member, prove restricted allow,
+   suspend/deny, reactivate/allow, remove/deny, public anonymous and optional identity behavior,
+   authenticated membership-independent admission, directory failure, and application-owned
+   Feature Entitlements. Restore the reviewed member baseline before closing qualification.
 
-1. Confirm the merged W9 revision is on clean protected `main`.
-   Run the complete credential-free `make check` gate and stop on any failure, warning, or skip.
-   Treat retained candidate private state and deployed resources as inputs to fresh readback and
-   reconciliation, never as accepted evidence.
-2. Verify the pinned Terraform toolchain, exact staging project, active human Cloud SDK account,
-   user Application Default Credentials, `gcloud`, and `dig`. Never create or store a service-account
-   key or copy a token, OAuth secret, Terraform state, plan, or provider payload into Git.
-3. Run `make fixture-project-bootstrap ENVIRONMENT=staging
-   FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod
-   FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"` to create or verify the dedicated
-   fixture application project, then run `make platform-deploy ENVIRONMENT=staging`. Keep the
-   interactive platform wizard in one process.
-   Review each displayed specification/action/plan, use its `y/N` gates, complete Google OAuth and
-   Squarespace DNS work only at the displayed checkpoint, and press Enter for immediate readback.
-   Enter the OAuth client secret only in Secret Manager, never in the terminal.
-4. Run `make platform-connect-project ENVIRONMENT=staging
-   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod` and verify that it creates no runtime or
-   route. For `fixture-public`, `fixture-authenticated`, and `fixture-restricted`, separately run
-   `application-handoff-check` with the fixture project, matching admission mode, route, active
-   platform revision, and Registration Generation; resolve every blocker; then run
-   `platform-outputs` with the same values. Pass the printed
-   bundle to `fixture-handoff`; inspect its integration bundle, attachment bundle, and registration
-   intent; then run `platform-register` with those exact files. Each handoff must build or reuse the
-   immutable source-bound image, operate only on the selected one of three independent Application
-   State lineages in the fixture project, and read back its Shared VPC, ingress, IAM, audience, and readiness posture.
-   Each registration must preserve the other registrations. There is no combined fixture
-   deploy-and-register command.
-5. Run `make fixture-status ENVIRONMENT=staging`, `make platform-status ENVIRONMENT=staging`, and
-   `make platform-qualify ENVIRONMENT=staging`. Complete browser checkpoints without exporting
-   cookies, sessions, assertions, identity claims, screenshots, or application payloads.
-6. Report the exact revision, operation/progress/generation/evidence digests, coarse outcomes,
-   and every failed or unavailable AP-EVAL-M9 gate. Do not call staging qualified unless every
-   mandatory check passes for those exact bindings.
-7. Only after separately named owner approval for the destructive rehearsal, detach and destroy
-   each Fixture Application through `platform-detach` followed by `fixture-destroy`, then run
-   `platform-destroy`. Verify the
-   retained backend, configuration, signing-key, provider-service, recovery, and evidence inventory;
-   never target Application State from platform destruction and never issue a blind Terraform
-   destroy. Redeploy the platform and fixtures through the same commands and requalify them.
-8. Leave staging deployed and qualified at the accepted revision. Commit only an owner-approved,
-   secret-free evidence index on a dedicated evidence branch if requested; keep private evidence,
-   raw outputs, state, plans, browser state, and checkpoint artifacts outside Git.
-
-Stop on the first discrepancy. Resume only through the existing private progress and identical
-immutable bindings. Do not mutate `apps.comfforts.com`, production, or any real application.
-Application-specific migration and adoption remain under the consuming application's authority and
-cannot define this operation. Do not claim Application Adoption,
-production readiness, or production ownership transfer. AP-M9-W11 owns read-only production
-readiness after W10 is accepted.
+Keep credentials, OAuth secrets, member identities, signed assertions, browser state, Terraform
+state, saved plans, raw provider responses, and application payloads out of Git and retained public
+evidence. Do not mutate production, `apps.comfforts.com`, Finance Assistant, or any real application.
+Do not claim Accepted Source staging, production readiness, or Application Adoption. AP-M9-W11 owns
+the first Accepted Source staging operation after W10 is merged and candidate-qualified; AP-M9-W12
+owns read-only production readiness.

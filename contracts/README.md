@@ -3,6 +3,12 @@
 Version 1 | Scope: repository-owned machine interfaces and deterministic validation; no operation
 authority
 
+Status: Version 1 remains implemented and readable as predecessor behavior. The accepted next
+contract family is Version 2, which adds explicit Identity Delivery and moves restricted membership
+out of registrations and generations into an environment-wide platform member directory. No
+Version 2 schema is operational until its implementation slice adds the complete family, migration,
+consumers, and deterministic tests.
+
 The `contracts/` directory defines the versioned data exchanged between platform components,
 operators, and applications. It answers four questions:
 
@@ -232,11 +238,11 @@ when any violation exists. Adding or changing a violation meaning is a contract 
 
 ## Security and privacy
 
-Contracts and examples contain no credential, key, OAuth secret, signed assertion, real restricted
-membership, provider payload, application data, Terraform state address, saved plan, authenticated
+Contracts and examples contain no credential, key, OAuth secret, signed assertion, real Platform
+Member record or directory listing, provider payload, application data, Terraform state address, saved plan, authenticated
 artifact, or unredacted external payload. Attachment references are inert non-secret URNs.
 
-Catalogue data is the only public projection. Registration Sets, restricted membership, attachment
+Catalogue data is the only public projection. Registration Sets, identity policy, attachment
 references, identity contexts, ownership manifests, compiler violations, and compiled configuration
 are restricted configuration unless a later authority explicitly proves a safe narrower view.
 
@@ -254,5 +260,10 @@ Version 1 contracts do not define:
 - cloud projects, regions, DNS, TLS, IAM, OAuth, state backends, or Terraform;
 - runtime health, logging, cost, availability, or rollback procedures; or
 - a real application's registration, migration, or Application Adoption procedure.
+
+Version 1 also cannot express public optional Platform Identity or the accepted environment-wide
+member directory. Its per-registration restricted member set is retained only for predecessor
+readability and migration; it must not be copied into Version 2 or treated as current product
+authority.
 
 Absence from the schema is prohibition, not an extension point.

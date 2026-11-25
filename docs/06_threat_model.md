@@ -1,8 +1,8 @@
 # App Platform threat model
 
-Version 1.13 | Status: Fixture-qualified threat model and implemented AP-M6 through AP-M9-W9
-controls; W9 candidate staging is deployed and qualified, while Accepted Source and production
-evidence remain unavailable
+Version 1.14 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
+the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
+controls are accepted but remain unimplemented and unqualified until AP-M9-W10
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -10,9 +10,9 @@ implemented or qualified. It is authoritative only inside the App Platform proje
 configure identity, provision infrastructure, mutate DNS, activate an application, or change a
 consuming application's security model.
 
-Requirements: AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006
+Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
-Decisions: ADR-001, ADR-002, ADR-003, ADR-004, ADR-005, ADR-006, ADR-007, ADR-008, ADR-009
+Decisions: ADR-001 through ADR-015
 
 System design: [App Platform system design](03_system_design.md)
 
@@ -21,7 +21,8 @@ System design: [App Platform system design](03_system_design.md)
 The threat boundary includes:
 
 - offline registration, contract validation, compilation, review, and evidence;
-- the future Shared Edge, root catalogue, routing, admission, and identity delivery;
+- the Shared Edge, root catalogue, routing, admission, explicit Identity Delivery, Platform
+  Sessions, and Platform Member Directory;
 - Application Attachments and the platform-to-application request seam;
 - Platform State, Application State references, lifecycle, rollback, and drift;
 - Fixture Applications used for future platform qualification; and
@@ -42,8 +43,9 @@ The platform must preserve these objectives:
 
 1. **Route integrity:** one canonical request path selects at most one reviewed application
    attachment, and every unknown or invalid path fails closed.
-2. **Admission integrity:** public, authenticated, and restricted Admission Modes are enforced as
-   registered without granting application Feature Entitlements.
+2. **Admission integrity:** Admission Mode and Identity Delivery are enforced as registered;
+   restricted admission requires current platform membership, and no admission result grants an
+   application Feature Entitlement.
 3. **Identity authenticity:** only a verified issuer-and-subject assertion for the intended
    application audience can become Verified Identity Context.
 4. **Application isolation:** one application's route, identity, failure, compromise, or lifecycle
@@ -64,7 +66,8 @@ The platform must preserve these objectives:
 | Configured hostname, route table, and catalogue | Public behavior, controlled configuration | Integrity and availability |
 | Registration Sets and compiled generations | Platform configuration | Integrity, provenance, review, rollback |
 | Attachment resource references | Restricted platform configuration | Integrity, non-disclosure where provider identifiers are sensitive |
-| Restricted admission membership | Restricted identity policy | Confidentiality, integrity, minimal access |
+| Platform Member Directory infrastructure | Platform State | Integrity, availability, least-privilege access |
+| Platform Member records | Restricted platform operational identity data | Confidentiality, integrity, revocation, non-disclosure |
 | Signed identity assertions and identity claims | Restricted authentication data | Authenticity, confidentiality, replay resistance |
 | State-owner references and manifests | Restricted operational metadata | Integrity and exclusive ownership |
 | Credentials, signing keys, OAuth secrets, and state contents | Secret; prohibited from contracts and Git | Confidentiality and non-persistence |
@@ -80,6 +83,9 @@ content and must not be rendered, logged, or published wholesale.
   inputs, or abusive traffic.
 - An **authenticated identity** has proven only the configured identity assertion. Authentication
   does not imply restricted admission, application resource ownership, or a Feature Entitlement.
+- A **Platform Member** is a verified Google identity with an active environment-scoped directory
+  entry. Membership permits restricted platform admission but grants no application role, provider
+  right, or Feature Entitlement.
 - An **Application Owner** is trusted to control only that application's state and to propose
   accurate attachment references. Its registration remains untrusted until validated and reviewed.
 - A **Platform Operator** has bounded operational authority and may make mistakes or use a
@@ -107,6 +113,9 @@ grants no platform authority and remains under the consuming application's autho
          v
   [Shared Edge data plane] <--------> [Identity provider]
          |
+         | restricted lookup for current verified visitor only
+         +--------------------------> [Platform Member Directory]
+         |
          | admitted request + signed identity assertion
          v
   [Application Attachment] ---------> [Application runtime and state]
@@ -126,12 +135,13 @@ The major trust-boundary crossings are:
 
 1. Visitor input crossing into the Shared Edge.
 2. Identity-provider output crossing into platform admission.
-3. Admitted traffic and identity crossing from the Shared Edge to an attachment.
-4. Application-owner input crossing into platform configuration review.
-5. Compiled configuration crossing from the repository into a provider adapter.
-6. Resource references crossing between Platform State and Application State without shared write
+3. Verified issuer and subject crossing into a least-privilege current-member lookup.
+4. Admitted traffic and permitted current-visitor identity crossing from the Shared Edge to an attachment.
+5. Application-owner input crossing into platform configuration review.
+6. Compiled configuration crossing from the repository into a provider adapter.
+7. Resource references crossing between Platform State and Application State without shared write
    access.
-7. Logs and evidence crossing from restricted operational systems into retained artifacts.
+8. Logs and evidence crossing from restricted operational systems into retained artifacts.
 
 ## Control ownership
 
@@ -141,7 +151,10 @@ The major trust-boundary crossings are:
 - canonical route parsing, reserved-path enforcement, and closed unmatched behavior;
 - safe catalogue projection and output-context escaping requirements;
 - attachment-adapter allow-listing and registration-derived edge configuration;
-- Admission Mode enforcement and removal of visitor-supplied identity headers;
+- Admission Mode, explicit Identity Delivery, Platform Session, and environment-wide member
+  admission enforcement plus removal of visitor-supplied identity headers;
+- Platform Member Directory infrastructure and bounded owner/member lifecycle without
+  application-specific roles or entitlements;
 - whole-generation activation, drift detection, rollback, and Platform State access control; and
 - platform log minimization, redaction, and revision-scoped evidence.
 
@@ -309,18 +322,23 @@ against another, or mutable email is treated as an ownership key.
 
 **Required controls:** Admission and the application validate signature, configured issuer,
 immutable subject, application-specific audience, issued and expiry times, and contract version.
-Visitor values are removed before edge forwarding. Restricted policy matches exact issuer-and-
-subject pairs. Applications derive their own principals and never use email as an ownership key.
+Visitor values are removed before edge forwarding. Restricted policy performs a current lookup in
+the environment-wide Platform Member Directory using exact issuer and immutable subject. Public
+identity delivery is explicit and cannot be inferred from an ambient Platform Session.
+Applications derive their own principals and never use email as an ownership or account-linking
+key.
 
 **Evidence:** `C` covers claim shape and rejection semantics, not cryptographic validity. `F` covers
 missing, forged, expired, wrong-issuer, wrong-audience, and cross-application assertions. `L` covers
 signer, key discovery, algorithms, audience issuance, and clock behavior.
 
 **Residual risk:** AP-M6-W5 locally validates Google OIDC through a PKCE-bound, one-use flow and
-matches restricted identities by exact issuer and subject. AP-M6-W6 locally issues and independently
+the Version 1 predecessor matches per-registration restricted identities by exact issuer and
+subject. AP-M6-W6 locally issues and independently
 verifies minimized ES256 assertions with exact audiences, 60-second lifetimes, 30-second skew,
-versioned keys, and bounded public-key overlap/cache behavior. Cloud KMS operation and application
-delivery remain unqualified. The demo accepts residual cross-instance replay risk because it makes
+versioned keys, and bounded public-key overlap/cache behavior. ADR-015 directory lookup, explicit
+public identity delivery, and Version 2 projection remain unimplemented and unqualified until W10.
+The demo accepts residual cross-instance replay risk because it makes
 no distributed replay-prevention claim.
 
 ### AP-TM-006 · Admission mistaken for feature authorization
@@ -328,9 +346,11 @@ no distributed replay-prevention claim.
 **Scenario:** Successful platform admission is interpreted as permission to use restricted
 application features, provider data, or another user's resources.
 
-**Required controls:** Registration schemas contain no Feature Entitlement or product-role fields.
-The platform makes only an Admission Decision. Each application derives an Application Principal,
-isolates application data, and independently enforces every entitlement and provider right.
+**Required controls:** Registration schemas and the Platform Member Directory contain no Feature
+Entitlement or product-role fields. The platform makes only an Admission Decision and, where
+permitted, supplies minimal current-visitor identity and positive membership context. Each
+application derives an Application Principal, isolates application data, and independently
+enforces every entitlement and provider right.
 
 **Evidence:** `C` rejects feature-authorization fields in platform contracts. `F` proves an admitted
 identity can use an unrestricted fixture feature while the fixture denies a market-data-style
@@ -402,11 +422,13 @@ operator separation, audit, and recovery evidence in later slices.
 
 ### AP-TM-010 · Secret, identity, or application-data leakage
 
-**Scenario:** Credentials, restricted membership, signed assertions, provider payloads, request
+**Scenario:** Credentials, Platform Member records or directory listings, signed assertions, provider payloads, request
 bodies, application data, Terraform state, or authenticated browser artifacts enter contracts,
 logs, plans, test vectors, evidence, or Git.
 
-**Required controls:** Contracts accept only non-secret references and bounded identity policy.
+**Required controls:** Contracts accept only non-secret references and bounded identity policy;
+they never contain member records or lists. The Shared Edge may project only the current visitor's
+minimal signed context after a positive lookup.
 Synthetic values are used in tests. Logs and evidence allow only contract versions, generation
 digests, application and route identifiers, coarse outcomes, violation codes, and correlation
 identifiers. Secret payloads and application data are prohibited and externally stored.
@@ -796,7 +818,9 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
 - **AP-TM-004 through AP-TM-006:** The platform-owned OAuth secret remains readable only by the
   Shared Edge. Integration bundles expose platform login/assertion values rather than shared
   signing or OAuth authority. Application targets retain direct-origin denial, independent assertion
-  verification, principals, data isolation, and Feature Entitlements.
+  verification, principals, data isolation, and Feature Entitlements. ADR-015 requires explicit
+  Identity Delivery, environment-wide restricted membership, and current-visitor-only projection;
+  those refinements remain W10 work.
 - **AP-TM-007:** One canonical operation fingerprint, exact-source check, fixed reviewed stage
   order, exact plan digest, state lock, provider readback, and one atomically replaced progress
   cursor reject stale, concurrent, repeated, or partial lifecycle changes. Progress records no
@@ -814,7 +838,7 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
 - **AP-TM-010:** Terminal prompts never accept a secret payload. OAuth secrets enter Secret Manager
   directly. Profiles, specifications, progress, bundles, status, logs, and evidence exclude
   credentials, secret values, state, plans, raw provider responses, browser state, identity claims,
-  restricted membership, and application data. Exact output from a failed Terraform plan or apply
+  Platform Member records and directory listings, and application data. Exact output from a failed Terraform plan or apply
   may exist only as a timestamped, mode-`0600` troubleshooting artifact beneath the ignored
   mode-`0700` private diagnostics directory. The terminal exposes only its path and SHA-256 digest;
   the artifact is never evidence, authority, progress, bundle content, or a Git input and must be
@@ -879,8 +903,11 @@ destruction, retained recovery/evidence boundaries, and create-only resume state
 deployment adapters are wired behind pinned-tool, exact-project, active-account, user-ADC,
 digest-bound plan, confirmation, source-upload allow-list, and readback gates. W9 adds and exercises
 the Fixture Application deployment lifecycle, browser qualification, and closed fixture
-destruction/recovery transition under Candidate Source, completing every operator target needed
-before W10. Candidate evidence proves only the named W9 staging bindings. No current result proves
+destruction/recovery transition under Candidate Source. ADR-015 supersedes its Version 1
+per-registration membership and implicit public-identity boundary. W10 must implement and
+candidate-qualify the directory, explicit Identity Delivery, owner bootstrap, second-member
+lifecycle, and Version 2 contracts before the Accepted Source operation in W11. Candidate evidence
+proves only the named W9 predecessor bindings. No current result proves ADR-015 realization,
 Accepted Source staging, platform destruction/redeployment, production, or Application Adoption.
 
 ## Unresolved security decisions
@@ -897,6 +924,7 @@ pass:
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
 | Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
+| Platform Member Directory realization, explicit Identity Delivery, Version 2 migration, owner bootstrap, and member lifecycle | AP-M9-W10 implementation and Candidate Source qualification |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |
@@ -920,7 +948,7 @@ requirements without weakening them.
 | Threats | Requirements | Decisions |
 | --- | --- | --- |
 | AP-TM-001 through AP-TM-003 | AP-PR-001, AP-PR-002, AP-PR-003; AP-QR-002, AP-QR-003, AP-QR-004 | ADR-001, ADR-002, ADR-005 |
-| AP-TM-004 through AP-TM-006 | AP-PR-004, AP-PR-005, AP-PR-006, AP-PR-008; AP-QR-002 | ADR-003, ADR-004, ADR-005, ADR-006 |
+| AP-TM-004 through AP-TM-006 | AP-PR-004, AP-PR-005, AP-PR-006, AP-PR-008; AP-QR-002 | ADR-003, ADR-004, ADR-005, ADR-006, ADR-015 |
 | AP-TM-007 through AP-TM-009 | AP-PR-003, AP-PR-007, AP-PR-008; AP-QR-001, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-005, ADR-007, ADR-008 |
-| AP-TM-010 through AP-TM-013 | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-005, ADR-006, ADR-007, ADR-008, ADR-009 |
+| AP-TM-010 through AP-TM-013 | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007, AP-PR-010, AP-PR-011; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-005, ADR-006, ADR-007, ADR-008, ADR-009, ADR-012, ADR-015 |
 | AP-TM-014 | AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003, AP-QR-006 | ADR-004 |

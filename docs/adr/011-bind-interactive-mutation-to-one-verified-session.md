@@ -1,6 +1,6 @@
 # ADR-011 · Bind interactive mutation to one verified operator session and exact plans
 
-Status: Accepted; operator-state reconstruction is still in discussion for reserved ADR-016
+Status: Accepted; proposed ADR-016 may refine the recovery boundary
 
 Requirements: AP-PR-010, AP-QR-001, AP-QR-004 through AP-QR-009
 
@@ -9,8 +9,9 @@ GitHub Actions. ADR-007's independent roots, remote state, locking, recovery, ex
 no-key, exact-source, exact-plan, and readback decisions remain accepted.
 
 This record is extracted from the
-[origin architecture decision record](000-origin-architecture-decision-records.md). ADR-016 does
-not yet exist as a decision; until it is recorded and accepted, the decision below remains current.
+[origin architecture decision record](000-origin-architecture-decision-records.md). ADR-016 now
+records a proposed recovery model, but the decision below remains current until that proposal is
+accepted or superseded.
 
 ## Context
 

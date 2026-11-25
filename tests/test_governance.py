@@ -40,7 +40,7 @@ def _canonical_architecture_decisions() -> str:
 
     return "\n\n".join(
         extracted[identifier] if identifier in extracted else origin_sections[identifier]
-        for identifier in (f"ADR-{number:03d}" for number in range(1, 16))
+        for identifier in (f"ADR-{number:03d}" for number in range(1, 17))
     )
 
 
@@ -73,6 +73,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "docs/adr/011-bind-interactive-mutation-to-one-verified-session.md",
             "docs/adr/012-exchange-versioned-non-secret-bundles.md",
             "docs/adr/015-platform-member-directory-and-explicit-identity-delivery.md",
+            "docs/adr/016-recover-operator-working-state-without-fabricated-history.md",
             "docs/03_system_design.md",
             "docs/04_implementation_plan.md",
             "docs/plans/README.md",
@@ -648,9 +649,11 @@ class ProjectAuthorityTest(unittest.TestCase):
                 "ADR-013",
                 "ADR-014",
                 "ADR-015",
+                "ADR-016",
             ],
         )
         self.assertEqual(decisions.count("Status: Accepted"), 15)
+        self.assertEqual(decisions.count("Status: Proposed"), 1)
         normalized_decisions = " ".join(decisions.split())
         for identifier in (
             "AP-PR-001",
@@ -817,11 +820,12 @@ class ProjectAuthorityTest(unittest.TestCase):
         inventory = index.split("## Decision inventory", 1)[1].split(
             "## Realization and evidence", 1
         )[0]
+        normalized_index = " ".join(index.split())
         observed = re.findall(r"^\| (ADR-\d{3}) \|", inventory, re.MULTILINE)
 
         self.assertEqual(
             observed,
-            [f"ADR-{number:03d}" for number in range(1, 16)],
+            [f"ADR-{number:03d}" for number in range(1, 17)],
         )
         self.assertEqual(len(observed), len(set(observed)))
         self.assertEqual(inventory.count("Origin ADR-"), 8)
@@ -840,7 +844,7 @@ class ProjectAuthorityTest(unittest.TestCase):
                 for path in (PROJECT_ROOT / "docs/adr").glob("[0-9][0-9][0-9]-*.md")
                 if not path.name.startswith("000-")
             ),
-            ["003", "006", "008", "010", "011", "012", "015"],
+            ["003", "006", "008", "010", "011", "012", "015", "016"],
         )
         self.assertEqual(
             re.findall(r"^## (ADR-\d{3}) ·", origin, re.MULTILINE),
@@ -850,10 +854,41 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("compatibility path", compatibility_router)
         self.assertIn("[architecture decision index](adr/README.md)", compatibility_router)
         self.assertIn("Decision status and realization status are intentionally separate", index)
-        self.assertIn("it is not a decision", index)
         self.assertIn("ADR-016", index)
-        self.assertIn("still\n  in discussion", index)
+        self.assertIn("Proposed; still in discussion", index)
+        self.assertIn(
+            "grants no implementation or external-operation authority",
+            normalized_index,
+        )
         self.assertIn("[Architecture decision index](adr/README.md)", docs_router)
+
+    def test_proposed_operator_recovery_separates_current_posture_from_history(
+        self,
+    ) -> None:
+        recovery = (
+            PROJECT_ROOT
+            / "docs/adr/016-recover-operator-working-state-without-fabricated-history.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(recovery.split())
+
+        for boundary in (
+            "Status: Proposed; still in discussion",
+            "Deployed Authority",
+            "Operator Working State",
+            "Operator Run Record",
+            "Recovery Baseline",
+            "platform-operator-recover",
+            "externally read-only",
+            "must not synthesize",
+            "Run separation and reconciliation",
+            "local `latest` selection",
+            "cannot resume or apply a plan from a missing run",
+            "fresh readiness check",
+            "does not approve a future operation",
+            "AP-M9-W10 continues to exclude operator-state recovery",
+        ):
+            self.assertIn(boundary, normalized)
+        self.assertIn("ADR-010 and ADR-011 remain the accepted authority", normalized)
 
     def test_ap_m9_w10_handoff_loads_exact_member_directory_authority(
         self,

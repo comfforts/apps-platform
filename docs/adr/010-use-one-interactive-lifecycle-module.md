@@ -1,12 +1,13 @@
 # ADR-010 · Use one interactive lifecycle module instead of an operator-authored manifest
 
-Status: Accepted; operator-state reconstruction is still in discussion for reserved ADR-016
+Status: Accepted; proposed ADR-016 may refine the recovery boundary
 
 Requirements: AP-PR-010, AP-PR-012, AP-QR-004 through AP-QR-009
 
 This record is extracted from the
-[origin architecture decision record](000-origin-architecture-decision-records.md). ADR-016 does
-not yet exist as a decision; until it is recorded and accepted, the decision below remains current.
+[origin architecture decision record](000-origin-architecture-decision-records.md). ADR-016 now
+records a proposed recovery model, but the decision below remains current until that proposal is
+accepted or superseded.
 
 ## Context
 

@@ -1,7 +1,7 @@
 # App Platform documentation
 
-Version 1.33 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted and
-AP-M9-W10 platform-member implementation is next
+Version 1.34 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted,
+ADR-016 proposed, and AP-M9-W10 platform-member implementation is next
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. W9
@@ -18,8 +18,8 @@ Read these documents completely, in order, before modifying the platform:
 2. [Domain glossary](../GLOSSARY.md) — canonical terms.
 3. [Product requirements](01_product_requirements.md) — AP-PR-001 through AP-PR-012 and AP-QR-001
    through AP-QR-009.
-4. [Architecture decision index](adr/README.md) — routes ADR-001 through ADR-015 to their current
-   canonical records and separates decision status from realization evidence.
+4. [Architecture decision index](adr/README.md) — routes ADR-001 through proposed ADR-016 to their
+   current canonical records and separates decision status from realization evidence.
 5. [System design](03_system_design.md) — interfaces, ownership, lifecycle, and provider design.
 6. [Threat model](06_threat_model.md) — trust zones, threats, controls, and evidence classes.
 7. [Implementation plan index](plans/README.md) — routes delivery identifiers to their current

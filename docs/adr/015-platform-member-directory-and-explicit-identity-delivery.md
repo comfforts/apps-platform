@@ -86,7 +86,8 @@ The Platform Owner enrolls deliberately after deployment through a separate
 
 If the remote directory is not empty, owner bootstrap refuses to create or replace a member. An
 empty or recovered local `.platform-operator` directory never permits owner rebootstrap over
-remote membership. Operator-state reconstruction is governed separately by reserved ADR-016.
+remote membership. Proposed ADR-016 discusses operator-state reconstruction but cannot alter this
+accepted remote-authority boundary while it remains unaccepted.
 
 Platform-owned member operations must support bounded status, add, suspend, reactivate, and remove
 journeys. They name one environment, verify the operator session and remote predecessor, require

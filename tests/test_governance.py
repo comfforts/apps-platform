@@ -13,6 +13,37 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _canonical_architecture_decisions() -> str:
+    """Load one current text for each indexed ADR, excluding origin duplicates."""
+
+    adr_directory = PROJECT_ROOT / "docs/adr"
+    origin = (
+        adr_directory / "000-origin-architecture-decision-records.md"
+    ).read_text(encoding="utf-8")
+    origin_sections = {
+        match.group(1): match.group(0).replace("## ADR-", "# ADR-", 1)
+        for match in re.finditer(
+            r"^## (ADR-\d{3}) ·[\s\S]*?(?=^## ADR-\d{3} ·|\Z)",
+            origin,
+            re.MULTILINE,
+        )
+    }
+    extracted = {}
+    for path in adr_directory.glob("[0-9][0-9][0-9]-*.md"):
+        if path.name.startswith("000-"):
+            continue
+        content = path.read_text(encoding="utf-8")
+        identifier = re.search(r"^# (ADR-\d{3}) ·", content, re.MULTILINE)
+        if identifier is None:
+            raise AssertionError(f"extracted ADR has no identifier: {path}")
+        extracted[identifier.group(1)] = content
+
+    return "\n\n".join(
+        extracted.get(identifier, origin_sections[identifier])
+        for identifier in (f"ADR-{number:03d}" for number in range(1, 15))
+    )
+
+
 def _repository_files() -> Iterator[Path]:
     """Yield repository files without ignored private operator runtime state."""
 
@@ -34,6 +65,13 @@ class ProjectAuthorityTest(unittest.TestCase):
             "docs/01_product_requirements.md",
             "docs/02_architecture_decision_records.md",
             "docs/adr/README.md",
+            "docs/adr/000-origin-architecture-decision-records.md",
+            "docs/adr/003-platform-admission-does-not-grant-application-feature-access.md",
+            "docs/adr/006-edge-managed-google-oidc-and-application-bound-assertions.md",
+            "docs/adr/008-activate-immutable-generations-through-one-reviewed-edge-revision.md",
+            "docs/adr/010-use-one-interactive-lifecycle-module.md",
+            "docs/adr/011-bind-interactive-mutation-to-one-verified-session.md",
+            "docs/adr/012-exchange-versioned-non-secret-bundles.md",
             "docs/03_system_design.md",
             "docs/04_implementation_plan.md",
             "docs/05_evaluation_strategy.md",
@@ -295,9 +333,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         requirements = (PROJECT_ROOT / "docs/01_product_requirements.md").read_text(
             encoding="utf-8"
         )
-        decisions = (PROJECT_ROOT / "docs/02_architecture_decision_records.md").read_text(
-            encoding="utf-8"
-        )
+        decisions = _canonical_architecture_decisions()
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
             encoding="utf-8"
         )
@@ -587,10 +623,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, requirements)
 
     def test_architecture_decisions_are_unique_and_trace_requirements(self) -> None:
-        decisions = (PROJECT_ROOT / "docs/02_architecture_decision_records.md").read_text(
-            encoding="utf-8"
-        )
-        observed = re.findall(r"^## (ADR-\d{3}) ·", decisions, re.MULTILINE)
+        decisions = _canonical_architecture_decisions()
+        observed = re.findall(r"^# (ADR-\d{3}) ·", decisions, re.MULTILINE)
 
         self.assertEqual(
             observed,
@@ -710,9 +744,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(evidence_and_cost_decision, normalized_decisions)
 
     def test_shared_edge_decisions_preserve_exclusive_ownership(self) -> None:
-        decisions = (PROJECT_ROOT / "docs/02_architecture_decision_records.md").read_text(
-            encoding="utf-8"
-        )
+        decisions = _canonical_architecture_decisions()
 
         for boundary in (
             "certificate secures a hostname",
@@ -726,9 +758,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, decisions)
 
     def test_admission_decision_does_not_become_feature_authorization(self) -> None:
-        decisions = (PROJECT_ROOT / "docs/02_architecture_decision_records.md").read_text(
-            encoding="utf-8"
-        )
+        decisions = _canonical_architecture_decisions()
         glossary = (PROJECT_ROOT / "GLOSSARY.md").read_text(encoding="utf-8")
 
         for mode in ("**Public:**", "**Authenticated:**", "**Restricted:**"):
@@ -751,9 +781,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(term, glossary)
 
     def test_fixture_first_decision_keeps_application_adoption_separate(self) -> None:
-        decisions = (PROJECT_ROOT / "docs/02_architecture_decision_records.md").read_text(
-            encoding="utf-8"
-        )
+        decisions = _canonical_architecture_decisions()
         normalized_decisions = " ".join(decisions.split())
         glossary = (PROJECT_ROOT / "GLOSSARY.md").read_text(encoding="utf-8")
         layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(encoding="utf-8")
@@ -775,6 +803,12 @@ class ProjectAuthorityTest(unittest.TestCase):
     ) -> None:
         index = (PROJECT_ROOT / "docs/adr/README.md").read_text(encoding="utf-8")
         docs_router = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
+        compatibility_router = (
+            PROJECT_ROOT / "docs/02_architecture_decision_records.md"
+        ).read_text(encoding="utf-8")
+        origin = (
+            PROJECT_ROOT / "docs/adr/000-origin-architecture-decision-records.md"
+        ).read_text(encoding="utf-8")
         inventory = index.split("## Decision inventory", 1)[1].split(
             "## Realization and evidence", 1
         )[0]
@@ -785,7 +819,31 @@ class ProjectAuthorityTest(unittest.TestCase):
             [f"ADR-{number:03d}" for number in range(1, 15)],
         )
         self.assertEqual(len(observed), len(set(observed)))
-        self.assertEqual(inventory.count("Consolidated ADR-"), 14)
+        self.assertEqual(inventory.count("Origin ADR-"), 8)
+        self.assertEqual(inventory.count("Extracted ADR-"), 6)
+        canonical_links = re.findall(
+            r"\[(?:Origin|Extracted) ADR-\d{3}\]\(([^)#]+)(?:#[^)]+)?\)",
+            inventory,
+        )
+        self.assertEqual(len(canonical_links), 14)
+        self.assertTrue(
+            all((PROJECT_ROOT / "docs/adr" / link).is_file() for link in canonical_links)
+        )
+        self.assertEqual(
+            sorted(
+                path.name[:3]
+                for path in (PROJECT_ROOT / "docs/adr").glob("[0-9][0-9][0-9]-*.md")
+                if not path.name.startswith("000-")
+            ),
+            ["003", "006", "008", "010", "011", "012"],
+        )
+        self.assertEqual(
+            re.findall(r"^## (ADR-\d{3}) ·", origin, re.MULTILINE),
+            [f"ADR-{number:03d}" for number in range(1, 15)],
+        )
+        self.assertIn("preserves the consolidated form", origin)
+        self.assertIn("compatibility path", compatibility_router)
+        self.assertIn("[architecture decision index](adr/README.md)", compatibility_router)
         self.assertIn("Decision status and realization status are intentionally separate", index)
         self.assertIn("they are not decisions", index)
         self.assertIn("ADR-016", index)

@@ -1700,12 +1700,16 @@ with only `verification_keys_unavailable` in its diagnostic event.
 
 #### AP-EVAL-M9-08 · Rollback, fixture cleanup, platform destruction, and redeployment
 
-Activate and roll back a reviewed complete generation while preserving Application State. Detach
-and destroy fixture-owned assets under fixture authority. Verify platform destruction refuses an
-active attachment, names the exact environment and inventory, requires typed confirmation, handles
-DNS/cache and OAuth checkpoints, touches no application resource, stops on partial failure, and
-retains backends/evidence and the connected Shared VPC foundation absent separate disconnect or
-purge authority. After an approved staging destroy, redeploy and
+Only after every non-mutating qualification check passes, explain the traffic effect and obtain
+explicit confirmation before temporarily activating the reviewed predecessor complete generation.
+Verify the predecessor readback, obtain separate explicit restoration confirmation, restore the
+original generation, and verify it owns 100 percent of traffic, all while preserving Application
+State. A failed prerequisite must block the rollback exercise without prompting or changing
+traffic. Detach and destroy fixture-owned assets under fixture authority. Verify platform
+destruction refuses an active attachment, names the exact environment and inventory, requires
+typed confirmation, handles DNS/cache and OAuth checkpoints, touches no application resource,
+stops on partial failure, and retains backends/evidence and the connected Shared VPC foundation
+absent separate disconnect or purge authority. After an approved staging destroy, redeploy and
 repeat mandatory qualification before reporting staging ready.
 
 #### AP-EVAL-M9-09 · Evidence privacy, truthful status, drift, and handoff

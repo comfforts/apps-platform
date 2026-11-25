@@ -175,7 +175,9 @@ application. Interrupted confirmation may resume only the identical publication.
 
 W8 implements exact revision readback, the closed qualification profile, redacted evidence,
 network fixtures, failure injection, reviewed rollback, separate destruction authority, and
-create-only resume state. It constructs shell-free Cloud SDK deployment, generation, traffic,
+create-only resume state. Qualification evaluates every non-mutating check before the reviewed
+rollback can prompt or move traffic; the live rollback explains its temporary 100-percent traffic
+effect and requires separate exact rollback and restoration confirmations. It constructs shell-free Cloud SDK deployment, generation, traffic,
 attachment, and readback adapters through the verified active human session. Deployment covers
 first-run or recovered backend bootstrap, immutable source-bound image publication, initial
 generation publication, OAuth metadata, DNS propagation, and TLS readiness. The Cloud Build upload

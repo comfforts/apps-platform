@@ -5,6 +5,66 @@ sequence. A backlog item is a proposal, not implementation authority. Before wor
 must be reconciled with the product requirements, accepted architecture decisions, threat model,
 evaluation strategy, implementation plan, and an owner-approved delivery slice.
 
+## Feature-rich catalogue experience
+
+### Problem
+
+The current root catalogue is intentionally a small, server-rendered public projection of the
+active Registration Generation. It provides a safe application list and links, but it is not
+designed as a polished product surface. As the number and variety of applications grow, operators
+and visitors may need a more discoverable, accessible, branded, and informative catalogue without
+adding catalogue concerns to the Shared Edge routing runtime.
+
+### Proposed product and architecture review
+
+Evaluate whether the catalogue should remain a minimal Shared Edge response or become a
+feature-rich, independently deployable, platform-owned application. The review should prototype
+and compare at least these experiences:
+
+- responsive application cards, search, filtering, categories, and clear access-mode indicators;
+- accessible keyboard, screen-reader, focus, contrast, loading, empty, and error states;
+- safe application summaries, icons, ownership/support links, availability cues, and deep links;
+- platform branding and environment identification that cannot confuse staging with production;
+- a lightweight minimal catalogue for small installations; and
+- a graceful fallback when a standalone catalogue runtime is unavailable.
+
+If a standalone application is selected, define its deployment, routing, versioning, rollback,
+observability, caching, cost, and availability ownership. Decide whether `/` remains a reserved
+Shared Edge route that proxies to the catalogue, whether the catalogue consumes an immutable
+public projection or a bounded read-only endpoint, and how the edge supplies a safe fallback
+without creating a second catalogue implementation that can drift.
+
+### Product and safety boundaries
+
+- The active Registration Generation remains the only authority for application identity,
+  lifecycle, catalogue inclusion, route, and access mode. The catalogue must not introduce a
+  writable registry, discovery database, or independent routing decision.
+- Expose only the reviewed public catalogue projection. Never disclose attachment references,
+  target locations, restricted membership, visitor identity, application state, provider data,
+  credentials, secrets, or private operator records.
+- Preserve canonical application links and reserved-path handling. Catalogue rendering or failure
+  must never make an unregistered, suspended, retired, or restricted route available.
+- A standalone catalogue must not receive general Platform State, application deployment, or
+  registration mutation authority merely because it is platform-owned.
+- Dynamic content, icons, and links require bounded validation, safe escaping, a restrictive
+  content-security policy, and explicit ownership. Third-party analytics, trackers, remote assets,
+  or personalization require separate privacy and security review.
+- Preserve a closed, useful response when the catalogue application or its data source is
+  unavailable; do not redirect visitors to an application target or expose an internal failure.
+- Keep the initial design proportionate to demonstrated catalogue needs. Do not add a frontend
+  framework, content service, search service, or new billable dependency without a concrete UX or
+  operational reason.
+
+### Completion evidence
+
+The review should produce an owner-approved UX prototype, an explicit architecture decision, and a
+small delivery proposal before implementation. Deterministic tests must cover public-projection
+parity with the active generation, canonical links, escaping and content security, accessibility,
+responsive behavior, suspended and retired applications, stale data, catalogue-runtime failure,
+and rollback. Live staging evidence must show that the richer catalogue does not become a second
+routing authority and that its failure leaves application routes and protected admission
+fail-closed.
+
 ## Platform observability review and operational diagnostics
 
 ### Problem

@@ -390,6 +390,43 @@ class StagingQualificationProbe:
             self._browser_result = self._browser.verify()
         return self._browser_result
 
+    @staticmethod
+    def _login_redirect_matches(location: str, return_to: str) -> bool:
+        try:
+            parsed = urlsplit(location)
+            query = parse_qs(
+                parsed.query,
+                keep_blank_values=True,
+                strict_parsing=True,
+            )
+        except ValueError:
+            return False
+        return (
+            not parsed.scheme
+            and not parsed.netloc
+            and parsed.path == "/_platform/login"
+            and not parsed.fragment
+            and query == {"return_to": [return_to]}
+        )
+
+    @staticmethod
+    def _https_redirect_matches(location: str) -> bool:
+        try:
+            parsed = urlsplit(location)
+            port = parsed.port
+        except ValueError:
+            return False
+        return (
+            parsed.scheme == "https"
+            and parsed.hostname == "apps-staging.comfforts.com"
+            and port in {None, 443}
+            and parsed.username is None
+            and parsed.password is None
+            and parsed.path == "/"
+            and not parsed.query
+            and not parsed.fragment
+        )
+
     def _admission_identity(self, check_id: str) -> QualificationProbeOutcome:
         public = self._http.request("GET", "/fixture-public")
         authenticated = self._http.request("GET", "/fixture-authenticated")
@@ -400,10 +437,15 @@ class StagingQualificationProbe:
             public.status_code == 200
             and all(item.status_code == 303 for item in redirects)
             and all(
-                item.headers.get("location", "").startswith(
-                    "/_platform/auth/login?return_to="
+                self._login_redirect_matches(
+                    item.headers.get("location", ""),
+                    path,
                 )
-                for item in redirects
+                for item, path in zip(
+                    redirects,
+                    ("/fixture-authenticated", "/fixture-restricted"),
+                    strict=True,
+                )
             )
             and browser.authenticated
             and browser.restricted
@@ -529,8 +571,9 @@ class StagingQualificationProbe:
         secure = self._http.request("GET", "/")
         valid = (
             redirect.status_code in {301, 302, 307, 308}
-            and redirect.headers.get("location")
-            == "https://apps-staging.comfforts.com/"
+            and self._https_redirect_matches(
+                redirect.headers.get("location", "")
+            )
             and secure.status_code == 200
         )
         return (

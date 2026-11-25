@@ -46,13 +46,13 @@ class Http:
         if insecure_http:
             return QualificationHttpResponse(
                 301,
-                {"location": "https://apps-staging.comfforts.com/"},
+                {"location": "https://apps-staging.comfforts.com:443/"},
                 b"",
             )
         if path in {"/fixture-authenticated", "/fixture-restricted"}:
             return QualificationHttpResponse(
                 303,
-                {"location": "/_platform/auth/login?return_to=" + path},
+                {"location": "/_platform/login?return_to=" + path},
                 b"",
             )
         if path == "/.well-known/jwks.json":
@@ -203,6 +203,63 @@ class LiveQualificationProbeTest(unittest.TestCase):
         self.assertEqual(result.outcome, "fail")
         self.assertEqual(result.blockers, ("LIVE_ADMISSION_IDENTITY_MISMATCH",))
         self.assertNotIn("cookie", repr(result.observation).lower())
+
+    def test_admission_rejects_a_login_redirect_for_the_wrong_fixture(self) -> None:
+        class WrongReturnHttp(Http):
+            def request(self, method, path, **kwargs):  # type: ignore[no-untyped-def]
+                response = super().request(method, path, **kwargs)
+                if path == "/fixture-restricted":
+                    return QualificationHttpResponse(
+                        303,
+                        {
+                            "location": (
+                                "/_platform/login?return_to=%2Ffixture-authenticated"
+                            )
+                        },
+                        b"",
+                    )
+                return response
+
+        result = StagingQualificationProbe(
+            WrongReturnHttp(),
+            Browser(),
+            Targets(),
+            Lifecycle(),
+            self._fixture_project(),
+        ).evaluate(
+            QualificationProbeRequest(
+                "admission-identity",
+                (),
+                self._current(),
+            )
+        )
+
+        self.assertEqual(result.outcome, "fail")
+        self.assertEqual(result.blockers, ("LIVE_ADMISSION_IDENTITY_MISMATCH",))
+
+    def test_dns_tls_rejects_a_non_default_https_port(self) -> None:
+        class WrongPortHttp(Http):
+            def request(self, method, path, **kwargs):  # type: ignore[no-untyped-def]
+                if kwargs.get("insecure_http"):
+                    return QualificationHttpResponse(
+                        301,
+                        {"location": "https://apps-staging.comfforts.com:444/"},
+                        b"",
+                    )
+                return super().request(method, path, **kwargs)
+
+        result = StagingQualificationProbe(
+            WrongPortHttp(),
+            Browser(),
+            Targets(),
+            Lifecycle(),
+            self._fixture_project(),
+        ).evaluate(
+            QualificationProbeRequest("dns-tls", (), self._current())
+        )
+
+        self.assertEqual(result.outcome, "fail")
+        self.assertEqual(result.blockers, ("LIVE_DNS_TLS_MISMATCH",))
 
     def test_attachment_qualification_requires_live_project_connection(self) -> None:
         probe = StagingQualificationProbe(

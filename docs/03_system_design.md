@@ -965,7 +965,11 @@ Qualification deploys or updates synthetic Fixture Applications through the same
 attachment bundles, in separate Application State, then exercises DNS/TLS, catalogue, routing,
 admission, OAuth/session/logout, assertions/JWKS, direct-origin denial, isolation, streaming,
 lifecycle, redaction, and rollback. It records revision-scoped evidence without making a real
-application the test harness. Fixtures are detached and may be destroyed after evaluation without
+application the test harness. Every non-mutating qualification check completes successfully before
+the rollback check can request an owner-confirmed traffic change. The rollback check temporarily
+activates the retained reviewed predecessor, verifies it, then requires a second exact confirmation
+and readback to restore the original complete generation. A failed prerequisite blocks that check
+without moving traffic. Fixtures are detached and may be destroyed after evaluation without
 retiring their identities.
 
 Environment destruction creates a separate destructive specification, refuses active attachments,

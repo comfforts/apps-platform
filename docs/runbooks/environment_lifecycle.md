@@ -451,6 +451,17 @@ resources, DNS and TLS behavior, catalogue and routing, admission and identity, 
 verification, direct-origin denial, isolation, streaming behavior, rollback readiness, and
 redaction. It records only approved, redacted evidence.
 
+The command completes all non-mutating checks before offering a rollback. If any of them fails,
+`lifecycle-rollback` is recorded as blocked with
+`QUALIFICATION_ROLLBACK_PREREQUISITE_FAILED`; the command does not prompt for rollback and does not
+move traffic. When they all pass, the command explains the traffic effect before asking for the
+exact rollback phrase. Confirmation temporarily moves 100 percent of staging traffic from the
+current Registration Generation to its reviewed predecessor. Keep the command running: after
+provider readback it asks for a second exact phrase to restore the original generation and verifies
+that restoration. Declining or interrupting restoration leaves the predecessor active; follow the
+printed `RESTORATION REQUIRED` guidance and inspect the active generation before attempting
+qualification again.
+
 Do not call the environment qualified if a required check failed, was skipped, used a different
 revision, or could not be read back.
 

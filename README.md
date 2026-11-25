@@ -445,6 +445,15 @@ Repeat that application-scoped sequence for `fixture-authenticated` with
 `ACCESS_MODE=authenticated` and for `fixture-restricted` with `ACCESS_MODE=restricted`. After the
 required fixtures are active, run `platform-qualify` and `platform-status`.
 
+`platform-qualify` is not wholly read-only. It runs every non-mutating source, provider, DNS/TLS,
+routing, identity, isolation, transport, and redaction check first. Only when all of those checks
+pass does it offer the live rollback exercise. The terminal explains that the exercise temporarily
+moves 100 percent of staging traffic to the reviewed predecessor, asks for exact rollback
+confirmation, verifies the change, then asks for exact restoration confirmation and verifies that
+the original generation is again serving all traffic. Keep the command running through both
+confirmations. If any earlier check fails, rollback is recorded as blocked and traffic is not
+changed.
+
 A repository revision change alone does not require another `platform-deploy`. Fixture commands
 validate their own current source independently, then consume the provider-verified active
 platform revision and Registration Generation recorded in the Platform Integration Bundle. Run
@@ -572,7 +581,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-register ...` | Validate an application attachment and activate a complete immutable generation |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
-| `make platform-qualify ENVIRONMENT=<name>` | Evaluate the exact platform and fixture revisions and write redacted evidence |
+| `make platform-qualify ENVIRONMENT=<name>` | Evaluate the exact platform and fixture revisions, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every non-mutating check passes; write redacted evidence |
 | `make platform-destroy ENVIRONMENT=<name>` | Compile, confirm, execute, and resume safe platform destruction |
 | `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and registration intent, and stop before registration |
 | `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |

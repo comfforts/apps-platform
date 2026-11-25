@@ -221,69 +221,86 @@ class QualificationSuiteEvaluator:
             blockers=("QUALIFICATION_PROBE_RESULT_INVALID",),
         )
 
+    def _evaluate_check(
+        self,
+        check_id: str,
+        current: QualificationReadback,
+    ) -> QualificationCheckObservation:
+        injected = self._injections.get(check_id)
+        if injected is not None:
+            return QualificationCheckObservation(
+                check_id=check_id,
+                outcome="fail",
+                verification="deterministic",
+                observation={
+                    "check_id": check_id,
+                    "outcome": "injected-failure",
+                },
+                blockers=(injected,),
+            )
+        request = QualificationProbeRequest(
+            check_id=check_id,
+            capabilities=QUALIFICATION_CHECK_CAPABILITIES[check_id],
+            current=current,
+        )
+        try:
+            result = self._probe.evaluate(request)
+        except Exception:
+            return QualificationCheckObservation(
+                check_id=check_id,
+                outcome="fail",
+                verification=_CHECK_VERIFICATIONS[check_id],
+                observation={
+                    "check_id": check_id,
+                    "outcome": "probe-failed",
+                },
+                blockers=("QUALIFICATION_PROBE_FAILED",),
+            )
+        valid = (
+            result.outcome in {"blocked", "fail", "pass", "unavailable"}
+            and isinstance(result.observation, Mapping)
+            and all(_BLOCKER.fullmatch(item) for item in result.blockers)
+            and (
+                (result.outcome == "pass" and not result.blockers)
+                or (result.outcome != "pass" and bool(result.blockers))
+            )
+        )
+        if not valid:
+            return self._invalid(check_id)
+        return QualificationCheckObservation(
+            check_id=check_id,
+            outcome=result.outcome,
+            verification=_CHECK_VERIFICATIONS[check_id],
+            observation=result.observation,
+            blockers=tuple(sorted(set(result.blockers))),
+        )
+
     def evaluate(
         self,
         current: QualificationReadback,
     ) -> tuple[QualificationCheckObservation, ...]:
-        observations: list[QualificationCheckObservation] = []
-        for check_id in sorted(QUALIFICATION_CHECK_CAPABILITIES):
-            injected = self._injections.get(check_id)
-            if injected is not None:
-                observations.append(
-                    QualificationCheckObservation(
-                        check_id=check_id,
-                        outcome="fail",
-                        verification="deterministic",
-                        observation={
-                            "check_id": check_id,
-                            "outcome": "injected-failure",
-                        },
-                        blockers=(injected,),
-                    )
-                )
-                continue
-            request = QualificationProbeRequest(
-                check_id=check_id,
-                capabilities=QUALIFICATION_CHECK_CAPABILITIES[check_id],
-                current=current,
+        rollback_check = "lifecycle-rollback"
+        observations = [
+            self._evaluate_check(check_id, current)
+            for check_id in sorted(
+                set(QUALIFICATION_CHECK_CAPABILITIES) - {rollback_check}
             )
-            try:
-                result = self._probe.evaluate(request)
-            except Exception:
-                observations.append(
-                    QualificationCheckObservation(
-                        check_id=check_id,
-                        outcome="fail",
-                        verification=_CHECK_VERIFICATIONS[check_id],
-                        observation={
-                            "check_id": check_id,
-                            "outcome": "probe-failed",
-                        },
-                        blockers=("QUALIFICATION_PROBE_FAILED",),
-                    )
-                )
-                continue
-            valid = (
-                result.outcome in {"blocked", "fail", "pass", "unavailable"}
-                and isinstance(result.observation, Mapping)
-                and all(_BLOCKER.fullmatch(item) for item in result.blockers)
-                and (
-                    (result.outcome == "pass" and not result.blockers)
-                    or (result.outcome != "pass" and bool(result.blockers))
-                )
-            )
-            if not valid:
-                observations.append(self._invalid(check_id))
-                continue
+        ]
+        if any(item.outcome != "pass" for item in observations):
             observations.append(
                 QualificationCheckObservation(
-                    check_id=check_id,
-                    outcome=result.outcome,
-                    verification=_CHECK_VERIFICATIONS[check_id],
-                    observation=result.observation,
-                    blockers=tuple(sorted(set(result.blockers))),
+                    check_id=rollback_check,
+                    outcome="blocked",
+                    verification=_CHECK_VERIFICATIONS[rollback_check],
+                    observation={
+                        "check_id": rollback_check,
+                        "outcome": "prerequisite-failed",
+                    },
+                    blockers=("QUALIFICATION_ROLLBACK_PREREQUISITE_FAILED",),
                 )
             )
+        else:
+            observations.append(self._evaluate_check(rollback_check, current))
         return tuple(observations)
 
 

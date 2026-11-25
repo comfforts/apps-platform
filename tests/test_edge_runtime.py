@@ -1749,6 +1749,7 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
             request_during_lifespan(
                 app,
                 "/alpha/report",
+                method="POST",
                 query_string=b"view=summary",
             )
         )
@@ -1757,6 +1758,7 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertEqual(headers[b"x-application-proxy"], b"bounded")
         self.assertEqual(body, b"proxied\n")
         self.assertEqual(len(proxy.http_requests), 1)
+        self.assertEqual(proxy.http_requests[0][0].method, "POST")
         routed = proxy.http_requests[0][1]
         self.assertEqual(routed.path, "/report")
         self.assertEqual(routed.query_string, b"view=summary")
@@ -2000,6 +2002,19 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
                 ),
             ),
         )
+
+        _, (post_status, _, post_body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/login",
+                method="POST",
+                query_string=b"return_to=%2Falpha",
+            )
+        )
+
+        self.assertEqual(post_status, 405)
+        self.assertEqual(post_body, b"method not allowed\n")
+        self.assertEqual(store.flows, {})
 
         _, (status, headers, _) = asyncio.run(
             request_during_lifespan(

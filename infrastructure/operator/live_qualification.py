@@ -104,6 +104,7 @@ class BrowserQualificationResult:
     authenticated: bool
     restricted: bool
     logout: bool
+    blocker: str | None = None
 
 
 @dataclass(slots=True)
@@ -182,7 +183,6 @@ class LoopbackBrowserQualification:
         *,
         login_timeout_seconds: float = 300,
         callback_timeout_seconds: float = 30,
-        logout_timeout_seconds: float = 5,
         challenge_source: Callable[[], str] | None = None,
         callback_factory: Callable[[str], QualificationCallback] | None = None,
     ) -> None:
@@ -190,7 +190,6 @@ class LoopbackBrowserQualification:
         self._terminal = terminal
         self._login_timeout = login_timeout_seconds
         self._callback_timeout = callback_timeout_seconds
-        self._logout_timeout = logout_timeout_seconds
         self._challenge_source = challenge_source or (lambda: secrets.token_hex(32))
         self._callback_factory = callback_factory or _CallbackServer
 
@@ -208,69 +207,101 @@ class LoopbackBrowserQualification:
             )
         )
 
-    def _open_and_wait(
+    def _run_browser_step(
         self,
         application_id: str,
         timeout_seconds: float,
-    ) -> bool:
+        *,
+        step_number: int,
+        title: str,
+        instructions: str,
+        blocker_prefix: str,
+        clear_session: bool,
+    ) -> tuple[bool, str | None]:
+        self._terminal.write(
+            f"BROWSER CHECK {step_number}/3: {title}\n\n{instructions}"
+        )
+        try:
+            confirmed = self._terminal.confirm(
+                f"Open the browser for qualification step {step_number}/3? [y/N] "
+            )
+        except Exception:
+            return False, f"LIVE_{blocker_prefix}_BROWSER_CHECK_FAILED"
+        if not confirmed:
+            return False, f"LIVE_{blocker_prefix}_BROWSER_CHECK_NOT_CONFIRMED"
+
         challenge = self._challenge_source()
         if len(challenge) != 64 or any(value not in "0123456789abcdef" for value in challenge):
             raise ValueError("qualification challenge source is invalid")
         callback = self._callback_factory(challenge)
         try:
             url = self._fixture_url(application_id, callback.port, challenge)
-            if not self._launcher.open(url):
-                return False
-            return callback.wait(timeout_seconds) == application_id
+            if clear_session:
+                return_to = url.removeprefix(_STAGING_ORIGIN)
+                url = (
+                    f"{_STAGING_ORIGIN}/_platform/logout?"
+                    + urlencode({"return_to": return_to})
+                )
+            try:
+                opened = self._launcher.open(url)
+            except Exception:
+                opened = False
+            if not opened:
+                return False, f"LIVE_{blocker_prefix}_BROWSER_CHECK_FAILED"
+            if callback.wait(timeout_seconds) != application_id:
+                return False, f"LIVE_{blocker_prefix}_BROWSER_CHECK_FAILED"
+            return True, None
         finally:
             callback.close()
 
     def verify(self) -> BrowserQualificationResult:
-        self._terminal.write(
-            "BROWSER_CHECK Sign in with the reviewed staging operator account; "
-            "the session remains only in the browser."
-        )
-        authenticated = self._open_and_wait(
+        authenticated, blocker = self._run_browser_step(
             "fixture-authenticated",
             self._login_timeout,
+            step_number=1,
+            title="Establish the reviewed operator session",
+            instructions=(
+                "This step first clears any existing Apps Platform session in the "
+                "browser, then starts Google sign-in. Select the exact operator "
+                "account approved for the restricted staging fixture. Browser "
+                "credentials and session state remain only in the browser."
+            ),
+            blocker_prefix="AUTHENTICATED",
+            clear_session=True,
         )
         if not authenticated:
-            return BrowserQualificationResult(False, False, False)
+            return BrowserQualificationResult(False, False, False, blocker)
 
-        restricted = self._open_and_wait(
+        restricted, blocker = self._run_browser_step(
             "fixture-restricted",
             self._callback_timeout,
+            step_number=2,
+            title="Verify restricted application admission",
+            instructions=(
+                "This step reuses the Apps Platform session established in step 1. "
+                "It should reach the restricted fixture without another Google "
+                "sign-in prompt."
+            ),
+            blocker_prefix="RESTRICTED",
+            clear_session=False,
         )
         if not restricted:
-            return BrowserQualificationResult(True, False, False)
+            return BrowserQualificationResult(True, False, False, blocker)
 
-        challenge = self._challenge_source()
-        callback = self._callback_factory(challenge)
-        try:
-            return_to = self._fixture_url(
-                "fixture-public",
-                callback.port,
-                challenge,
-            ).removeprefix(_STAGING_ORIGIN)
-            logout_url = (
-                f"{_STAGING_ORIGIN}/_platform/logout?"
-                + urlencode({"return_to": return_to})
-            )
-            if not self._launcher.open(logout_url):
-                return BrowserQualificationResult(True, True, False)
-            logout_callback = callback.wait(self._callback_timeout)
-        finally:
-            callback.close()
-        if logout_callback != "fixture-public":
-            return BrowserQualificationResult(True, True, False)
-
-        # A removed session must return to Google login rather than reach the
-        # protected fixture callback. The operator need not copy a cookie or token.
-        logged_out = not self._open_and_wait(
-            "fixture-authenticated",
-            self._logout_timeout,
+        logged_out, blocker = self._run_browser_step(
+            "fixture-public",
+            self._callback_timeout,
+            step_number=3,
+            title="Verify platform logout",
+            instructions=(
+                "This step asks the Shared Edge to delete and read back the current "
+                "Apps Platform session, then returns through the public fixture. "
+                "It does not open another sign-in flow."
+            ),
+            blocker_prefix="LOGOUT",
+            clear_session=True,
         )
-        return BrowserQualificationResult(True, True, logged_out)
+        return BrowserQualificationResult(True, True, logged_out, blocker)
 
 
 class HttpxQualificationClient:
@@ -432,8 +463,7 @@ class StagingQualificationProbe:
         authenticated = self._http.request("GET", "/fixture-authenticated")
         restricted = self._http.request("GET", "/fixture-restricted")
         redirects = (authenticated, restricted)
-        browser = self._browser_checks()
-        valid = (
+        routes_valid = (
             public.status_code == 200
             and all(item.status_code == 303 for item in redirects)
             and all(
@@ -447,15 +477,20 @@ class StagingQualificationProbe:
                     strict=True,
                 )
             )
-            and browser.authenticated
-            and browser.restricted
-            and browser.logout
         )
-        return (
-            self._pass(check_id, browser_flows=3, route_modes=3)
-            if valid
-            else self._fail(check_id, "LIVE_ADMISSION_IDENTITY_MISMATCH")
-        )
+        if not routes_valid:
+            return self._fail(check_id, "LIVE_ADMISSION_IDENTITY_MISMATCH")
+
+        browser = self._browser_checks()
+        if browser.blocker is not None:
+            return self._fail(check_id, browser.blocker)
+        if not browser.authenticated:
+            return self._fail(check_id, "LIVE_AUTHENTICATED_BROWSER_CHECK_FAILED")
+        if not browser.restricted:
+            return self._fail(check_id, "LIVE_RESTRICTED_BROWSER_CHECK_FAILED")
+        if not browser.logout:
+            return self._fail(check_id, "LIVE_LOGOUT_BROWSER_CHECK_FAILED")
+        return self._pass(check_id, browser_flows=3, route_modes=3)
 
     def _assertion_jwks(self, check_id: str) -> QualificationProbeOutcome:
         response = self._http.request("GET", "/.well-known/jwks.json")

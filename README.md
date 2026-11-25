@@ -454,6 +454,13 @@ the original generation is again serving all traffic. Keep the command running t
 confirmations. If any earlier check fails, rollback is recorded as blocked and traffic is not
 changed.
 
+The identity check uses exactly three browser actions, and the command asks `y/N` immediately
+before each one. The first clears any existing Apps Platform session and asks the operator to sign
+in with the exact reviewed staging account. The second reuses that session to verify restricted
+admission. The third logs out, verifies server-side session deletion, and returns through the
+public fixture without starting another login. Declining a browser action stops qualification with
+a blocker naming the unconfirmed step; the command never opens the next tab on its own.
+
 A repository revision change alone does not require another `platform-deploy`. Fixture commands
 validate their own current source independently, then consume the provider-verified active
 platform revision and Registration Generation recorded in the Platform Integration Bundle. Run

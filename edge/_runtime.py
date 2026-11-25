@@ -677,6 +677,19 @@ def create_app(
                         "IDENTITY_STORE_SESSION_DELETE_FAILED",
                     )
                     return _closed_response(503, "identity unavailable")
+                try:
+                    retained_session = await adapters.identity_store.get_session(
+                        session_id
+                    )
+                except Exception:
+                    retained_session = object()
+                if retained_session is not None:
+                    health.observe("session_store", available=False)
+                    record_diagnostic(
+                        request.scope,
+                        "IDENTITY_STORE_SESSION_DELETE_READBACK_FAILED",
+                    )
+                    return _closed_response(503, "identity unavailable")
                 health.observe("session_store", available=True)
             response = RedirectResponse(return_to, status_code=303)
             response.headers["Cache-Control"] = "no-store"

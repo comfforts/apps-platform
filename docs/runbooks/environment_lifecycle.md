@@ -451,6 +451,21 @@ resources, DNS and TLS behavior, catalogue and routing, admission and identity, 
 verification, direct-origin denial, isolation, streaming behavior, rollback readiness, and
 redaction. It records only approved, redacted evidence.
 
+The admission check presents three browser steps. Read each step and answer its separate `y/N`
+prompt before the command opens a tab:
+
+1. Clear any prior Apps Platform session and sign in with the exact reviewed staging operator
+   account.
+2. Reuse that platform session to verify restricted-fixture admission; another Google sign-in is
+   not expected.
+3. Log out of Apps Platform and return through the public fixture. Shared Edge verifies that the
+   server-side session is absent before this step succeeds. This does not log the account out of
+   Google and does not start a later sign-in test.
+
+The terminal names the exact step when a browser cannot be opened, a callback does not arrive, or
+the operator declines confirmation. Do not reuse unexplained callback tabs from an earlier run;
+only the tab opened after the current prompt belongs to the current step.
+
 The command completes all non-mutating checks before offering a rollback. If any of them fails,
 `lifecycle-rollback` is recorded as blocked with
 `QUALIFICATION_ROLLBACK_PREREQUISITE_FAILED`; the command does not prompt for rollback and does not

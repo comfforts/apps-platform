@@ -2466,6 +2466,46 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertEqual(invalid_status, 400)
         self.assertEqual(invalid_body, b"invalid return location\n")
 
+    def test_logout_fails_when_session_deletion_does_not_read_back(self) -> None:
+        class NonDeletingStore(InMemoryIdentityStore):
+            async def delete_session(self, session_id: str) -> None:
+                del session_id
+
+        configuration, source = configured_generation(
+            compiled_generation(),
+            external_origin="https://apps-staging.comfforts.com",
+        )
+        store = NonDeletingStore()
+        session_id = "retained-session-012345678901"
+        store.sessions[session_id] = PlatformSession(
+            identity=PlatformIdentity(
+                "https://accounts.google.com", "visitor-1"
+            ),
+            expires_at=10_000,
+        )
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                identity_store=store,
+                clock=FixedClock(1_000),
+            ),
+        )
+
+        _, (status, headers, body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/logout",
+                query_string=b"return_to=%2Falpha",
+                headers=((b"cookie", f"__Host-comfforts-session={session_id}".encode()),),
+            )
+        )
+
+        self.assertEqual(status, 503)
+        self.assertEqual(body, b"identity unavailable\n")
+        self.assertIn(session_id, store.sessions)
+        self.assertEqual(headers.get_all(b"set-cookie"), [])
+
     def test_edge_replaces_visitor_assertion_with_minimized_application_assertion(
         self,
     ) -> None:

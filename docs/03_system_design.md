@@ -370,10 +370,12 @@ edge-owned login flow or fails closed. Restricted membership compares exact issu
 pairs from the reviewed Registration Generation. Email is display-only session metadata and never
 enters the Version 1 assertion.
 
-The platform-reserved logout operation deletes the server-side session, clears the host cookie,
-and accepts only a validated platform-relative return location. It does not revoke the global
-Google session. An application may link to this operation from any registered path but cannot
-implement a second authoritative logout for the Platform Session.
+The platform-reserved logout operation deletes the server-side session, reads the session store to
+verify that the opaque session is absent, clears the host cookie, and accepts only a validated
+platform-relative return location. A failed deletion or readback fails closed without claiming
+logout. The operation does not revoke the global Google session. An application may link to this
+operation from any registered path but cannot implement a second authoritative logout for the
+Platform Session.
 
 After admission, the edge strips the identity header and creates a compact assertion with a maximum
 60-second lifetime and at most 30 seconds of verifier clock skew. A new assertion is issued for each

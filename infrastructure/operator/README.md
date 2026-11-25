@@ -79,6 +79,11 @@ the last deployment operation, and the source serving the active Shared Edge sep
 differences are source diagnostics, not command failures; unreadable or inconsistent lifecycle
 state remains a blocker.
 
+`platform-qualify` asks for separate `y/N` approval before each of its three browser invocations.
+Those invocations clear any stale Platform Session and authenticate, reuse the session for the
+restricted fixture, then verify platform logout through server-side deletion readback and a public
+fixture callback. A declined or failed step is reported by name and no later browser tab is opened.
+
 `fixture-handoff` is the application-owned deployment step. It consumes an existing project-scoped
 Platform Integration Bundle, deploys or reconciles the selected fixture in the dedicated fixture
 project, and prints the canonical Platform Integration Bundle, Application Attachment Bundle, and

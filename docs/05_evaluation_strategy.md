@@ -1698,6 +1698,13 @@ connected service project can retrieve the public platform JWKS through the plat
 application-subnet NAT, then deny or remove that egress and verify the application fails closed
 with only `verification_keys_unavailable` in its diagnostic event.
 
+The browser portion has exactly three separately confirmed invocations: clear any prior Platform
+Session and authenticate with the reviewed account, reuse that session for restricted admission,
+then delete and read back the server-side session before returning through the public fixture.
+Declined confirmation, browser-launch failure, missing callback, deletion failure, or deletion
+readback mismatch produces a step-specific blocker. Reauthentication after logout is not used as
+logout evidence because an existing Google session may complete it immediately.
+
 #### AP-EVAL-M9-08 · Rollback, fixture cleanup, platform destruction, and redeployment
 
 Only after every non-mutating qualification check passes, explain the traffic effect and obtain

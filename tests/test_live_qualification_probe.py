@@ -186,7 +186,7 @@ class LiveQualificationProbeTest(unittest.TestCase):
         self.assertEqual(browser.calls, 1)
         self.assertTrue(all(not item.blockers for item in results))
 
-    def test_browser_or_provider_mismatch_fails_with_coarse_blocker(self) -> None:
+    def test_browser_failure_preserves_the_exact_step_blocker(self) -> None:
         current = self._current()
         probe = StagingQualificationProbe(
             Http(),
@@ -201,8 +201,35 @@ class LiveQualificationProbeTest(unittest.TestCase):
         )
 
         self.assertEqual(result.outcome, "fail")
-        self.assertEqual(result.blockers, ("LIVE_ADMISSION_IDENTITY_MISMATCH",))
+        self.assertEqual(result.blockers, ("LIVE_AUTHENTICATED_BROWSER_CHECK_FAILED",))
         self.assertNotIn("cookie", repr(result.observation).lower())
+
+    def test_declined_browser_step_preserves_the_confirmation_blocker(self) -> None:
+        current = self._current()
+        probe = StagingQualificationProbe(
+            Http(),
+            Browser(
+                BrowserQualificationResult(
+                    True,
+                    False,
+                    False,
+                    "LIVE_RESTRICTED_BROWSER_CHECK_NOT_CONFIRMED",
+                )
+            ),
+            Targets(),
+            Lifecycle(),
+            self._fixture_project(),
+        )  # type: ignore[arg-type]
+
+        result = probe.evaluate(
+            QualificationProbeRequest("admission-identity", (), current)
+        )
+
+        self.assertEqual(result.outcome, "fail")
+        self.assertEqual(
+            result.blockers,
+            ("LIVE_RESTRICTED_BROWSER_CHECK_NOT_CONFIRMED",),
+        )
 
     def test_admission_rejects_a_login_redirect_for_the_wrong_fixture(self) -> None:
         class WrongReturnHttp(Http):

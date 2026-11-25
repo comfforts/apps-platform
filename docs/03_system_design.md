@@ -1,7 +1,7 @@
 # App Platform system design
 
-Version 1.9 | Status: AP-M9-W9 cross-project fixture correction in progress; Candidate Source
-provider operation is not accepted qualification
+Version 1.10 | Status: AP-M9-W9 cross-project fixture lifecycle implemented and
+candidate-qualified; AP-M9-W10 Accepted Source operation is next
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -997,15 +997,18 @@ safe-destruction mechanics plus guarded local provider construction and the prod
 composition. AP-M9-W9 implements the Fixture Application operator, browser-mediated qualification,
 exact retained-resource destruction transitions, and staging-only Candidate Source admission so a
 pushed pull-request revision can exercise provider behavior before merge without claiming accepted
-qualification. The repository work itself performs no external operation. The live
+qualification. W9 Candidate Source exercised those boundaries with all three cross-project
+fixtures and completed restricted-fixture detach, destruction, redeployment, reactivation, and
+qualification. That operation does not promote its evidence to Accepted Source. The live
 process accepts exact generated revision, generation, provider,
 OAuth-secret-version, KMS-key-version, edge-caller, and operator-subject bindings. It reads the
 OAuth payload directly from the selected Secret Manager version and never puts that payload in an
 environment variable, terminal, image, output, or evidence record. These packages create no identity,
 credential, state,
 provider resource, OAuth client, DNS record, certificate, bundle instance, application change, or
-Live qualification evidence. AP-M9-W10 performs the first accepted staging operation from the
-merged W9 implementation; any candidate exercise must be repeated from Accepted Source.
+Live qualification evidence merely because the implementation exists. AP-M9-W10 performs the first
+accepted staging operation from the merged W9 implementation; the W9 candidate exercise must be
+repeated from Accepted Source.
 Python-to-Go migration remains a later contract-preserving milestone after
 the Python product is delivered and qualified.
 

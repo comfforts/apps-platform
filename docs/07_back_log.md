@@ -120,6 +120,91 @@ query one event for each approved failure class, confirm bucket/view access and 
 and prove the default exclusion and no-export posture. The review must leave a concise operator
 troubleshooting map and explicitly record signals that remain unavailable or intentionally absent.
 
+## Platform member directory and explicit identity delivery
+
+### Problem
+
+The current restricted fixture compiles one operator identity into one Application Registration.
+That makes restricted membership application-specific configuration and couples membership changes
+to Registration Generations. It does not represent the intended product boundary: restricted
+admission should use one platform-wide, owner-managed member directory shared by every restricted
+route.
+
+Identity delivery for public routes also needs an explicit privacy boundary. A public application
+may remain anonymous, use application-owned authentication, or opt into Platform Identity for a
+visitor who chooses the platform login flow. Those choices must not be inferred from `public`
+admission or from the existence of a Platform Session.
+
+The Google Auth Platform test-user list is a separate provider control used while an OAuth client
+has Testing status. It determines who may complete that provider's consent flow; it is not the App
+Platform member directory, an application user database, or a Feature Entitlement system.
+
+### Proposed product model
+
+Use a platform-owned Firestore member directory keyed by the verified Google issuer and stable
+subject. Membership is platform-wide:
+
+- `public` permits anonymous access and defaults to no Platform Identity delivery; an application
+  may explicitly request optional Platform Identity without making login mandatory;
+- `authenticated` requires Platform Identity and admits any identity successfully authenticated by
+  the configured platform identity provider; and
+- `restricted` requires Platform Identity and additionally requires an active entry in the
+  platform member directory.
+
+The Shared Edge resolves only the current visitor and sends that visitor's minimal, signed context
+to the selected application. It must not copy the member directory into a Registration Generation,
+bundle, assertion, catalogue response, log, or application runtime. Application principals, user
+records, roles, provider rights, and Feature Entitlements remain application-owned.
+
+Add an explicit per-application identity-delivery field to the versioned handoff and registration
+contracts. The intended combinations are `none` or `optional` for public admission and `required`
+for authenticated or restricted admission. A public application's separate OAuth client and
+identity remain independent; account linking to Platform Identity requires an explicit
+application-owned process.
+
+### Proposed operator lifecycle
+
+Platform deployment creates the directory infrastructure and least-privilege Shared Edge access,
+but it does not silently enroll the Platform Owner. A separate, deliberate owner-bootstrap command
+must verify an empty remote directory, distinguish the authenticated Cloud Operator from the Google
+identity being enrolled, obtain the owner identity through a confirmed browser flow, display a
+non-sensitive exact action, require confirmation, write one owner member idempotently, and read it
+back.
+
+Small platform-member commands should then support status, addition, suspension or reactivation,
+and removal without compiling a new Registration Generation or redeploying an application. Their
+exact names and lifecycle semantics require the governing architecture decision and contracts
+before implementation. Membership changes must be scoped to one Platform Environment, survive
+application replacement, and take effect at the next request or new session boundary defined by
+the accepted identity design.
+
+### Product and safety boundaries
+
+- Keep OAuth consent eligibility, Platform Identity authentication, platform membership,
+  application principals, and application Feature Entitlements as separate decisions.
+- Use verified issuer and stable subject as identity keys. Email and display name may be shown
+  transiently for operator confirmation but are not membership or ownership keys.
+- Store no application-specific feature roles, provider permissions, or application user profiles
+  in the platform member directory.
+- Keep the full member directory and individual member identities out of Git, public bundles,
+  catalogue output, ordinary terminal summaries, and public qualification evidence.
+- Require least-privilege Firestore access, idempotent mutation, exact readback, revocation tests,
+  and fail-closed behavior when the directory is unavailable or inconsistent.
+- An empty directory is a valid deployed state in which every restricted route denies admission;
+  it cannot satisfy restricted live qualification.
+- Do not infer that the active Cloud Operator is the Platform Owner member, and do not create or
+  replace an owner member merely because local operator state is absent.
+
+### Completion evidence
+
+Deterministic tests must cover public anonymous access, public optional Platform Identity,
+authenticated admission for a valid Google identity, restricted admission for an active member,
+restricted denial for a non-member, member suspension and removal, directory unavailability,
+cross-application consistency, prohibited-data absence, and application-owned Feature Entitlements.
+Live staging qualification must bootstrap the owner explicitly, exercise a second member's
+allow/deny lifecycle through `fixture-restricted`, prove that public and authenticated behavior is
+unchanged, and restore the reviewed member baseline before closing qualification.
+
 ## Fixture project disconnect and clean lifecycle
 
 ### Problem

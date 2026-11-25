@@ -1,8 +1,8 @@
 # App Platform evaluation strategy
 
-Version 0.17 | Status: AP-M9-W9 fixture lifecycle and live-adapter repository controls implemented; historical AP-EVAL-M8
-and standalone AP-EVAL-M9 proposals superseded without execution; no AP-M9 provider or Live result
-exists
+Version 0.18 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified; historical
+AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded without execution; Accepted Source
+AP-EVAL-M9 result remains AP-M9-W10 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
@@ -19,8 +19,9 @@ W8 supplies deterministic exact-revision qualification, evidence redaction, netw
 failure-injection, rollback, destruction-scope, confirmation, interruption, and resume evidence.
 W9 supplies deterministic source-bound fixture deployment, independent state, handoff, registration,
 browser qualification, exact destruction-transition, retained-resource, status, and redeployment evidence.
-No result qualifies a provider operation, Live environment, consuming application's adoption, or
-product authorization.
+W9 Candidate Source also produced non-accepted Live evidence for the three-fixture staging topology,
+restricted-fixture destruction and recovery, and the declared qualification checks. It does not
+qualify Accepted Source, production, a consuming application's adoption, or product authorization.
 
 Plan: [App Platform implementation plan](04_implementation_plan.md)
 
@@ -1757,7 +1758,11 @@ resumable progress, W5 implemented repository-only Terraform lifecycle policy an
 W6 implemented the interactive deployment engine plus closed command boundary. W7
 implemented application handoff and registration lifecycle controls, and W8 implemented
 qualification and safe-destruction controls behind guarded boundaries and wired the real staging
-deployment adapters only for a verified human session. The repository work itself created no identity,
-credential, Terraform state or saved plan, provider
-resource, OAuth client, secret, DNS record, certificate, application asset, Live evidence bundle,
-deployment, destruction, or passing operational result.
+deployment adapters only for a verified human session. W9 Candidate Source then exercised the
+cross-project fixture topology and recorded candidate evidence digest
+`sha256:c066175d280cd452af00ccede3090ad9df22701fc8708ce943aef0f1028d8f19`
+for revision `2fd045f6f720fe122103d42b3ebb6d25f5fbdac8` and restored active generation 8 digest
+`sha256:07880efea15027c1209c43e93bd91af2c6655c77582a70233c6cb22117462acf`.
+Private provider payloads, state, plans, browser state, and identity material remain outside Git.
+W10 must repeat the applicable staging journey from Accepted Source and complete the separately
+approved platform destruction/redeployment rehearsal before an accepted AP-EVAL-M9 result exists.

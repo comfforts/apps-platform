@@ -8,6 +8,15 @@ Any pre-merge Candidate Qualification is non-accepted evidence and must not be p
 qualifies, rehearses approved destruction/redeployment, and leaves `apps-staging.comfforts.com`
 deployed and qualified with the three repository-owned Fixture Applications.
 
+W9 candidate verification completed at source revision
+`2fd045f6f720fe122103d42b3ebb6d25f5fbdac8`, restored active Registration Generation 8 with digest
+`sha256:07880efea15027c1209c43e93bd91af2c6655c77582a70233c6cb22117462acf`,
+and recorded candidate evidence digest
+`sha256:c066175d280cd452af00ccede3090ad9df22701fc8708ce943aef0f1028d8f19`.
+Use those values only as a diagnostic predecessor. Do not copy them into Accepted Source evidence,
+assume they match the merged revision, or skip fresh source, provider, generation, fixture, and
+qualification readback.
+
 Read `AGENTS.md` and follow the complete order in `docs/README.md`. State the slice and authority:
 AP-M9-W10; AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009; ADR-001 through ADR-014;
 AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-001 through AP-TM-014. Inspect the branch, working
@@ -22,7 +31,10 @@ expansion retain separately named approval at their boundary.
 
 Perform the staging journey from exact merged source:
 
-1. Run the complete credential-free `make check` gate and stop on any failure, warning, or skip.
+1. Confirm the merged W9 revision is on clean protected `main`.
+   Run the complete credential-free `make check` gate and stop on any failure, warning, or skip.
+   Treat retained candidate private state and deployed resources as inputs to fresh readback and
+   reconciliation, never as accepted evidence.
 2. Verify the pinned Terraform toolchain, exact staging project, active human Cloud SDK account,
    user Application Default Credentials, `gcloud`, and `dig`. Never create or store a service-account
    key or copy a token, OAuth secret, Terraform state, plan, or provider payload into Git.

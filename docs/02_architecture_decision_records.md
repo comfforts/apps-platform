@@ -1,7 +1,7 @@
 # App Platform architecture decision records
 
-Version 0.9 | Status: accepted decisions through the AP-M9 cross-project fixture lifecycle;
-candidate staging infrastructure exists but has not been accepted or qualified
+Version 0.10 | Status: accepted decisions through the AP-M9 cross-project fixture lifecycle; W9
+candidate staging is qualified but is not Accepted Source qualification
 
 These records capture hard-to-reverse App Platform boundaries. They are authoritative only for this
 project and do not transfer ownership of an existing application's resources. Requirement

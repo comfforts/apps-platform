@@ -33,6 +33,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "README.md",
             "docs/01_product_requirements.md",
             "docs/02_architecture_decision_records.md",
+            "docs/adr/README.md",
             "docs/03_system_design.md",
             "docs/04_implementation_plan.md",
             "docs/05_evaluation_strategy.md",
@@ -327,16 +328,20 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_overview = " ".join(overview.split())
 
         self.assertIn(
-            "AP-M9-W9 fixture deployment lifecycle cross-project correction in progress",
+            "AP-M9-W9 implemented and candidate-qualified",
             normalized_index,
         )
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
-        self.assertIn("Live (`L`) and Application Adoption (`A`) evidence do not", normalized_index)
+        self.assertIn("Candidate Source Live (`L`) evidence", normalized_index)
+        self.assertIn(
+            "Accepted Source Live evidence and Application Adoption (`A`) evidence do not yet exist",
+            normalized_index,
+        )
         self.assertIn("AP-M8 | historical", index)
         self.assertIn("AP-M9-W1 — governance rebaseline", index)
         self.assertIn("AP-M9-W11 — production readiness", index)
-        self.assertIn("candidate staging platform resources have been exercised", normalized_overview.lower())
-        self.assertIn("not accepted qualification", normalized_overview.lower())
+        self.assertIn("candidate staging proved the dedicated fixture project", normalized_overview.lower())
+        self.assertIn("not accepted source qualification", normalized_overview.lower())
         self.assertIn("Platform Integration Bundle", overview)
         self.assertIn("Application Attachment Bundle", overview)
         self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", overview)
@@ -764,6 +769,28 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, normalized_decisions)
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("independent synthetic Application State roots", layout)
+
+    def test_architecture_decision_index_routes_one_canonical_record_per_identifier(
+        self,
+    ) -> None:
+        index = (PROJECT_ROOT / "docs/adr/README.md").read_text(encoding="utf-8")
+        docs_router = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
+        inventory = index.split("## Decision inventory", 1)[1].split(
+            "## Realization and evidence", 1
+        )[0]
+        observed = re.findall(r"^\| (ADR-\d{3}) \|", inventory, re.MULTILINE)
+
+        self.assertEqual(
+            observed,
+            [f"ADR-{number:03d}" for number in range(1, 15)],
+        )
+        self.assertEqual(len(observed), len(set(observed)))
+        self.assertEqual(inventory.count("Consolidated ADR-"), 14)
+        self.assertIn("Decision status and realization status are intentionally separate", index)
+        self.assertIn("they are not decisions", index)
+        self.assertIn("ADR-016", index)
+        self.assertIn("still\n  in discussion", index)
+        self.assertIn("[Architecture decision index](adr/README.md)", docs_router)
 
     def test_ap_m9_w10_handoff_loads_exact_staging_operation_authority(
         self,
@@ -1598,9 +1625,11 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn("AP-M9-W9", document)
             self.assertIn("implemented", document.lower())
         self.assertIn(
-            "AP-M9-W9 remains open for the cross-project fixture correction",
+            "AP-M9-W9 is implemented and candidate-qualified",
             overview,
         )
+        self.assertIn("AP-M9-W10 begins only after the W9 pull request merges", overview)
+        self.assertIn("diagnostic pre-merge evidence", docs_index)
         self.assertIn("platform-prepare", overview)
         self.assertIn("platform-cancel", overview)
         self.assertIn("platform-status", overview)

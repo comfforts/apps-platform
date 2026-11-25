@@ -333,6 +333,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
             encoding="utf-8"
         )
         combined = " ".join((overview, index, prompt))
+        normalized_combined = " ".join(combined.split())
         normalized_prompt = " ".join(prompt.split())
         self.assertIn("AP-M7 | complete | static Terraform", index)
         self.assertIn("AP-M8 | historical", index)
@@ -356,8 +357,8 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("Do not request a duplicate", normalized_prompt)
         self.assertIn("Run the complete credential-free `make check` gate", prompt)
         self.assertIn(
-            "candidate staging exists but is not accepted qualification",
-            combined,
+            "Candidate Source is not Accepted Source qualification",
+            normalized_combined,
         )
         for false_claim in (
             "AP-M7 is deployed",

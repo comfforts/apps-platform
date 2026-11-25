@@ -1,7 +1,7 @@
 # App Platform repository layout
 
-Version 2.3 | Status: canonical dedicated repository; AP-M9-W9 fixture lifecycle mechanics
-implemented; no backend, provider, DNS, deployment, or Live operation performed
+Version 2.5 | Status: canonical dedicated repository; AP-M9-W9 fixture lifecycle implemented and
+candidate-qualified; AP-M9-W10 Accepted Source operation is next
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -14,6 +14,7 @@ permission to create a resource or perform an external action.
 | `.github/workflows/` | credential-free repository checks |
 | `README.md`, `GLOSSARY.md` | product entry point and canonical vocabulary |
 | `docs/` | current requirements, decisions, design, plans, evaluation, and runbooks |
+| `docs/adr/` | canonical architecture-decision index and individual decision records |
 | `docs/history/` | superseded delivery records with no action authority |
 | `prompts/` | bounded next-task entry points subordinate to current documents |
 | `contracts/` | Version 1 public schemas, compiler, vectors, and bounded loading |
@@ -78,8 +79,10 @@ reviewed whole-generation rollback, safe-destruction compilation/orchestration, 
 destruction progress, least-data fixture handoff records, guarded Cloud SDK generation and target
 adapters, the production Shared Edge composition, its non-root image entry point, and
 `platform-qualify`/`platform-destroy`. W9 replaces the former live-entry implementation gates with
-verified-session qualification and exact retained-resource destruction adapters; neither W8 nor W9
-performed a provider request, image build, generation activation, rollback, qualification, or destruction.
+verified-session qualification and exact retained-resource destruction adapters. W8 repository
+implementation did not exercise those adapters. W9 Candidate Source operation subsequently
+exercised provider requests, fixture image builds, generation activation, qualification rollback
+and restoration, and fixture destruction and recovery for the named staging revision.
 
 AP-M9-W9 adds the executable Fixture Application owner lifecycle over the existing image and three
 independent Terraform roots. It introduces shallow `fixture-project-bootstrap`,
@@ -94,7 +97,7 @@ provider posture readback, registration generations that preserve other applicat
 or selected status, automatic prepared-specification reuse, and a non-publishing
 `platform-preflight` readiness target with deterministic fake coverage, plus live qualification and
 safe platform-destruction adapter completion. Candidate staging operation is implementation
-feedback, not accepted AP-M9 qualification.
+feedback and revision-scoped Live evidence, not Accepted Source AP-M9 qualification.
 
 ## AP-M9 capability locations
 

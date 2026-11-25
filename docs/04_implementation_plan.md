@@ -1,8 +1,8 @@
 # App Platform implementation plan
 
-Version 0.16 | Status: AP-M9-W1 through AP-M9-W9 implemented;
-AP-M8-W1/W2 preserved historically; AP-M8-W3 through W12 superseded without execution; every
-external operator action remains pending
+Version 0.17 | Status: AP-M9-W1 through AP-M9-W9 implemented and W9 candidate-qualified;
+AP-M8-W1/W2 preserved historically; AP-M8-W3 through W12 superseded without execution; Accepted
+Source staging operation remains AP-M9-W10 work
 
 This document preserves delivery items 3 through 7 and the completed historical AP-M8-W1/W2 work.
 AP-M7 implements and statically validates reviewed Terraform configuration and inert workflow
@@ -1771,7 +1771,7 @@ digest-pinned and source-allow-listed image build, create-only initial generatio
 authoritative/recursive DNS, TLS, and final readback. W9 completes the live qualification and
 destruction defaults without invoking them.
 
-#### AP-M9-W9 · Fixture Application deployment lifecycle — cross-project correction in progress
+#### AP-M9-W9 · Fixture Application deployment lifecycle — implemented and candidate-qualified
 
 Implement one interactive fixture-application operator over the existing image, bundle, Terraform,
 provider, and registration seams. A one-time `fixture-project-bootstrap` creates or repairs a
@@ -1797,7 +1797,11 @@ destructible-foundation removal, and retained-inventory readback. W9 also binds 
 `candidate` source authority into specifications, status, bundles, and qualification evidence. A
 candidate must be a clean pushed non-main revision containing current `origin/main`, can operate
 only on staging, publishes separate candidate evidence, and cannot authorize production or accepted
-qualification. This repository package performed no authenticated command or external operation.
+qualification. Candidate staging at revision
+`2fd045f6f720fe122103d42b3ebb6d25f5fbdac8` exercised the three cross-project fixtures, browser and
+runtime qualification, restricted-fixture detachment, Application State destruction, redeployment,
+and reactivation. Generation 8 was restored active after the qualification rollback exercise. This
+is W9 Candidate Qualification, not an accepted staging result.
 
 The fixture handoff persists the canonical integration and attachment bundle pair plus registration
 intent in ignored private state, prints their paths and digests for inspection, and stops before
@@ -1887,10 +1891,11 @@ deployment is a later joint platform checkpoint plus Finance-owned Application A
 
 AP-M9-W1 through W9 are repository branches in order. No staging resource is created merely because
 W6 contains shared-platform deployment mechanics or W9 contains Fixture Application deployment
-mechanics. A clean pushed W9 pull-request revision may deliberately exercise those targets on
+mechanics. The clean pushed W9 pull-request revision deliberately exercised those targets on
 staging with `SOURCE_AUTHORITY=candidate`; its digest-bound evidence is Candidate Qualification and
-cannot satisfy AP-EVAL-M9 or qualify production. W10 begins after W9 is merged and repeats the
-journey from Accepted Source, producing the first accepted staging result. W11 follows that result.
+cannot satisfy Accepted Source qualification or qualify production. W10 begins after W9 is merged
+and repeats the journey from Accepted Source, producing the first accepted staging result. W11
+follows that result.
 
 Within W10 the operator order is preparation and digest approval; shared-platform deployment; fixture
 integration-bundle generation; fixture application deployment; attachment registration;

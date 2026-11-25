@@ -1,6 +1,6 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W9 cross-project fixture lifecycle correction in progress; candidate staging is not accepted qualification
+Status: AP-M9-W9 implemented and candidate-qualified; AP-M9-W10 Accepted Source staging operation is next
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment

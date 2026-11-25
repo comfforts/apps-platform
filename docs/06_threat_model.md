@@ -1,8 +1,8 @@
 # App Platform threat model
 
-Version 1.12 | Status: Fixture-qualified threat model, implemented AP-M6/AP-M7 controls, and
-implemented AP-M9-W8 repository lifecycle controls; no provider operation or live
-infrastructure is deployed
+Version 1.13 | Status: Fixture-qualified threat model and implemented AP-M6 through AP-M9-W9
+controls; W9 candidate staging is deployed and qualified, while Accepted Source and production
+evidence remain unavailable
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -877,12 +877,11 @@ prohibited-data scans, network fixtures, failure injection, reviewed rollback, a
 destruction refusal, exact scope confirmation, post-confirmation reread, ordered stop-on-failure
 destruction, retained recovery/evidence boundaries, and create-only resume state. The non-fake
 deployment adapters are wired behind pinned-tool, exact-project, active-account, user-ADC,
-digest-bound plan, confirmation, source-upload allow-list, and readback gates, but remain uninvoked;
-W9 adds the repository-only Fixture Application deployment lifecycle, browser qualification, and
-closed safe-destruction transitions, completing every operator target needed before W10 may perform
-the first staging operation.
-No current result proves an identity, backend, provider, OAuth, DNS,
-deployment, or Live control operational.
+digest-bound plan, confirmation, source-upload allow-list, and readback gates. W9 adds and exercises
+the Fixture Application deployment lifecycle, browser qualification, and closed fixture
+destruction/recovery transition under Candidate Source, completing every operator target needed
+before W10. Candidate evidence proves only the named W9 staging bindings. No current result proves
+Accepted Source staging, platform destruction/redeployment, production, or Application Adoption.
 
 ## Unresolved security decisions
 
@@ -898,7 +897,6 @@ pass:
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
 | Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
-| Dedicated fixture project, explicit Shared VPC connection, executable fixture image, independent Application State plans, project-scoped handoff, separate registration, status, destruction, and staging Candidate Source admission | AP-M9-W9 acceptance before candidate verification or the first accepted staging operation |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |

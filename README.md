@@ -703,10 +703,12 @@ environment is deployed or qualified.
 
 ## Operational readiness
 
-AP-M9-W9 remains open for the cross-project fixture correction. Candidate staging platform
-resources have been exercised, but Candidate Source is not accepted qualification and the fixture
-attachment topology has not yet passed. AP-M9-W10 owns the first accepted staging qualification,
-and production remains blocked on explicit ownership transfer and application adoption.
+AP-M9-W9 is implemented and candidate-qualified. Candidate staging proved the dedicated fixture
+project, Shared VPC attachment, all three admission modes, separate registration, and the
+restricted-fixture detach, destruction, redeployment, and reactivation lifecycle. Candidate Source
+is not Accepted Source qualification. AP-M9-W10 begins only after the W9 pull request merges and
+owns deployment and qualification from clean protected `main`; production remains blocked on
+explicit ownership transfer and application adoption.
 
 See [the documentation index](docs/README.md) for the current work-package sequence, evidence
 boundary, and historical delivery record.

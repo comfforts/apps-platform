@@ -309,6 +309,34 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("run `make check` from the dedicated", instructions)
         self.assertNotIn("make -C apps-platform check", instructions)
         self.assertIn("one bounded slice per pull request", instructions)
+        self.assertIn(
+            "Treat milestones and work packages as planning containers",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "independently reviewable functional slices",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "Keep `<short-scope>` functionality-oriented",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "Omit milestone and work-package identifiers from branch names",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "active plan explicitly defines an atomic multi-slice integration branch",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "target every slice pull request back to that integration branch",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "any later tracked change invalidates that qualification",
+            normalized_instructions,
+        )
         self.assertIn("leave each change uncommitted until approval", instructions)
         self.assertIn("Merge it before starting the next documented slice", instructions)
         self.assertIn("Name branches `<type>/<short-scope>`", instructions)
@@ -912,7 +940,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, normalized)
         self.assertIn("ADR-010 and ADR-011 remain the accepted authority", normalized)
 
-    def test_ap_m9_w10_handoff_loads_exact_member_directory_authority(
+    def test_ap_m9_w10_handoff_limits_the_next_chat_to_contract_slice(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -928,26 +956,38 @@ class ProjectAuthorityTest(unittest.TestCase):
             "ADR-015",
             "AP-EVAL-M9-09",
             "AP-TM-004",
+            "AP-TM-011",
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "after the governance change accepting ADR-015 has merged",
-            "Platform Member Directory",
-            "explicit Identity Delivery",
-            "platform-member-bootstrap-owner",
-            "remotely empty directory",
-            "suspend, reactivate, and remove",
-            "do not compile a Registration Generation",
-            "Run the complete credential-free `make check` gate",
-            "Candidate Source staging testing",
-            "first Accepted Source staging operation after W10",
+            "first of seven ordered AP-M9-W10 functional slices",
+            "feat/platform-member-directory",
+            "feat/identity-delivery-v2-contracts",
+            "Version 2 registration",
+            "Identity Delivery explicitly as `none`, `optional`, or `required`",
+            "Remove every per-registration member set from Version 2",
+            "Implement deterministic Version 1 migration",
+            "Version 1 remains readable historical input",
+            "This slice is additive and inert",
+            "active Version 1 schemas, consumers, fixtures, runtime",
+            "must not become active output",
+            "point this prompt to Slice 2 without implementing Slice 2",
+            "Do not add Firestore resources or IAM",
+            "only after all seven W10 slices merge",
+            "pull request must target that integration branch, not `main`",
             "any real application",
         ):
             self.assertIn(boundary, normalized_prompt)
+        for excluded_later_slice in (
+            "platform-member-bootstrap-owner",
+            "platform-member-add",
+            "Candidate Source staging testing",
+        ):
+            self.assertNotIn(excluded_later_slice, prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W10 member directory handoff](starting_prompt.md)",
+            "[AP-M9-W10 Slice 1 contract handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -979,6 +1019,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
         self.assertIn("### AP-M9-W10", m9)
         self.assertIn("### AP-M9-W12", m9)
+        self.assertIn("AP-M9-W10 Slice 1 is the next delivery slice", m9)
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
         self.assertIn(
@@ -1001,11 +1042,13 @@ class ProjectAuthorityTest(unittest.TestCase):
             "## Scope controls",
             "## Proposed operator interface",
             "## Operator journeys after W10",
-            "## Planned commits and effort signals",
+            "## Planned functional slices and effort signals",
             "## Verification strategy",
-            "## PR-ready definition",
+            "### Evidence ownership by functional slice",
+            "## Slice and W10 completion definition",
         ):
             self.assertIn(section, w10)
+        self.assertIn("Threats: AP-TM-004 through AP-TM-011", w10)
         for command in (
             "platform-member-bootstrap-owner",
             "platform-member-status",
@@ -1021,12 +1064,34 @@ class ProjectAuthorityTest(unittest.TestCase):
             "ADR-016 operator-state recovery",
             "W11 Accepted Source staging operation",
             "Candidate Source staging qualification",
-            "seven coherent commits",
+            "seven ordered, independently reviewable functional slices",
             "122k-196k working tokens",
             "55-85 unique changed paths",
             "7-12 focused implementation days",
+            "No\nslice targets `main`",
+            "current governance pull\nrequest and every implementation slice use that integration branch",
+            "one or more coherent commits",
+            "Slice 1 is an additive, inert compatibility slice",
+            "does not silently change a Version 1 consumer",
+            "merged Accepted Source revision",
+            "ask the owner before adding a full",
+            "freeze the integration revision",
         ):
             self.assertIn(boundary, w10)
+        slice_branches = (
+            "feat/identity-delivery-v2-contracts",
+            "feat/platform-member-directory-infrastructure",
+            "feat/member-directory-edge-enforcement",
+            "feat/platform-member-lifecycle",
+            "feat/identity-delivery-application-handoffs",
+            "docs/identity-delivery-operator-handoff",
+            "evidence/member-admission-candidate-qualification",
+        )
+        for branch in slice_branches:
+            self.assertIn(branch, w10)
+        for predecessor, successor in zip(slice_branches, slice_branches[1:]):
+            self.assertLess(w10.index(predecessor), w10.index(successor))
+        self.assertNotIn("seven coherent commits", w10)
 
     def test_incremental_delivery_sequence_keeps_later_slices_separate(self) -> None:
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
@@ -1036,7 +1101,17 @@ class ProjectAuthorityTest(unittest.TestCase):
 
         for work_package in range(1, 13):
             self.assertIn(f"AP-M9-W{work_package}", index)
-        self.assertIn("Each work package is one bounded branch and pull request", normalized_index)
+        self.assertIn(
+            "Milestones and work packages are planning containers rather than automatic branch boundaries",
+            normalized_index,
+        )
+        self.assertIn(
+            "W10 is an explicitly planned atomic integration exception",
+            normalized_index,
+        )
+        self.assertIn("feat/platform-member-directory", normalized_index)
+        self.assertIn("no partial W10 implementation merges to `main`", normalized_index)
+        self.assertNotIn("Each work package is one bounded branch and pull request", normalized_index)
         self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W12"))
         self.assertIn("AP-M9-W10", normalized_prompt)
         self.assertIn("first Accepted Source staging operation", normalized_prompt)
@@ -1076,24 +1151,68 @@ class ProjectAuthorityTest(unittest.TestCase):
             normalized_requirements,
         )
         self.assertIn(
-            "W10 must repeat the applicable staging journey from Candidate Source",
+            "Slice 6 reconciles the operator handoff and implemented limitations before qualification",
             normalized_evaluation,
         )
         self.assertIn(
-            "After W10 merges, AP-M9-W11 repeats deployment and qualification from Accepted Source",
+            "Slice 7 completes qualification support and merges to the integration branch",
+            normalized_evaluation,
+        )
+        self.assertIn(
+            "After the cumulative W10 pull request merges, W11 must repeat the journey from Accepted Source",
             normalized_evaluation,
         )
         self.assertIn("AP-M9-W1 through AP-M9-W12", normalized_m9)
         self.assertNotIn("AP-M9-W1 through W10 are repository branches", m9)
         self.assertNotIn("operation-specific service-account impersonation", m9)
         self.assertIn("no operation-identity fleet", normalized_m9)
-        self.assertIn("seven planned commit outcomes", w10)
+        self.assertIn("all seven functional-slice pull requests", w10)
         self.assertIn("ADR-016 operator-state recovery", w10)
         self.assertIn("Status: Proposed; still in discussion", recovery)
         self.assertIn(
             "AP-M9-W10 continues to exclude operator-state recovery",
             normalized_recovery,
         )
+
+    def test_w10_governance_aligns_design_threats_and_evidence_without_guessing_implementation(
+        self,
+    ) -> None:
+        design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
+            encoding="utf-8"
+        )
+        threats = (PROJECT_ROOT / "docs/06_threat_model.md").read_text(
+            encoding="utf-8"
+        )
+        evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
+            encoding="utf-8"
+        )
+        normalized_design = " ".join(design.split())
+        normalized_threats = " ".join(threats.split())
+        normalized_evaluation = " ".join(evaluation.split())
+
+        for boundary in (
+            "Platform Sessions and Platform Member records occupy disjoint namespaces",
+            "implementation must stop and re-scope the data",
+            "private member-document format is independently versioned",
+            "outputs of the member-directory infrastructure slice",
+            "Session expiry does not remove or alter a member",
+        ):
+            self.assertIn(boundary, normalized_design)
+        for control in (
+            "enrollment callback is bound",
+            "Concurrent or stale member add, suspend, reactivate, or remove",
+            "Opaque member references are scoped to one environment",
+            "stale bootstrap session",
+            "AP-M9-W10 final integration qualification after Slice 7",
+        ):
+            self.assertIn(control, normalized_threats)
+        for evidence_boundary in (
+            "W10 Slices 1 through 6 produce only deterministic, mocked, local, or documentation evidence",
+            "Slice 7 first merges its qualification support",
+            "exact clean pushed integration revision",
+            "Any later tracked change invalidates that qualification",
+        ):
+            self.assertIn(evidence_boundary, normalized_evaluation)
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
@@ -1861,7 +1980,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("operator-attested", threat_model)
         self.assertIn("No current result proves", threat_model)
 
-    def test_ap_m9_w9_status_and_w10_member_handoff_are_bounded(self) -> None:
+    def test_ap_m9_w9_status_and_w10_contract_handoff_are_bounded(self) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         docs_index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         runbook = (
@@ -1913,11 +2032,12 @@ class ProjectAuthorityTest(unittest.TestCase):
         for required in (
             "AP-M9-W10",
             "AP-EVAL-M9-09",
-            "Platform Member Directory",
-            "explicit Identity Delivery",
-            "platform-member-bootstrap-owner",
-            "suspend, reactivate, and remove",
-            "first Accepted Source staging operation",
+            "first of seven ordered AP-M9-W10 functional slices",
+            "feat/identity-delivery-v2-contracts",
+            "Version 2 contract family",
+            "Identity Delivery explicitly",
+            "Do not add Firestore resources or IAM",
+            "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
             "Do not mutate production, `apps.comfforts.com`, Finance Assistant, or any real application",
         ):
             self.assertIn(required, normalized_prompt)

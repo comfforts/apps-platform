@@ -1,6 +1,6 @@
 # App Platform evaluation strategy
 
-Version 0.20 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.21 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
 without execution; ADR-015 implementation and Candidate Source qualification are AP-M9-W10 work,
 and the Accepted Source AP-EVAL-M9 result remains AP-M9-W11 work
@@ -1548,15 +1548,19 @@ It performs no credential lookup, provider request, DNS lookup, Terraform backen
 mutation, or browser action. It uses synthetic profiles, command fakes, temporary mode-`0700`
 directories, mocked Terraform providers, process-local loopback, and deterministic clocks.
 
-Accepted staging Live gates begin only after AP-M9-W1 through W10 are merged and the exact
-protected-main revision passes the complete gate. During W10, a clean pushed pull-request revision
-containing current `origin/main` may run the Version 2 staging journey with
-`SOURCE_AUTHORITY=candidate` to test provider behavior. Candidate specifications, bundles, and
-evidence remain digest-bound and separate, cannot satisfy AP-EVAL-M9, cannot overwrite accepted
-qualification, and cannot authorize production. After W10 merges, AP-M9-W11 repeats deployment and
-qualification from Accepted Source. The owner starts an ordinary reversible staging creation or
-update by deliberately invoking its named command; that process completes specification approval,
-exact plan or bounded-action confirmation, and readback without a duplicate out-of-band approval.
+Accepted staging Live gates begin only after the complete W10 integration branch merges and the
+exact protected-main revision passes the complete gate. W10 Slices 1 through 6 produce only
+deterministic, mocked, local, or documentation evidence and authorize no external operation. Slice
+7 first merges its qualification support to `feat/platform-member-directory`; the exact clean
+pushed integration revision may then run the Version 2 staging journey with
+`SOURCE_AUTHORITY=candidate`. Its specifications, bundles, and evidence remain digest-bound to that
+exact integration revision, cannot satisfy the Accepted Source AP-EVAL-M9 result, and cannot
+authorize production. Any later tracked change invalidates that qualification and requires a
+complete rerun before the cumulative pull request to `main`. After that pull request merges,
+AP-M9-W11 repeats deployment and qualification from Accepted Source. The owner starts an ordinary
+reversible staging creation or update by deliberately invoking its named command; that process
+completes specification approval, exact plan or bounded-action confirmation, and readback without
+a duplicate out-of-band approval.
 Destruction, purge, ownership transfer, production cutover, scope expansion, rollback, or recovery
 retains its separately named approval where required by its boundary. The local wizard uses only the
 verified short-lived human operator session and creates no operation-identity fleet or stored key.
@@ -1799,7 +1803,11 @@ cross-project fixture topology and recorded candidate evidence digest
 for revision `2fd045f6f720fe122103d42b3ebb6d25f5fbdac8` and restored active generation 8 digest
 `sha256:07880efea15027c1209c43e93bd91af2c6655c77582a70233c6cb22117462acf`.
 Private provider payloads, state, plans, browser state, and identity material remain outside Git.
-W10 must repeat the applicable staging journey from Candidate Source, qualify the Version 2 member
-directory, and restore the reviewed member baseline. After W10 merges, W11 must repeat the journey
-from Accepted Source and complete the separately approved platform destruction/redeployment
-rehearsal before an accepted AP-EVAL-M9 result exists.
+W10 Slices 1 through 5 must establish the deterministic Version 2 contract, infrastructure,
+runtime, lifecycle, and application-handoff evidence. Slice 6 reconciles the operator handoff and
+implemented limitations before qualification. Slice 7 completes qualification support and merges
+to the integration branch; the exact clean pushed integration revision must then repeat the
+applicable staging journey from Candidate Source, qualify the Version 2 member directory, restore
+the reviewed member baseline, and remain frozen. After the cumulative W10 pull request merges,
+W11 must repeat the journey from Accepted Source and complete the separately approved platform
+destruction/redeployment rehearsal before an accepted AP-EVAL-M9 result exists.

@@ -72,11 +72,19 @@ documentation. [docs/README.md](docs/README.md) is the canonical router to that 
 ## Branch and review workflow
 
 - Start each new approved slice from an updated, clean `main` on a dedicated semantically named
-  branch.
+  branch unless the active plan explicitly defines an atomic multi-slice integration branch. For
+  that bounded exception, create the integration branch from updated clean `main`, create each
+  slice from the latest clean integration branch, and target every slice pull request back to that
+  integration branch.
 - Treat milestones and work packages as planning containers rather than automatic branch or pull-
   request boundaries. Decompose a substantial work item into ordered, independently reviewable
   functional slices; give each slice its own branch and pull request, and merge it before beginning
   the next slice.
+- Keep an explicitly planned integration branch isolated from `main` until every required slice and
+  integration-level gate passes. Freeze an exact qualified integration revision before its
+  cumulative pull request to `main`; any later tracked change invalidates that qualification and
+  requires the documented gate to run again. Use the active plan for the integration branch name,
+  synchronization rule, ordered slices, and completion evidence.
 - Name branches `<type>/<short-scope>` using the primary change: `docs/` for documentation or
   governance-only work, `feat/` for product behavior, `fix/` for defect correction, `evidence/`
   for qualification evidence, and `chore/` for small maintenance. Use an owner-specified branch

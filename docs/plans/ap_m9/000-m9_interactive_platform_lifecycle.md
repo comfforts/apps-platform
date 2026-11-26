@@ -1,7 +1,7 @@
 # AP-M9 · Operator-driven environment lifecycle
 
-Version 0.2 | Status: AP-M9-W1 through AP-M9-W9 implemented and W9 candidate-qualified;
-AP-M9-W10 is the next delivery package
+Version 0.3 | Status: AP-M9-W1 through AP-M9-W9 implemented and W9 candidate-qualified;
+AP-M9-W10 Slice 1 is the next delivery slice
 
 This document is the canonical milestone plan for AP-M9 and its ordered work packages. Use the
 [implementation plan index](../README.md) for plan routing. AP-M9-W10 has a separate
@@ -33,12 +33,17 @@ implemented the missing Fixture Application deployment lifecycle and staging-onl
 admission, then candidate-qualified the three-fixture cross-project staging topology under the
 Version 1 identity model.
 
-Each AP-M9 repository package begins from updated clean `main`, uses a dedicated branch and pull
-request, passes `make check`, and merges before the next package starts. Repository implementation
-does not initiate an external operation. For ordinary reversible staging creation or update, the
-owner's deliberate invocation of the named command plus its same-process specification and plan
-confirmations authorizes the execution; no duplicate out-of-band approval is required. Destruction,
-purge, ownership transfer, production cutover, and scope expansion retain separately named approval.
+An AP-M9 functional slice normally begins from updated clean `main`, uses a functionality-oriented
+branch and pull request, passes `make check`, and merges before the next ordered slice starts.
+Milestones and work packages remain planning containers; a substantial package may require
+multiple slices. W10 is the explicit atomic exception: its slices target the
+`feat/platform-member-directory` integration branch so the Version 1/Version 2 transition reaches
+`main` only as one completed, candidate-qualified feature.
+Repository implementation does not initiate an external operation. For ordinary reversible staging
+creation or update, the owner's deliberate invocation of the named command plus its same-process
+specification and plan confirmations authorizes the execution; no duplicate out-of-band approval is
+required. Destruction, purge, ownership transfer, production cutover, and scope expansion retain
+separately named approval.
 
 ## Outcome
 
@@ -324,6 +329,12 @@ and restore the reviewed member baseline. This package produces Candidate Source
 does not perform the first Accepted Source operation, change production, or adopt a real
 application.
 
+Deliver this package through the seven ordered functional slices defined in the W10 work-package
+plan. Create `feat/platform-member-directory` from clean `main`; each slice has its own
+functionality-oriented branch and pull request targeting that integration branch, contains one or
+more coherent commits, and merges before its successor begins. Candidate-qualify and freeze the
+exact complete integration revision before opening its cumulative pull request to `main`.
+
 ### AP-M9-W11 · Accepted Source staging deployment and qualification
 
 From Accepted Source on clean protected main, deliberately invoke staging preparation/deployment,
@@ -346,14 +357,18 @@ deployment is a later joint platform checkpoint plus Finance-owned Application A
 
 ## Ordered delivery and external-action gate
 
-AP-M9-W1 through AP-M9-W12 are bounded branches and pull requests in order. No staging resource is
-created merely because W6 contains shared-platform deployment mechanics or W9 contains Fixture
-Application deployment mechanics. The clean pushed W9 pull-request revision deliberately
+AP-M9-W1 through AP-M9-W12 are ordered planning containers. Substantial work packages are delivered
+through separately merged functional slices rather than being forced into one branch. No staging
+resource is created merely because W6 contains shared-platform deployment mechanics or W9 contains
+Fixture Application deployment mechanics. The clean pushed W9 pull-request revision deliberately
 exercised those targets on staging with `SOURCE_AUTHORITY=candidate`; its digest-bound evidence is
 Candidate Qualification and cannot satisfy Accepted Source qualification or qualify production.
-W10 replaces the Version 1 identity and restricted-membership model and qualifies the new behavior
-from Candidate Source. W11 begins only after W10 is merged and repeats the complete journey from
-Accepted Source, producing the first accepted staging result. W12 follows that result.
+W10 uses seven ordered functional slices on `feat/platform-member-directory` to replace the Version
+1 identity and restricted-membership model without partially changing `main`. After every slice is
+merged, the exact complete integration revision is candidate-qualified and frozen, then one
+cumulative pull request merges it to `main`. W11 begins only after that final merge and repeats the
+complete journey from Accepted Source, producing the first accepted staging result. W12 follows
+that result.
 
 Within W10 the operator first deploys the directory infrastructure, deliberately bootstraps the
 owner, exercises member lifecycle, deploys the Version 2 fixtures, and performs candidate
@@ -399,6 +414,6 @@ AP-M9 is accepted only when:
 | AP-M9-W5, AP-M9-W6 | AP-PR-001 through AP-PR-005, AP-PR-010; AP-QR-001 through AP-QR-009 | ADR-001, ADR-004 through ADR-011, ADR-013 | AP-TM-001 through AP-TM-014 |
 | AP-M9-W7 | AP-PR-001 through AP-PR-007, AP-PR-009, AP-PR-011, AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-006, ADR-008, ADR-012, ADR-013 | AP-TM-001 through AP-TM-014 |
 | AP-M9-W8, AP-M9-W9 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-014 | AP-TM-001 through AP-TM-014 |
-| AP-M9-W10 | AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011; AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009 | ADR-003, ADR-004, ADR-006, ADR-008, ADR-012, ADR-014, ADR-015 | AP-TM-004 through AP-TM-006, AP-TM-008 through AP-TM-010, AP-TM-013, AP-TM-014 |
+| AP-M9-W10 | AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011; AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009 | ADR-003, ADR-004, ADR-006, ADR-008, ADR-012, ADR-014, ADR-015 | AP-TM-004 through AP-TM-011, AP-TM-013, AP-TM-014 |
 | AP-M9-W11 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-015 | AP-TM-001 through AP-TM-014 |
 | AP-M9-W12 | AP-PR-007, AP-PR-009 through AP-PR-012; AP-QR-001, AP-QR-003 through AP-QR-009 | ADR-001, ADR-002, ADR-004, ADR-007, ADR-010 through ADR-015 | AP-TM-007 through AP-TM-014 |

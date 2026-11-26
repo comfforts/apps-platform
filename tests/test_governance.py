@@ -940,7 +940,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, normalized)
         self.assertIn("ADR-010 and ADR-011 remain the accepted authority", normalized)
 
-    def test_ap_m9_w10_handoff_limits_the_next_chat_to_infrastructure_slice(
+    def test_ap_m9_w10_handoff_limits_the_next_chat_to_edge_enforcement_slice(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -960,18 +960,19 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "second of seven ordered AP-M9-W10 functional slices",
+            "third of seven ordered AP-M9-W10 functional slices",
             "feat/platform-member-directory",
-            "feat/platform-member-directory-infrastructure",
-            "Platform Member Directory infrastructure",
-            "explicit namespace boundary from session data",
-            "Keep member records and member identities out of Terraform",
-            "least-privilege Shared Edge runtime IAM",
-            "closed non-secret Terraform outputs and provider readback",
-            "deterministic directory adapter seam and in-memory implementation",
-            "without wiring it into the active Shared Edge or operator commands",
-            "point this prompt to Slice 3 without implementing Slice 3",
-            "Do not add Shared Edge membership lookup or admission behavior",
+            "feat/member-directory-edge-enforcement",
+            "Shared Edge member enforcement",
+            "provider-backed exact-current-member lookup adapter",
+            "Do not add member enumeration",
+            "public plus `none` stays anonymous",
+            "authenticated plus `required` needs verified identity but not membership",
+            "restricted plus `required` needs verified identity and a current active member record",
+            "Fail restricted admission closed",
+            "Version 1 compatibility",
+            "point this prompt to Slice 4 without implementing Slice 4",
+            "Do not add owner bootstrap or member lifecycle commands",
             "only after all seven W10 slices merge",
             "pull request must target that integration branch, not `main`",
             "any real application",
@@ -986,7 +987,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W10 Slice 2 infrastructure handoff](starting_prompt.md)",
+            "[AP-M9-W10 Slice 3 edge-enforcement handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -1018,7 +1019,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
         self.assertIn("### AP-M9-W10", m9)
         self.assertIn("### AP-M9-W12", m9)
-        self.assertIn("AP-M9-W10 Slice 1 implemented", m9)
+        self.assertIn("AP-M9-W10 Slices 1-2 implemented", m9)
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
         self.assertIn(
@@ -2034,11 +2035,11 @@ class ProjectAuthorityTest(unittest.TestCase):
         for required in (
             "AP-M9-W10",
             "AP-EVAL-M9-09",
-            "second of seven ordered AP-M9-W10 functional slices",
-            "feat/platform-member-directory-infrastructure",
-            "Platform Member Directory infrastructure",
-            "least-privilege Shared Edge runtime IAM",
-            "Do not add Shared Edge membership lookup or admission behavior",
+            "third of seven ordered AP-M9-W10 functional slices",
+            "feat/member-directory-edge-enforcement",
+            "Shared Edge member enforcement",
+            "provider-backed exact-current-member lookup adapter",
+            "Do not add owner bootstrap or member lifecycle commands",
             "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
             "Do not mutate staging, production, DNS, identity, Finance Assistant, or any real application",
         ):

@@ -74,9 +74,32 @@ run "plans_identity_and_generation_foundation" {
       module.platform_foundation.policy_summary.sessions.ttl_enabled &&
       module.platform_foundation.policy_summary.sessions.absolute_lifetime_seconds == 28800 &&
       module.platform_foundation.policy_summary.sessions.runtime_data_role == "roles/datastore.user" &&
+      module.platform_foundation.policy_summary.sessions.runtime_condition == "resource.name == 'projects/synthetic-platform/databases/(default)'" &&
       !module.platform_foundation.policy_summary.sessions.asynchronous_ttl_is_authorization
     )
     error_message = "Platform Sessions must retain the eight-hour application expiry and bounded Firestore profile without backup or PITR"
+  }
+
+  assert {
+    condition = (
+      output.foundation_phase_output.foundation.member_directory.database_name == "app-platform-members" &&
+      output.foundation_phase_output.foundation.member_directory.database_reference == "projects/synthetic-platform/databases/app-platform-members" &&
+      output.foundation_phase_output.foundation.member_directory.directory_collection_name == "platform-member-directory-v1" &&
+      output.foundation_phase_output.foundation.member_directory.member_collection_name == "platform-members-v1" &&
+      output.foundation_phase_output.foundation.member_directory.document_contract_version == 1 &&
+      output.foundation_phase_output.foundation.member_directory.member_reference_scheme == "pmr1-sha256" &&
+      length(output.foundation_phase_output.foundation.member_directory.required_composite_indexes) == 0 &&
+      output.foundation_phase_output.foundation.member_directory.runtime_principal == "serviceAccount:app-platform-edge-runtime@synthetic-platform.iam.gserviceaccount.com" &&
+      output.foundation_phase_output.foundation.member_directory.runtime_role == "projects/synthetic-platform/roles/appPlatformMemberReader" &&
+      length(output.foundation_phase_output.foundation.member_directory.runtime_permissions) == 1 &&
+      output.foundation_phase_output.foundation.member_directory.runtime_permissions[0] == "datastore.entities.get" &&
+      output.foundation_phase_output.foundation.member_directory.runtime_condition == "resource.name == 'projects/synthetic-platform/databases/app-platform-members'" &&
+      !output.foundation_phase_output.foundation.member_directory.runtime_can_enumerate &&
+      !output.foundation_phase_output.foundation.member_directory.runtime_can_mutate &&
+      !output.foundation_phase_output.foundation.member_directory.terraform_manages_members &&
+      module.platform_foundation.policy_summary.member_directory.namespaces_separated
+    )
+    error_message = "member storage must use an isolated named database and exact-read runtime role without query or mutation capability"
   }
 
   assert {

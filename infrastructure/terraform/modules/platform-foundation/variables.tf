@@ -25,6 +25,12 @@ variable "foundation_configuration" {
       expiration_field          = string
       absolute_lifetime_seconds = number
     })
+    member_directory = object({
+      database_name             = string
+      directory_collection_name = string
+      member_collection_name    = string
+      runtime_role_id           = string
+    })
   })
 }
 

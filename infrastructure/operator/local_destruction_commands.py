@@ -56,6 +56,7 @@ _OWNED_STATE_PREFIXES = (
 _FULL_STATE_MARKERS = (
     "module.platform_foundation.google_storage_bucket.configuration",
     "module.platform_foundation.google_firestore_database.sessions[0]",
+    "module.platform_foundation.google_firestore_database.member_directory[0]",
     "module.platform_controls.google_storage_bucket.evidence",
     "module.platform_controls.google_artifact_registry_repository.qualification_images[0]",
     "module.shared_edge[0].google_cloud_run_v2_service.edge",

@@ -172,6 +172,75 @@ class PlanPolicyTest(unittest.TestCase):
             [item.code for item in rejected.violations],
         )
 
+    def test_shared_edge_allows_only_exact_member_directory_reconciliation(
+        self,
+    ) -> None:
+        policy = plan_policy(
+            "staging",
+            "shared-edge",
+            SOURCE_REVISION,
+            destructive=False,
+        )
+        addresses = (
+            (
+                "module.platform_foundation.google_firestore_database."
+                "member_directory[0]",
+                "google_firestore_database",
+                ["create"],
+            ),
+            (
+                "module.platform_foundation.google_project_iam_custom_role."
+                "edge_member_directory_reader[0]",
+                "google_project_iam_custom_role",
+                ["create"],
+            ),
+            (
+                "module.platform_foundation.google_project_iam_member."
+                "edge_member_directory_reader[0]",
+                "google_project_iam_member",
+                ["create"],
+            ),
+            (
+                "module.platform_foundation.google_project_iam_member."
+                "edge_session_store[0]",
+                "google_project_iam_member",
+                ["update"],
+            ),
+        )
+        for address, resource_type, actions in addresses:
+            with self.subTest(address=address):
+                observation = _shared_edge_observation()
+                observation["changes"].append(  # type: ignore[union-attr]
+                    {
+                        "address": address,
+                        "resource_type": resource_type,
+                        "provider_source": (
+                            "registry.terraform.io/hashicorp/google"
+                        ),
+                        "actions": actions,
+                    }
+                )
+                self.assertTrue(evaluate_plan(policy, observation).accepted)
+
+        observation = _shared_edge_observation()
+        observation["changes"].append(  # type: ignore[union-attr]
+            {
+                "address": (
+                    "module.platform_foundation.google_project_iam_member."
+                    "edge_member_directory_writer[0]"
+                ),
+                "resource_type": "google_project_iam_member",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["create"],
+            }
+        )
+        rejected = evaluate_plan(policy, observation)
+        self.assertFalse(rejected.accepted)
+        self.assertIn(
+            "INHERITED_RESOURCE_MUTATION_PROHIBITED",
+            [item.code for item in rejected.violations],
+        )
+
     def test_bootstrap_accepts_only_exact_legacy_fixture_bucket_forget_actions(
         self,
     ) -> None:

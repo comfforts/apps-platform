@@ -1670,6 +1670,12 @@ Verify Platform State owns the Firestore database configuration, required indexe
 least-privilege Shared Edge access, while member documents remain remote operational data outside
 Terraform, Git, and Registration Generations. Prove an empty local operator directory cannot
 bootstrap an owner over a non-empty remote directory.
+For the member-directory infrastructure slice, mocked plans must prove the default session database
+and named `app-platform-members` database remain distinct, no composite member index is required,
+the session role is conditioned to the default database, and the member custom role contains only
+`datastore.entities.get` with a named-database condition. Deterministic provider readback must
+reject missing, unconditioned, additional, list-capable, or mutation-capable Shared Edge grants
+without exposing the IAM policy or any member record.
 Verify the lifecycle creates no operation-identity or impersonation fleet.
 Verify deployment checking rejects the same destructive, replacement, ownership, provider, and
 scope violations as deployment while never invoking apply or acquiring the remote state lock.

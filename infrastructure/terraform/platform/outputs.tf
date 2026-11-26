@@ -20,6 +20,13 @@ output "foundation_phase_output" {
       !module.platform_foundation.policy_summary.identities.service_account_keys &&
       !module.platform_foundation.policy_summary.oauth.secret_version_present &&
       !module.platform_foundation.policy_summary.oauth.secret_value_present &&
+      module.platform_foundation.policy_summary.member_directory.namespaces_separated &&
+      length(module.platform_foundation.policy_summary.member_directory.required_composite_indexes) == 0 &&
+      length(module.platform_foundation.policy_summary.member_directory.runtime_permissions) == 1 &&
+      module.platform_foundation.policy_summary.member_directory.runtime_permissions[0] == "datastore.entities.get" &&
+      !module.platform_foundation.policy_summary.member_directory.runtime_can_enumerate &&
+      !module.platform_foundation.policy_summary.member_directory.runtime_can_mutate &&
+      !module.platform_foundation.policy_summary.member_directory.terraform_manages_members &&
       (
         var.platform_configuration.destruction_mode == "retained" ||
         (
@@ -29,7 +36,7 @@ output "foundation_phase_output" {
         )
       )
     )
-    error_message = "foundation output requires separate keyless identities, a secret container without secret material, and complete application egress while deployed."
+    error_message = "foundation output requires separate keyless identities, a secret container without secret material, isolated exact-read member storage, and complete application egress while deployed."
   }
 }
 

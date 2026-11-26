@@ -330,7 +330,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertNotIn("id-token: write", check_workflow)
         self.assertNotIn("terraform apply", check_workflow)
 
-    def test_status_preserves_history_and_routes_next_work_to_w10_infrastructure_slice(
+    def test_status_preserves_history_and_routes_next_work_to_w10_edge_slice(
         self,
     ) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
@@ -355,13 +355,13 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("AP-M9-W5 — deployable Terraform (implemented)", index)
         self.assertIn("AP-M9-W6 — interactive platform deployment (implemented)", index)
         self.assertIn("AP-M9-W7 — platform-side application lifecycle (implemented)", index)
-        self.assertIn("Slice 1 pull request has merged", prompt)
+        self.assertIn("Slice 2 pull request has merged", prompt)
         self.assertIn(
-            "second of seven ordered AP-M9-W10 functional slices",
+            "third of seven ordered AP-M9-W10 functional slices",
             normalized_prompt,
         )
-        self.assertIn("feat/platform-member-directory-infrastructure", prompt)
-        self.assertIn("only Platform Member Directory infrastructure", normalized_prompt)
+        self.assertIn("feat/member-directory-edge-enforcement", prompt)
+        self.assertIn("implements only Shared Edge member enforcement", normalized_prompt)
         self.assertIn(
             "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
             normalized_prompt,

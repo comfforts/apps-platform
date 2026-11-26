@@ -22,7 +22,11 @@ from infrastructure.operator.deployment import (
     TerraformReadbackRequest,
 )
 from infrastructure.operator.deployment_dns import DnsReadback
-from infrastructure.operator.deployment_provider import CertificateReadback
+from infrastructure.operator.deployment_provider import (
+    CertificateReadback,
+    DeploymentProviderError,
+    MemberDirectoryIamReadback,
+)
 from infrastructure.operator.local_deployment import (
     DeploymentConfigurationRenderer,
     InitialGeneration,
@@ -228,6 +232,37 @@ class FakeTerraform:
                     "projects/comfforts-platform-non-prod/secrets/"
                     "app-platform-edge-oauth"
                 ),
+                "member_directory": {
+                    "database_name": "app-platform-members",
+                    "database_reference": (
+                        "projects/comfforts-platform-non-prod/databases/"
+                        "app-platform-members"
+                    ),
+                    "directory_collection_name": (
+                        "platform-member-directory-v1"
+                    ),
+                    "member_collection_name": "platform-members-v1",
+                    "document_contract_version": 1,
+                    "member_reference_scheme": "pmr1-sha256",
+                    "required_composite_indexes": [],
+                    "runtime_principal": (
+                        "serviceAccount:app-platform-edge-runtime@"
+                        "comfforts-platform-non-prod.iam.gserviceaccount.com"
+                    ),
+                    "runtime_role": (
+                        "projects/comfforts-platform-non-prod/roles/"
+                        "appPlatformMemberReader"
+                    ),
+                    "runtime_permissions": ["datastore.entities.get"],
+                    "runtime_condition": (
+                        "resource.name == 'projects/"
+                        "comfforts-platform-non-prod/databases/"
+                        "app-platform-members'"
+                    ),
+                    "runtime_can_enumerate": False,
+                    "runtime_can_mutate": False,
+                    "terraform_manages_members": False,
+                },
             }
             if self.foundation_egress_ready:
                 foundation.update(
@@ -282,6 +317,7 @@ class FakeProvider:
     certificate_ready: bool = True
     backend: bool = False
     initial_generation_publications: int = 0
+    member_iam_valid: bool = True
 
     def enable_bootstrap_services(self) -> None:
         self.services = True
@@ -331,6 +367,32 @@ class FakeProvider:
         return (
             "projects/comfforts-platform-non-prod/secrets/"
             "app-platform-edge-oauth/versions/1"
+        )
+
+    def member_directory_iam_readback(self) -> MemberDirectoryIamReadback:
+        if not self.member_iam_valid:
+            raise DeploymentProviderError(
+                "MEMBER_DIRECTORY_IAM_READBACK_MISMATCH"
+            )
+        return MemberDirectoryIamReadback(
+            runtime_principal=(
+                "serviceAccount:app-platform-edge-runtime@"
+                "comfforts-platform-non-prod.iam.gserviceaccount.com"
+            ),
+            session_role="roles/datastore.user",
+            session_condition=(
+                "resource.name == 'projects/comfforts-platform-non-prod/"
+                "databases/(default)'"
+            ),
+            member_role=(
+                "projects/comfforts-platform-non-prod/roles/"
+                "appPlatformMemberReader"
+            ),
+            member_permissions=("datastore.entities.get",),
+            member_condition=(
+                "resource.name == 'projects/comfforts-platform-non-prod/"
+                "databases/app-platform-members'"
+            ),
         )
 
     def certificate_readback(self) -> CertificateReadback:
@@ -721,6 +783,64 @@ class LocalDeploymentCommandsTest(unittest.TestCase):
                 "FOUNDATION_READBACK_INVALID",
             ):
                 self._readback(commands, foundation, "platform-foundation")
+
+    def test_shared_edge_readback_rejects_member_directory_iam_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands, _, provider, _, work = self._commands(directory)
+            provider.member_iam_valid = False
+            foundation = _context(
+                "foundation",
+                ("foundation-reference", "oauth-secret-container"),
+            )
+            commands.create_terraform_plan(
+                foundation,
+                _request(work, "platform-foundation"),
+            )
+            foundation_result = self._readback(
+                commands,
+                foundation,
+                "platform-foundation",
+            )
+            generation = initial_generation(SOURCE)
+            edge_inputs = (
+                (
+                    "foundation.foundation-reference",
+                    dict(foundation_result.outputs)["foundation-reference"],
+                ),
+                (
+                    "image-publish.shared-edge-image-digest",
+                    "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+                    "app-platform-images/shared-edge@sha256:" + "d" * 64,
+                ),
+                (
+                    "oauth-configuration.oauth-client-id",
+                    "123-client.apps.googleusercontent.com",
+                ),
+                (
+                    "oauth-configuration.oauth-secret-version",
+                    "projects/comfforts-platform-non-prod/secrets/"
+                    "app-platform-edge-oauth/versions/1",
+                ),
+                (
+                    "generation-publish.registration-generation-reference",
+                    generation.reference(42),
+                ),
+            )
+            edge = _context(
+                "shared-edge",
+                ("edge-reference", "hostname", "reserved-address"),
+                edge_inputs,
+            )
+            commands.create_terraform_plan(
+                edge,
+                _request(work, "shared-edge"),
+            )
+
+            with self.assertRaisesRegex(
+                DeploymentCommandError,
+                "MEMBER_DIRECTORY_IAM_READBACK_MISMATCH",
+            ):
+                self._readback(commands, edge, "shared-edge")
 
     def test_renderer_blocker_is_not_hidden_as_plan_command_failure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

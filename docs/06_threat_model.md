@@ -543,9 +543,12 @@ unavailable verification keys closed; public routes may remain anonymous. AP-M6-
 unavailable or mismatched attachment closed without selecting another target. AP-M6-W8 maps local
 transport failure, timeout, malformed response, disconnect, and cancellation to closed outcomes
 without another target. AP-M9-W9 Terraform grants only the edge runtime the project-level
-Firestore data role required for login-flow and session entities. AP-M9-W10 must replace that
-predecessor posture with a proved session/member namespace and IAM boundary before member lookup or
-mutation may be called implemented. Runtime failure diagnostics use
+Firestore data role required for login-flow and session entities. AP-M9-W10 Slice 2 replaces that
+repository posture with a conditioned default-database session grant and a separate named member
+database whose runtime custom role contains only exact-document read permission. Deterministic
+provider readback rejects an unconditioned, additional, enumeration-capable, or mutation-capable
+runtime grant. No provider reconciliation or member lookup has occurred yet, so Live realization
+and admission remain pending later W10 slices. Runtime failure diagnostics use
 constant allowlisted boundary codes carried only by the minimized completion event routed to the
 dedicated seven-day regional log bucket. The isolated JSON-line logger prevents `INFO` completion
 events from being suppressed or misclassified as unselected text logs. Diagnostics never include

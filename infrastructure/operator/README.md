@@ -120,13 +120,19 @@ The default `PREFLIGHT_MODE=operational` enforces the selected Accepted or Candi
 
 ## Planned member lifecycle transition
 
-The next implementation slice adds Version 2 contracts and the smallest member-specific operator
-surface. `platform-deploy` will reconcile the empty Firestore directory infrastructure but will not
-enroll a member. A separate `platform-member-bootstrap-owner` command will enroll the first owner
-only after remote-empty readback, a separately confirmed Google Visitor flow, exact review, and
-idempotent remote readback. Bounded status, add, suspend, reactivate, and remove commands will then
-change environment-wide membership without compiling a Registration Generation or deploying an
-application.
+W10 now contains the inert Version 2 contracts and repository implementation for the isolated
+member-directory database and exact-read runtime IAM. Provider readback accepts only the
+conditioned default-database session grant and the named-database custom member role containing
+`datastore.entities.get`; a broader project-level runtime grant fails closed. These additions have
+not been reconciled to a provider and are not consumed by the active Version 1 Shared Edge.
+
+A later slice adds Shared Edge member lookup and explicit Identity Delivery. Another later slice
+adds the smallest member-specific operator surface. `platform-deploy` will reconcile the empty
+Firestore directory infrastructure but will not enroll a member. A separate
+`platform-member-bootstrap-owner` command will enroll the first owner only after remote-empty
+readback, a separately confirmed Google Visitor flow, exact review, and idempotent remote readback.
+Bounded status, add, suspend, reactivate, and remove commands will then change environment-wide
+membership without compiling a Registration Generation or deploying an application.
 
 Application handoff inputs will add explicit Identity Delivery: `none` or `optional` for public
 admission and `required` for authenticated or restricted admission. Until that slice implements and

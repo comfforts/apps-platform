@@ -7,13 +7,29 @@ output "foundation_reference" {
     edge_runtime_email             = local.retained_only ? null : local.edge_runtime_email
     oauth_secret_id                = try(google_secret_manager_secret.edge_oauth[0].id, null)
     session_database               = try(google_firestore_database.sessions[0].name, null)
-    signing_key_id                 = google_kms_crypto_key.assertion_signing.id
-    shared_network_reference       = google_compute_network.shared.id
-    application_subnet_reference   = google_compute_subnetwork.applications.id
-    application_subnet_cidr        = google_compute_subnetwork.applications.ip_cidr_range
-    application_egress_mode        = local.retained_only ? null : "all-traffic"
-    application_router_name        = try(google_compute_router.applications[0].name, null)
-    application_nat_name           = try(google_compute_router_nat.applications[0].name, null)
+    member_directory = local.retained_only ? null : {
+      database_name              = google_firestore_database.member_directory[0].name
+      database_reference         = local.member_database_reference
+      directory_collection_name  = var.foundation_configuration.member_directory.directory_collection_name
+      member_collection_name     = var.foundation_configuration.member_directory.member_collection_name
+      document_contract_version  = 1
+      member_reference_scheme    = "pmr1-sha256"
+      required_composite_indexes = []
+      runtime_principal          = local.edge_runtime_principal
+      runtime_role               = "projects/${var.foundation_configuration.project_id}/roles/${var.foundation_configuration.member_directory.runtime_role_id}"
+      runtime_permissions        = sort(tolist(local.member_runtime_permissions))
+      runtime_condition          = "resource.name == '${local.member_database_reference}'"
+      runtime_can_enumerate      = false
+      runtime_can_mutate         = false
+      terraform_manages_members  = false
+    }
+    signing_key_id               = google_kms_crypto_key.assertion_signing.id
+    shared_network_reference     = google_compute_network.shared.id
+    application_subnet_reference = google_compute_subnetwork.applications.id
+    application_subnet_cidr      = google_compute_subnetwork.applications.ip_cidr_range
+    application_egress_mode      = local.retained_only ? null : "all-traffic"
+    application_router_name      = try(google_compute_router.applications[0].name, null)
+    application_nat_name         = try(google_compute_router_nat.applications[0].name, null)
   }
 }
 
@@ -45,7 +61,32 @@ output "policy_summary" {
       ttl_enabled                       = true
       absolute_lifetime_seconds         = var.foundation_configuration.sessions.absolute_lifetime_seconds
       runtime_data_role                 = "roles/datastore.user"
+      runtime_condition                 = "resource.name == '${local.session_database_reference}'"
       asynchronous_ttl_is_authorization = false
+    }
+    member_directory = {
+      database_name              = var.foundation_configuration.member_directory.database_name
+      database_reference         = local.member_database_reference
+      database_type              = "FIRESTORE_NATIVE"
+      database_edition           = "STANDARD"
+      app_engine_integration     = "DISABLED"
+      pitr                       = "POINT_IN_TIME_RECOVERY_DISABLED"
+      backup                     = "disabled"
+      delete_protection          = local.destruction_enabled ? "DELETE_PROTECTION_DISABLED" : "DELETE_PROTECTION_ENABLED"
+      deletion_policy            = local.destruction_enabled ? "DELETE" : "PREVENT"
+      directory_collection_name  = var.foundation_configuration.member_directory.directory_collection_name
+      member_collection_name     = var.foundation_configuration.member_directory.member_collection_name
+      namespaces_separated       = var.foundation_configuration.member_directory.member_collection_name != var.foundation_configuration.sessions.collection_name
+      document_contract_version  = 1
+      member_reference_scheme    = "pmr1-sha256"
+      required_composite_indexes = []
+      runtime_role_id            = var.foundation_configuration.member_directory.runtime_role_id
+      runtime_role               = "projects/${var.foundation_configuration.project_id}/roles/${var.foundation_configuration.member_directory.runtime_role_id}"
+      runtime_permissions        = sort(tolist(local.member_runtime_permissions))
+      runtime_condition          = "resource.name == '${local.member_database_reference}'"
+      runtime_can_enumerate      = false
+      runtime_can_mutate         = false
+      terraform_manages_members  = false
     }
     signing = {
       key_ring_id                 = var.foundation_configuration.signing_key_ring_id

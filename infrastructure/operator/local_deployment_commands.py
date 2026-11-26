@@ -28,7 +28,10 @@ from infrastructure.operator.deployment import (
     TerraformReadbackRequest,
 )
 from infrastructure.operator.deployment_dns import DnsReadback, DnsReadbackError
-from infrastructure.operator.deployment_provider import DeploymentProviderError
+from infrastructure.operator.deployment_provider import (
+    DeploymentProviderError,
+    MemberDirectoryIamReadback,
+)
 from infrastructure.operator.local_deployment import (
     DeploymentConfigurationRenderer,
     InitialGeneration,
@@ -49,6 +52,19 @@ _HOSTNAME = "apps-staging.comfforts.com"
 _CONFIGURATION_BUCKET = "comfforts-ap-stg-455651441682-configuration"
 _APPLICATION_ROUTER = "app-platform-applications-us-west1-router"
 _APPLICATION_NAT = "app-platform-applications-us-west1-nat"
+_EDGE_RUNTIME_PRINCIPAL = (
+    "serviceAccount:app-platform-edge-runtime@"
+    f"{_PROJECT_ID}.iam.gserviceaccount.com"
+)
+_MEMBER_DATABASE_REFERENCE = (
+    f"projects/{_PROJECT_ID}/databases/app-platform-members"
+)
+_MEMBER_RUNTIME_ROLE = (
+    f"projects/{_PROJECT_ID}/roles/appPlatformMemberReader"
+)
+_MEMBER_RUNTIME_CONDITION = (
+    f"resource.name == '{_MEMBER_DATABASE_REFERENCE}'"
+)
 _OAUTH_STORE_TARGET = (
     f"projects/{_PROJECT_ID}/secrets/app-platform-edge-oauth"
 )
@@ -135,6 +151,8 @@ class DeploymentProvider(Protocol):
     def active_signing_key_version(self) -> str: ...
 
     def oauth_secret_version(self) -> str: ...
+
+    def member_directory_iam_readback(self) -> MemberDirectoryIamReadback: ...
 
     def certificate_readback(self): ...
 
@@ -509,9 +527,17 @@ class LocalDeploymentCommands:
         value: object,
         *,
         require_application_egress: bool = True,
+        require_member_directory: bool = False,
     ) -> tuple[str, str]:
+        """Validate closed foundation output and optional live IAM posture."""
+
         output = _dict(value, "FOUNDATION_READBACK_INVALID")
         foundation = output.get("foundation")
+        member_directory = (
+            foundation.get("member_directory")
+            if isinstance(foundation, dict)
+            else None
+        )
         if (
             output.get("contract_version") != 1
             or output.get("output_kind") != "platform-foundation"
@@ -531,8 +557,54 @@ class LocalDeploymentCommands:
                     or foundation.get("application_nat_name") != _APPLICATION_NAT
                 )
             )
+            or (
+                require_member_directory
+                and (
+                    not isinstance(member_directory, dict)
+                    or member_directory.get("database_name")
+                    != "app-platform-members"
+                    or member_directory.get("database_reference")
+                    != _MEMBER_DATABASE_REFERENCE
+                    or member_directory.get("directory_collection_name")
+                    != "platform-member-directory-v1"
+                    or member_directory.get("member_collection_name")
+                    != "platform-members-v1"
+                    or member_directory.get("document_contract_version") != 1
+                    or member_directory.get("member_reference_scheme")
+                    != "pmr1-sha256"
+                    or member_directory.get("required_composite_indexes") != []
+                    or member_directory.get("runtime_principal")
+                    != _EDGE_RUNTIME_PRINCIPAL
+                    or member_directory.get("runtime_role")
+                    != _MEMBER_RUNTIME_ROLE
+                    or member_directory.get("runtime_permissions")
+                    != ["datastore.entities.get"]
+                    or member_directory.get("runtime_condition")
+                    != _MEMBER_RUNTIME_CONDITION
+                    or member_directory.get("runtime_can_enumerate") is not False
+                    or member_directory.get("runtime_can_mutate") is not False
+                    or member_directory.get("terraform_manages_members") is not False
+                )
+            )
         ):
             raise DeploymentCommandError("FOUNDATION_READBACK_INVALID")
+        if require_member_directory:
+            try:
+                iam = self._provider.member_directory_iam_readback()
+            except DeploymentProviderError as error:
+                raise self._provider_error(error) from error
+            if (
+                iam.runtime_principal != _EDGE_RUNTIME_PRINCIPAL
+                or iam.session_role != "roles/datastore.user"
+                or iam.session_condition
+                != "resource.name == 'projects/comfforts-platform-non-prod/databases/(default)'"
+                or iam.member_role != _MEMBER_RUNTIME_ROLE
+                or iam.member_permissions != ("datastore.entities.get",)
+                or iam.member_condition != _MEMBER_RUNTIME_CONDITION
+            ):
+                raise DeploymentCommandError(
+                    "MEMBER_DIRECTORY_IAM_READBACK_MISMATCH"
+                )
         try:
             signing_version = self._provider.active_signing_key_version()
         except DeploymentProviderError as error:
@@ -620,7 +692,10 @@ class LocalDeploymentCommands:
                     planned.rendered.terraform_root,
                     "foundation_phase_output",
                 )
-                self._foundation_references(foundation_value)
+                self._foundation_references(
+                    foundation_value,
+                    require_member_directory=True,
+                )
                 edge, address = self._edge_references(
                     value,
                     tls_enabled=planned.shared_edge_tls_enabled,

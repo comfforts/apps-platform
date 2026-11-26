@@ -2,6 +2,7 @@ variable "edge_configuration" {
   description = "Complete non-secret Shared Edge revision and hostname-forwarding configuration."
   type = object({
     project_id                     = string
+    environment                    = string
     project_number                 = string
     region                         = string
     qualification_hostname         = string

@@ -342,8 +342,10 @@ signer, key discovery, algorithms, audience issuance, and clock behavior.
 the Version 1 predecessor matches per-registration restricted identities by exact issuer and
 subject. AP-M6-W6 locally issues and independently
 verifies minimized ES256 assertions with exact audiences, 60-second lifetimes, 30-second skew,
-versioned keys, and bounded public-key overlap/cache behavior. ADR-015 directory lookup, explicit
-public identity delivery, and Version 2 projection remain unimplemented and unqualified until W10.
+versioned keys, and bounded public-key overlap/cache behavior. AP-M9-W10 Slice 3 deterministically
+implements exact current-member lookup, explicit public identity delivery, and minimized Version 2
+projection without activating that path in staging. Provider realization, member lifecycle, and
+Live qualification remain pending later W10 slices.
 The demo accepts residual cross-instance replay risk because it makes
 no distributed replay-prevention claim.
 
@@ -547,8 +549,9 @@ Firestore data role required for login-flow and session entities. AP-M9-W10 Slic
 repository posture with a conditioned default-database session grant and a separate named member
 database whose runtime custom role contains only exact-document read permission. Deterministic
 provider readback rejects an unconditioned, additional, enumeration-capable, or mutation-capable
-runtime grant. No provider reconciliation or member lookup has occurred yet, so Live realization
-and admission remain pending later W10 slices. Runtime failure diagnostics use
+runtime grant. Slice 3 adds an exact-document provider adapter and deterministic restricted
+admission tests; no provider reconciliation or Live member lookup has occurred, so Live realization
+and qualification remain pending later W10 slices. Runtime failure diagnostics use
 constant allowlisted boundary codes carried only by the minimized completion event routed to the
 dedicated seven-day regional log bucket. The isolated JSON-line logger prevents `INFO` completion
 events from being suppressed or misclassified as unselected text logs. Diagnostics never include

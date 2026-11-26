@@ -6,9 +6,10 @@ reference derived from a verified Google issuer and immutable subject.  The
 persisted member document contains no issuer, subject, email, display name,
 application role, or feature entitlement.
 
-Only exact current-identity lookup is exposed here.  The active Shared Edge and
-operator do not import this module yet; provider-backed lookup and every mutation
-belong to later AP-M9-W10 slices.
+Only exact current-identity lookup is exposed here.  The Shared Edge imports the
+model and provider-backed reader for Version 2 restricted admission.  The
+operator does not import it yet, and every mutation belongs to a later
+AP-M9-W10 slice.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import re
-from typing import Iterable, Literal, Protocol
+from typing import Any, Iterable, Literal, Protocol
 
 
 CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com"
@@ -167,12 +168,66 @@ class InMemoryMemberDirectory:
         return self._records.get(member_reference(environment, identity))
 
 
+class FirestoreCurrentMemberLookup:
+    """Read only the current visitor's document from an injected named database.
+
+    The caller must construct the client for :data:`MEMBER_DATABASE_NAME`.  This
+    adapter never queries a collection, enumerates documents, or mutates state.
+    Missing documents return ``None``.  Provider failures and documents whose
+    exact private shape cannot be validated collapse to
+    :class:`MemberDirectoryUnavailable` so restricted admission can fail closed
+    without disclosing the reason to the visitor.
+    """
+
+    def __init__(self, client: Any) -> None:
+        """Bind one provider client without performing discovery or I/O."""
+
+        self._client = client
+
+    async def lookup_current_member(
+        self,
+        environment: str,
+        identity: PlatformMemberIdentity,
+    ) -> MemberRecord | None:
+        """Read and validate one derived document key from the named database."""
+
+        reference = member_reference(environment, identity)
+        try:
+            snapshot = await (
+                self._client.collection(MEMBER_COLLECTION_NAME)
+                .document(reference)
+                .get()
+            )
+            if not snapshot.exists:
+                return None
+            value = snapshot.to_dict()
+            if not isinstance(value, dict) or set(value) != set(MEMBER_DOCUMENT_FIELDS):
+                raise ValueError("member document shape is invalid")
+            if (
+                isinstance(value["contract_version"], bool)
+                or value["contract_version"] != MEMBER_DOCUMENT_CONTRACT_VERSION
+            ):
+                raise ValueError("member document version is invalid")
+            return MemberRecord(
+                member_reference=reference,
+                lifecycle=value["lifecycle"],
+                mutation_cursor=value["mutation_cursor"],
+                created_at=value["created_at"],
+                updated_at=value["updated_at"],
+            )
+        except MemberDirectoryUnavailable:
+            raise
+        except Exception as error:
+            raise MemberDirectoryUnavailable("member directory unavailable") from error
+
+
 __all__ = (
     "CANONICAL_GOOGLE_ISSUER",
     "CurrentMemberLookup",
     "DIRECTORY_COLLECTION_NAME",
     "DIRECTORY_DOCUMENT_FIELDS",
     "DIRECTORY_DOCUMENT_NAME",
+    "FirestoreCurrentMemberLookup",
     "InMemoryMemberDirectory",
     "MEMBER_COLLECTION_NAME",
     "MEMBER_DATABASE_NAME",

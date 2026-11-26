@@ -1,4 +1,4 @@
-"""Version 1 ES256 assertion issuance and verification-key publication."""
+"""Versioned ES256 assertion issuance and verification-key publication."""
 
 from __future__ import annotations
 
@@ -31,9 +31,11 @@ ASSERTION_CLOCK_SKEW_SECONDS = 30
 JWKS_CACHE_SECONDS = 15 * 60
 MAX_ASSERTION_BYTES = 4_096
 MAX_JWKS_BYTES = 65_536
-IDENTITY_CONTEXT_SCHEMA = (
-    "urn:comfforts:app-platform:schema:verified-identity-context:v1"
-)
+IDENTITY_CONTEXT_SCHEMAS = {
+    1: "urn:comfforts:app-platform:schema:verified-identity-context:v1",
+    2: "urn:comfforts:app-platform:schema:verified-identity-context:v2",
+}
+IDENTITY_CONTEXT_SCHEMA = IDENTITY_CONTEXT_SCHEMAS[1]
 KEY_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 KMS_VERSION_PATTERN = re.compile(
     r"projects/[^/]+/locations/us-west1/keyRings/[^/]+/cryptoKeys/[^/]+/"
@@ -47,7 +49,7 @@ class AssertionUnavailable(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class VerifiedIdentityContext:
-    """The independently verifiable Version 1 claim payload."""
+    """The common minimized claims; Version 2 may append positive membership."""
 
     contract_version: int
     issuer: str
@@ -366,7 +368,7 @@ class CloudKmsAssertionKeys:
 
 
 class AssertionIssuer:
-    """Issue one minimized, application-bound Version 1 assertion."""
+    """Issue minimized application-bound Version 1 or Version 2 assertions."""
 
     def __init__(
         self,
@@ -376,6 +378,8 @@ class AssertionIssuer:
         *,
         issuer: str,
     ) -> None:
+        """Bind an exact platform issuer, signer, clock, and correlation source."""
+
         parsed_issuer = urlsplit(issuer)
         if (
             parsed_issuer.scheme != "https"
@@ -397,12 +401,32 @@ class AssertionIssuer:
         identity: PlatformIdentity,
         audience: str,
         correlation_id: str | None = None,
+        *,
+        contract_version: int = 1,
+        platform_member: bool = False,
     ) -> str:
+        """Sign one short-lived context for an exact application audience.
+
+        Version 1 remains the default compatibility interface.  Version 2 may
+        add only the positive ``platform_member`` projection; false membership
+        is represented by field absence.  Provider identity display data and
+        member-directory records never enter the signed payload.
+        """
+
         if not isinstance(identity, PlatformIdentity):
+            raise AssertionUnavailable("identity assertion unavailable")
+        if (
+            isinstance(contract_version, bool)
+            or not isinstance(contract_version, int)
+            or contract_version not in IDENTITY_CONTEXT_SCHEMAS
+            or not isinstance(platform_member, bool)
+        ):
+            raise AssertionUnavailable("identity assertion unavailable")
+        if platform_member and contract_version != 2:
             raise AssertionUnavailable("identity assertion unavailable")
         issued_at = _clock_value(self._clock)
         context = VerifiedIdentityContext(
-            contract_version=1,
+            contract_version=contract_version,
             issuer=self._issuer,
             subject=identity.subject,
             audience=audience,
@@ -415,7 +439,12 @@ class AssertionIssuer:
             ),
         )
         payload = asdict(context)
-        if validate_contract_instance(payload, IDENTITY_CONTEXT_SCHEMA):
+        if platform_member:
+            payload["platform_member"] = True
+        if validate_contract_instance(
+            payload,
+            IDENTITY_CONTEXT_SCHEMAS[contract_version],
+        ):
             raise AssertionUnavailable("identity assertion unavailable")
         header = {
             "alg": "ES256",

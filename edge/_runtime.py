@@ -1,4 +1,13 @@
-"""ASGI construction for the Shared Edge."""
+"""ASGI construction and request enforcement for the Shared Edge.
+
+The process binds one immutable compiled generation at startup, serves platform
+catalogue/identity/status endpoints, selects one registered application route,
+and forwards admitted HTTP or WebSocket requests through injected adapters.
+Version 1 keeps its predecessor embedded-member behavior.  Version 2 applies
+explicit Identity Delivery and performs one exact current-visitor lookup for
+restricted admission.  Provider failures collapse to bounded responses and
+allowlisted diagnostics; this module never mutates registration or member state.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +17,13 @@ import json
 import re
 from typing import Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit
+
+from infrastructure.member_directory import (
+    CurrentMemberLookup,
+    MemberRecord,
+    PlatformMemberIdentity,
+    member_reference,
+)
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -53,6 +69,7 @@ from ._routing import (
     reserved_application_lifecycle,
     route_admission_mode,
     route_admission_policy,
+    route_identity_delivery,
     routed_application_request,
     select_application_route,
 )
@@ -91,12 +108,15 @@ STATUS_PATH = "/_platform/status"
 SESSION_LIFETIME_SECONDS = 8 * 60 * 60
 FLOW_LIFETIME_SECONDS = 10 * 60
 MAX_QUERY_BYTES = 2_048
+ENVIRONMENT_PATTERN = re.compile(r"[a-z][a-z0-9-]{1,31}")
 
 
 class _AnyMethodHttpEndpoint:
     """Keep method policy in the bounded proxy instead of the web router."""
 
     def __init__(self, application: ASGIApp) -> None:
+        """Retain one ASGI endpoint without restricting its HTTP methods."""
+
         self._application = application
 
     async def __call__(
@@ -105,10 +125,14 @@ class _AnyMethodHttpEndpoint:
         receive: Receive,
         send: Send,
     ) -> None:
+        """Delegate one request unchanged to the bounded endpoint."""
+
         await self._application(scope, receive, send)
 
 
 def _closed_response(status_code: int, message: str) -> PlainTextResponse:
+    """Return one non-cacheable visitor-safe constant response."""
+
     return PlainTextResponse(
         f"{message}\n",
         status_code=status_code,
@@ -122,6 +146,7 @@ class RuntimeConfiguration:
 
     profile: Literal["qualification-v1"]
     source_revision: str
+    environment: str | None = None
     generation_bucket: str | None = None
     generation_object: str | None = None
     generation_object_generation: int | None = None
@@ -130,6 +155,8 @@ class RuntimeConfiguration:
     external_origin: str | None = None
 
     def __post_init__(self) -> None:
+        """Validate process inputs without provider discovery or I/O."""
+
         if self.profile != "qualification-v1":
             raise ValueError(f"unsupported runtime profile: {self.profile}")
         if (
@@ -137,6 +164,11 @@ class RuntimeConfiguration:
             or SOURCE_REVISION_PATTERN.fullmatch(self.source_revision) is None
         ):
             raise ValueError("source revision must be a full Git object identifier")
+        if self.environment is not None and (
+            not isinstance(self.environment, str)
+            or ENVIRONMENT_PATTERN.fullmatch(self.environment) is None
+        ):
+            raise ValueError("runtime environment is invalid")
         generation_values = (
             self.generation_bucket,
             self.generation_object,
@@ -177,6 +209,8 @@ class RuntimeConfiguration:
                 raise ValueError("external origin must be an HTTPS origin")
 
     def _generation_binding(self) -> GenerationBinding | None:
+        """Project a complete immutable binding or report no configured generation."""
+
         if self.generation_bucket is None:
             return None
         return GenerationBinding(
@@ -197,6 +231,7 @@ class RuntimeAdapters:
     route_handoff: RouteHandoff | None = None
     google_oidc: GoogleOidc | None = None
     identity_store: IdentityStore | None = None
+    member_lookup: CurrentMemberLookup | None = None
     clock: Clock | None = None
     token_source: TokenSource | None = None
     assertion_issuer: AssertionIssuer | None = None
@@ -211,6 +246,8 @@ class RuntimeAdapters:
 
 
 def _single_query_value(request: Request, name: str) -> str | None:
+    """Return one bounded ASCII query value and reject ambiguity or malformed input."""
+
     raw_query = request.scope.get("query_string", b"")
     if not isinstance(raw_query, bytes) or len(raw_query) > MAX_QUERY_BYTES:
         return None
@@ -228,6 +265,8 @@ def _single_query_value(request: Request, name: str) -> str | None:
 
 
 def _cookie_value(request: Request, name: str) -> str | None:
+    """Return one bounded opaque cookie value without decoding visitor material."""
+
     header = request.headers.get("cookie")
     if header is None or len(header) > 4_096:
         return None
@@ -247,6 +286,8 @@ def _set_opaque_cookie(
     value: str,
     max_age: int,
 ) -> None:
+    """Set one host-only secure opaque cookie for an absolute bounded lifetime."""
+
     response.set_cookie(
         name,
         value,
@@ -259,6 +300,8 @@ def _set_opaque_cookie(
 
 
 def _clear_opaque_cookie(response: Response, name: str) -> None:
+    """Expire one platform cookie using the same security and path attributes."""
+
     response.delete_cookie(
         name,
         path="/",
@@ -272,6 +315,8 @@ def _validated_return_to(
     configuration: dict[str, object],
     value: str,
 ) -> str | None:
+    """Accept only a local canonical route that the active generation can serve."""
+
     if len(value.encode("utf-8")) > 4_096:
         return None
     parsed = urlsplit(value)
@@ -311,6 +356,8 @@ def _identity_ready(
     runtime_configuration: RuntimeConfiguration,
     adapters: RuntimeAdapters,
 ) -> bool:
+    """Report whether every adapter required to start or complete login is bound."""
+
     return (
         runtime_configuration.external_origin is not None
         and adapters.google_oidc is not None
@@ -321,6 +368,8 @@ def _identity_ready(
 
 
 def _valid_google_authorization_url(value: str) -> bool:
+    """Accept only an HTTPS Google authorization URL without embedded credentials."""
+
     parsed = urlsplit(value)
     return (
         parsed.scheme == "https"
@@ -337,6 +386,13 @@ async def _session_identity(
     adapters: RuntimeAdapters,
     health: AdapterHealthRegistry,
 ) -> tuple[PlatformIdentity | None, bool]:
+    """Resolve one opaque session and separately report store availability.
+
+    Missing, unknown, or expired sessions yield no identity.  An expired record
+    is deleted best-effort.  Store or clock unavailability never fabricates an
+    identity and is reflected through coarse adapter health only.
+    """
+
     session_id = _cookie_value(request, SESSION_COOKIE)
     if session_id is None:
         return None, True
@@ -367,6 +423,13 @@ async def _resolved_request(
     adapters: RuntimeAdapters,
     health: AdapterHealthRegistry,
 ) -> RoutedApplicationRequest | None:
+    """Resolve one attachment through its exact declared adapter.
+
+    The contract-test adapter is retained unchanged for deterministic tests.
+    Missing, unsupported, or failing provider resolution returns ``None`` and
+    never selects a fallback target.
+    """
+
     if routed_request.adapter_kind == ADAPTER_KIND:
         if adapters.attachment_resolver is None:
             return None
@@ -398,31 +461,89 @@ async def _asserted_request(
     routed_request: RoutedApplicationRequest,
     identity: PlatformIdentity | None,
     admission_mode: str,
+    identity_delivery: str | None,
+    contract_version: int,
+    platform_member: bool,
     adapters: RuntimeAdapters,
     health: AdapterHealthRegistry,
     request_correlation_id: str | None,
 ) -> RoutedApplicationRequest | None:
+    """Attach only the identity context authorized by the active generation.
+
+    Version 1 retains its implicit compatibility behavior.  Version 2 ``none``
+    never emits an assertion, ``optional`` may remain anonymous on signing
+    failure, and ``required`` fails closed.  Only a successful restricted
+    current-member lookup can request the positive membership projection.
+    """
+
+    if contract_version == 2 and identity_delivery == "none":
+        return routed_request
     if identity is None:
         return routed_request
+    optional_delivery = (
+        admission_mode == "public"
+        and (contract_version == 1 or identity_delivery == "optional")
+    )
     if (
         routed_request.identity_audience is None
         or adapters.assertion_issuer is None
     ):
-        return routed_request if admission_mode == "public" else None
+        return routed_request if optional_delivery else None
     try:
         assertion = await adapters.assertion_issuer.issue(
             identity,
             routed_request.identity_audience,
             request_correlation_id,
+            contract_version=contract_version,
+            platform_member=platform_member,
         )
     except Exception:
         health.observe("assertion_issuer", available=False)
-        return routed_request if admission_mode == "public" else None
+        return routed_request if optional_delivery else None
     health.observe("assertion_issuer", available=True)
     return replace(
         routed_request,
         verified_identity_assertion=assertion,
     )
+
+
+async def _current_member_is_active(
+    identity: PlatformIdentity,
+    runtime_configuration: RuntimeConfiguration,
+    adapters: RuntimeAdapters,
+    health: AdapterHealthRegistry,
+    scope: Scope,
+) -> bool:
+    """Resolve only the current visitor and collapse every unsafe result to deny.
+
+    Missing and suspended records are ordinary denials.  A missing adapter,
+    missing environment binding, provider failure, or malformed record records
+    one constant non-sensitive diagnostic and returns the same visitor-facing
+    denial.  No member key or provider detail is retained in completion events.
+    """
+
+    if runtime_configuration.environment is None or adapters.member_lookup is None:
+        health.observe("member_directory", available=False)
+        record_diagnostic(scope, "MEMBER_DIRECTORY_LOOKUP_FAILED")
+        return False
+    try:
+        lookup_identity = PlatformMemberIdentity(identity.issuer, identity.subject)
+        record = await adapters.member_lookup.lookup_current_member(
+            runtime_configuration.environment,
+            lookup_identity,
+        )
+        if record is not None and (
+            not isinstance(record, MemberRecord)
+            or record.member_reference
+            != member_reference(runtime_configuration.environment, lookup_identity)
+        ):
+            raise ValueError("member lookup returned an inconsistent record")
+    except Exception:
+        health.observe("member_directory", available=False)
+        record_diagnostic(scope, "MEMBER_DIRECTORY_LOOKUP_FAILED")
+        return False
+    health.observe("member_directory", available=True)
+    return record is not None and record.lifecycle == "active"
 
 
 def create_app(
@@ -439,6 +560,7 @@ def create_app(
             "completion_events": adapters.completion_events is not None,
             "generation_source": adapters.generation_source is not None,
             "identity_provider": adapters.google_oidc is not None,
+            "member_directory": adapters.member_lookup is not None,
             "operator_authorization": adapters.operator_authorizer is not None,
             "session_store": adapters.identity_store is not None,
             "verification_keys": adapters.verification_key_source is not None,
@@ -447,6 +569,8 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: Starlette):
+        """Load and retain the exact immutable generation once at process startup."""
+
         nonlocal active_generation
         binding = runtime_configuration._generation_binding()
         if binding is not None and active_generation is None:
@@ -464,6 +588,8 @@ def create_app(
         yield
 
     async def unavailable(request: Request) -> Response:
+        """Serve one HTTP request through platform endpoints and routed admission."""
+
         if active_generation is None:
             return _closed_response(503, "platform unavailable")
         path = request_path(request.scope)
@@ -747,11 +873,23 @@ def create_app(
             active_generation.configuration,
             route["application_id"],
         )
-        identity, identity_store_available = await _session_identity(
-            request,
-            adapters,
-            health,
+        identity_delivery = route_identity_delivery(
+            active_generation.configuration,
+            route["application_id"],
         )
+        contract_version = active_generation.configuration["contract_version"]
+        if admission_mode is None or (
+            contract_version == 2 and identity_delivery is None
+        ):
+            return _closed_response(503, "platform unavailable")
+        if contract_version == 2 and identity_delivery == "none":
+            identity, identity_store_available = None, True
+        else:
+            identity, identity_store_available = await _session_identity(
+                request,
+                adapters,
+                health,
+            )
         if admission_mode != "public" and identity is None:
             if not identity_ready or not identity_store_available:
                 return _closed_response(503, "identity unavailable")
@@ -766,18 +904,30 @@ def create_app(
             response = RedirectResponse(login_location, status_code=303)
             response.headers["Cache-Control"] = "no-store"
             return response
+        platform_member = False
         if admission_mode == "restricted" and identity is not None:
-            policy = route_admission_policy(
-                active_generation.configuration,
-                route["application_id"],
-            )
-            members = policy.get("members", []) if policy is not None else []
-            if not any(
-                member.get("issuer") == identity.issuer
-                and member.get("subject") == identity.subject
-                for member in members
-            ):
-                return _closed_response(403, "forbidden")
+            if contract_version == 2:
+                platform_member = await _current_member_is_active(
+                    identity,
+                    runtime_configuration,
+                    adapters,
+                    health,
+                    request.scope,
+                )
+                if not platform_member:
+                    return _closed_response(403, "forbidden")
+            else:
+                policy = route_admission_policy(
+                    active_generation.configuration,
+                    route["application_id"],
+                )
+                members = policy.get("members", []) if policy is not None else []
+                if not any(
+                    member.get("issuer") == identity.issuer
+                    and member.get("subject") == identity.subject
+                    for member in members
+                ):
+                    return _closed_response(403, "forbidden")
         routed_request = routed_application_request(
             route,
             path,
@@ -801,6 +951,9 @@ def create_app(
             routed_request,
             identity,
             admission_mode,
+            identity_delivery,
+            contract_version,
+            platform_member,
             adapters,
             health,
             correlation_id(request.scope),
@@ -830,6 +983,8 @@ def create_app(
         return _closed_response(503, "application forwarding unavailable")
 
     async def websocket_application(websocket: WebSocket) -> None:
+        """Admit and forward one WebSocket using the same generation and identity rules."""
+
         if active_generation is None:
             await websocket.close(code=1013, reason="platform unavailable")
             return
@@ -848,11 +1003,24 @@ def create_app(
             active_generation.configuration,
             route["application_id"],
         )
-        identity, identity_store_available = await _session_identity(
-            websocket,
-            adapters,
-            health,
+        identity_delivery = route_identity_delivery(
+            active_generation.configuration,
+            route["application_id"],
         )
+        contract_version = active_generation.configuration["contract_version"]
+        if admission_mode is None or (
+            contract_version == 2 and identity_delivery is None
+        ):
+            await websocket.close(code=1013, reason="platform unavailable")
+            return
+        if contract_version == 2 and identity_delivery == "none":
+            identity, identity_store_available = None, True
+        else:
+            identity, identity_store_available = await _session_identity(
+                websocket,
+                adapters,
+                health,
+            )
         if admission_mode != "public" and identity is None:
             close_code = (
                 4401
@@ -869,19 +1037,32 @@ def create_app(
                 ),
             )
             return
+        platform_member = False
         if admission_mode == "restricted" and identity is not None:
-            policy = route_admission_policy(
-                active_generation.configuration,
-                route["application_id"],
-            )
-            members = policy.get("members", []) if policy is not None else []
-            if not any(
-                member.get("issuer") == identity.issuer
-                and member.get("subject") == identity.subject
-                for member in members
-            ):
-                await websocket.close(code=4403, reason="forbidden")
-                return
+            if contract_version == 2:
+                platform_member = await _current_member_is_active(
+                    identity,
+                    runtime_configuration,
+                    adapters,
+                    health,
+                    websocket.scope,
+                )
+                if not platform_member:
+                    await websocket.close(code=4403, reason="forbidden")
+                    return
+            else:
+                policy = route_admission_policy(
+                    active_generation.configuration,
+                    route["application_id"],
+                )
+                members = policy.get("members", []) if policy is not None else []
+                if not any(
+                    member.get("issuer") == identity.issuer
+                    and member.get("subject") == identity.subject
+                    for member in members
+                ):
+                    await websocket.close(code=4403, reason="forbidden")
+                    return
         routed_request = routed_application_request(
             route,
             path,
@@ -907,6 +1088,9 @@ def create_app(
             routed_request,
             identity,
             admission_mode,
+            identity_delivery,
+            contract_version,
+            platform_member,
             adapters,
             health,
             correlation_id(websocket.scope),

@@ -38,6 +38,7 @@ def _environment() -> dict[str, str]:
             "serviceAccount:app-platform-edge-caller@"
             "comfforts-platform-non-prod.iam.gserviceaccount.com"
         ),
+        "APP_PLATFORM_ENVIRONMENT": "staging",
         "APP_PLATFORM_GENERATION_DIGEST": "sha256:" + "2" * 64,
         "APP_PLATFORM_ISSUER": "https://apps-staging.comfforts.com/_platform",
         "APP_PLATFORM_IDENTITY_CLIENT_ID": "client.apps.googleusercontent.com",
@@ -152,6 +153,8 @@ class LiveRuntimeTest(unittest.TestCase):
             "!contracts/validation.py",
             "!contracts/schemas/**",
             "!edge/*.py",
+            "!infrastructure/__init__.py",
+            "!infrastructure/member_directory.py",
             "!infrastructure/images/shared-edge/Dockerfile",
             "!infrastructure/images/shared-edge/cloudbuild.yaml",
         ):
@@ -163,12 +166,14 @@ class LiveRuntimeTest(unittest.TestCase):
         settings = LiveRuntimeSettings.from_environment(_environment())
 
         self.assertEqual(settings.project_id, "comfforts-platform-non-prod")
+        self.assertEqual(settings.environment, "staging")
         self.assertEqual(settings.project_number, "455651441682")
         self.assertEqual(settings.external_origin, "https://apps-staging.comfforts.com")
         self.assertEqual(settings.generation_object_generation, 17)
         self.assertEqual(settings.key_id, "kms-1")
         runtime = settings.runtime_configuration()
         self.assertEqual(runtime.source_revision, "a" * 40)
+        self.assertEqual(runtime.environment, "staging")
         self.assertEqual(runtime.generation_digest, "sha256:" + "2" * 64)
 
     def test_settings_fail_closed_for_missing_or_cross_project_values(self) -> None:
@@ -223,6 +228,7 @@ class LiveRuntimeTest(unittest.TestCase):
                 LiveClients(
                     storage=object(),
                     firestore=object(),
+                    member_firestore=object(),
                     cloud_run=object(),
                     kms=object(),
                     auth_request=object(),

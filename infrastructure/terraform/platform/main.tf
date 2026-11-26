@@ -109,6 +109,7 @@ module "shared_edge" {
 
   edge_configuration = {
     project_id                     = local.foundation.project_id
+    environment                    = var.platform_configuration.environment
     project_number                 = local.foundation.project_number
     region                         = local.foundation.region
     qualification_hostname         = local.foundation.hostname

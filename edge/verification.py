@@ -1,4 +1,4 @@
-"""Independent application-side verification of platform identity assertions."""
+"""Independent application-side verification of Version 1 identity assertions."""
 
 from __future__ import annotations
 

@@ -1,8 +1,9 @@
 # App Platform evaluation strategy
 
-Version 0.22 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.23 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
-without execution; AP-M9-W10 Slice 1 supplies inert Version 2 Contract evidence, later W10 slices
+without execution; AP-M9-W10 Slices 1-3 supply deterministic Version 2 contract, infrastructure,
+and runtime evidence, later W10 slices
 and Candidate Source qualification remain, and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
@@ -29,6 +30,13 @@ W10 Slice 1 supplies AP-EVAL-M9-02 Contract evidence for the complete inert Vers
 family, deterministic Version 1 migration, compatibility loading, exact canonical vectors, and
 mixed/member-bearing rejection. It supplies no directory, IAM, runtime, operator, Fixture, Live,
 qualification, or Application Adoption evidence.
+
+W10 Slice 2 supplies deterministic and mocked-plan infrastructure evidence for the isolated named
+member database, conditioned session and member IAM, closed readback, and exact-key model. W10
+Slice 3 supplies deterministic AP-EVAL-M9-07 runtime evidence for dual-version generation loading,
+explicit public, authenticated, and restricted admission, exact current-member lookup, minimized
+Version 2 assertions, visitor-header replacement, and fail-closed directory handling. Neither
+slice supplies deployment, Live, qualification, or Application Adoption evidence.
 
 Plan: [App Platform implementation plan index](plans/README.md) and
 [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) and

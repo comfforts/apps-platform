@@ -26,6 +26,7 @@ ADAPTER_NAMES = (
     "completion_events",
     "generation_source",
     "identity_provider",
+    "member_directory",
     "operator_authorization",
     "session_store",
     "verification_keys",
@@ -50,6 +51,7 @@ DIAGNOSTIC_CODES = frozenset(
         "IDENTITY_STORE_SESSION_DELETE_FAILED",
         "IDENTITY_STORE_SESSION_DELETE_READBACK_FAILED",
         "IDENTITY_STORE_SESSION_WRITE_FAILED",
+        "MEMBER_DIRECTORY_LOOKUP_FAILED",
     }
 )
 

@@ -11,6 +11,8 @@
 !fixtures/
 !fixtures/*.py
 !infrastructure/
+!infrastructure/__init__.py
+!infrastructure/member_directory.py
 !infrastructure/images/
 !infrastructure/images/fixture/
 !infrastructure/images/fixture/Dockerfile

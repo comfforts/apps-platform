@@ -1,7 +1,8 @@
 # App Platform system design
 
-Version 1.14 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence and AP-M9-W10 Slices 1-2 provide inert Version 2 contracts plus directory infrastructure
+Version 1.15 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence and AP-M9-W10 Slices 1-3 add Version 2 contracts, directory infrastructure, and
+deterministic Shared Edge enforcement without runtime activation
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -335,11 +336,13 @@ owner-only for every restricted route. Email is not an admission or membership k
 Entitlements are prohibited from registration and membership contracts and remain an application
 concern after admission.
 
-The repository can now validate, canonicalize, migrate, and compile this Version 2 shape through
-explicit compatibility interfaces. Those interfaces do not publish a bundle, select a runtime
-configuration, activate a Registration Generation, query a member directory, or change the active
-Version 1 operator path. A complete Version 2 generation becomes selectable only after the later
-directory, edge, lifecycle, and handoff slices implement all consumers and the atomic transition.
+The repository can validate, canonicalize, migrate, and compile this Version 2 shape through
+explicit compatibility interfaces. The Shared Edge can also load either complete compiled version,
+enforce explicit Version 2 admission and Identity Delivery, and query one exact current-member
+document. These interfaces still do not publish a Version 2 bundle, select it in the operator path,
+activate a Version 2 Registration Generation, or mutate the directory. A complete Version 2
+generation becomes operational only after the later lifecycle and handoff slices implement the
+remaining consumers and the atomic transition.
 
 When Identity Delivery permits it and identity is present, the Shared Edge supplies a compact signed assertion in the versioned
 `X-Comfforts-Verified-Identity` header. The edge must remove any visitor-supplied value before
@@ -466,10 +469,12 @@ The `platform-member-directory-v1/state` control document contains exactly `cont
 cursor advances. This retained control document distinguishes a never-initialized empty directory
 from a previously initialized directory whose members were removed, preventing owner rebootstrap
 from an empty local cache. Later lifecycle mutations must update the control document and selected
-member document in one Firestore transaction and then perform exact document readback. The current
-infrastructure slice establishes and tests this private format and an exact-key in-memory lookup
-seam; it does not yet implement provider-backed lookup or any mutation. They must not grow into
-application profiles, feature roles, or arbitrary user metadata.
+member document in one Firestore transaction and then perform exact document readback. The runtime
+adapter performs only an exact provider document get for the derived current-visitor reference.
+Missing documents return no member; malformed documents and provider failures collapse to one
+unavailable result. The adapter has no query, enumeration, or mutation interface. Member lifecycle
+mutation remains later-slice work, and neither model may grow into application profiles, feature
+roles, or arbitrary user metadata.
 
 Restricted admission performs a current positive lookup. Absent, suspended, removed, malformed, or
 unreadable state denies the request without revealing which condition occurred. Public and

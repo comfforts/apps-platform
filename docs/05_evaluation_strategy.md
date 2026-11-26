@@ -1,4 +1,4 @@
-# App Platform evaluation strategy
+# <u>App Platform evaluation strategy</u>
 
 Version 0.26 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
@@ -66,7 +66,7 @@ Design: [App Platform system design](03_system_design.md)
 
 Threats: [App Platform threat model](06_threat_model.md)
 
-## AP-EVAL-M3 · System-design-and-contracts gate
+## <u>AP-EVAL-M3 · System-design-and-contracts gate</u>
 
 ### Evaluation claim
 
@@ -97,7 +97,7 @@ behavior. It must:
 
 Ordinary ignored interpreter caches are not evidence and must not be required for success.
 
-## Gate structure
+## <u>Gate structure</u>
 
 ### AP-EVAL-M3-01 · Authority and trace integrity
 
@@ -253,7 +253,7 @@ Verify that the AP-M3 change:
 - directs the next task to propose delivery item 4 planning after AP-M3 merges, without treating the
   current branch or pull request as that merge.
 
-## Test-vector manifest
+## <u>Test-vector manifest</u>
 
 `contracts/test-vectors/manifest.v1.json` is the reviewed index of deterministic cases. Each entry
 must declare:
@@ -270,7 +270,7 @@ must declare:
 The manifest contains no executable command, absolute path, environment-specific identifier, or
 expected live result. A vector not indexed by the manifest is test support, not acceptance evidence.
 
-## Determinism and mutation checks
+## <u>Determinism and mutation checks</u>
 
 Tests must isolate nondeterminism by:
 
@@ -286,7 +286,7 @@ The AP-M3 reference compiler may read caller-supplied contract files but exposes
 interface. It returns in-memory values, and tests do not write generated artifacts into the
 repository.
 
-## Threat coverage boundary
+## <u>Threat coverage boundary</u>
 
 | Threats | AP-EVAL-M3 claim |
 | --- | --- |
@@ -303,7 +303,7 @@ repository.
 | AP-TM-013 | Fail-closed declarations only; dependency failure remains unqualified |
 | AP-TM-014 | Authority labels and absence of fixture or adoption behavior |
 
-## Pass, fail, and skip semantics
+## <u>Pass, fail, and skip semantics</u>
 
 AP-EVAL-M3 passes only when:
 
@@ -318,7 +318,7 @@ dependency, unreviewed generated file, secret-like payload, missing trace, or fa
 fails AP-EVAL-M3. A known limitation is recorded as unavailable; it is not converted into a skip or
 passing assertion.
 
-## Required evaluation evidence
+## <u>Required evaluation evidence</u>
 
 The AP-M3 pull-request handoff records:
 
@@ -336,7 +336,7 @@ The AP-M3 pull-request handoff records:
 Evidence reports actual output. It must not pre-fill a success result, omit a failed command, or
 claim runtime qualification from documentation, schemas, or static configuration.
 
-## Limitations
+## <u>Limitations</u>
 
 AP-EVAL-M3 does not perform load, browser, accessibility, cryptographic, network, cloud, DNS, TLS,
 IAM, OAuth, Terraform, provider, runtime, direct-origin, or application-product testing. It does not
@@ -345,7 +345,7 @@ qualify availability, cost controls, logging, incident response, migration, or r
 Those gates require separately approved plans after AP-M3 merges. Finance Application Adoption
 requires Finance-owned authority and evidence in addition to qualified platform behavior.
 
-## AP-EVAL-M4 · Deterministic-fixtures gate
+## <u>AP-EVAL-M4 · Deterministic-fixtures gate</u>
 
 ### Evaluation claim
 
@@ -599,7 +599,7 @@ real application can or should adopt the platform.
 Infrastructure and Live qualification require a separate owner-approved slice after AP-M4 merges.
 Every Application Adoption remains an application-owned later slice with its own evidence.
 
-## AP-EVAL-M5 · Infrastructure-planning gate
+## <u>AP-EVAL-M5 · Infrastructure-planning gate</u>
 
 ### Evaluation claim
 
@@ -835,7 +835,7 @@ load, concurrency, network, DNS, TLS, IAM, OAuth, KMS, Firestore, provider, budg
 deployment, rollback, recovery, incident, migration, or application-product test. It cannot qualify
 any selected control as implemented or operational.
 
-## AP-EVAL-M6 · Networked-provider-runtime gate
+## <u>AP-EVAL-M6 · Networked-provider-runtime gate</u>
 
 ### Evaluation claim
 
@@ -1012,7 +1012,7 @@ IAM, deployment, load, availability, cost, direct-origin network, multi-instance
 recovery, incident, migration, or application-product test. Its production adapters are locally
 tested implementations, not evidence that their required provider resources or permissions exist.
 
-## AP-EVAL-M7 · Terraform-and-workflow gate
+## <u>AP-EVAL-M7 · Terraform-and-workflow gate</u>
 
 ### Evaluation claim
 
@@ -1203,7 +1203,7 @@ multi-instance, rollback, recovery, incident, migration, or application-product 
 configuration and mocked plans are implementation evidence only and cannot satisfy AP-EVAL-M8 or
 AP-EVAL-M9.
 
-## Historical unexecuted evaluation proposals
+## <u>Historical unexecuted evaluation proposals</u>
 
 The following two sections preserve the accepted but unexecuted AP-M8 deployment/readback proposal
 and the withdrawn standalone Live-qualification proposal as they stood at source revision
@@ -1553,7 +1553,7 @@ for the exact revision with zero mandatory skips. Report every failure, limitati
 unavailable cross-project claim, and unimplemented alert. Record Live evidence only; leave Finance
 Assistant and every Application Adoption unchanged and unavailable.
 
-## AP-EVAL-M9 · Operator-driven environment lifecycle gate
+## <u>AP-EVAL-M9 · Operator-driven environment lifecycle gate</u>
 
 ### Evaluation claim
 

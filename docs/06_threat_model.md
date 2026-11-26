@@ -1,4 +1,4 @@
-# App Platform threat model
+# <u>App Platform threat model</u>
 
 Version 1.19 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
 the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
@@ -18,7 +18,7 @@ Decisions: ADR-001 through ADR-015
 
 System design: [App Platform system design](03_system_design.md)
 
-## Scope and status
+## <u>Scope and status</u>
 
 The threat boundary includes:
 
@@ -39,7 +39,7 @@ No runtime control is operational merely because it is specified here. Determini
 evidence, Fixture Application evidence, live provider readback, and application-adoption evidence
 are different gates and are never substitutes for one another.
 
-## Security objectives
+## <u>Security objectives</u>
 
 The platform must preserve these objectives:
 
@@ -61,7 +61,7 @@ The platform must preserve these objectives:
 8. **Truthful evidence:** deterministic, fixture, live, and adoption results state their exact
    revision, environment, limitations, failures, and skipped gates.
 
-## Assets and data classes
+## <u>Assets and data classes</u>
 
 | Asset or data | Classification | Protection objective |
 | --- | --- | --- |
@@ -79,7 +79,7 @@ The platform must preserve these objectives:
 Catalogue output is public only after safe projection. Registration input is not public catalogue
 content and must not be rendered, logged, or published wholesale.
 
-## Actors and trust assumptions
+## <u>Actors and trust assumptions</u>
 
 - An **anonymous Visitor** is untrusted and may send malformed paths, spoofed headers, oversized
   inputs, or abusive traffic.
@@ -106,7 +106,7 @@ content and must not be rendered, logged, or published wholesale.
 No real application is a trusted platform test harness. External application migration material
 grants no platform authority and remains under the consuming application's authority.
 
-## Trust zones and flows
+## <u>Trust zones and flows</u>
 
 ```text
   [Public Visitor]
@@ -145,7 +145,7 @@ The major trust-boundary crossings are:
    access.
 8. Logs and evidence crossing from restricted operational systems into retained artifacts.
 
-## Control ownership
+## <u>Control ownership</u>
 
 ### Platform-owned controls
 
@@ -178,7 +178,7 @@ The major trust-boundary crossings are:
 Joint coordination does not create joint state ownership. Each resource and control still has one
 named owner.
 
-## Evidence classes
+## <u>Evidence classes</u>
 
 | Class | Earliest delivery item | What it can prove | What it cannot prove |
 | --- | --- | --- | --- |
@@ -222,7 +222,7 @@ The detailed topology and evidence exclusions are owned by the [system design](0
 Until the separate item 4 plan, implementation, and evaluation record are accepted, this profile
 is design authority and produces no Fixture (`F`) evidence.
 
-## Threat register
+## <u>Threat register</u>
 
 ### AP-TM-001 · Registration injection and unsafe catalogue content
 
@@ -587,7 +587,7 @@ behavior. `A` is mandatory for every real application and retains its prior hist
 **Residual risk:** Human process can still misstate adoption; truthful status checks, review, and
 release ownership are required at every handoff.
 
-## AP-M7 infrastructure-configuration controls
+## <u>AP-M7 infrastructure-configuration controls</u>
 
 AP-EVAL-M7 covers the static infrastructure profile without treating configuration as an
 operational control. The following controls refine the existing threats:
@@ -632,7 +632,7 @@ performs no backend initialization, credential lookup, provider or metadata requ
 repository mutation, apply, or destroy. A static pass cannot qualify key custody, ingress, IAM,
 logging, budget delivery, rollback, recovery, or any other provider behavior.
 
-## Historical AP-M8 protected-source and federated-identity controls — superseded
+## <u>Historical AP-M8 protected-source and federated-identity controls — superseded</u>
 
 This and the following three AP-M8 sections record the accepted but unexecuted manifest-driven
 control proposal at revision `7b6678a7f0b3036d427517dad6bc3bec876d1a44`. ADR-010 through ADR-013
@@ -687,7 +687,7 @@ the subordinate [qualification-deployment runbook](runbooks/qualification_deploy
 is owner-accepted and merged; until the exact W2 manifest and the AP-M8-W3/AP-M8-W4 checkpoints are
 separately approved and executed, these controls produce no provider or Live evidence.
 
-## Historical AP-M8 backend-bootstrap and state-lineage controls — superseded
+## <u>Historical AP-M8 backend-bootstrap and state-lineage controls — superseded</u>
 
 AP-M8-W1 defines these AP-M8-W5 controls without creating a backend or state:
 
@@ -734,7 +734,7 @@ the required AP-M8-W5 repository preparation is merged and the later operator ch
 explicitly approved, these controls supply no backend, state, provider, deployment, or Live
 evidence.
 
-## Historical AP-M8 deployment-sequencing and activation controls — superseded
+## <u>Historical AP-M8 deployment-sequencing and activation controls — superseded</u>
 
 AP-M8-W1 defines these AP-M8-W6 through AP-M8-W10 controls without creating a workflow, image,
 generation, resource, record, or DNS entry:
@@ -796,7 +796,7 @@ partial-failure table are in the subordinate
 each later checkpoint is separately approved, this profile supplies no executable or provider
 authority.
 
-## Historical AP-M8 deployment-evidence controls — superseded
+## <u>Historical AP-M8 deployment-evidence controls — superseded</u>
 
 AP-M8-W1 defines these AP-M8-W11/W12 and AP-EVAL-M8 controls without reading a provider or
 creating evidence:
@@ -846,7 +846,7 @@ not Live-qualified. The exact schema, verifier, gates, and allowed fields are in
 [the historical evaluation definition](05_evaluation_strategy.md); its collection and failure
 handling were recorded in the superseded qualification-deployment runbook.
 
-## AP-M9 interactive lifecycle controls
+## <u>AP-M9 interactive lifecycle controls</u>
 
 AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control refinements:
 
@@ -952,7 +952,7 @@ Source operation in W11. Slice 6 supplies documentation evidence only. Candidate
 proves only the named W9 predecessor bindings. No current result proves ADR-015 realization,
 Accepted Source staging, platform destruction/redeployment, production, or Application Adoption.
 
-## Remaining implementation and security decisions
+## <u>Remaining implementation and security decisions</u>
 
 The following decisions must be approved by their owning later slice before the named evidence can
 pass:
@@ -974,7 +974,7 @@ pass:
 An unresolved decision causes its dependent gate to remain unavailable; it is not an accepted risk
 by silence.
 
-## Threat-model acceptance boundary
+## <u>Threat-model acceptance boundary</u>
 
 This document is accepted when every in-scope trust crossing has an owner, every threat has required
 controls and an evidence class, deferred decisions are explicit, and no deterministic claim is used
@@ -985,7 +985,7 @@ identifiers. Versioned schemas and deterministic validation must cover every `C`
 fixture, infrastructure, and adoption plans must carry forward the applicable `F`, `L`, and `A`
 requirements without weakening them.
 
-## Threat trace
+## <u>Threat trace</u>
 
 | Threats | Requirements | Decisions |
 | --- | --- | --- |

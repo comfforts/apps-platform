@@ -251,6 +251,60 @@ status reports their alignment as diagnostics rather than treating every differe
 read. An unreadable or internally inconsistent record remains a blocker. A deployed resource is
 not necessarily qualified; status reports those states separately.
 
+## Administer platform members
+
+Platform deployment leaves the remote member directory empty and never enrolls an owner. After a
+revision containing the member lifecycle and Shared Edge verification endpoint is deployed, read
+the coarse remote state and deliberately bootstrap the first owner:
+
+```bash
+make platform-member-status ENVIRONMENT=staging
+make platform-member-bootstrap-owner ENVIRONMENT=staging
+make platform-member-status ENVIRONMENT=staging \
+  MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+```
+
+Each mutating command first verifies Accepted or Candidate Source plus the active human Cloud
+Operator session. Bootstrap and add then ask separately before opening the browser. The browser
+clears any ambient Platform Session and asks for the exact Google Visitor identity being enrolled.
+These are different authorities: the active gcloud account never becomes the enrolled Visitor
+implicitly. The edge returns only the opaque environment-scoped member reference to one
+challenge-bound loopback callback. Never enter an email, issuer, subject, cookie, authorization
+code, or token in the terminal.
+
+Bootstrap succeeds only when remote control proves the directory was never initialized and a
+boolean provider probe proves no member document exists. A previously initialized directory whose
+members were removed is not bootstrapable. An exact initial-owner retry is unchanged only when the
+control document and sole member still match the first successful state.
+
+Routine administration uses:
+
+```bash
+make platform-member-add ENVIRONMENT=staging
+make platform-member-suspend ENVIRONMENT=staging \
+  MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+make platform-member-reactivate ENVIRONMENT=staging \
+  MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+make platform-member-remove ENVIRONMENT=staging \
+  MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+```
+
+Add uses the browser-derived reference as the new member. Suspend, reactivate, and remove use the
+explicit opaque target reference created during enrollment; the affected Visitor does not need to
+sign in again. Every change shows the environment, operation, target, remote predecessor cursor,
+current state, and requested state before confirmation. Removal additionally requires an exact
+typed phrase. The provider compares
+the reviewed predecessor, advances the directory cursor and updates or removes the selected member
+in one transaction, then performs exact readback. A stale, conflicting, interrupted, malformed, or
+provider-unavailable result is not success; inspect the named safe blocker and rerun only after its
+cause is understood.
+
+Member administration does not run Terraform, deploy the platform or an application, publish a
+bundle, or compile or activate a Registration Generation. Ordinary status reads either coarse
+directory state or one explicitly requested opaque reference and never lists members. Version 2
+application handoffs and activation remain the next W10 slice, so these commands alone do not make
+the new admission model active in staging.
+
 ## Connect an application
 
 Applications remain responsible for their own runtime, data, state, secrets, and feature

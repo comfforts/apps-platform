@@ -212,6 +212,12 @@ class ContractSchemaTest(unittest.TestCase):
             "platform-register:",
             "platform-detach:",
             "platform-retire:",
+            "platform-member-status:",
+            "platform-member-bootstrap-owner:",
+            "platform-member-add:",
+            "platform-member-suspend:",
+            "platform-member-reactivate:",
+            "platform-member-remove:",
         ):
             self.assertIn(application_target, makefile)
         self.assertIn(
@@ -219,7 +225,7 @@ class ContractSchemaTest(unittest.TestCase):
             makefile,
         )
         self.assertNotIn("fixture-deploy:", makefile)
-        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 26)
+        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 32)
 
     def test_contract_layer_runs_from_an_extracted_project_copy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

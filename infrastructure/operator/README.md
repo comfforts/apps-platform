@@ -1,7 +1,8 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W9 Version 1 lifecycle implemented and candidate-qualified; AP-M9-W10 Platform Member
-Directory and explicit Identity Delivery implementation is next
+Status: AP-M9-W9 Version 1 lifecycle candidate-qualified; AP-M9-W10 Slices 1 through 4 implement
+the Version 2 contracts, directory infrastructure, Shared Edge enforcement, and member lifecycle
+without Version 2 handoff activation
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -71,6 +72,13 @@ make fixture-handoff \
 make fixture-status ENVIRONMENT=staging
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
+make platform-member-status ENVIRONMENT=staging
+make platform-member-bootstrap-owner ENVIRONMENT=staging
+make platform-member-add ENVIRONMENT=staging
+make platform-member-status ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+make platform-member-suspend ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+make platform-member-reactivate ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+make platform-member-remove ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
 ```
 
 Fixture handoff and destroy always require one fixture application identifier and operate only that
@@ -118,23 +126,38 @@ plans.
 
 The default `PREFLIGHT_MODE=operational` enforces the selected Accepted or Candidate Source policy.
 
-## Planned member lifecycle transition
+## Platform member lifecycle
 
 W10 now contains the inert Version 2 contracts and repository implementation for the isolated
-member-directory database and exact-read runtime IAM. Provider readback accepts only the
+member-directory database, exact-read runtime IAM, Shared Edge enforcement, and member lifecycle.
+Provider readback accepts only the
 conditioned default-database session grant and the named-database custom member role containing
 `datastore.entities.get`; a broader project-level runtime grant fails closed. These additions have
 not been reconciled to a provider and are not consumed by the active Version 1 Shared Edge.
 
-A later slice adds Shared Edge member lookup and explicit Identity Delivery. Another later slice
-adds the smallest member-specific operator surface. `platform-deploy` will reconcile the empty
-Firestore directory infrastructure but will not enroll a member. A separate
-`platform-member-bootstrap-owner` command will enroll the first owner only after remote-empty
-readback, a separately confirmed Google Visitor flow, exact review, and idempotent remote readback.
-Bounded status, add, suspend, reactivate, and remove commands will then change environment-wide
-membership without compiling a Registration Generation or deploying an application.
+`platform-deploy` reconciles the empty Firestore directory infrastructure but never enrolls a
+member. `platform-member-bootstrap-owner` enrolls the first owner only after remote-empty readback,
+a separately confirmed Google Visitor flow, exact review, one atomic transaction, and idempotent
+remote readback. Status, add, suspend, reactivate, and remove use the same deep service without
+compiling a Registration Generation or deploying an application.
 
-Application handoff inputs will add explicit Identity Delivery: `none` or `optional` for public
+The browser flow clears any prior Platform Session and visits the Shared Edge's reserved
+`/_platform/member/verify` endpoint. The edge derives the opaque environment-scoped reference from
+verified Google identity and returns only that reference, environment, operation, and one-use
+challenge to local loopback. The operator never accepts email as membership input and never
+receives raw issuer, subject, provider tokens, cookies, or browser state. Suspend, reactivate, and
+remove use the explicit `MEMBER_REFERENCE` established during enrollment and do not ask the
+affected Visitor to authenticate again.
+
+The provider adapter reads directory control plus at most one selected member. Bootstrap may also
+read a boolean remote-emptiness projection; ordinary status never lists members. A mutation
+transaction compares the reviewed control/member predecessor, advances the control cursor, updates
+or removes the selected member, and then requires exact readback. Stale, conflicting, interrupted,
+malformed, and provider-unavailable results remain distinct safe blocker classes. Removal uses an
+exact typed phrase and retains initialized control so an empty private journal cannot enable owner
+rebootstrap.
+
+The next application-handoff slice will add explicit Identity Delivery: `none` or `optional` for public
 admission and `required` for authenticated or restricted admission. Until that slice implements and
 tests these commands and inputs, they are design authority rather than executable operator
 interfaces; do not infer them from the current Make targets.
@@ -325,3 +348,17 @@ readback-closed resume checkpoints. Related internal actions share one human sta
 creation and TLS planning/readiness as `Stage 6/7 · Configure DNS and TLS`. A new process announces
 the stage containing its first pending checkpoint, making resume position visible without
 replaying a completed mutation.
+
+## Member lifecycle module map
+
+| Module | Responsibility |
+| --- | --- |
+| `member_lifecycle.py` | Deep provider-neutral status, authorization, transition, confirmation, idempotency, atomic-mutation, and exact-readback service. |
+| `member_browser.py` | One-use browser launch and loopback callback that receive only an opaque environment/operation-bound member reference. |
+| `local_members.py` | Verified local Cloud Operator composition, named Firestore transaction adapter, strict platform URL launcher, and source-authority binding. |
+| `cli.py` | Shallow operation dispatch and least-data human/machine result formatting. |
+| `local.py` | Composition root for the existing lifecycle and the separate member service. |
+
+The Shared Edge runtime's member-verification endpoint is documented in
+[`edge/README.md`](../../edge/README.md). The edge derives a reference but never mutates membership;
+the operator adapter mutates membership but never receives raw Visitor identity.

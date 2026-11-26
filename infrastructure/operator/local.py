@@ -1020,6 +1020,66 @@ def build_local_deployment_check(
     )
 
 
+def build_local_member_lifecycle(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+):
+    """Compose member administration after verifying the human Cloud Operator.
+
+    Construction verifies the active Cloud SDK account and user ADC boundary but
+    performs no member read or mutation.  The returned deep service applies source
+    admission before every provider operation and obtains Visitor identity only
+    through the separate one-use browser verifier.
+    """
+
+    from infrastructure.operator.member_browser import (
+        LoopbackMemberVisitorVerifier,
+    )
+    from infrastructure.operator.member_lifecycle import PlatformMemberLifecycle
+    from infrastructure.operator.local_members import (
+        FirestoreMemberDirectoryProvider,
+        LocalMemberOperationAuthorizer,
+        SystemMemberBrowserLauncher,
+        UnixMemberClock,
+        member_clients,
+        member_origins,
+    )
+
+    resolved_project = project_root.resolve()
+    terminal = ConsoleTerminal()
+    executable_name = shutil.which("gcloud")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
+    verified = _verified_gcp_session(
+        ProfileGcp(
+            Path(executable_name).resolve() if executable_name else None,
+            configuration,
+        ),
+        state_root,
+        terminal,
+    )
+    return PlatformMemberLifecycle(
+        FirestoreMemberDirectoryProvider(member_clients()),
+        LoopbackMemberVisitorVerifier(
+            SystemMemberBrowserLauncher(),
+            terminal,
+            member_origins(),
+        ),
+        LocalMemberOperationAuthorizer(
+            LocalGit(resolved_project),
+            source_authority,
+            bool(verified.facts.operator_subject),
+        ),
+        terminal,
+        UnixMemberClock(),
+    )
+
+
 def _local_generation_provider(
     project_root: Path,
     state_root: Path,

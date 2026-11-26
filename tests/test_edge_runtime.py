@@ -2172,6 +2172,168 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         )
         self.assertEqual(oidc.authorization_requests, [])
 
+    def test_member_verification_returns_only_environment_scoped_reference(self) -> None:
+        configuration, source = configured_generation(
+            protected_generation("authenticated"),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        identity = PlatformIdentity(
+            "https://accounts.google.com",
+            "verified-member-subject",
+            "private@example.com",
+        )
+        store = InMemoryIdentityStore()
+        session_id = "member-session-012345678901234"
+        store.sessions[session_id] = PlatformSession(identity, expires_at=20_000)
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                identity_store=store,
+                clock=FixedClock(10_000),
+                google_oidc=FakeGoogleOidc(identity),
+                token_source=FixedTokenSource([]),
+            ),
+        )
+        query = urlencode(
+            {
+                "callback_port": "43123",
+                "challenge": "a" * 64,
+                "operation": "add",
+            }
+        ).encode("ascii")
+        _, (status, headers, body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/member/verify",
+                query_string=query,
+                headers=((b"cookie", f"__Host-comfforts-session={session_id}".encode()),),
+            )
+        )
+        location = headers[b"location"].decode("ascii")
+        callback = urlsplit(location)
+        values = parse_qs(callback.query)
+        expected = member_reference(
+            "staging",
+            PlatformMemberIdentity(identity.issuer, identity.subject),
+        )
+        self.assertEqual((status, body), (303, b""))
+        self.assertEqual((callback.scheme, callback.hostname, callback.port), ("http", "127.0.0.1", 43123))
+        self.assertEqual(values["member_reference"], [expected])
+        self.assertEqual(values["environment"], ["staging"])
+        self.assertEqual(values["operation"], ["add"])
+        self.assertEqual(values["challenge"], ["a" * 64])
+        self.assertNotIn(identity.subject, location)
+        self.assertNotIn(identity.email or "", location)
+
+    def test_member_verification_requires_login_and_rejects_unbounded_input(self) -> None:
+        configuration, source = configured_generation(
+            protected_generation("authenticated"),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                identity_store=InMemoryIdentityStore(),
+                clock=FixedClock(10_000),
+                google_oidc=FakeGoogleOidc(
+                    PlatformIdentity("https://accounts.google.com", "visitor")
+                ),
+                token_source=FixedTokenSource([]),
+            ),
+        )
+        query = urlencode(
+            {
+                "callback_port": "43123",
+                "challenge": "b" * 64,
+                "operation": "add",
+            }
+        ).encode("ascii")
+        _, (status, headers, _) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/member/verify",
+                query_string=query,
+            )
+        )
+        self.assertEqual(status, 303)
+        self.assertTrue(headers[b"location"].startswith(b"/_platform/login?"))
+
+        _, (lifecycle_status, _, lifecycle_body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/member/verify",
+                query_string=(
+                    b"callback_port=43123&challenge=" + b"b" * 64
+                    + b"&operation=suspend"
+                ),
+            )
+        )
+        self.assertEqual(
+            (lifecycle_status, lifecycle_body),
+            (400, b"invalid member verification\n"),
+        )
+
+        _, (invalid_status, _, invalid_body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/member/verify",
+                query_string=b"callback_port=80&challenge=short&operation=list",
+            )
+        )
+        self.assertEqual((invalid_status, invalid_body), (400, b"invalid member verification\n"))
+
+    def test_identity_callback_can_return_to_member_verification(self) -> None:
+        configuration, source = configured_generation(
+            protected_generation("authenticated"),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        return_to = (
+            "/_platform/member/verify?callback_port=43123&challenge="
+            + "c" * 64
+            + "&operation=bootstrap-owner"
+        )
+        flow_id = "member-flow-01234567890123456"
+        store = InMemoryIdentityStore()
+        store.flows[flow_id] = LoginFlow(
+            state="member-state-012345678901234",
+            nonce="member-nonce-012345678901234",
+            code_verifier="member-verifier-012345678901234567890123456789",
+            return_to=return_to,
+            expires_at=2_000,
+        )
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                google_oidc=FakeGoogleOidc(
+                    PlatformIdentity("https://accounts.google.com", "member-owner")
+                ),
+                identity_store=store,
+                clock=FixedClock(1_000),
+                token_source=FixedTokenSource(
+                    ["member-session-012345678901234"]
+                ),
+            ),
+        )
+
+        _, (status, headers, _) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/auth/callback",
+                query_string=b"state=member-state-012345678901234&code=provider-code",
+                headers=((b"cookie", f"__Host-comfforts-oidc={flow_id}".encode()),),
+            )
+        )
+
+        self.assertEqual(status, 303)
+        self.assertEqual(headers[b"location"].decode("ascii"), return_to)
+        self.assertIsNotNone(cookie_value(headers, "__Host-comfforts-session"))
+
     def test_callback_creates_absolute_session_and_authenticated_handoff(self) -> None:
         configuration, source = configured_generation(
             protected_generation("authenticated"),

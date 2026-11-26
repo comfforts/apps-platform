@@ -1,9 +1,9 @@
 # App Platform evaluation strategy
 
-Version 0.23 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.24 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
-without execution; AP-M9-W10 Slices 1-3 supply deterministic Version 2 contract, infrastructure,
-and runtime evidence, later W10 slices
+without execution; AP-M9-W10 Slices 1-4 supply deterministic Version 2 contract, infrastructure,
+runtime, and member-lifecycle evidence, later W10 slices
 and Candidate Source qualification remain, and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
@@ -37,6 +37,13 @@ Slice 3 supplies deterministic AP-EVAL-M9-07 runtime evidence for dual-version g
 explicit public, authenticated, and restricted admission, exact current-member lookup, minimized
 Version 2 assertions, visitor-header replacement, and fail-closed directory handling. Neither
 slice supplies deployment, Live, qualification, or Application Adoption evidence.
+
+W10 Slice 4 supplies deterministic AP-EVAL-M9-03 and AP-EVAL-M9-07 evidence for separate Cloud
+Operator and Google Visitor boundaries, one-use browser reference binding, remote-empty owner
+bootstrap, source admission, idempotency, stale-predecessor and conflict handling, atomic monotonic
+member transitions, exact readback, privacy, interruption, and stable diagnostics. Its provider
+fakes and loopback/browser seams perform no real member mutation and supply no Live, qualification,
+Version 2 handoff, or activation evidence.
 
 Plan: [App Platform implementation plan index](plans/README.md) and
 [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) and

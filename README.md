@@ -75,10 +75,10 @@ later membership changes do not redeploy an application or activate a Registrati
 Only the current visitor's minimal signed context may cross an application boundary; the directory
 and other members never do.
 
-> **Implementation status:** ADR-015 accepts this model. AP-M9-W10 Slices 1 through 3 implement
+> **Implementation status:** ADR-015 accepts this model. AP-M9-W10 Slices 1 through 4 implement
 > the Version 2 contracts and migration, isolated directory infrastructure and IAM, and
-> deterministic dual-version Shared Edge enforcement. Owner enrollment, member lifecycle,
-> Version 2 handoffs and activation, fixtures, and Candidate qualification remain. The deployed W9
+> deterministic dual-version Shared Edge enforcement plus separately confirmed owner enrollment
+> and bounded member lifecycle commands. Version 2 handoffs and activation, fixtures, and Candidate qualification remain. The deployed W9
 > candidate and Version 1 contracts remain predecessor evidence and are not Accepted Source
 > qualification for this model.
 

@@ -16,10 +16,11 @@ GENERATION_DIGEST ?=
 INTEGRATION_BUNDLE ?=
 ATTACHMENT_BUNDLE ?=
 REGISTRATION_INTENT ?=
+MEMBER_REFERENCE ?=
 
 export FIXTURES_PROJECT_ID FIXTURES_PROJECT_NAME
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-preflight-check platform-prepare platform-cancel platform-deploy platform-deploy-check platform-status fixture-project-bootstrap platform-connect-project application-handoff-check platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy fixture-handoff fixture-status fixture-destroy
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-preflight-check platform-prepare platform-cancel platform-deploy platform-deploy-check platform-status fixture-project-bootstrap platform-connect-project application-handoff-check platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy platform-member-status platform-member-bootstrap-owner platform-member-add platform-member-suspend platform-member-reactivate platform-member-remove fixture-handoff fixture-status fixture-destroy
 
 ## Install pinned Terraform dependencies into the ignored project-local mirror.
 terraform-setup:
@@ -53,7 +54,7 @@ terraform-check:
 
 ## Verify the credential-free interactive lifecycle core with deterministic adapters.
 operator-check:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_source_authority tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_local_deployment_inputs tests.test_local_deployment_commands tests.test_deployment_provider_commands tests.test_deployment_dns tests.test_application_integration tests.test_application_handoff_check tests.test_registration_lifecycle tests.test_integration_cli tests.test_local_integration tests.test_local_handoffs tests.test_local_generation_control tests.test_generation_provider_commands tests.test_project_connections tests.test_fixture_deployment_lifecycle tests.test_local_fixture_deployment tests.test_qualification_lifecycle tests.test_qualification_suite tests.test_local_qualification tests.test_live_qualification_browser tests.test_live_qualification_probe tests.test_qualification_destruction_cli tests.test_generation_rollback tests.test_destruction_specification tests.test_destruction_lifecycle tests.test_local_destruction_control tests.test_local_destruction_commands
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_source_authority tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_local_deployment_inputs tests.test_local_deployment_commands tests.test_deployment_provider_commands tests.test_deployment_dns tests.test_application_integration tests.test_application_handoff_check tests.test_registration_lifecycle tests.test_integration_cli tests.test_local_integration tests.test_local_handoffs tests.test_local_generation_control tests.test_generation_provider_commands tests.test_project_connections tests.test_fixture_deployment_lifecycle tests.test_local_fixture_deployment tests.test_member_lifecycle tests.test_member_browser tests.test_member_cli tests.test_local_members tests.test_qualification_lifecycle tests.test_qualification_suite tests.test_local_qualification tests.test_live_qualification_browser tests.test_live_qualification_probe tests.test_qualification_destruction_cli tests.test_generation_rollback tests.test_destruction_specification tests.test_destruction_lifecycle tests.test_local_destruction_control tests.test_local_destruction_commands
 
 
 ## Platform management commands.
@@ -121,6 +122,30 @@ platform-qualify:
 ## Compile, confirm, and resume exact safe platform destruction.
 platform-destroy:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator destroy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+
+## Read coarse directory state or one exact opaque member reference; never list members.
+platform-member-status:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-member-status --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" $(if $(MEMBER_REFERENCE),--member-reference "$(MEMBER_REFERENCE)",)
+
+## Enroll exactly one initial owner after remote-empty and browser-identity verification.
+platform-member-bootstrap-owner:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-member-bootstrap-owner --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+
+## Enroll one browser-verified Google Visitor as an active platform member.
+platform-member-add:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-member-add --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+
+## Suspend one exact previously enrolled opaque member after exact review.
+platform-member-suspend:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-member-suspend --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --member-reference "$(MEMBER_REFERENCE)"
+
+## Reactivate one exact previously enrolled opaque member after exact review.
+platform-member-reactivate:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-member-reactivate --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --member-reference "$(MEMBER_REFERENCE)"
+
+## Remove one exact previously enrolled opaque member after destructive review.
+platform-member-remove:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-member-remove --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --member-reference "$(MEMBER_REFERENCE)"
 
 
 ## Fixture management commands.

@@ -77,6 +77,14 @@ from infrastructure.operator.rollback import (
     RollbackRequest,
     RollbackResult,
 )
+from infrastructure.operator.member_lifecycle import (
+    DirectoryControl,
+    MemberDirectorySnapshot,
+    MemberLifecycleResult,
+    MemberMutation,
+    PlatformMemberLifecycle,
+    VerifiedMemberVisitor,
+)
 
 __all__ = (
     "ApplicationHandoffCheck",
@@ -107,6 +115,10 @@ __all__ = (
     "GenerationPublicationReadback",
     "IntegrationBundleRequest",
     "IntegrationBundleResult",
+    "DirectoryControl",
+    "MemberDirectorySnapshot",
+    "MemberLifecycleResult",
+    "MemberMutation",
     "LifecycleChangeRequest",
     "LifecycleOperator",
     "ComponentRevision",
@@ -131,6 +143,7 @@ __all__ = (
     "QualificationSuiteEvaluator",
     "PlatformIntegrationReader",
     "PlatformIntegrationState",
+    "PlatformMemberLifecycle",
     "RegistrationGenerationControl",
     "RegistrationGenerationProposal",
     "RegistrationIntent",
@@ -143,5 +156,6 @@ __all__ = (
     "StageCheck",
     "StageExecution",
     "StatusResult",
+    "VerifiedMemberVisitor",
     "compile_destruction_specification",
 )

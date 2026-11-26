@@ -33,12 +33,14 @@ from infrastructure.operator.local import (
     build_local_fixture_operator,
     build_local_fixture_status_operator,
     build_local_integration,
+    build_local_member_lifecycle,
     build_local_operator,
     build_local_project_lifecycle,
     build_local_qualification,
 )
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 from infrastructure.operator.output import print_result as _print
+from infrastructure.operator.member_lifecycle import PlatformMemberLifecycle
 from infrastructure.operator.qualification import QualificationLifecycle
 
 
@@ -94,6 +96,12 @@ def _parser() -> argparse.ArgumentParser:
             "fixture-handoff",
             "fixture-status",
             "fixture-destroy",
+            "platform-member-status",
+            "platform-member-bootstrap-owner",
+            "platform-member-add",
+            "platform-member-suspend",
+            "platform-member-reactivate",
+            "platform-member-remove",
         ),
         help="platform lifecycle operation",
     )
@@ -140,6 +148,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--integration-bundle", type=Path)
     parser.add_argument("--attachment-bundle", type=Path)
     parser.add_argument("--registration-intent", type=Path)
+    parser.add_argument("--member-reference")
     return parser
 
 
@@ -237,6 +246,19 @@ def _default_project_factory(  # type: ignore[no-untyped-def]
     source_authority: str,
 ):
     return build_local_project_lifecycle(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+    )
+
+
+def _default_member_factory(
+    state_directory: Path,
+    source_authority: str,
+) -> PlatformMemberLifecycle:
+    """Construct the verified local member lifecycle without running an action."""
+
+    return build_local_member_lifecycle(
         PROJECT_ROOT,
         state_directory,
         source_authority,
@@ -342,6 +364,9 @@ def _main(
     fixture_factory: Callable[[Path, str], object] = _default_fixture_factory,
     fixture_status_factory: Callable[[Path, str], object] = _default_fixture_status_factory,
     project_factory: Callable[[Path, str], object] = _default_project_factory,
+    member_factory: Callable[
+        [Path, str], PlatformMemberLifecycle
+    ] = _default_member_factory,
 ) -> int:
     parser = _parser()
     arguments = parser.parse_args(argv)
@@ -468,6 +493,21 @@ def _main(
                 }
             )
             return 2
+    elif arguments.operation.startswith("platform-member-"):
+        try:
+            members = member_factory(
+                arguments.state_directory,
+                arguments.source_authority,
+            )
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
     else:
         try:
             destruction = destruction_factory(
@@ -483,6 +523,65 @@ def _main(
                 }
             )
             return 2
+
+    if arguments.operation.startswith("platform-member-"):
+        try:
+            if arguments.operation == "platform-member-status":
+                result = members.status(
+                    arguments.environment,
+                    arguments.member_reference,
+                )
+            elif arguments.operation == "platform-member-bootstrap-owner":
+                result = members.bootstrap_owner(arguments.environment)
+            elif arguments.operation == "platform-member-add":
+                result = members.add(arguments.environment)
+            else:
+                reference = str(_required(arguments, "member_reference"))
+                if arguments.operation == "platform-member-suspend":
+                    result = members.suspend(arguments.environment, reference)
+                elif arguments.operation == "platform-member-reactivate":
+                    result = members.reactivate(arguments.environment, reference)
+                else:
+                    result = members.remove(arguments.environment, reference)
+        except ValueError:
+            _print(
+                {
+                    "blockers": ["MEMBER_REFERENCE_INVALID"],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                    "source_authority": arguments.source_authority,
+                }
+            )
+            return 2
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "directory_state": result.directory_state,
+                "environment": arguments.environment,
+                "member_lifecycle": result.member_lifecycle,
+                "member_reference": result.member_reference,
+                "mutation_cursor": result.mutation_cursor,
+                "outcome": result.outcome,
+                "source_authority": arguments.source_authority,
+            }
+        )
+        if result.outcome in {
+            "added",
+            "bootstrapped",
+            "read",
+            "reactivated",
+            "removed",
+            "suspended",
+            "unchanged",
+        }:
+            if result.outcome != "read":
+                print(
+                    "Platform member action completed with exact remote readback.",
+                    file=sys.stderr,
+                )
+                print(file=sys.stderr)
+            return 0
+        return 2
 
     if arguments.operation == "preflight":
         result = operator.preflight(
@@ -1178,6 +1277,9 @@ def main(
     fixture_factory: Callable[[Path, str], object] = _default_fixture_factory,
     fixture_status_factory: Callable[[Path, str], object] = _default_fixture_status_factory,
     project_factory: Callable[[Path, str], object] = _default_project_factory,
+    member_factory: Callable[
+        [Path, str], PlatformMemberLifecycle
+    ] = _default_member_factory,
 ) -> int:
     try:
         return _main(
@@ -1191,6 +1293,7 @@ def main(
             fixture_factory=fixture_factory,
             fixture_status_factory=fixture_status_factory,
             project_factory=project_factory,
+            member_factory=member_factory,
         )
     except Exception as error:
         arguments = list(argv) if argv is not None else sys.argv[1:]

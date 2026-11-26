@@ -19,6 +19,8 @@ def _error_component(blocker: str) -> str:
         return "source-control"
     if blocker.startswith("FIXTURE_"):
         return "fixture-application"
+    if blocker.startswith("MEMBER_"):
+        return "platform-member-lifecycle"
     if blocker.startswith(("APPLICATION_", "ATTACHMENT_", "REGISTRATION_")):
         return "application-lifecycle"
     if blocker.startswith("QUALIFICATION_"):

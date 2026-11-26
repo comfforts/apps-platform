@@ -6,7 +6,9 @@ and forwards admitted HTTP or WebSocket requests through injected adapters.
 Version 1 keeps its predecessor embedded-member behavior.  Version 2 applies
 explicit Identity Delivery and performs one exact current-visitor lookup for
 restricted admission.  Provider failures collapse to bounded responses and
-allowlisted diagnostics; this module never mutates registration or member state.
+allowlisted diagnostics.  A reserved member-verification endpoint projects only
+the current visitor's opaque environment-scoped reference to a one-use local
+operator callback; this module never mutates registration or member state.
 """
 
 from __future__ import annotations
@@ -105,10 +107,14 @@ LOGIN_PATH = "/_platform/login"
 CALLBACK_PATH = "/_platform/auth/callback"
 LOGOUT_PATH = "/_platform/logout"
 STATUS_PATH = "/_platform/status"
+MEMBER_VERIFY_PATH = "/_platform/member/verify"
 SESSION_LIFETIME_SECONDS = 8 * 60 * 60
 FLOW_LIFETIME_SECONDS = 10 * 60
 MAX_QUERY_BYTES = 2_048
 ENVIRONMENT_PATTERN = re.compile(r"[a-z][a-z0-9-]{1,31}")
+MEMBER_OPERATION_PATTERN = re.compile(
+    r"(?:bootstrap-owner|add)"
+)
 
 
 class _AnyMethodHttpEndpoint:
@@ -339,17 +345,49 @@ def _validated_return_to(
     if canonical_path is None:
         return None
     if canonical_path != "/":
-        if (
-            canonical_path != STATUS_PATH
-            and is_reserved_path(configuration, canonical_path)
+        if canonical_path not in {STATUS_PATH, MEMBER_VERIFY_PATH} and is_reserved_path(
+            configuration,
+            canonical_path,
         ):
             return None
         if (
-            canonical_path != STATUS_PATH
+            canonical_path not in {STATUS_PATH, MEMBER_VERIFY_PATH}
             and select_application_route(configuration, canonical_path) is None
         ):
             return None
     return value
+
+
+def _member_verification_return_to(request: Request) -> str | None:
+    """Validate and reproduce the exact member-verification request path.
+
+    The value is used only as a local login return location.  It binds the
+    environment-independent browser challenge, operation, and loopback port
+    while preventing an arbitrary redirect target.
+    """
+
+    callback_port = _single_query_value(request, "callback_port")
+    challenge = _single_query_value(request, "challenge")
+    operation = _single_query_value(request, "operation")
+    try:
+        port = int(callback_port or "")
+    except ValueError:
+        return None
+    if (
+        not 1_024 <= port <= 65_535
+        or challenge is None
+        or OPAQUE_TOKEN_PATTERN.fullmatch(challenge) is None
+        or operation is None
+        or MEMBER_OPERATION_PATTERN.fullmatch(operation) is None
+    ):
+        return None
+    return MEMBER_VERIFY_PATH + "?" + urlencode(
+        {
+            "callback_port": str(port),
+            "challenge": challenge,
+            "operation": operation,
+        }
+    )
 
 
 def _identity_ready(
@@ -636,7 +674,7 @@ def create_app(
                 headers={"Cache-Control": "no-store"},
             )
 
-        if path in {LOGIN_PATH, CALLBACK_PATH, LOGOUT_PATH}:
+        if path in {LOGIN_PATH, CALLBACK_PATH, LOGOUT_PATH, MEMBER_VERIFY_PATH}:
             if request.method != "GET":
                 return _closed_response(405, "method not allowed")
         if path in {"/", "/.well-known/jwks.json"}:
@@ -781,6 +819,56 @@ def create_app(
                 SESSION_LIFETIME_SECONDS,
             )
             return response
+
+        if path == MEMBER_VERIFY_PATH:
+            if runtime_configuration.environment is None:
+                return _closed_response(503, "identity unavailable")
+            return_to = _member_verification_return_to(request)
+            if return_to is None:
+                return _closed_response(400, "invalid member verification")
+            identity, identity_store_available = await _session_identity(
+                request,
+                adapters,
+                health,
+            )
+            if identity is None:
+                if not identity_ready or not identity_store_available:
+                    return _closed_response(503, "identity unavailable")
+                return RedirectResponse(
+                    LOGIN_PATH + "?" + urlencode({"return_to": return_to}),
+                    status_code=303,
+                    headers={"Cache-Control": "no-store"},
+                )
+            callback_port = _single_query_value(request, "callback_port")
+            challenge = _single_query_value(request, "challenge")
+            operation = _single_query_value(request, "operation")
+            assert callback_port is not None
+            assert challenge is not None
+            assert operation is not None
+            try:
+                reference = member_reference(
+                    runtime_configuration.environment,
+                    PlatformMemberIdentity(identity.issuer, identity.subject),
+                )
+            except Exception:
+                record_diagnostic(
+                    request.scope,
+                    "MEMBER_VISITOR_REFERENCE_FAILED",
+                )
+                return _closed_response(503, "identity unavailable")
+            callback_url = "http://127.0.0.1:" + callback_port + "/?" + urlencode(
+                {
+                    "challenge": challenge,
+                    "environment": runtime_configuration.environment,
+                    "member_reference": reference,
+                    "operation": operation,
+                }
+            )
+            return RedirectResponse(
+                callback_url,
+                status_code=303,
+                headers={"Cache-Control": "no-store"},
+            )
 
         if path == LOGOUT_PATH:
             return_to = _single_query_value(request, "return_to")

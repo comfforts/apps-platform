@@ -69,6 +69,7 @@ Public and authenticated Version 2 routes do not consult the member directory.
 | `/_platform/auth/callback` | Validate the callback and create an opaque server-side Platform Session. |
 | `/_platform/logout` | Delete the current Platform Session and clear its cookie. |
 | `/_platform/status` | Return coarse runtime and adapter health only to the exact configured operator identity. |
+| `/_platform/member/verify` | Project the current verified Visitor to one opaque environment-scoped reference for a challenge-bound local operator callback; never mutate or enumerate membership. |
 | `/.well-known/jwks.json` | Publish the bounded public keys used to verify platform assertions. |
 
 Unknown reserved paths return `404`. Suspended and retired application routes retain their route
@@ -115,6 +116,13 @@ authority.
 
 Suspending or removing a platform member affects the next request or newly established stream. The runtime
 does not terminate a request or stream that was already admitted.
+
+Member administration remains outside the runtime. For the operator's separately confirmed
+bootstrap and mutation journeys, the member-verification endpoint clears or requires a Platform
+Session through the existing Google OIDC flow, derives the opaque reference inside the edge, and
+redirects only that reference plus environment, operation, and one-use challenge to a fixed
+loopback host and bounded port. It never receives a target reference from the browser, returns raw
+identity claims, or writes the member database.
 
 ## Attachment and proxy enforcement
 

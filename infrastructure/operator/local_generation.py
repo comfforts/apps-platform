@@ -330,14 +330,18 @@ class LocalRegistrationGenerationControl:
         if proposal is None:
             raise ValueError("active runtime generation proposal is missing")
         generation = proposal.registration_set.get("generation")
+        contract_version = proposal.compiled_configuration.get("contract_version")
+        if contract_version not in {1, 2}:
+            raise ValueError("active runtime generation binding mismatch")
         expected_objects = {
             (
                 f"environments/{binding.environment}/generations/"
-                f"{binding.generation}/compiled-shared-edge.v1.json"
+                f"{binding.generation}/"
+                f"compiled-shared-edge.v{contract_version}.json"
             ),
             (
                 f"generations/{binding.generation_digest[7:]}/"
-                "compiled-shared-edge.v1.json"
+                f"compiled-shared-edge.v{contract_version}.json"
             ),
         }
         if (

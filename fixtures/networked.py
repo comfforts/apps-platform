@@ -101,14 +101,16 @@ class NetworkFixtureConfiguration:
         if self.public_key_reference != expected_keys:
             raise ValueError("public key reference must match the platform issuer")
         expected_audience = (
-            None
-            if self.admission_mode == "public"
-            else (
-                "urn:comfforts:app-platform:audience:"
-                f"{self.application_id}"
-            )
+            "urn:comfforts:app-platform:audience:"
+            f"{self.application_id}"
         )
-        if self.assertion_audience != expected_audience:
+        if (
+            self.admission_mode == "public"
+            and self.assertion_audience not in {None, expected_audience}
+        ) or (
+            self.admission_mode != "public"
+            and self.assertion_audience != expected_audience
+        ):
             raise ValueError("assertion audience must match the fixture profile")
 
     @classmethod
@@ -178,14 +180,15 @@ def create_network_fixture(
 ) -> Starlette:
     """Create one networked fixture without provider or Platform State access."""
 
-    protected = configuration.admission_mode != "public"
-    if protected and verifier is None:
-        raise ValueError("protected fixture requires an identity verifier")
-    if not protected and verifier is not None:
-        raise ValueError("public fixture cannot receive an identity verifier")
+    identity_required = configuration.admission_mode != "public"
+    identity_enabled = configuration.assertion_audience is not None
+    if identity_enabled and verifier is None:
+        raise ValueError("identity-enabled fixture requires an identity verifier")
+    if not identity_enabled and verifier is not None:
+        raise ValueError("identity-disabled fixture cannot receive an identity verifier")
 
     async def admitted(headers: object) -> bool:
-        if not protected:
+        if not identity_enabled:
             return True
         getlist = getattr(headers, "getlist", None)
         if not callable(getlist):
@@ -194,6 +197,8 @@ def create_network_fixture(
         if len(assertions) > 1:
             return False
         assertion = assertions[0] if assertions else None
+        if assertion is None and not identity_required:
+            return True
         assert verifier is not None
         result = await verifier.verify(assertion)
         if not result.accepted or result.identity is None:

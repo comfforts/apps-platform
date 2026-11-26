@@ -97,9 +97,10 @@ data, a member reference, a directory record, roles, feature permissions, or ent
 
 The assertion is delivered through `X-Comfforts-Verified-Identity`. The proxy always strips any
 visitor-supplied value for that header before forwarding. Applications must independently verify
-the signature, issuer, audience, and time bounds. `edge/verification.py` is currently the Version 1
-application-side compatibility verifier; Version 2 application-consumer migration belongs to the
-later application-handoff slice and is not implied by this runtime implementation.
+the contract version, signature, issuer, audience, and time bounds. `edge/verification.py` validates
+both readable Version 1 and active Version 2 assertion contracts through the local schema registry.
+It returns the positive Version 2 membership projection when present but does not turn it into an
+application principal, role, or entitlement.
 
 ## Sessions and member lookup
 
@@ -195,7 +196,7 @@ listener and performs no external operation.
 | `edge/_proxy.py` | Bounded HTTP, stream, and WebSocket forwarding plus edge-caller token acquisition. |
 | `edge/_observability.py` | Correlation identifiers, completion-event allowlist, adapter health, and operator status. |
 | `edge/live.py` | Production provider composition and immutable environment parsing. |
-| `edge/verification.py` | Version 1 application-side assertion verification compatibility helper. |
+| `edge/verification.py` | Version-aware application-side assertion verification helper for readable Version 1 and active Version 2 contexts. |
 
 `infrastructure/member_directory.py` supplies the shared member model, opaque-reference derivation,
 deterministic fake, and provider-backed exact lookup used by the runtime. Member lifecycle mutation

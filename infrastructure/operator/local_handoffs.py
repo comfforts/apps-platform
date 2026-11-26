@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 from typing import Any
 
-from contracts.lifecycle import lifecycle_digest
+from contracts.lifecycle import versioned_lifecycle_digest
 from infrastructure.operator.local import LocalFilesystem
 from infrastructure.operator.qualification import FixtureRevision
 
@@ -139,11 +139,11 @@ class LocalApplicationHandoffs:
                 application_source_revision=str(
                     attachment_bundle["application_source_revision"]
                 ),
-                integration_bundle_digest=lifecycle_digest(
+                integration_bundle_digest=versioned_lifecycle_digest(
                     integration_bundle,
                     "platform-integration-bundle",
                 ),
-                attachment_bundle_digest=lifecycle_digest(
+                attachment_bundle_digest=versioned_lifecycle_digest(
                     attachment_bundle,
                     "application-attachment-bundle",
                 ),

@@ -9,7 +9,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from contracts.lifecycle import lifecycle_digest
+from contracts.lifecycle import versioned_lifecycle_digest
 from infrastructure.operator.cli import main
 from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationStatus,
@@ -32,7 +32,7 @@ VECTORS = PROJECT_ROOT / "contracts/lifecycle/test-vectors/valid"
 
 def _integration_bundle() -> dict[str, object]:
     return json.loads(
-        (VECTORS / "platform-integration-bundle.staging.synthetic.v1.json").read_text()
+        (VECTORS / "platform-integration-bundle.staging.synthetic.v2.json").read_text()
     )
 
 
@@ -47,7 +47,7 @@ class Integration:
         return IntegrationBundleResult(
             "generated",
             bundle,
-            lifecycle_digest(bundle, "platform-integration-bundle"),
+            versioned_lifecycle_digest(bundle, "platform-integration-bundle"),
         )
 
     def register(
@@ -87,8 +87,8 @@ class Fixture:
             "sha256:" + ("2" * 64),
             integration_bundle_path,
             "sha256:" + ("3" * 64),
-            "/private/application-attachment-bundle.v1.json",
-            "/private/registration-intent.v1.json",
+            "/private/application-attachment-bundle.v2.json",
+            "/private/registration-intent.v2.json",
         )
 
     def status(
@@ -138,6 +138,7 @@ class IntegrationCliTest(unittest.TestCase):
                         "--application-id", "fixture-authenticated",
                         "--application-project-id", FIXTURES_PROJECT_ID,
                         "--access-mode", "authenticated",
+                        "--identity-delivery", "required",
                         "--route-intent", "/fixture-authenticated",
                         "--platform-source-revision", "a" * 40,
                         "--platform-generation", "1",
@@ -154,7 +155,7 @@ class IntegrationCliTest(unittest.TestCase):
 
     def test_fixture_handoff_consumes_existing_bundle_and_stops(self) -> None:
         fixture = Fixture()
-        bundle_path = VECTORS / "platform-integration-bundle.staging.synthetic.v1.json"
+        bundle_path = VECTORS / "platform-integration-bundle.staging.synthetic.v2.json"
         output = io.StringIO()
         diagnostics = io.StringIO()
         with redirect_stdout(output), redirect_stderr(diagnostics):
@@ -171,7 +172,7 @@ class IntegrationCliTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(
             result["registration_intent_path"],
-            "/private/registration-intent.v1.json",
+            "/private/registration-intent.v2.json",
         )
         self.assertIn("route is inactive", diagnostics.getvalue())
         assert fixture.handoff_arguments is not None
@@ -181,18 +182,11 @@ class IntegrationCliTest(unittest.TestCase):
         integration = Integration()
         with tempfile.TemporaryDirectory() as temporary:
             intent = Path(temporary) / "intent.json"
-            intent.write_text(
-                json.dumps(
-                    {
-                        "attachment_id": "primary",
-                        "catalogue_summary": "Synthetic fixture",
-                        "catalogue_title": "Authenticated fixture",
-                        "catalogue_visibility": "unlisted",
-                        "forwarding_mode": "strip_application_prefix",
-                        "mount_path": "/",
-                        "restricted_members": [],
-                    }
-                )
+            intent.write_bytes(
+                (
+                    VECTORS
+                    / "registration-intent.staging.synthetic.v2.json"
+                ).read_bytes()
             )
             output = io.StringIO()
             with redirect_stdout(output):
@@ -204,12 +198,12 @@ class IntegrationCliTest(unittest.TestCase):
                         "--integration-bundle",
                         str(
                             VECTORS
-                            / "platform-integration-bundle.staging.synthetic.v1.json"
+                            / "platform-integration-bundle.staging.synthetic.v2.json"
                         ),
                         "--attachment-bundle",
                         str(
                             VECTORS
-                            / "application-attachment-bundle.staging.synthetic.v1.json"
+                            / "application-attachment-bundle.staging.synthetic.v2.json"
                         ),
                         "--registration-intent", str(intent),
                     ],
@@ -217,6 +211,35 @@ class IntegrationCliTest(unittest.TestCase):
                 )
         self.assertEqual(code, 0)
         self.assertEqual(len(integration.registrations), 1)
+
+    def test_platform_register_rejects_mixed_handoff_versions(self) -> None:
+        integration = Integration()
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = main(
+                [
+                    "register",
+                    "--environment", "staging",
+                    "--integration-bundle",
+                    str(
+                        VECTORS
+                        / "platform-integration-bundle.staging.synthetic.v1.json"
+                    ),
+                    "--attachment-bundle",
+                    str(
+                        VECTORS
+                        / "application-attachment-bundle.staging.synthetic.v1.json"
+                    ),
+                    "--registration-intent",
+                    str(VECTORS / "registration-intent.staging.synthetic.v2.json"),
+                ],
+                integration_factory=lambda _path, _authority: integration,
+            )
+
+        result = json.loads(output.getvalue())
+        self.assertEqual(code, 2)
+        self.assertIn("INTEGRATION_INPUT_INVALID", result["blockers"])
+        self.assertEqual(integration.registrations, [])
 
     def test_status_reports_target_and_route_readiness_separately(self) -> None:
         output = io.StringIO()

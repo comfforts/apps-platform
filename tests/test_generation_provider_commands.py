@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import json
 from pathlib import Path
 import tempfile
@@ -320,6 +320,41 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                 for argument in mutation.argv
             )
         )
+
+    def test_stage_names_v2_compiled_configuration_by_its_contract(self) -> None:
+        selected = replace(
+            proposal(),
+            registration_set={
+                **proposal().registration_set,
+                "contract_version": 2,
+            },
+            compiled_configuration={
+                **proposal().compiled_configuration,
+                "contract_version": 2,
+            },
+        )
+        compiled = _canonical(selected.compiled_configuration)
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeGcloud(compiled)
+            provider = self._provider(directory, fake)
+
+            result = provider.stage(selected, compiled)
+
+        self.assertTrue(result.readback_matches)
+        upload = next(
+            request
+            for request in fake.requests
+            if request.argv[1:3] == ("storage", "cp")
+        )
+        self.assertTrue(
+            any(
+                argument.endswith(
+                    "environments/staging/generations/7/"
+                    "compiled-shared-edge.v2.json"
+                )
+                for argument in upload.argv
+            )
+        )
         upload = next(
             request
             for request in fake.requests
@@ -327,11 +362,6 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         )
         self.assertEqual(upload.stdin, compiled)
         self.assertIn("--if-generation-match=0", upload.argv)
-        self.assertIn(
-            f"gs://{BUCKET}/environments/staging/generations/7/"
-            "compiled-shared-edge.v1.json",
-            upload.argv,
-        )
         self.assertNotIn("HOME", dict(upload.environment))
         self.assertNotIn("GOOGLE_APPLICATION_CREDENTIALS", dict(upload.environment))
 

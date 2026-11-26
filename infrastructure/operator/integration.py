@@ -8,11 +8,11 @@ import hashlib
 import json
 from typing import Any, Protocol
 
-from contracts import compile_registration_set
+from contracts import compile_registration_set_v2, migrate_registration_set_v1_to_v2
 from contracts.lifecycle import (
-    lifecycle_digest,
-    validate_lifecycle_document,
-    validate_lifecycle_relationships,
+    validate_versioned_lifecycle_document,
+    validate_versioned_lifecycle_relationships,
+    versioned_lifecycle_digest,
 )
 from infrastructure.config.project_identity import fixtures_project_id
 from infrastructure.operator._interfaces import OperatorInterrupted, OperatorTerminal
@@ -88,6 +88,7 @@ class IntegrationBundleRequest:
     environment: str
     application_id: str
     access_mode: str
+    identity_delivery: str
     route_intent: str
     expected_platform_source_revision: str
     expected_generation: int
@@ -144,13 +145,15 @@ class AttachmentValidationResult:
 class RegistrationIntent:
     """Explicit platform-facing registration decisions absent from an attachment."""
 
+    application_id: str
+    access_mode: str
+    identity_delivery: str
     catalogue_visibility: str
     catalogue_title: str
     catalogue_summary: str
     attachment_id: str
     mount_path: str
     forwarding_mode: str
-    restricted_members: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -292,6 +295,14 @@ class ApplicationIntegrationLifecycle:
 
         if request.access_mode not in {"public", "authenticated", "restricted"}:
             return self._blocked("ACCESS_MODE_UNSUPPORTED")
+        allowed_identity_delivery = {
+            ("public", "none"),
+            ("public", "optional"),
+            ("authenticated", "required"),
+            ("restricted", "required"),
+        }
+        if (request.access_mode, request.identity_delivery) not in allowed_identity_delivery:
+            return self._blocked("IDENTITY_DELIVERY_UNSUPPORTED")
 
         try:
             state = self._platform_reader.read_platform(request.environment)
@@ -324,14 +335,15 @@ class ApplicationIntegrationLifecycle:
         ):
             return self._blocked("APPLICATION_PROJECT_CONNECTION_MISMATCH")
 
-        protected = request.access_mode in {"authenticated", "restricted"}
+        identity_enabled = request.identity_delivery in {"optional", "required"}
         origin = f"https://{state.hostname}"
         bundle: dict[str, Any] = {
-            "contract_version": 1,
+            "contract_version": 2,
             "document_kind": "platform-integration-bundle",
             "environment": request.environment,
             "application_id": request.application_id,
             "access_mode": request.access_mode,
+            "identity_delivery": request.identity_delivery,
             "route_intent": request.route_intent,
             "generation": state.generation,
             "profile_digest": state.profile_digest,
@@ -341,18 +353,18 @@ class ApplicationIntegrationLifecycle:
             "deployment_progress_digest": state.progress_digest,
             "endpoints": {
                 "external_origin": origin,
-                "issuer": f"{origin}/_platform" if protected else None,
-                "jwks_uri": f"{origin}/.well-known/jwks.json" if protected else None,
+                "issuer": f"{origin}/_platform" if identity_enabled else None,
+                "jwks_uri": f"{origin}/.well-known/jwks.json" if identity_enabled else None,
                 "oauth_redirect_uri": (
-                    f"{origin}/_platform/auth/callback" if protected else None
+                    f"{origin}/_platform/auth/callback" if identity_enabled else None
                 ),
             },
             "identity": {
-                "oauth_client_id": state.oauth_client_id if protected else None,
+                "oauth_client_id": state.oauth_client_id if identity_enabled else None,
                 "audience": (
                     "urn:comfforts:app-platform:audience:"
                     f"{request.application_id}"
-                    if protected
+                    if identity_enabled
                     else None
                 ),
                 "edge_caller_reference": state.edge_caller_reference,
@@ -375,12 +387,12 @@ class ApplicationIntegrationLifecycle:
             },
             "qualification_status": state.qualification_status,
         }
-        if validate_lifecycle_document(bundle, "platform-integration-bundle"):
+        if validate_versioned_lifecycle_document(bundle, "platform-integration-bundle"):
             return self._blocked("INTEGRATION_BUNDLE_INVALID")
         return IntegrationBundleResult(
             outcome="generated",
             bundle=bundle,
-            bundle_digest=lifecycle_digest(
+            bundle_digest=versioned_lifecycle_digest(
                 bundle,
                 "platform-integration-bundle",
             ),
@@ -400,7 +412,7 @@ class ApplicationIntegrationLifecycle:
         state: PlatformIntegrationState,
     ) -> bool:
         identity = bundle.get("identity")
-        protected = bundle.get("access_mode") in {"authenticated", "restricted"}
+        identity_enabled = bundle.get("identity_delivery") in {"optional", "required"}
         return (
             state.lifecycle_state == "deployed"
             and bundle.get("environment") == state.environment
@@ -417,7 +429,7 @@ class ApplicationIntegrationLifecycle:
             and identity.get("edge_caller_reference")
             == state.edge_caller_reference
             and (
-                not protected
+                not identity_enabled
                 or identity.get("oauth_client_id") == state.oauth_client_id
             )
         )
@@ -429,17 +441,21 @@ class ApplicationIntegrationLifecycle:
     ) -> AttachmentValidationResult:
         """Validate one application handoff and exact provider target posture."""
 
-        if validate_lifecycle_document(
+        if integration_bundle.get("contract_version") != 2:
+            return self._attachment_blocked("INTEGRATION_BUNDLE_VERSION_UNSUPPORTED")
+        if attachment_bundle.get("contract_version") != 2:
+            return self._attachment_blocked("ATTACHMENT_BUNDLE_VERSION_UNSUPPORTED")
+        if validate_versioned_lifecycle_document(
             integration_bundle,
             "platform-integration-bundle",
         ):
             return self._attachment_blocked("INTEGRATION_BUNDLE_INVALID")
-        if validate_lifecycle_document(
+        if validate_versioned_lifecycle_document(
             attachment_bundle,
             "application-attachment-bundle",
         ):
             return self._attachment_blocked("ATTACHMENT_BUNDLE_INVALID")
-        if validate_lifecycle_relationships(
+        if validate_versioned_lifecycle_relationships(
             integration_bundle=integration_bundle,
             attachment_bundle=attachment_bundle,
         ):
@@ -628,12 +644,18 @@ class ApplicationIntegrationLifecycle:
 
     @staticmethod
     def _registration_intent_valid(
-        access_mode: object,
+        integration_bundle: dict[str, Any],
         intent: RegistrationIntent,
     ) -> bool:
-        if access_mode == "restricted":
-            return bool(intent.restricted_members)
-        return access_mode in {"public", "authenticated"} and not intent.restricted_members
+        """Require the reviewed V2 intent to repeat, not redefine, handoff policy."""
+
+        return (
+            integration_bundle.get("contract_version") == 2
+            and intent.application_id == integration_bundle.get("application_id")
+            and intent.access_mode == integration_bundle.get("access_mode")
+            and intent.identity_delivery
+            == integration_bundle.get("identity_delivery")
+        )
 
     @staticmethod
     def _application_registration(
@@ -644,18 +666,13 @@ class ApplicationIntegrationLifecycle:
         registration_revision: int,
     ) -> dict[str, Any]:
         access_mode = str(integration_bundle["access_mode"])
+        identity_delivery = str(integration_bundle["identity_delivery"])
         identity = integration_bundle["identity"]
         target = attachment_bundle["target"]
         assert isinstance(identity, dict)
         assert isinstance(target, dict)
-        admission: dict[str, Any] = {"mode": access_mode}
-        if access_mode == "restricted":
-            admission["members"] = [
-                {"issuer": issuer, "subject": subject}
-                for issuer, subject in sorted(intent.restricted_members)
-            ]
         return {
-            "contract_version": 1,
+            "contract_version": 2,
             "application_id": integration_bundle["application_id"],
             "registration_revision": registration_revision,
             "route_prefix": integration_bundle["route_intent"],
@@ -664,20 +681,23 @@ class ApplicationIntegrationLifecycle:
                 "title": intent.catalogue_title,
                 "summary": intent.catalogue_summary,
             },
-            "admission": admission,
+            "admission": {"mode": access_mode},
+            "identity_delivery": identity_delivery,
             "lifecycle": lifecycle,
             "attachments": [
                 {
-                    "contract_version": 1,
+                    "contract_version": 2,
                     "owner_application_id": integration_bundle["application_id"],
                     "attachment_id": intent.attachment_id,
                     "adapter_kind": target["adapter_kind"],
                     "resource_reference": target["resource_reference"],
                     "mount_path": intent.mount_path,
                     "forwarding_mode": intent.forwarding_mode,
-                    "identity_requirement": (
-                        "none" if access_mode == "public" else "verified"
-                    ),
+                    "identity_requirement": {
+                        "none": "none",
+                        "optional": "optional",
+                        "required": "verified",
+                    }[identity_delivery],
                     "audience": identity["audience"],
                     "ingress_mode": target["ingress_mode"],
                 }
@@ -695,6 +715,23 @@ class ApplicationIntegrationLifecycle:
         ).encode("utf-8")
         return f"sha256:{hashlib.sha256(payload).hexdigest()}"
 
+    @staticmethod
+    def _version_two_previous(
+        previous: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Return the predecessor as V2 comparison data without changing its digest."""
+
+        if previous is None:
+            return None
+        if previous.get("contract_version") == 2:
+            return copy.deepcopy(previous)
+        if previous.get("contract_version") == 1:
+            migration = migrate_registration_set_v1_to_v2(previous)
+            if migration.violations or migration.registration_set is None:
+                return None
+            return migration.registration_set
+        return None
+
     @classmethod
     def _compile_generation(
         cls,
@@ -705,9 +742,12 @@ class ApplicationIntegrationLifecycle:
         change_summary: str,
     ) -> RegistrationGenerationProposal | None:
         previous = current.registration_set if current is not None else None
+        comparison_previous = cls._version_two_previous(previous)
+        if previous is not None and comparison_previous is None:
+            return None
         registrations = (
-            copy.deepcopy(previous["registrations"])
-            if previous is not None
+            copy.deepcopy(comparison_previous["registrations"])
+            if comparison_previous is not None
             else []
         )
         registrations = [
@@ -718,7 +758,7 @@ class ApplicationIntegrationLifecycle:
         registrations.append(copy.deepcopy(registration))
         registrations.sort(key=lambda item: item["application_id"])
         registration_set = {
-            "contract_version": 1,
+            "contract_version": 2,
             "generation": (
                 int(previous["generation"]) + 1 if previous is not None else 1
             ),
@@ -731,11 +771,11 @@ class ApplicationIntegrationLifecycle:
             },
             "registrations": registrations,
         }
-        compilation = compile_registration_set(
+        compilation = compile_registration_set_v2(
             previous,
             registration_set,
             {
-                "contract_version": 1,
+                "contract_version": 2,
                 "enabled_attachment_adapter_kinds": ["gcp-cloud-run-v1"],
             },
         )
@@ -765,20 +805,23 @@ class ApplicationIntegrationLifecycle:
         change_summary: str,
     ) -> RegistrationGenerationProposal | None:
         previous = current.registration_set if current is not None else None
+        comparison_previous = cls._version_two_previous(previous)
+        if previous is not None and comparison_previous is None:
+            return None
         replacement_ids = {item["application_id"] for item in replacements}
         registrations = (
             [
                 copy.deepcopy(item)
-                for item in previous["registrations"]
+                for item in comparison_previous["registrations"]
                 if item["application_id"] not in replacement_ids
             ]
-            if previous is not None
+            if comparison_previous is not None
             else []
         )
         registrations.extend(copy.deepcopy(item) for item in replacements)
         registrations.sort(key=lambda item: item["application_id"])
         registration_set = {
-            "contract_version": 1,
+            "contract_version": 2,
             "generation": (
                 int(previous["generation"]) + 1 if previous is not None else 1
             ),
@@ -791,11 +834,11 @@ class ApplicationIntegrationLifecycle:
             },
             "registrations": registrations,
         }
-        compilation = compile_registration_set(
+        compilation = compile_registration_set_v2(
             previous,
             registration_set,
             {
-                "contract_version": 1,
+                "contract_version": 2,
                 "enabled_attachment_adapter_kinds": ["gcp-cloud-run-v1"],
             },
         )
@@ -930,14 +973,24 @@ class ApplicationIntegrationLifecycle:
         current = self._generation_control.current(environment)
         if current is not None and current.environment != environment:
             return self._registration_blocked("GENERATION_ENVIRONMENT_MISMATCH")
+        comparison_current = self._version_two_previous(
+            current.registration_set if current is not None else None
+        )
+        if current is not None and comparison_current is None:
+            return self._registration_blocked("GENERATION_VERSION_UNSUPPORTED")
         current_by_id = {
             str(item["application_id"]): item
             for item in (
-                current.registration_set["registrations"] if current is not None else []
+                comparison_current["registrations"]
+                if comparison_current is not None
+                else []
             )
         }
         active_registrations: list[dict[str, Any]] = []
-        unchanged = current is not None
+        unchanged = (
+            current is not None
+            and current.registration_set.get("contract_version") == 2
+        )
         for entry in entries:
             validated = self.validate_attachment(
                 entry.integration_bundle,
@@ -945,8 +998,10 @@ class ApplicationIntegrationLifecycle:
             )
             if validated.outcome != "validated":
                 return self._registration_blocked(*validated.blockers)
-            access_mode = entry.integration_bundle.get("access_mode")
-            if not self._registration_intent_valid(access_mode, entry.intent):
+            if not self._registration_intent_valid(
+                entry.integration_bundle,
+                entry.intent,
+            ):
                 return self._registration_blocked("REGISTRATION_INTENT_INVALID")
             application_id = str(entry.integration_bundle["application_id"])
             previous = current_by_id.get(application_id)
@@ -1128,10 +1183,7 @@ class ApplicationIntegrationLifecycle:
         )
         if attachment.outcome != "validated":
             return self._registration_blocked(*attachment.blockers)
-        if not self._registration_intent_valid(
-            integration_bundle.get("access_mode"),
-            intent,
-        ):
+        if not self._registration_intent_valid(integration_bundle, intent):
             return self._registration_blocked("REGISTRATION_INTENT_INVALID")
         if self._generation_control is None:
             return self._registration_blocked("GENERATION_CONTROL_UNAVAILABLE")
@@ -1142,13 +1194,18 @@ class ApplicationIntegrationLifecycle:
         current = self._generation_control.current(environment)
         if current is not None and current.environment != environment:
             return self._registration_blocked("GENERATION_ENVIRONMENT_MISMATCH")
+        comparison_current = self._version_two_previous(
+            current.registration_set if current is not None else None
+        )
+        if current is not None and comparison_current is None:
+            return self._registration_blocked("GENERATION_VERSION_UNSUPPORTED")
         application_id = str(integration_bundle["application_id"])
         current_registration = None
-        if current is not None:
+        if comparison_current is not None:
             current_registration = next(
                 (
                     item
-                    for item in current.registration_set["registrations"]
+                    for item in comparison_current["registrations"]
                     if item["application_id"] == application_id
                 ),
                 None,
@@ -1178,7 +1235,11 @@ class ApplicationIntegrationLifecycle:
                 for key, value in desired.items()
                 if key != "registration_revision"
             }
-            if previous_values == desired_values:
+            if (
+                current is not None
+                and current.registration_set.get("contract_version") == 2
+                and previous_values == desired_values
+            ):
                 return RegistrationLifecycleResult(
                     outcome="unchanged",
                     generation=int(current.registration_set["generation"]),
@@ -1228,10 +1289,13 @@ class ApplicationIntegrationLifecycle:
             return self._registration_blocked("GENERATION_ENVIRONMENT_MISMATCH")
         if current.generation_digest != request.expected_generation_digest:
             return self._registration_blocked("GENERATION_CONFLICT")
+        comparison_current = self._version_two_previous(current.registration_set)
+        if comparison_current is None:
+            return self._registration_blocked("GENERATION_VERSION_UNSUPPORTED")
         registration = next(
             (
                 item
-                for item in current.registration_set["registrations"]
+                for item in comparison_current["registrations"]
                 if item["application_id"] == request.application_id
             ),
             None,

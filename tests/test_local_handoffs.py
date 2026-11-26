@@ -32,13 +32,13 @@ class LocalApplicationHandoffsTest(unittest.TestCase):
         integration = json.loads(
             (
                 VECTORS
-                / "platform-integration-bundle.staging.synthetic.v1.json"
+                / "platform-integration-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         attachment = json.loads(
             (
                 VECTORS
-                / "application-attachment-bundle.staging.synthetic.v1.json"
+                / "application-attachment-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         with tempfile.TemporaryDirectory() as directory:
@@ -72,13 +72,13 @@ class LocalApplicationHandoffsTest(unittest.TestCase):
         integration = json.loads(
             (
                 VECTORS
-                / "platform-integration-bundle.staging.synthetic.v1.json"
+                / "platform-integration-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         attachment = json.loads(
             (
                 VECTORS
-                / "application-attachment-bundle.staging.synthetic.v1.json"
+                / "application-attachment-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         attachment["platform_integration_bundle_digest"] = (
@@ -98,13 +98,13 @@ class LocalApplicationHandoffsTest(unittest.TestCase):
         integration = json.loads(
             (
                 VECTORS
-                / "platform-integration-bundle.staging.synthetic.v1.json"
+                / "platform-integration-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         attachment = json.loads(
             (
                 VECTORS
-                / "application-attachment-bundle.staging.synthetic.v1.json"
+                / "application-attachment-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         successor_attachment = dict(attachment)
@@ -159,13 +159,13 @@ class LocalFixturePreparationsTest(unittest.TestCase):
         integration = json.loads(
             (
                 VECTORS
-                / "platform-integration-bundle.staging.synthetic.v1.json"
+                / "platform-integration-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         attachment = json.loads(
             (
                 VECTORS
-                / "application-attachment-bundle.staging.synthetic.v1.json"
+                / "application-attachment-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         request = FixtureDeployRequest(
@@ -200,6 +200,9 @@ class LocalFixturePreparationsTest(unittest.TestCase):
                 request,
                 published,
                 RegistrationIntent(
+                    application_id="fixture-authenticated",
+                    access_mode="authenticated",
+                    identity_delivery="required",
                     catalogue_visibility="listed",
                     catalogue_title="Fixture authenticated",
                     catalogue_summary="Synthetic authenticated fixture",

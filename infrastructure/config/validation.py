@@ -471,14 +471,12 @@ def _fixture_violations(value: dict[str, Any]) -> list[Violation]:
             )
         )
     audience = value.get("assertion_audience")
-    if (mode == "public" and audience is not None) or (
-        mode in {"authenticated", "restricted"} and not isinstance(audience, str)
-    ):
+    if mode in {"authenticated", "restricted"} and not isinstance(audience, str):
         violations.append(
             _violation(
                 "CONFIGURATION_POLICY_INVALID",
                 "/assertion_audience",
-                "public fixtures omit an audience and protected fixtures require one",
+                "protected fixtures require an application-bound audience",
             )
         )
     if isinstance(application_id, str) and value.get("service_name") != application_id:

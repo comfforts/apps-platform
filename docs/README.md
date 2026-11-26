@@ -1,7 +1,7 @@
 # App Platform documentation
 
-Version 1.40 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted,
-ADR-016 proposed, and AP-M9-W10 Slices 1-4 implemented with no Version 2 runtime activation
+Version 1.41 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted,
+ADR-016 proposed, and AP-M9-W10 Slices 1-5 implemented with no Live Version 2 operation
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. W9
@@ -60,7 +60,7 @@ delivery authorities before beginning it.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W9 candidate-qualified; W10 Slices 1-4 implemented on their ordered branches, Slice 4 integration merge pending | operator-driven environment and application lifecycle |
+| AP-M9 | W9 candidate-qualified; W10 Slices 1-4 merged to its integration branch and Slice 5 implemented on its ordered branch | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
@@ -123,8 +123,11 @@ completed.
     identity delivery and admission, minimized assertions, and fail-closed runtime behavior.
     Slice 4 adds remote directory status, separate owner bootstrap, browser-bound enrollment,
     explicit-reference suspend/reactivate/remove transitions, atomic monotonic control/member
-    updates, exact readback, and shallow Make targets. Version 2 publication and activation remain
-    later-slice work.
+    updates, exact readback, and shallow Make targets. Slice 5 adds explicit Identity Delivery to
+    handoff checks and outputs, emits one complete Version 2 bundle/intent family, migrates a
+    readable Version 1 predecessor into one atomic complete Version 2 generation, and updates the
+    networked fixtures and independent application verifier. No Slice 5 code was invoked against a
+    provider.
 11. **AP-M9-W11 — accepted staging operation:** from merged W10 code, deploy and qualify
     `apps-staging.comfforts.com` with the three synthetic applications and the reviewed member
     baseline. The deliberate command invocation and same-process confirmations authorize ordinary

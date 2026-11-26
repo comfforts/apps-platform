@@ -1,7 +1,8 @@
 # AP-M9-W10 · Platform Member Directory and explicit Identity Delivery
 
-Status: Slices 1-4 implemented on their named branches without Version 2 runtime activation; the
-Slice 4 integration merge, Slices 5 through 7, and Candidate Source qualification remain
+Status: Slices 1-4 merged to the integration branch; Slice 5 implemented on its named branch
+without a Live operation; its integration merge, Slices 6-7, and Candidate Source qualification
+remain
 
 Requirements: AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
 AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009
@@ -111,7 +112,7 @@ Version 1 remains readable historical input. Migration is deterministic:
 - every per-registration member set is discarded rather than copied; and
 - public `optional` requires an explicit reviewed registration update.
 
-Slice 1 is an additive, inert compatibility slice. It adds independently versioned Version 2
+Slice 1 was an additive, inert compatibility slice. It added independently versioned Version 2
 schemas, canonical loaders, validators, migration, vectors, and Contract evidence alongside the
 unchanged active Version 1 family. It does not make any runtime, operator command, fixture, bundle
 publisher, or active Registration Generation emit or activate Version 2. Adding those inactive
@@ -132,9 +133,11 @@ binds the successor to the predecessor's existing normalized generation digest. 
 Version 1 State Ownership Manifest continues to describe ownership because Slice 1 changes no
 ownership field or meaning.
 
-The migration must not activate a mixed Version 1/Version 2 generation. The new runtime admission
-model becomes active only after the directory infrastructure, runtime IAM, Version 2 compiler and
-consumers, member lifecycle, rollback behavior, and fixtures are available. An empty directory is
+The migration must not activate a mixed Version 1/Version 2 generation. Slice 5 now makes the
+operator handoff consumers active only after the directory infrastructure, runtime IAM, Version 2
+compiler/runtime, member lifecycle, rollback compatibility, and fixtures are available. A first
+reviewed Version 2 handoff over a readable Version 1 predecessor compiles and activates one
+complete Version 2 successor while preserving the exact predecessor digest. An empty directory is
 a valid deployed state: public and authenticated routes continue to work, restricted routes deny
 all visitors, and restricted qualification remains unavailable.
 
@@ -263,11 +266,12 @@ authority.
 | 6. Operator handoff reconciliation | `docs/identity-delivery-operator-handoff` | Reconcile README, runbook, design, contracts, plan status, prompt, governance tests, actual limitations, and final qualification procedure without adding behavior | 8-14 | 8k-14k | 4% |
 | 7. Candidate qualification readiness | `evidence/member-admission-candidate-qualification` | Complete qualification support for owner bootstrap, second-member lifecycle, public opt-in, authenticated independence, directory failure, rollback, and least-data evidence; after merge, qualify the exact integration revision | 10-18 | 16k-26k | 12% |
 
-Slices 1 through 3 are merged to the integration branch. Slice 4 is implemented on its named
-branch and is ready for its integration pull request after its verification gate passes. Slice 5
-remains blocked until that pull request merges to the latest clean
-`feat/platform-member-directory`; no Version 2 handoff publication or activation belongs in the
-Slice 4 branch.
+Slices 1 through 4 are merged to the integration branch. Slice 5 is implemented on its named
+branch and is ready for its integration pull request after its verification gate passes. It adds
+the explicit handoff inputs, complete Version 2 bundle and intent consumers, fixture/application
+verification, and atomic migration-safe generation activation without invoking a provider. Slice
+6 remains blocked until this pull request merges to the latest clean
+`feat/platform-member-directory`.
 
 Estimated total: seven slices, about 55-85 unique changed paths, 122k-196k working tokens, and
 roughly 7-12 focused implementation days excluding owner review, provider propagation, and waiting

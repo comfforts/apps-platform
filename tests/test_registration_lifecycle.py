@@ -8,7 +8,8 @@ import hashlib
 import json
 import unittest
 
-from contracts.lifecycle import lifecycle_digest
+from contracts import compile_registration_set
+from contracts.lifecycle import versioned_lifecycle_digest
 from infrastructure.operator.integration import (
     ApplicationProjectConnection,
     ApplicationIntegrationLifecycle,
@@ -200,12 +201,21 @@ class RegistrationLifecycleTest(unittest.TestCase):
             terminal=self.terminal,
         )
 
-    def _bundle(self, application_id: str, access_mode: str) -> dict[str, object]:
+    def _bundle(
+        self,
+        application_id: str,
+        access_mode: str,
+        identity_delivery: str | None = None,
+    ) -> dict[str, object]:
+        selected_delivery = identity_delivery or (
+            "none" if access_mode == "public" else "required"
+        )
         result = self.lifecycle.outputs(
             IntegrationBundleRequest(
                 environment="staging",
                 application_id=application_id,
                 access_mode=access_mode,
+                identity_delivery=selected_delivery,
                 route_intent=f"/{application_id}",
                 expected_platform_source_revision=SOURCE_REVISION,
                 expected_generation=4,
@@ -229,12 +239,12 @@ class RegistrationLifecycleTest(unittest.TestCase):
         identity = bundle["identity"]
         assert isinstance(identity, dict)
         attachment = {
-            "contract_version": 1,
+            "contract_version": 2,
             "document_kind": "application-attachment-bundle",
             "environment": "staging",
             "application_id": application_id,
             "attachment_revision": revision,
-            "platform_integration_bundle_digest": lifecycle_digest(
+            "platform_integration_bundle_digest": versioned_lifecycle_digest(
                 bundle,
                 "platform-integration-bundle",
             ),
@@ -268,26 +278,27 @@ class RegistrationLifecycleTest(unittest.TestCase):
         )
         return attachment
 
-    @staticmethod
     def _intent(
-        *,
-        restricted_members: tuple[tuple[str, str], ...] = (),
+        self,
+        bundle: dict[str, object],
     ) -> RegistrationIntent:
         return RegistrationIntent(
+            application_id=str(bundle["application_id"]),
+            access_mode=str(bundle["access_mode"]),
+            identity_delivery=str(bundle["identity_delivery"]),
             catalogue_visibility="listed",
             catalogue_title="Fixture application",
             catalogue_summary="Synthetic qualification application",
             attachment_id="primary",
             mount_path="/",
             forwarding_mode="strip_application_prefix",
-            restricted_members=restricted_members,
         )
 
     def test_new_application_activates_one_complete_generation(self) -> None:
         bundle = self._bundle("fixture-authenticated", "authenticated")
         attachment = self._attachment(bundle)
 
-        result = self.lifecycle.register(bundle, attachment, self._intent())
+        result = self.lifecycle.register(bundle, attachment, self._intent(bundle))
 
         self.assertEqual(result.outcome, "activated")
         self.assertEqual(result.blockers, ())
@@ -331,16 +342,11 @@ class RegistrationLifecycleTest(unittest.TestCase):
         ):
             bundle = self._bundle(application_id, access_mode)
             attachment = self._attachment(bundle)
-            members = (
-                (("https://accounts.google.com", "synthetic-subject"),)
-                if access_mode == "restricted"
-                else ()
-            )
             entries.append(
                 RegistrationEntry(
                     bundle,
                     attachment,
-                    self._intent(restricted_members=members),
+                    self._intent(bundle),
                 )
             )
 
@@ -390,7 +396,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
         public = self.lifecycle.register(
             public_bundle,
             public_attachment,
-            self._intent(),
+            self._intent(public_bundle),
         )
         self.assertEqual(public.outcome, "activated")
         public_registration = self.generations.current_proposal.registration_set[
@@ -410,6 +416,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
                 environment="staging",
                 application_id="fixture-restricted",
                 access_mode="restricted",
+                identity_delivery="required",
                 route_intent="/fixture-restricted",
                 expected_platform_source_revision=SOURCE_REVISION,
                 expected_generation=4,
@@ -417,11 +424,10 @@ class RegistrationLifecycleTest(unittest.TestCase):
         ).bundle
         assert restricted_bundle is not None
         restricted_attachment = self._attachment(restricted_bundle)
-        members = (("https://accounts.google.com", "synthetic-subject"),)
         restricted = restricted_lifecycle.register(
             restricted_bundle,
             restricted_attachment,
-            self._intent(restricted_members=members),
+            self._intent(restricted_bundle),
         )
         self.assertEqual(restricted.outcome, "activated")
         registration = restricted_generations.current_proposal.registration_set[
@@ -429,27 +435,127 @@ class RegistrationLifecycleTest(unittest.TestCase):
         ][0]
         self.assertEqual(
             registration["admission"],
-            {
-                "mode": "restricted",
-                "members": [
-                    {
-                        "issuer": "https://accounts.google.com",
-                        "subject": "synthetic-subject",
-                    }
-                ],
-            },
+            {"mode": "restricted"},
         )
         self.assertNotIn("members", repr(restricted_bundle))
+
+    def test_first_v2_registration_migrates_the_complete_v1_generation(self) -> None:
+        v1_set = {
+            "contract_version": 1,
+            "generation": 1,
+            "previous_generation_digest": None,
+            "proposal": {
+                "source_revision": SOURCE_REVISION,
+                "change_summary": "Historical restricted fixture",
+            },
+            "registrations": [
+                {
+                    "contract_version": 1,
+                    "application_id": "fixture-restricted",
+                    "registration_revision": 1,
+                    "route_prefix": "/fixture-restricted",
+                    "catalogue": {
+                        "visibility": "listed",
+                        "title": "Restricted fixture",
+                        "summary": "Historical Version 1 fixture",
+                    },
+                    "admission": {
+                        "mode": "restricted",
+                        "members": [
+                            {
+                                "issuer": "https://accounts.google.com",
+                                "subject": "synthetic-subject",
+                            }
+                        ],
+                    },
+                    "lifecycle": "active",
+                    "attachments": [
+                        {
+                            "contract_version": 1,
+                            "owner_application_id": "fixture-restricted",
+                            "attachment_id": "primary",
+                            "adapter_kind": "gcp-cloud-run-v1",
+                            "resource_reference": (
+                                "urn:comfforts:app-platform:gcp:cloud-run:"
+                                "123456789012:us-west1:fixture-restricted"
+                            ),
+                            "mount_path": "/",
+                            "forwarding_mode": "strip_application_prefix",
+                            "identity_requirement": "verified",
+                            "audience": (
+                                "urn:comfforts:app-platform:audience:"
+                                "fixture-restricted"
+                            ),
+                            "ingress_mode": "shared_edge_only",
+                        }
+                    ],
+                }
+            ],
+        }
+        compiled_v1 = compile_registration_set(
+            None,
+            v1_set,
+            {
+                "contract_version": 1,
+                "enabled_attachment_adapter_kinds": ["gcp-cloud-run-v1"],
+            },
+        )
+        self.assertEqual(compiled_v1.violations, ())
+        assert compiled_v1.compiled_configuration is not None
+        assert compiled_v1.ownership_manifest is not None
+        assert compiled_v1.generation_digest is not None
+        self.generations.current_proposal = RegistrationGenerationProposal(
+            environment="staging",
+            registration_set=v1_set,
+            compiled_configuration=compiled_v1.compiled_configuration,
+            ownership_manifest=compiled_v1.ownership_manifest,
+            generation_digest=compiled_v1.generation_digest,
+            content_digest=_canonical_digest(compiled_v1.compiled_configuration),
+        )
+
+        bundle = self._bundle("fixture-public", "public", "optional")
+        result = self.lifecycle.register(
+            bundle,
+            self._attachment(bundle),
+            self._intent(bundle),
+        )
+
+        self.assertEqual(result.outcome, "activated")
+        successor = self.generations.current_proposal
+        assert successor is not None
+        self.assertEqual(successor.registration_set["contract_version"], 2)
+        self.assertEqual(successor.registration_set["generation"], 2)
+        self.assertEqual(
+            successor.registration_set["previous_generation_digest"],
+            compiled_v1.generation_digest,
+        )
+        registrations = {
+            item["application_id"]: item
+            for item in successor.registration_set["registrations"]
+        }
+        self.assertEqual(
+            registrations["fixture-restricted"]["admission"],
+            {"mode": "restricted"},
+        )
+        self.assertEqual(
+            registrations["fixture-restricted"]["identity_delivery"],
+            "required",
+        )
+        self.assertEqual(
+            registrations["fixture-public"]["identity_delivery"],
+            "optional",
+        )
+        self.assertNotIn("members", repr(successor.registration_set))
 
     def test_replacement_publishes_one_successor_without_patching_current(self) -> None:
         bundle = self._bundle("fixture-public", "public")
         first_attachment = self._attachment(bundle)
-        first = self.lifecycle.register(bundle, first_attachment, self._intent())
+        first = self.lifecycle.register(bundle, first_attachment, self._intent(bundle))
         self.assertEqual(first.outcome, "activated")
         original = copy.deepcopy(self.generations.current_proposal.registration_set)
         replacement = self._attachment(bundle, revision=2, suffix="-v2")
 
-        result = self.lifecycle.register(bundle, replacement, self._intent())
+        result = self.lifecycle.register(bundle, replacement, self._intent(bundle))
 
         self.assertEqual(result.outcome, "activated")
         self.assertEqual(len(self.generations.publications), 2)
@@ -469,7 +575,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
         attachment = self._attachment(bundle)
 
         self.terminal.confirmations[0] = False
-        cancelled = self.lifecycle.register(bundle, attachment, self._intent())
+        cancelled = self.lifecycle.register(bundle, attachment, self._intent(bundle))
         self.assertEqual(cancelled.outcome, "cancelled")
         self.assertEqual(cancelled.blockers, ("GENERATION_NOT_CONFIRMED",))
         self.assertEqual(self.generations.activations, [])
@@ -482,7 +588,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
             generation_control=mismatched_control,
             terminal=FakeTerminal(),
         )
-        mismatch = lifecycle.register(bundle, attachment, self._intent())
+        mismatch = lifecycle.register(bundle, attachment, self._intent(bundle))
         self.assertEqual(mismatch.outcome, "blocked")
         self.assertEqual(mismatch.blockers, ("GENERATION_READBACK_MISMATCH",))
 
@@ -494,7 +600,11 @@ class RegistrationLifecycleTest(unittest.TestCase):
             generation_control=activation_control,
             terminal=FakeTerminal(),
         )
-        failed_activation = lifecycle.register(bundle, attachment, self._intent())
+        failed_activation = lifecycle.register(
+            bundle,
+            attachment,
+            self._intent(bundle),
+        )
         self.assertEqual(failed_activation.outcome, "blocked")
         self.assertEqual(
             failed_activation.blockers,
@@ -506,8 +616,12 @@ class RegistrationLifecycleTest(unittest.TestCase):
         attachment = self._attachment(bundle)
         self.terminal.confirmations = [OperatorInterrupted(), True, True]
 
-        interrupted = self.lifecycle.register(bundle, attachment, self._intent())
-        resumed = self.lifecycle.register(bundle, attachment, self._intent())
+        interrupted = self.lifecycle.register(
+            bundle,
+            attachment,
+            self._intent(bundle),
+        )
+        resumed = self.lifecycle.register(bundle, attachment, self._intent(bundle))
 
         self.assertEqual(interrupted.outcome, "interrupted")
         self.assertEqual(
@@ -522,22 +636,23 @@ class RegistrationLifecycleTest(unittest.TestCase):
             self.generations.publications[1].generation_digest,
         )
 
-    def test_registration_requires_complete_restricted_policy_and_generation_control(self) -> None:
+    def test_registration_rejects_a_second_identity_policy_and_unarmed_control(self) -> None:
         restricted = self._bundle("fixture-restricted", "restricted")
         attachment = self._attachment(restricted)
         invalid_policy = self.lifecycle.register(
             restricted,
             attachment,
-            self._intent(),
+            replace(self._intent(restricted), identity_delivery="optional"),
         )
+        public = self._bundle("fixture-public", "public")
         unarmed = ApplicationIntegrationLifecycle(
             self.platform,
             attachment_reader=self.attachments,
             terminal=self.terminal,
         ).register(
-            self._bundle("fixture-public", "public"),
-            self._attachment(self._bundle("fixture-public", "public")),
-            self._intent(),
+            public,
+            self._attachment(public),
+            self._intent(public),
         )
 
         self.assertEqual(invalid_policy.outcome, "blocked")
@@ -551,7 +666,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
         registered = self.lifecycle.register(
             bundle,
             original_attachment,
-            self._intent(),
+            self._intent(bundle),
         )
         assert registered.generation_digest is not None
 
@@ -575,7 +690,11 @@ class RegistrationLifecycleTest(unittest.TestCase):
         self.assertEqual(current.compiled_configuration["admission_policies"], [])
 
         replacement = self._attachment(bundle, revision=2, suffix="-v2")
-        reactivated = self.lifecycle.register(bundle, replacement, self._intent())
+        reactivated = self.lifecycle.register(
+            bundle,
+            replacement,
+            self._intent(bundle),
+        )
 
         self.assertEqual(reactivated.outcome, "activated")
         current = self.generations.current_proposal
@@ -596,11 +715,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
         registered = self.lifecycle.register(
             bundle,
             attachment,
-            self._intent(
-                restricted_members=(
-                    ("https://accounts.google.com", "synthetic-subject"),
-                )
-            ),
+            self._intent(bundle),
         )
         assert registered.generation_digest is not None
         detached = self.lifecycle.detach(
@@ -659,7 +774,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
     def test_retirement_is_terminal_and_preserves_identifier_and_route(self) -> None:
         bundle = self._bundle("fixture-authenticated", "authenticated")
         attachment = self._attachment(bundle)
-        registered = self.lifecycle.register(bundle, attachment, self._intent())
+        registered = self.lifecycle.register(bundle, attachment, self._intent(bundle))
         assert registered.generation_digest is not None
 
         retired = self.lifecycle.retire(
@@ -680,14 +795,18 @@ class RegistrationLifecycleTest(unittest.TestCase):
         self.assertEqual(tombstone["route_prefix"], "/fixture-authenticated")
         self.assertEqual(current.compiled_configuration["routes"], [])
         self.assertEqual(
-            self.lifecycle.register(bundle, attachment, self._intent()).blockers,
+            self.lifecycle.register(
+                bundle,
+                attachment,
+                self._intent(bundle),
+            ).blockers,
             ("APPLICATION_RETIRED",),
         )
 
     def test_lifecycle_change_rejects_unknown_stale_and_wrong_source(self) -> None:
         bundle = self._bundle("fixture-public", "public")
         attachment = self._attachment(bundle)
-        registered = self.lifecycle.register(bundle, attachment, self._intent())
+        registered = self.lifecycle.register(bundle, attachment, self._intent(bundle))
         assert registered.generation_digest is not None
         base = LifecycleChangeRequest(
             environment="staging",
@@ -713,7 +832,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
     def test_repeated_detach_and_retire_are_idempotent_without_new_publication(self) -> None:
         bundle = self._bundle("fixture-public", "public")
         attachment = self._attachment(bundle)
-        registered = self.lifecycle.register(bundle, attachment, self._intent())
+        registered = self.lifecycle.register(bundle, attachment, self._intent(bundle))
         assert registered.generation_digest is not None
         request = LifecycleChangeRequest(
             environment="staging",

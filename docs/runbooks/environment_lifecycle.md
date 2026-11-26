@@ -363,6 +363,7 @@ make application-handoff-check \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-public \
   ACCESS_MODE=public \
+  IDENTITY_DELIVERY=none \
   ROUTE_INTENT=/fixture-public \
   PLATFORM_SOURCE_REVISION=<active-platform-revision> \
   PLATFORM_GENERATION=<active-registration-generation>
@@ -372,6 +373,7 @@ make platform-outputs \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-public \
   ACCESS_MODE=public \
+  IDENTITY_DELIVERY=none \
   ROUTE_INTENT=/fixture-public \
   PLATFORM_SOURCE_REVISION=<active-platform-revision> \
   PLATFORM_GENERATION=<active-registration-generation>
@@ -379,14 +381,14 @@ make platform-outputs \
 make fixture-handoff \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-public \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 
 # Inspect all three printed files without editing them.
 make platform-register \
   ENVIRONMENT=staging \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json \
-  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v1.json \
-  REGISTRATION_INTENT=/private/path/registration-intent.v1.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
 
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-public
 ```
@@ -400,7 +402,9 @@ exact platform endpoints, OAuth client identifier, and application audience. It
 publishes no bundle and writes no operational lifecycle state. `PLATFORM_RECONCILIATION_REQUIRED`
 means run and review `platform-deploy` before attempting the application handoff.
 
-Repeat for the authenticated and restricted fixture with the matching admission mode and route.
+Repeat for the authenticated and restricted fixture with the matching admission mode and route,
+using `IDENTITY_DELIVERY=required`. Public handoffs may use `none` or explicit `optional`; no
+public opt-in is inferred from a Platform Session.
 Each fixture root uses an independent prefix in the fixture-project state bucket and creates only
 that fixture's Application State. `platform-register` reads back the target before activating a
 complete Registration Generation that preserves the other registrations.

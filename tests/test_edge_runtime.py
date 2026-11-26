@@ -1164,7 +1164,7 @@ class ApplicationVerificationTest(unittest.TestCase):
                 ("A" if signature[0] != "A" else "B") + signature[1:],
             )
         )
-        wrong_version = dict(self.payload, contract_version=2)
+        wrong_version = dict(self.payload, contract_version=3)
         wrong_issuer = dict(self.payload, issuer="https://issuer.example")
         wrong_audience = dict(
             self.payload,
@@ -1224,6 +1224,25 @@ class ApplicationVerificationTest(unittest.TestCase):
                 self.assertFalse(result.accepted)
                 self.assertEqual(result.code, code)
                 self.assertIsNone(result.identity)
+
+    def test_application_verifier_accepts_version_two_membership_projection(
+        self,
+    ) -> None:
+        payload = dict(
+            self.payload,
+            contract_version=2,
+            platform_member=True,
+        )
+
+        result = asyncio.run(
+            self.verifier().verify(signed_test_assertion(self.keys, payload))
+        )
+
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.code, "identity_verified")
+        assert result.identity is not None
+        self.assertEqual(result.identity.contract_version, 2)
+        self.assertIs(result.identity.platform_member, True)
 
     def test_unknown_key_refreshes_once_and_rotation_overlap_verifies(self) -> None:
         valid = signed_test_assertion(self.keys, self.payload)

@@ -35,7 +35,7 @@ provenance and cannot override either current plan.
 | AP-M3 through AP-M7 | Complete | [Origin implementation plan](000-origin-implementation-plan.md) |
 | AP-M8 | Historical; W1/W2 merged and W3-W12 superseded without execution | [Origin implementation plan](000-origin-implementation-plan.md) |
 | AP-M9-W1 through AP-M9-W9 | Implemented; W9 candidate-qualified under the Version 1 predecessor model | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md) |
-| AP-M9-W10 | Slices 1-4 implemented without Version 2 activation; Slice 4 integration merge, Slices 5-7, and Candidate Source qualification remain | [Platform Member Directory and explicit Identity Delivery](ap_m9/w10_platform_member_directory.md) |
+| AP-M9-W10 | Slices 1-4 merged to the integration branch; Slice 5 implemented without a Live operation; Slices 6-7 and Candidate Source qualification remain | [Platform Member Directory and explicit Identity Delivery](ap_m9/w10_platform_member_directory.md) |
 | AP-M9-W11 | Planned first Accepted Source staging operation | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md#ap-m9-w11--accepted-source-staging-deployment-and-qualification) |
 | AP-M9-W12 | Planned read-only production readiness and Finance handoff | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md#ap-m9-w12--production-readiness-and-finance-handoff) |
 

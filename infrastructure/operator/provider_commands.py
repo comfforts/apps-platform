@@ -426,12 +426,15 @@ class GcloudGenerationProvider(GenerationProvider):
         if proposal.environment != "staging":
             raise GenerationProviderError("GENERATION_ENVIRONMENT_UNAVAILABLE")
         generation, _ = self._generation_values(proposal)
+        contract_version = proposal.compiled_configuration.get("contract_version")
+        if contract_version not in {1, 2}:
+            raise GenerationProviderError("GENERATION_PROPOSAL_INVALID")
         digest_value = proposal.generation_digest.removeprefix("sha256:")
         if len(digest_value) != 64:
             raise GenerationProviderError("GENERATION_PROPOSAL_INVALID")
         object_name = (
             f"environments/{proposal.environment}/generations/{generation}/"
-            "compiled-shared-edge.v1.json"
+            f"compiled-shared-edge.v{contract_version}.json"
         )
         object_uri = f"gs://{self._configuration_bucket}/{object_name}"
         copied = self._try_common(

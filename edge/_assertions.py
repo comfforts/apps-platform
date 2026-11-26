@@ -58,6 +58,7 @@ class VerifiedIdentityContext:
     issued_at: int
     expires_at: int
     correlation_id: str
+    platform_member: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -441,6 +442,8 @@ class AssertionIssuer:
         payload = asdict(context)
         if platform_member:
             payload["platform_member"] = True
+        else:
+            payload.pop("platform_member")
         if validate_contract_instance(
             payload,
             IDENTITY_CONTEXT_SCHEMAS[contract_version],

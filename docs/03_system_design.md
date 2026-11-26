@@ -1,8 +1,9 @@
 # App Platform system design
 
-Version 1.16 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence and AP-M9-W10 Slices 1-4 add Version 2 contracts, directory infrastructure,
-deterministic Shared Edge enforcement, and member lifecycle without Version 2 activation
+Version 1.17 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence and AP-M9-W10 Slices 1-5 add Version 2 contracts, directory infrastructure,
+deterministic Shared Edge enforcement, member lifecycle, and application handoff/activation path
+without a Live Version 2 operation
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -507,9 +508,38 @@ browser state never enter the operator process. Bootstrap and add use that refer
 prospective member. Later lifecycle changes use the retained opaque reference and never ask the
 affected Visitor to supply their own credentials to the Platform Operator.
 
+### Version 2 application handoff and generation transition
+
+Every new application handoff declares Admission Mode and Identity Delivery together. The only
+valid pairs are public with `none` or `optional`, authenticated with `required`, and restricted
+with `required`. `application-handoff-check` validates the requested pair and the platform,
+application-project, Shared VPC, service, and identity projection without publishing a document.
+`platform-outputs` then writes one application-project-scoped Version 2 Platform Integration
+Bundle. The application or fixture deploy consumes that exact bundle and returns one Version 2
+Application Attachment Bundle plus a Version 2 registration intent. The intent repeats the bundle's
+application, Admission Mode, and Identity Delivery; it cannot define a second identity policy.
+
+`platform-register` accepts only a matching, same-version three-document family. It validates the
+target readback and compiles one complete immutable Version 2 Registration Generation that
+preserves every unaffected registration. Mixed Version 1/Version 2 handoffs and member data fail
+closed. When the current active generation is Version 1, the compiler creates a comparison-only
+Version 2 representation: public maps to `none`, authenticated and restricted map to `required`,
+and registration-scoped members are discarded. That representation never changes the historical
+predecessor or its digest. Activation publishes one complete Version 2 successor whose
+`previous_generation_digest` names the exact Version 1 generation. Even an otherwise unchanged
+Version 1 registration must cross this atomic successor boundary before it is treated as Version
+2.
+
+Generation objects use
+`environments/<environment>/generations/<number>/compiled-shared-edge.v<contract-version>.json`.
+The provider and private generation history retain readable Version 1 predecessors, stage Version
+2 objects under the Version 2 name, and may roll back traffic to an exact retained reviewed
+Version 1 or Version 2 generation. Repository implementation and deterministic tests do not imply
+that this transition has been invoked against staging.
+
 ## Lifecycle and atomic change
 
-Version 1 defines three lifecycle states:
+The registration contracts define three lifecycle states:
 
 - `active`: eligible for the declared catalogue visibility, routing, and admission behavior;
 - `suspended`: retained for review but absent from catalogue and routing;
@@ -536,7 +566,8 @@ deletes or mutates its Application State.
 
 The reviewed Registration Set remains in Git and compiles before planning into an immutable,
 create-only GCS configuration object. New objects use the environment-and-generation path
-`environments/<environment>/generations/<number>/compiled-shared-edge.v1.json`; the generation
+`environments/<environment>/generations/<number>/compiled-shared-edge.v<contract-version>.json`;
+the generation
 digest, content digest, and GCS object generation bind its exact content. Historical initial and
 digest-addressed names remain readable and immutable. One candidate Cloud Run edge revision binds
 the exact source commit, compiler, generation digest, object name and generation, container image
@@ -1384,8 +1415,9 @@ assemble the request pipeline or depend on those internal interfaces.
 
 The application-side verifier is a separate deep module with one interface that accepts an
 assertion, expected issuer, expected application audience, verification material, and time, then
-returns either Version 1 Verified Identity Context or an ordered verification violation. It does
-not perform admission, create an Application Principal, or grant a Feature Entitlement.
+returns a validated Version 1 or Version 2 Verified Identity Context or an ordered verification
+violation. Version 2 may include only the positive `platform_member: true` projection. The verifier
+does not perform admission, create an Application Principal, or grant a Feature Entitlement.
 
 Direct dependencies are declared in `pyproject.toml`; complete transitive resolution is committed
 in `uv.lock`. Runtime work adds a dependency only with its first production use. The selected
@@ -1442,9 +1474,10 @@ algorithm, and returned resource identity before accepting a result. The reserve
 only bounded P-256 public verification material for the active and overlap keys with a 15-minute
 cache limit. The application verifier accepts an assertion, exact issuer, exact application
 audience, key fetcher, and time; it refreshes once for an unknown key and rejects unavailable or
-stale material. It returns Version 1 Verified Identity Context only after contract, signature,
-issuer, audience, lifetime, and clock validation. It creates no Application Principal, grants no
-Feature Entitlement, and makes no distributed replay-prevention claim.
+stale material. It returns Version 1 or Version 2 Verified Identity Context only after selecting
+the declared local schema and validating contract, signature, issuer, audience, lifetime, and
+clock. It creates no Application Principal, grants no Feature Entitlement, and makes no distributed
+replay-prevention claim.
 
 AP-M6-W7 accepts only the exact `gcp-cloud-run-v1` URN grammar and turns its project number, region,
 and service name into one exact Cloud Run v2 service read and one exact IAM-policy read. The
@@ -1554,9 +1587,11 @@ evidence, not AP-M6 behavior.
 ## Fixture boundary
 
 Fixture Applications are contract consumers, not internal compiler branches or privileged platform
-runtimes. Each fixture registers and attaches through the same Version 1 contracts as any other
-application. Its runtime, synthetic data, Application Principals, Feature Entitlements, and Fixture
-Application State remain outside Platform State.
+runtimes. Each networked fixture registers and attaches through the same active Version 2 handoff
+contracts as any other application. Its runtime, synthetic data, Application Principals, Feature
+Entitlements, and Fixture Application State remain outside Platform State. The in-process
+reference fixture and committed Version 1 registration sequence remain historical deterministic
+regression evidence; they are not the current deployed handoff path.
 
 Contract test vectors may use synthetic application names and identities to validate schemas and
 compiler behavior. They are not Fixture Applications and cannot qualify routing, identity delivery,

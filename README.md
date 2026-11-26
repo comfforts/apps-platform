@@ -75,10 +75,12 @@ later membership changes do not redeploy an application or activate a Registrati
 Only the current visitor's minimal signed context may cross an application boundary; the directory
 and other members never do.
 
-> **Implementation status:** ADR-015 accepts this model. AP-M9-W10 Slices 1 through 4 implement
+> **Implementation status:** ADR-015 accepts this model. AP-M9-W10 Slices 1 through 5 implement
 > the Version 2 contracts and migration, isolated directory infrastructure and IAM, and
 > deterministic dual-version Shared Edge enforcement plus separately confirmed owner enrollment
-> and bounded member lifecycle commands. Version 2 handoffs and activation, fixtures, and Candidate qualification remain. The deployed W9
+> and bounded member lifecycle commands, Version 2 application handoffs, fixture consumption, and
+> atomic complete-generation activation. Operator reconciliation and Candidate qualification
+> remain. The deployed W9
 > candidate and Version 1 contracts remain predecessor evidence and are not Accepted Source
 > qualification for this model.
 
@@ -428,6 +430,7 @@ make application-handoff-check \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-public \
   ACCESS_MODE=public \
+  IDENTITY_DELIVERY=none \
   ROUTE_INTENT=/fixture-public \
   PLATFORM_SOURCE_REVISION=<active-platform-revision> \
   PLATFORM_GENERATION=<active-registration-generation>
@@ -437,6 +440,7 @@ make platform-outputs \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-public \
   ACCESS_MODE=public \
+  IDENTITY_DELIVERY=none \
   ROUTE_INTENT=/fixture-public \
   PLATFORM_SOURCE_REVISION=<active-platform-revision> \
   PLATFORM_GENERATION=<active-registration-generation>
@@ -444,21 +448,24 @@ make platform-outputs \
 make fixture-handoff \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-public \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 
 # Inspect the three paths printed by fixture-handoff without editing them.
 make platform-register \
   ENVIRONMENT=staging \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json \
-  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v1.json \
-  REGISTRATION_INTENT=/private/path/registration-intent.v1.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
 
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-public
 ```
 
 Repeat that application-scoped sequence for `fixture-authenticated` with
-`ACCESS_MODE=authenticated` and for `fixture-restricted` with `ACCESS_MODE=restricted`. After the
-required fixtures are active, run `platform-qualify` and `platform-status`.
+`ACCESS_MODE=authenticated IDENTITY_DELIVERY=required` and for `fixture-restricted` with
+`ACCESS_MODE=restricted IDENTITY_DELIVERY=required`. Public applications may instead select
+`IDENTITY_DELIVERY=optional` through the same explicit handoff. No command infers public identity
+delivery from an ambient Platform Session. After the required fixtures are active, run
+`platform-qualify` and `platform-status`.
 
 `platform-qualify` is not wholly read-only. It runs every non-mutating source, provider, DNS/TLS,
 routing, identity, isolation, transport, and redaction check first. Only when all of those checks
@@ -724,8 +731,8 @@ AP-M9-W9 is implemented and candidate-qualified under the predecessor Version 1 
 Candidate staging proved the dedicated fixture project, Shared VPC attachment, all three admission
 modes, separate registration, and the restricted-fixture detach, destruction, redeployment, and
 reactivation lifecycle. Candidate Source is not Accepted Source qualification. AP-M9-W10 has
-implemented its first three repository slices but must still complete lifecycle, handoff,
-reconciliation, and qualification work before the first Accepted Source staging operation.
+implemented its first five repository slices but must still complete operator reconciliation and
+qualification readiness before the first Accepted Source staging operation.
 Production remains blocked on that accepted result, explicit ownership transfer, and application
 adoption.
 

@@ -3,9 +3,9 @@
 Versions 1 and 2 | Scope: closed, non-secret environment lifecycle, application handoff, and
 qualification-evidence documents; validation never authorizes mutation
 
-Version 1 remains the active operator interface. Version 2 integration, attachment, and
-registration-intent documents are implemented only for deterministic compatibility and contract
-evidence; no active operator publisher or consumer selects them yet.
+Version 1 handoff documents remain readable historical predecessors. Version 2 integration,
+attachment, and registration-intent documents are the active application-handoff interface; no
+Live Version 2 operation or qualification is implied.
 
 This package defines the documents that connect environment preparation, deployment, status,
 application handoff, and qualification. It is separate from the platform/application registry in
@@ -37,7 +37,7 @@ prefixed with `sha256:`.
 `load_versioned_lifecycle_document(path, expected_kind)` is the explicit compatibility entry point
 for a reviewed Version 1 or Version 2 handoff kind. Version-aware relationship validation rejects
 a mixed-version activation set. The original Version 1 loader and relationship validator remain
-unchanged for active consumers.
+available only for explicit historical Version 1 consumers.
 
 ## Contract inventory
 
@@ -48,7 +48,7 @@ unchanged for active consumers.
 | `schemas/platform-integration-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1` | application-scoped non-secret platform endpoints, identity values, caller, attachment contract, and qualification status |
 | `schemas/application-attachment-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1` | application-owned target posture bound to an exact integration bundle digest |
 | `schemas/qualification-evidence.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:qualification-evidence:v1` | redacted, revision-bound platform and fixture qualification results |
-| `schemas/platform-integration-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2` | inert application-scoped handoff with explicit Identity Delivery |
+| `schemas/platform-integration-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2` | active application-scoped handoff with explicit Identity Delivery |
 | `schemas/application-attachment-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v2` | Version 2 target posture bound to the exact Version 2 integration bundle |
 | `schemas/registration-intent.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:registration-intent:v2` | explicit Admission Mode and Identity Delivery intent without member material |
 
@@ -59,8 +59,8 @@ Normal deployment preparation, read-only status, and atomic resume progress are 
 state because they do not cross an ownership boundary.
 
 An integration bundle identifies Accepted Source or Candidate Source and contains an OAuth client
-identifier and application audience only for an authenticated access mode. A public bundle omits
-those identity values. No bundle admits an OAuth client secret, application provider key,
+identifier and application audience only when Identity Delivery is `optional` or `required`.
+Public `none` omits those identity values. No bundle admits an OAuth client secret, application provider key,
 credential payload, Terraform state, saved plan, raw provider response, or platform secret
 reference. Attachment validation preserves application ownership and matches the integration
 bundle's application, environment, adapter, ingress, edge caller, audience, and digest; it does not

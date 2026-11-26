@@ -1,7 +1,7 @@
 # AP-M9 · Operator-driven environment lifecycle
 
-Version 0.6 | Status: AP-M9-W1 through AP-M9-W9 implemented and W9 candidate-qualified;
-AP-M9-W10 Slices 1-3 implemented without Version 2 runtime activation, Slice 3 pending integration
+Version 0.7 | Status: AP-M9-W1 through AP-M9-W9 implemented and W9 candidate-qualified;
+AP-M9-W10 Slices 1-4 implemented without Version 2 runtime activation, Slice 4 pending integration
 
 This document is the canonical milestone plan for AP-M9 and its ordered work packages. Use the
 [implementation plan index](../README.md) for plan routing. AP-M9-W10 has a separate
@@ -63,10 +63,11 @@ platform-register        platform-detach           platform-retire       platfor
 platform-destroy         fixture-handoff           fixture-status        fixture-destroy
 ```
 
-W10 extends that interface with the separately confirmed `platform-member-bootstrap-owner`,
+W10 Slice 4 extends that interface with the separately confirmed `platform-member-bootstrap-owner`,
 `platform-member-status`, `platform-member-add`, `platform-member-suspend`,
-`platform-member-reactivate`, and `platform-member-remove` operations. Those commands remain
-planned until W10 implements them.
+`platform-member-reactivate`, and `platform-member-remove` operations. They administer only the
+remote member directory and do not deploy the platform, compile a Registration Generation, or
+deploy an application.
 
 The local wizard remains active through OAuth and Squarespace work and continues after Enter.
 Rerunning is interruption recovery only. Generated execution facts are private progress rather than

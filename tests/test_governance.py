@@ -996,7 +996,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, normalized)
         self.assertIn("ADR-010 and ADR-011 remain the accepted authority", normalized)
 
-    def test_ap_m9_w10_handoff_limits_the_next_chat_to_member_lifecycle_slice(
+    def test_ap_m9_w10_handoff_limits_the_next_chat_to_application_handoff_slice(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -1016,32 +1016,30 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "fourth of seven ordered AP-M9-W10 functional slices",
+            "fifth of seven ordered AP-M9-W10 functional slices",
             "feat/platform-member-directory",
-            "feat/platform-member-lifecycle",
-            "bounded member lifecycle operations",
-            "remotely never-initialized empty directory",
-            "Cloud Operator and Google Visitor",
-            "platform-member-bootstrap-owner",
-            "platform-member-reactivate",
-            "monotonic mutation cursors",
-            "point this prompt to Slice 5 without implementing Slice 5",
-            "Do not activate Version 2 in the deployment path",
+            "feat/identity-delivery-application-handoffs",
+            "Version 2 application handoffs",
+            "IDENTITY_DELIVERY=<none|optional|required>",
+            "public/optional",
+            "one complete immutable Version 2 generation",
+            "Application Feature Entitlements remain application-owned",
+            "point this prompt to Slice 6 without implementing Slice 6",
+            "Do not perform Candidate Source staging operations",
             "only after all seven W10 slices merge",
             "pull request must target that integration branch, not `main`",
             "any real application",
         ):
             self.assertIn(boundary, normalized_prompt)
         for excluded_later_slice in (
-            "IDENTITY_DELIVERY=",
-            "platform-outputs IDENTITY_DELIVERY",
-            "feat/identity-delivery-application-handoffs",
+            "docs/identity-delivery-operator-handoff",
+            "evidence/member-admission-candidate-qualification",
         ):
             self.assertNotIn(excluded_later_slice, prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W10 Slice 4 member-lifecycle handoff](starting_prompt.md)",
+            "[AP-M9-W10 Slice 5 application-handoff handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -1073,7 +1071,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
         self.assertIn("### AP-M9-W10", m9)
         self.assertIn("### AP-M9-W12", m9)
-        self.assertIn("AP-M9-W10 Slices 1-3 implemented", m9)
+        self.assertIn("AP-M9-W10 Slices 1-4 implemented", m9)
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
         self.assertIn(
@@ -2059,8 +2057,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-M9-W9 is implemented and candidate-qualified",
             overview,
         )
-        self.assertIn("AP-M9-W10 Slices 1 through 3 implement", overview)
-        self.assertIn("Owner enrollment, member lifecycle", overview)
+        self.assertIn("AP-M9-W10 Slices 1 through 4 implement", overview)
+        self.assertIn("bounded member lifecycle commands", overview)
         self.assertIn("diagnostic pre-merge evidence", docs_index)
         self.assertIn("platform-prepare", overview)
         self.assertIn("platform-cancel", overview)
@@ -2090,11 +2088,11 @@ class ProjectAuthorityTest(unittest.TestCase):
         for required in (
             "AP-M9-W10",
             "AP-EVAL-M9-09",
-            "fourth of seven ordered AP-M9-W10 functional slices",
-            "feat/platform-member-lifecycle",
-            "bounded member lifecycle operations",
-            "platform-member-bootstrap-owner",
-            "Do not activate Version 2 in the deployment path",
+            "fifth of seven ordered AP-M9-W10 functional slices",
+            "feat/identity-delivery-application-handoffs",
+            "Version 2 application handoffs",
+            "IDENTITY_DELIVERY=<none|optional|required>",
+            "Do not perform Candidate Source staging operations",
             "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
             "Do not mutate staging, production, DNS, identity, Finance Assistant, or any real application",
         ):

@@ -1,7 +1,7 @@
 # AP-M9-W10 · Platform Member Directory and explicit Identity Delivery
 
-Status: Slices 1-3 implemented on their named branches without Version 2 runtime activation; the
-Slice 3 integration merge, Slices 4 through 7, and Candidate Source qualification remain
+Status: Slices 1-4 implemented on their named branches without Version 2 runtime activation; the
+Slice 4 integration merge, Slices 5 through 7, and Candidate Source qualification remain
 
 Requirements: AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
 AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009
@@ -263,10 +263,11 @@ authority.
 | 6. Operator handoff reconciliation | `docs/identity-delivery-operator-handoff` | Reconcile README, runbook, design, contracts, plan status, prompt, governance tests, actual limitations, and final qualification procedure without adding behavior | 8-14 | 8k-14k | 4% |
 | 7. Candidate qualification readiness | `evidence/member-admission-candidate-qualification` | Complete qualification support for owner bootstrap, second-member lifecycle, public opt-in, authenticated independence, directory failure, rollback, and least-data evidence; after merge, qualify the exact integration revision | 10-18 | 16k-26k | 12% |
 
-Slices 1 and 2 are merged to the integration branch. Slice 3 is implemented on its named branch and
-is ready for its integration pull request after its verification gate passes. Slice 4 remains
-blocked until that pull request merges to the latest clean `feat/platform-member-directory`; no
-member mutation or owner-bootstrap behavior belongs in the Slice 3 branch.
+Slices 1 through 3 are merged to the integration branch. Slice 4 is implemented on its named
+branch and is ready for its integration pull request after its verification gate passes. Slice 5
+remains blocked until that pull request merges to the latest clean
+`feat/platform-member-directory`; no Version 2 handoff publication or activation belongs in the
+Slice 4 branch.
 
 Estimated total: seven slices, about 55-85 unique changed paths, 122k-196k working tokens, and
 roughly 7-12 focused implementation days excluding owner review, provider propagation, and waiting

@@ -1,8 +1,8 @@
 # App Platform system design
 
-Version 1.15 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence and AP-M9-W10 Slices 1-3 add Version 2 contracts, directory infrastructure, and
-deterministic Shared Edge enforcement without runtime activation
+Version 1.16 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence and AP-M9-W10 Slices 1-4 add Version 2 contracts, directory infrastructure,
+deterministic Shared Edge enforcement, and member lifecycle without Version 2 activation
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -472,9 +472,10 @@ from an empty local cache. Later lifecycle mutations must update the control doc
 member document in one Firestore transaction and then perform exact document readback. The runtime
 adapter performs only an exact provider document get for the derived current-visitor reference.
 Missing documents return no member; malformed documents and provider failures collapse to one
-unavailable result. The adapter has no query, enumeration, or mutation interface. Member lifecycle
-mutation remains later-slice work, and neither model may grow into application profiles, feature
-roles, or arbitrary user metadata.
+unavailable result. The runtime adapter has no query, enumeration, or mutation interface. The
+separate operator mutation adapter can read the control document, one selected member, and a
+boolean bootstrap-emptiness projection; it cannot return a member listing. Neither model may grow
+into application profiles, feature roles, or arbitrary user metadata.
 
 Restricted admission performs a current positive lookup. Absent, suspended, removed, malformed, or
 unreadable state denies the request without revealing which condition occurred. Public and
@@ -492,8 +493,19 @@ state is absent.
 AP-M9-W10 adds shallow `platform-member-status`, `platform-member-add`,
 `platform-member-suspend`, `platform-member-reactivate`, and `platform-member-remove` targets over
 the same deep operator module. Every mutation binds one environment, verified operator session,
-remote predecessor, confirmed verified member identity, and exact readback. Member mutation does
-not compile a Registration Generation, deploy an application, or change Application State.
+remote predecessor, explicit confirmation, and exact readback. Bootstrap and add obtain their
+target only through verified Visitor identity. Suspend, reactivate, and remove act on an explicit
+opaque reference whose identity was established during enrollment; they do not require the target
+Visitor to authenticate again. Member mutation does not compile a Registration Generation, deploy
+an application, or change Application State.
+
+Browser verification uses the reserved `/_platform/member/verify` endpoint. It first clears any
+ambient Platform Session, completes the existing Google OIDC flow, derives the member reference at
+the Shared Edge, and redirects only the reference plus the exact environment, operation, and
+one-use challenge to a loopback callback. Raw issuer, subject, email, OAuth values, cookies, and
+browser state never enter the operator process. Bootstrap and add use that reference as the
+prospective member. Later lifecycle changes use the retained opaque reference and never ask the
+affected Visitor to supply their own credentials to the Platform Operator.
 
 ## Lifecycle and atomic change
 

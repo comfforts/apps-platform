@@ -1,9 +1,9 @@
 # App Platform threat model
 
-Version 1.16 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
+Version 1.17 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
 the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
-contract controls are implemented inertly by AP-M9-W10 Slice 1, while runtime controls remain
-unimplemented and unqualified
+contract, infrastructure, deterministic runtime, and member-lifecycle controls are implemented by
+AP-M9-W10 Slices 1-4 without Version 2 activation or Live qualification
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -344,8 +344,10 @@ subject. AP-M6-W6 locally issues and independently
 verifies minimized ES256 assertions with exact audiences, 60-second lifetimes, 30-second skew,
 versioned keys, and bounded public-key overlap/cache behavior. AP-M9-W10 Slice 3 deterministically
 implements exact current-member lookup, explicit public identity delivery, and minimized Version 2
-projection without activating that path in staging. Provider realization, member lifecycle, and
-Live qualification remain pending later W10 slices.
+projection without activating that path in staging. Slice 4 deterministically implements one-use
+browser-derived opaque references, remote-empty bootstrap, exact predecessor mutation, atomic
+control/member updates, and least-data readback. Provider realization and Live qualification remain
+pending later W10 slices.
 The demo accepts residual cross-instance replay risk because it makes
 no distributed replay-prevention claim.
 

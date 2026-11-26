@@ -90,6 +90,10 @@ class TerraformQualificationGateTest(unittest.TestCase):
             "AP-M7-W1": (
                 "docs/03_system_design.md",
                 "docs/04_implementation_plan.md",
+                "docs/plans/README.md",
+                "docs/plans/000-origin-implementation-plan.md",
+                "docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md",
+                "docs/plans/ap_m9/w10_platform_member_directory.md",
                 "docs/05_evaluation_strategy.md",
                 "docs/06_threat_model.md",
             ),
@@ -333,6 +337,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
             encoding="utf-8"
         )
         combined = " ".join((overview, index, prompt))
+        normalized_combined = " ".join(combined.split())
         normalized_prompt = " ".join(prompt.split())
         self.assertIn("AP-M7 | complete | static Terraform", index)
         self.assertIn("AP-M8 | historical", index)
@@ -348,16 +353,16 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("AP-M9-W5 — deployable Terraform (implemented)", index)
         self.assertIn("AP-M9-W6 — interactive platform deployment (implemented)", index)
         self.assertIn("AP-M9-W7 — platform-side application lifecycle (implemented)", index)
-        self.assertIn("AP-M9-W9 fixture-application lifecycle pull request has merged", prompt)
+        self.assertIn("governance change accepting ADR-015 has merged", prompt)
         self.assertIn(
-            "AP-M9-W10 is the first accepted external staging operation",
+            "AP-M9-W10 implements and candidate-qualifies",
             prompt,
         )
-        self.assertIn("Do not request a duplicate", normalized_prompt)
+        self.assertIn("first Accepted Source staging operation", normalized_prompt)
         self.assertIn("Run the complete credential-free `make check` gate", prompt)
         self.assertIn(
-            "candidate staging exists but is not accepted qualification",
-            combined,
+            "Candidate Source is not Accepted Source qualification",
+            normalized_combined,
         )
         for false_claim in (
             "AP-M7 is deployed",

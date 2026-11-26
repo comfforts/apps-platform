@@ -1,7 +1,7 @@
 # App Platform system design
 
-Version 1.9 | Status: AP-M9-W9 cross-project fixture correction in progress; Candidate Source
-provider operation is not accepted qualification
+Version 1.11 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence and AP-M9-W10 member-directory implementation is next
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -10,14 +10,16 @@ consuming application.
 
 Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
-Decisions: ADR-001 through ADR-014
+Decisions: ADR-001 through ADR-015
 
 ## Design outcome
 
 The platform has one configuration seam: a complete, versioned Registration Set is validated and
 compiled into one immutable Shared Edge configuration. The compiler has no deployment side effects.
+Platform membership is environment-scoped operational data and never enters that generation.
 Future provider adapters may consume only a successfully compiled generation; they may not read
-application state, invent routes, or treat manual edge configuration as another authority.
+application state, invent routes, copy the Platform Member Directory, or treat manual edge
+configuration as another authority.
 
 The design separates three kinds of work:
 
@@ -239,8 +241,8 @@ explicit platform suspension.
 The Application Owner must propose an update under the existing immutable application identifier
 when any registered value changes, including:
 
-- route prefix, catalogue metadata, Catalogue Visibility, Admission Mode, restricted membership,
-  or lifecycle state;
+- route prefix, catalogue metadata, Catalogue Visibility, Admission Mode, Identity Delivery, or
+  lifecycle state;
 - attachment resource reference, adapter kind, mount path, forwarding mode, identity requirement,
   or audience; or
 - the adopted major version of a platform contract.
@@ -317,32 +319,39 @@ visibility and admission are validated independently.
 
 ## Admission and verified identity
 
-The Registration Compiler accepts exactly the Admission Modes already defined by ADR-003:
+The Version 2 Registration Compiler accepts the Admission Modes and Identity Delivery combinations
+defined by ADR-003 and ADR-015:
 
-- `public`: authentication is not required and Verified Identity Context is not guaranteed;
-- `authenticated`: a valid identity from the configured identity boundary is required; and
-- `restricted`: a valid identity is required and its exact `(issuer, subject)` pair must be in the
-  registration's managed set.
+- `public` with `none`: authentication is not required and Platform Identity is never delivered;
+- `public` with `optional`: authentication is not required, but a visitor may choose platform login
+  and receive Verified Identity Context after a valid Platform Session exists;
+- `authenticated` with `required`: a valid Platform Identity is required; and
+- `restricted` with `required`: a valid Platform Identity and a current active Platform Member
+  Directory entry are required.
 
-Owner-only access is a restricted set containing the approved owner identity. Email is not an
-admission key. Feature Entitlements are prohibited from the registration contract and remain an
-application concern after admission.
+Every other combination is invalid. Membership is one environment-wide operational boundary, not
+a member set in a registration. An environment with only its explicitly bootstrapped owner is
+owner-only for every restricted route. Email is not an admission or membership key. Feature
+Entitlements are prohibited from registration and membership contracts and remain an application
+concern after admission.
 
-When identity is present, the Shared Edge supplies a compact signed assertion in the versioned
+When Identity Delivery permits it and identity is present, the Shared Edge supplies a compact signed assertion in the versioned
 `X-Comfforts-Verified-Identity` header. The edge must remove any visitor-supplied value before
-setting its own. The Version 1 claims contract contains only contract version, issuer, immutable
-subject, intended application audience, issued-at time, expiry time, and request correlation
-identifier. Email and a shared cross-application principal are not required claims.
+setting its own. The Version 2 claims contract retains contract version, issuer, immutable subject,
+intended application audience, issued-at time, expiry time, and request correlation identifier and
+may add only the current visitor's positive minimal membership projection. Email, the member
+directory, another member, application roles, and Feature Entitlements are prohibited claims.
 
-A protected application must independently verify the assertion signature, configured issuer,
+A receiving application must independently verify the assertion signature, configured issuer,
 application-specific audience, time bounds, and contract version before deriving its immutable
 Application Principal. A missing, malformed, unsigned, expired, wrong-issuer, or wrong-audience
-assertion fails closed. A public application may receive no identity and must not invent an
-Application Principal for an anonymous request.
+assertion fails closed wherever identity is required. A public application with `none` receives no
+assertion. A public application with `optional` must support both anonymous requests and verified
+assertions and must not invent an Application Principal for an anonymous request.
 
-The initial provider, session, signing, key-discovery, algorithm, lifetime, skew, and rotation
-profile is defined below. It binds the existing Version 1 claims without adding email, provider
-tokens, product roles, or Feature Entitlements to Verified Identity Context.
+The initial provider, session, directory, signing, key-discovery, algorithm, lifetime, skew, and
+rotation profile is defined below. It binds Version 2 identity without adding email, provider
+tokens, application users, product roles, or Feature Entitlements to Verified Identity Context.
 
 Admission-policy revocation takes effect at the next request or new streaming-connection boundary.
 This design does not promise termination of an already established connection. Application feature
@@ -352,8 +361,9 @@ revocation remains application-owned.
 
 The Shared Edge uses Google OIDC authorization code with PKCE and accepts only a verified Google
 issuer and immutable subject. Both consumer Google and Google Workspace accounts may authenticate.
-The Registration Set, not the identity provider, decides whether that identity is admitted to a
-restricted application. The initial profile requires no MFA claim.
+The Admission Mode and Platform Member Directory, not the identity provider or OAuth test-user
+list, decide whether that identity is admitted to a restricted application. The initial profile
+requires no MFA claim.
 
 The edge creates an opaque Platform Session backed by minimal Firestore Native state in the
 qualification project and region. The browser cookie is host-only, `Secure`, `HttpOnly`,
@@ -364,16 +374,19 @@ does not use Visitor identity to call Google APIs. The edge runtime alone receiv
 Firestore entity read/write permissions; neither the edge caller nor an application identity
 receives session-store access.
 
-A valid session may add Verified Identity Context to a public request, while an absent or invalid
-session leaves a public request anonymous. A protected request without a valid session enters the
-edge-owned login flow or fails closed. Restricted membership compares exact issuer-and-subject
-pairs from the reviewed Registration Generation. Email is display-only session metadata and never
-enters the Version 1 assertion.
+A valid session may add Verified Identity Context to a public request only when that registration
+selects optional Identity Delivery; `none` remains anonymous even when a host-wide session exists.
+A protected request without a valid session enters the edge-owned login flow or fails closed.
+Restricted admission reads the exact issuer-and-subject pair from the environment's Platform Member
+Directory. Email is transient display-only session or enrollment metadata and never enters the
+Version 2 assertion.
 
-The platform-reserved logout operation deletes the server-side session, clears the host cookie,
-and accepts only a validated platform-relative return location. It does not revoke the global
-Google session. An application may link to this operation from any registered path but cannot
-implement a second authoritative logout for the Platform Session.
+The platform-reserved logout operation deletes the server-side session, reads the session store to
+verify that the opaque session is absent, clears the host cookie, and accepts only a validated
+platform-relative return location. A failed deletion or readback fails closed without claiming
+logout. The operation does not revoke the global Google session. An application may link to this
+operation from any registered path but cannot implement a second authoritative logout for the
+Platform Session.
 
 After admission, the edge strips the identity header and creates a compact assertion with a maximum
 60-second lifetime and at most 30 seconds of verifier clock skew. A new assertion is issued for each
@@ -397,6 +410,38 @@ Existing application-managed login remains outside this trust boundary. IAP and
 `@react-oauth/google` may continue on existing deployments, but a future Application Adoption must
 remove or isolate them from the platform route before their claims can be treated as application
 identity.
+
+### Platform Member Directory and member lifecycle
+
+Each environment uses a dedicated Firestore collection or equivalent isolated namespace in its
+platform-owned database. Terraform owns database configuration and least-privilege Shared Edge IAM;
+it never owns member documents. The directory adapter exposes only current-visitor lookup and
+bounded operator lifecycle operations. A request path cannot enumerate members, search by email,
+or read another identity.
+
+The canonical member key derives from normalized verified Google issuer and immutable subject. A
+member has a lifecycle sufficient to distinguish active admission from suspension, reactivation,
+and removal. Exact Version 1 directory-document fields are an AP-M9-W10 implementation contract;
+they must not grow into application profiles, feature roles, or arbitrary user metadata.
+
+Restricted admission performs a current positive lookup. Absent, suspended, removed, malformed, or
+unreadable state denies the request without revealing which condition occurred. Public and
+authenticated admission do not become restricted when the directory is unavailable and must never
+invent a positive membership projection. Membership revocation applies at the next request or new
+streaming connection; no mid-connection termination is promised.
+
+Platform deployment creates the database boundary and IAM but leaves the directory empty. The
+separate `platform-member-bootstrap-owner` Make target verifies the environment and a remotely empty
+directory, confirms a browser-authenticated Google identity independently of the Cloud Operator,
+shows and confirms one bounded action, creates the first owner member idempotently, and reads it
+back. A non-empty remote directory makes bootstrap fail closed even when private local operator
+state is absent.
+
+AP-M9-W10 adds shallow `platform-member-status`, `platform-member-add`,
+`platform-member-suspend`, `platform-member-reactivate`, and `platform-member-remove` targets over
+the same deep operator module. Every mutation binds one environment, verified operator session,
+remote predecessor, confirmed verified member identity, and exact readback. Member mutation does
+not compile a Registration Generation, deploy an application, or change Application State.
 
 ## Lifecycle and atomic change
 
@@ -773,6 +818,10 @@ preflight  preflight-check  deploy-check  application-handoff-check  prepare  de
  fixture-project-bootstrap  platform-connect-project  fixture-handoff  fixture-status  fixture-destroy
 ```
 
+AP-M9-W10 extends that interface with the separate platform-member bootstrap, status, add,
+suspend, reactivate, and remove operations. They are not deployment stages and cannot be inferred
+from `platform-deploy` success.
+
 The module owns preflight, discovery, one small operation specification, a fixed readable stage
 sequence, exact Terraform planning, interactive checkpoints, provider readback, atomic progress,
 bundle generation, qualification, and safe resume. Git, provider commands, Terraform, DNS, the
@@ -820,10 +869,11 @@ apply, execute a provider action, complete a checkpoint, or write operational li
 deployment-stage names, then performs fresh provider readback for the named application project,
 its required services, Shared VPC host association, host-network viewer grant, and subnet-user
 grant. It validates the
-same application, route, access mode, platform revision, and Registration Generation inputs that
-would produce the bundle, but does not publish that bundle. Public mode requires no platform
-identity projection. Authenticated and restricted modes require the exact platform identity values
-and application-specific audience in that application-scoped projection. The command has no
+same application, route, access mode, Identity Delivery, platform revision, and Registration
+Generation inputs that would produce the bundle, but does not publish that bundle. Public `none`
+requires no platform identity projection; public `optional`, authenticated `required`, and
+restricted `required` require the exact platform identity values and application-specific audience
+in that application-scoped projection. The command has no
 approval, apply, provider-mutation, bundle-publication, or operational-state-write interface.
 The deployment checker owns the exact application-subnet Cloud Router and NAT requirement;
 missing or changed egress is platform reconciliation, not an application-project repair.
@@ -868,8 +918,9 @@ replaces one private progress record after each successful readback:
 2. reviewed enablement and readback of the three prerequisite APIs required for state bootstrap
    and Terraform provider planning;
 3. one-time backend bootstrap when absent;
-4. platform foundation, including configuration storage, registry, identities, KMS, Firestore,
-   Secret Manager containers, logging, evidence, and cost controls;
+4. platform foundation, including configuration storage, registry, identities, KMS, Firestore
+   session and empty member-directory infrastructure, Secret Manager containers, logging, evidence,
+   and cost controls;
 5. immutable Shared Edge image publication;
 6. immutable closed initial Registration Generation publication;
 7. platform-owned OAuth branding/client creation and direct Secret Manager entry through an
@@ -923,7 +974,8 @@ provider output as reviewed authority.
 
 After environment deployment and explicit application-project connection, `outputs` compiles a
 Platform Integration Bundle for one application project, application, environment, access mode,
-route intent, and platform revision. The operator first runs `application-handoff-check` with those
+Identity Delivery, route intent, and platform revision. The operator first runs
+`application-handoff-check` with those
 same values and resolves any platform-reconciliation, project-service, connection, or protected-
 identity blocker. The bundle includes the exact application project, Shared VPC host,
 network, subnet, region, and egress bindings. A fixture may consume a bundle whose
@@ -963,9 +1015,16 @@ future route-release operation requires new authority.
 
 Qualification deploys or updates synthetic Fixture Applications through the same integration and
 attachment bundles, in separate Application State, then exercises DNS/TLS, catalogue, routing,
-admission, OAuth/session/logout, assertions/JWKS, direct-origin denial, isolation, streaming,
+public no-identity and optional-identity behavior, authenticated admission, restricted member
+allow/deny, OAuth/session/logout, assertions/JWKS, direct-origin denial, isolation, streaming,
 lifecycle, redaction, and rollback. It records revision-scoped evidence without making a real
-application the test harness. Fixtures are detached and may be destroyed after evaluation without
+application the test harness. Restricted qualification additionally requires explicit owner
+bootstrap plus a second member's add, suspension or removal, reactivation, and reviewed-baseline
+restoration. Every non-mutating qualification check completes successfully before
+the rollback check can request an owner-confirmed traffic change. The rollback check temporarily
+activates the retained reviewed predecessor, verifies it, then requires a second exact confirmation
+and readback to restore the original complete generation. A failed prerequisite blocks that check
+without moving traffic. Fixtures are detached and may be destroyed after evaluation without
 retiring their identities.
 
 Environment destruction creates a separate destructive specification, refuses active attachments,
@@ -991,15 +1050,18 @@ safe-destruction mechanics plus guarded local provider construction and the prod
 composition. AP-M9-W9 implements the Fixture Application operator, browser-mediated qualification,
 exact retained-resource destruction transitions, and staging-only Candidate Source admission so a
 pushed pull-request revision can exercise provider behavior before merge without claiming accepted
-qualification. The repository work itself performs no external operation. The live
+qualification. W9 Candidate Source exercised those boundaries with all three cross-project
+fixtures and completed restricted-fixture detach, destruction, redeployment, reactivation, and
+qualification under the predecessor Version 1 model. That operation does not promote its evidence
+to Accepted Source or qualify ADR-015. AP-M9-W10 implements and candidate-qualifies the Version 2
+member-directory boundary before AP-M9-W11 performs the first accepted staging operation. The live
 process accepts exact generated revision, generation, provider,
 OAuth-secret-version, KMS-key-version, edge-caller, and operator-subject bindings. It reads the
 OAuth payload directly from the selected Secret Manager version and never puts that payload in an
 environment variable, terminal, image, output, or evidence record. These packages create no identity,
 credential, state,
 provider resource, OAuth client, DNS record, certificate, bundle instance, application change, or
-Live qualification evidence. AP-M9-W10 performs the first accepted staging operation from the
-merged W9 implementation; any candidate exercise must be repeated from Accepted Source.
+Live qualification evidence merely because the implementation exists.
 Python-to-Go migration remains a later contract-preserving milestone after
 the Python product is delivered and qualified.
 
@@ -1480,9 +1542,9 @@ The fixture qualification set contains exactly three independent applications:
 
 | Fixture | Catalogue | Admission | Application-owned behavior |
 | --- | --- | --- | --- |
-| `fixture-public` | Listed | Public | Returns synthetic public content and exposes two mounts for forwarding and longest-match checks |
+| `fixture-public` | Listed | Public | Exercises both `none` and `optional` Identity Delivery while retaining anonymous access and two mounts for forwarding and longest-match checks |
 | `fixture-authenticated` | Unlisted | Authenticated | Derives an application-scoped principal only after independently verifying the edge assertion |
-| `fixture-restricted` | Listed | Restricted | Admits one exact synthetic issuer-and-subject pair and separately denies an admitted principal a synthetic premium Feature Entitlement |
+| `fixture-restricted` | Listed | Restricted | Uses the shared synthetic Platform Member Directory and separately denies an admitted member a synthetic premium Feature Entitlement |
 
 Each fixture has its own runtime object, mutable synthetic state, principal map, entitlement policy,
 and assertion verifier inside separately constructed Fixture Application State. The platform holds
@@ -1641,7 +1703,7 @@ application-owned gate.
 | Shared Edge and catalogue | AP-PR-001, AP-PR-003; AP-QR-002, AP-QR-006 | ADR-001, ADR-002 |
 | Registration, routing, and compiled generations | AP-PR-002, AP-PR-003, AP-PR-007; AP-QR-004, AP-QR-006 | ADR-002 |
 | Attachments and exclusive ownership | AP-PR-002, AP-PR-007, AP-PR-008; AP-QR-001, AP-QR-003 | ADR-001, ADR-002, ADR-004, ADR-007 |
-| Admission and verified identity | AP-PR-004, AP-PR-005, AP-PR-006, AP-PR-008; AP-QR-002 | ADR-003, ADR-004, ADR-006 |
+| Admission, verified identity, and platform membership | AP-PR-004, AP-PR-005, AP-PR-006, AP-PR-008; AP-QR-002 | ADR-003, ADR-004, ADR-006, ADR-015 |
 | Lifecycle, failure, and rollback | AP-PR-003, AP-PR-007, AP-PR-008; AP-QR-005, AP-QR-006 | ADR-002, ADR-004, ADR-008 |
 | Fixture and adoption boundary | AP-PR-008, AP-PR-009; AP-QR-003, AP-QR-004, AP-QR-006 | ADR-004 |
 | Initial GCP Live topology and Cloud Run attachments | AP-PR-001, AP-PR-002, AP-PR-003, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-002, AP-QR-003, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-005 |
@@ -1649,5 +1711,5 @@ application-owned gate.
 | Terraform state and operator authority | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
 | AP-M7 Terraform configuration profile | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
 | Historical AP-M8 proposal, superseded before execution | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
-| AP-M9 interactive environment lifecycle | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-014 |
+| AP-M9 interactive environment lifecycle | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-015 |
 | Observability, evidence, incidents, and cost | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007, AP-PR-008; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-004, ADR-009 |

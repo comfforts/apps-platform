@@ -12,8 +12,8 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
-from starlette.routing import Route, WebSocketRoute
-from starlette.types import ASGIApp
+from starlette.routing import Route, WebSocketRoute, request_response
+from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket
 
 from ._attachments import (
@@ -91,6 +91,21 @@ STATUS_PATH = "/_platform/status"
 SESSION_LIFETIME_SECONDS = 8 * 60 * 60
 FLOW_LIFETIME_SECONDS = 10 * 60
 MAX_QUERY_BYTES = 2_048
+
+
+class _AnyMethodHttpEndpoint:
+    """Keep method policy in the bounded proxy instead of the web router."""
+
+    def __init__(self, application: ASGIApp) -> None:
+        self._application = application
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        await self._application(scope, receive, send)
 
 
 def _closed_response(status_code: int, message: str) -> PlainTextResponse:
@@ -495,6 +510,13 @@ def create_app(
                 headers={"Cache-Control": "no-store"},
             )
 
+        if path in {LOGIN_PATH, CALLBACK_PATH, LOGOUT_PATH}:
+            if request.method != "GET":
+                return _closed_response(405, "method not allowed")
+        if path in {"/", "/.well-known/jwks.json"}:
+            if request.method not in {"GET", "HEAD"}:
+                return _closed_response(405, "method not allowed")
+
         if path == LOGIN_PATH:
             if not identity_ready:
                 return _closed_response(503, "identity unavailable")
@@ -653,6 +675,19 @@ def create_app(
                     record_diagnostic(
                         request.scope,
                         "IDENTITY_STORE_SESSION_DELETE_FAILED",
+                    )
+                    return _closed_response(503, "identity unavailable")
+                try:
+                    retained_session = await adapters.identity_store.get_session(
+                        session_id
+                    )
+                except Exception:
+                    retained_session = object()
+                if retained_session is not None:
+                    health.observe("session_store", available=False)
+                    record_diagnostic(
+                        request.scope,
+                        "IDENTITY_STORE_SESSION_DELETE_READBACK_FAILED",
                     )
                     return _closed_response(503, "identity unavailable")
                 health.observe("session_store", available=True)
@@ -907,7 +942,10 @@ def create_app(
 
     application = Starlette(
         routes=[
-            Route("/{path:path}", unavailable),
+            Route(
+                "/{path:path}",
+                _AnyMethodHttpEndpoint(request_response(unavailable)),
+            ),
             WebSocketRoute("/{path:path}", websocket_application),
         ],
         lifespan=lifespan,

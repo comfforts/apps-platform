@@ -172,6 +172,20 @@ class LiveGenerationRollbackExercise:
         )
         if not isinstance(predecessor_digest, str):
             return False
+        generation = original.proposal.registration_set.get("generation")
+        if not isinstance(generation, int) or generation < 2:
+            return False
+        predecessor_generation = generation - 1
+        self._terminal.write(
+            "LIVE ROLLBACK CHECK\n"
+            f"This check will temporarily send 100 percent of {environment} traffic "
+            f"to reviewed predecessor generation {predecessor_generation}.\n"
+            f"After that activation is verified, this same command will require "
+            f"a second exact confirmation to restore generation {generation}.\n"
+            "Keep the command running through both confirmations. Declining or "
+            "interrupting restoration leaves the predecessor active and requires "
+            "an explicit recovery before qualification can succeed."
+        )
         rollback = GenerationRollbackLifecycle(
             self._platform,
             self._generations,
@@ -189,11 +203,10 @@ class LiveGenerationRollbackExercise:
         if rollback.outcome != "activated":
             return False
 
-        generation = original.proposal.registration_set.get("generation")
-        if not isinstance(generation, int):
-            return False
         expected = f"RESTORE {environment} GENERATION {generation} {generation_digest}"
         self._terminal.write(
+            f"The predecessor generation {predecessor_generation} is now active "
+            "and serving 100 percent of staging traffic.\n"
             f"RESTORE_GENERATION {generation} {generation_digest}"
         )
         try:
@@ -202,8 +215,18 @@ class LiveGenerationRollbackExercise:
                 expected,
             )
         except Exception:
+            self._terminal.write(
+                f"RESTORATION REQUIRED: predecessor generation "
+                f"{predecessor_generation} remains active. Restore reviewed "
+                f"generation {generation} before continuing qualification."
+            )
             return False
         if not confirmed:
+            self._terminal.write(
+                f"RESTORATION REQUIRED: predecessor generation "
+                f"{predecessor_generation} remains active. Restore reviewed "
+                f"generation {generation} before continuing qualification."
+            )
             return False
         try:
             restored = self._generations.activate(
@@ -213,13 +236,30 @@ class LiveGenerationRollbackExercise:
             )
             current = self._generations.current(environment)
         except Exception:
+            self._terminal.write(
+                f"RESTORATION REQUIRED: the restoration of reviewed generation "
+                f"{generation} could not be verified. Inspect the active "
+                "generation before continuing qualification."
+            )
             return False
-        return (
+        verified = (
             restored.activated
             and restored.active_generation_digest == generation_digest
             and current is not None
             and current.proposal.generation_digest == generation_digest
         )
+        if verified:
+            self._terminal.write(
+                f"Reviewed generation {generation} is restored and serving "
+                "100 percent of staging traffic."
+            )
+        else:
+            self._terminal.write(
+                f"RESTORATION REQUIRED: the restoration of reviewed generation "
+                f"{generation} did not match provider readback. Inspect the "
+                "active generation before continuing qualification."
+            )
+        return verified
 
 
 __all__ = (

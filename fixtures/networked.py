@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 import json
 import os
@@ -140,13 +141,27 @@ class _SystemAssertionClock:
 @dataclass(frozen=True, slots=True)
 class _BoundedJwksFetcher:
     jwks_url: str
+    transport: httpx.AsyncBaseTransport | None = None
+    retry_delay_seconds: float = 0.25
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.retry_delay_seconds <= 1:
+            raise ValueError("JWKS retry delay is outside the bounded range")
 
     async def fetch(self) -> dict[str, object]:
-        async with httpx.AsyncClient(
-            follow_redirects=False,
-            timeout=httpx.Timeout(5.0),
-        ) as client:
-            return await HttpJwksFetcher(client, self.jwks_url).fetch()
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient(
+                    follow_redirects=False,
+                    timeout=httpx.Timeout(5.0),
+                    transport=self.transport,
+                ) as client:
+                    return await HttpJwksFetcher(client, self.jwks_url).fetch()
+            except httpx.HTTPError:
+                if attempt == 1:
+                    raise
+                await asyncio.sleep(self.retry_delay_seconds)
+        raise AssertionError("bounded JWKS retry exhausted unexpectedly")
 
 
 def _fixed_response(application_id: str, outcome: str, status: int) -> JSONResponse:

@@ -52,6 +52,23 @@ documentation. [docs/README.md](docs/README.md) is the canonical router to that 
 - Update a public contract and all repository consumers in the same bounded slice. Record
   unimplemented behavior as planned rather than operational.
 
+## Code documentation
+
+- Treat documentation debt as touched-code work. For every undocumented function or method
+  encountered while tracing or changing the requested execution path, add or update a docstring
+  that describes its complete current behavior. Cover inputs, outputs, side effects, state
+  transitions, external interactions, failure behavior, and important invariants or authority
+  boundaries when they apply. Keep trivial implementation details in the code rather than
+  restating it line by line.
+- Keep an existing module docstring and component `README.md` current when a change affects that
+  module or component's responsibility, architecture, behavior, usage, entry points, ownership, or
+  external boundaries.
+- When relevant module or component documentation does not exist, report the gap and ask the owner
+  whether complete current-state documentation should be created. Treat that work as an explicit
+  scope decision instead of silently expanding the active slice.
+- Describe implemented behavior truthfully, mark future behavior as planned, and update
+  documentation and deterministic tests with the implementation they describe.
+
 ## Branch and review workflow
 
 - Start each new approved slice from an updated, clean `main` on a dedicated semantically named

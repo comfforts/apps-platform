@@ -1090,7 +1090,7 @@ class ApplicationIntegrationLifecycle:
                     tuple(statuses),
                     ("FIXTURE_TARGET_READBACK_FAILED",),
                 )
-            if target.owner_application_id != application_id:
+            if target.exists and target.owner_application_id != application_id:
                 return RegistrationStatusResult(
                     "blocked",
                     int(current.registration_set["generation"]),

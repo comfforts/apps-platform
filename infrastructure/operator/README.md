@@ -1,6 +1,7 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W9 cross-project fixture lifecycle correction in progress; candidate staging is not accepted qualification
+Status: AP-M9-W9 Version 1 lifecycle implemented and candidate-qualified; AP-M9-W10 Platform Member
+Directory and explicit Identity Delivery implementation is next
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -8,6 +9,9 @@ uses an immutable `StageContext` and an injected `DeploymentExecutor`, so determ
 fakes and the non-fake command boundary exercise the same orchestration interface.
 
 ## Implemented commands
+
+These commands implement the Version 1 predecessor identity model. Their candidate evidence is
+truthful for that model but cannot qualify the accepted Platform Member Directory decision.
 
 The deploy target populates or verifies the checksum-bound local toolchain automatically. The
 operator must already have an active `gcloud` login, user Application Default Credentials, and the
@@ -79,6 +83,11 @@ the last deployment operation, and the source serving the active Shared Edge sep
 differences are source diagnostics, not command failures; unreadable or inconsistent lifecycle
 state remains a blocker.
 
+`platform-qualify` asks for separate `y/N` approval before each of its three browser invocations.
+Those invocations clear any stale Platform Session and authenticate, reuse the session for the
+restricted fixture, then verify platform logout through server-side deletion readback and a public
+fixture callback. A declined or failed step is reported by name and no later browser tab is opened.
+
 `fixture-handoff` is the application-owned deployment step. It consumes an existing project-scoped
 Platform Integration Bundle, deploys or reconciles the selected fixture in the dedicated fixture
 project, and prints the canonical Platform Integration Bundle, Application Attachment Bundle, and
@@ -108,6 +117,21 @@ Neither stream includes tokens, secret values, raw provider payloads, Terraform 
 plans.
 
 The default `PREFLIGHT_MODE=operational` enforces the selected Accepted or Candidate Source policy.
+
+## Planned member lifecycle transition
+
+The next implementation slice adds Version 2 contracts and the smallest member-specific operator
+surface. `platform-deploy` will reconcile the empty Firestore directory infrastructure but will not
+enroll a member. A separate `platform-member-bootstrap-owner` command will enroll the first owner
+only after remote-empty readback, a separately confirmed Google Visitor flow, exact review, and
+idempotent remote readback. Bounded status, add, suspend, reactivate, and remove commands will then
+change environment-wide membership without compiling a Registration Generation or deploying an
+application.
+
+Application handoff inputs will add explicit Identity Delivery: `none` or `optional` for public
+admission and `required` for authenticated or restricted admission. Until that slice implements and
+tests these commands and inputs, they are design authority rather than executable operator
+interfaces; do not infer them from the current Make targets.
 For local code maintenance, `platform-preflight-check` runs the same read-only profile, Git,
 GitHub, GCP, ADC, Terraform-tool, and DNS checks. It skips `SOURCE_NOT_CLEAN`, because the command
 exists to inspect uncommitted changes, and reports other source-admission findings separately
@@ -175,7 +199,9 @@ application. Interrupted confirmation may resume only the identical publication.
 
 W8 implements exact revision readback, the closed qualification profile, redacted evidence,
 network fixtures, failure injection, reviewed rollback, separate destruction authority, and
-create-only resume state. It constructs shell-free Cloud SDK deployment, generation, traffic,
+create-only resume state. Qualification evaluates every non-mutating check before the reviewed
+rollback can prompt or move traffic; the live rollback explains its temporary 100-percent traffic
+effect and requires separate exact rollback and restoration confirmations. It constructs shell-free Cloud SDK deployment, generation, traffic,
 attachment, and readback adapters through the verified active human session. Deployment covers
 first-run or recovered backend bootstrap, immutable source-bound image publication, initial
 generation publication, OAuth metadata, DNS propagation, and TLS readiness. The Cloud Build upload

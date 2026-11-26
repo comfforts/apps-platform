@@ -131,11 +131,17 @@ class QualificationSuiteTest(unittest.TestCase):
         self.assertEqual(len(observations), 10)
         self.assertEqual(
             [item.check_id for item in observations],
-            sorted(QUALIFICATION_CHECK_CAPABILITIES),
+            [
+                *sorted(
+                    set(QUALIFICATION_CHECK_CAPABILITIES)
+                    - {"lifecycle-rollback"}
+                ),
+                "lifecycle-rollback",
+            ],
         )
         self.assertEqual(
             [request.check_id for request in probe.requests],
-            sorted(QUALIFICATION_CHECK_CAPABILITIES),
+            [item.check_id for item in observations],
         )
         self.assertTrue(all(request.current is current for request in probe.requests))
         self.assertTrue(all(item.outcome == "pass" for item in observations))
@@ -153,6 +159,18 @@ class QualificationSuiteTest(unittest.TestCase):
         self.assertEqual(failed.outcome, "fail")
         self.assertEqual(failed.blockers, ("DNS_MISMATCH",))
         self.assertNotIn("provider", repr(failed.observation).lower())
+        rollback = next(
+            item for item in observations if item.check_id == "lifecycle-rollback"
+        )
+        self.assertEqual(rollback.outcome, "blocked")
+        self.assertEqual(
+            rollback.blockers,
+            ("QUALIFICATION_ROLLBACK_PREREQUISITE_FAILED",),
+        )
+        self.assertNotIn(
+            "lifecycle-rollback",
+            {request.check_id for request in probe.requests},
+        )
 
     def test_deterministic_failure_injection_bypasses_external_probe(self) -> None:
         probe = RecordingProbe()
@@ -203,12 +221,27 @@ class QualificationSuiteTest(unittest.TestCase):
                 )
 
         failed = QualificationSuiteEvaluator(InvalidProbe()).evaluate(readback())
-        self.assertTrue(all(item.outcome == "fail" for item in failed))
+        self.assertTrue(
+            all(
+                item.outcome == "fail"
+                for item in failed
+                if item.check_id != "lifecycle-rollback"
+            )
+        )
         self.assertTrue(
             all(
                 item.blockers == ("QUALIFICATION_PROBE_RESULT_INVALID",)
                 for item in failed
+                if item.check_id != "lifecycle-rollback"
             )
+        )
+        rollback = next(
+            item for item in failed if item.check_id == "lifecycle-rollback"
+        )
+        self.assertEqual(rollback.outcome, "blocked")
+        self.assertEqual(
+            rollback.blockers,
+            ("QUALIFICATION_ROLLBACK_PREREQUISITE_FAILED",),
         )
 
 

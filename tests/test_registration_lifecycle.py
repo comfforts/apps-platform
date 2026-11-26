@@ -588,6 +588,74 @@ class RegistrationLifecycleTest(unittest.TestCase):
         )
         self.assertEqual(len(current.compiled_configuration["routes"]), 1)
 
+    def test_detached_status_accepts_absent_target_but_rejects_wrong_existing_owner(
+        self,
+    ) -> None:
+        bundle = self._bundle("fixture-restricted", "restricted")
+        attachment = self._attachment(bundle)
+        registered = self.lifecycle.register(
+            bundle,
+            attachment,
+            self._intent(
+                restricted_members=(
+                    ("https://accounts.google.com", "synthetic-subject"),
+                )
+            ),
+        )
+        assert registered.generation_digest is not None
+        detached = self.lifecycle.detach(
+            LifecycleChangeRequest(
+                environment="staging",
+                application_id="fixture-restricted",
+                expected_platform_source_revision=SOURCE_REVISION,
+                expected_generation_digest=registered.generation_digest,
+            )
+        )
+        self.assertEqual(detached.outcome, "activated")
+        target = attachment["target"]
+        assert isinstance(target, dict)
+        reference = str(target["resource_reference"])
+        existing = self.attachments.targets[reference]
+        self.attachments.targets[reference] = replace(
+            existing,
+            exists=False,
+            ready=False,
+            owner_application_id="",
+            ingress_mode="unavailable",
+            caller_grant="",
+            audience=None,
+            application_project_id=None,
+            network_reference=None,
+            subnetwork_reference=None,
+            egress_mode=None,
+        )
+
+        absent = self.lifecycle.status_applications(
+            "staging",
+            ("fixture-restricted",),
+        )
+
+        self.assertEqual(absent.outcome, "read")
+        self.assertEqual(absent.blockers, ())
+        self.assertEqual(absent.applications[0].lifecycle, "suspended")
+        self.assertFalse(absent.applications[0].target_exists)
+        self.assertFalse(absent.applications[0].target_ready)
+
+        self.attachments.targets[reference] = replace(
+            existing,
+            owner_application_id="other-application",
+        )
+        wrong_owner = self.lifecycle.status_applications(
+            "staging",
+            ("fixture-restricted",),
+        )
+
+        self.assertEqual(wrong_owner.outcome, "blocked")
+        self.assertEqual(
+            wrong_owner.blockers,
+            ("FIXTURE_TARGET_OWNER_MISMATCH",),
+        )
+
     def test_retirement_is_terminal_and_preserves_identifier_and_route(self) -> None:
         bundle = self._bundle("fixture-authenticated", "authenticated")
         attachment = self._attachment(bundle)

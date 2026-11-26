@@ -21,7 +21,7 @@ The product is designed for two isolated environments:
 | --- | --- |
 | Shared hostname edge, address, load balancing, and TLS | Application runtime and ingress-compatible attachment |
 | Root catalogue and application route reservations | Application data, stores, queues, and providers |
-| Google OAuth client, platform sessions, and assertion signing | Application principals and feature entitlements |
+| Google OAuth client, platform sessions, Platform Member Directory, and assertion signing | Application users, principals, account linking, and feature entitlements |
 | Admission before a request reaches an application | Authorization after the application receives a request |
 | Registration Generations and platform configuration | Application releases and Application State |
 | Platform Integration Bundles | Application Attachment Bundles |
@@ -42,30 +42,43 @@ Admission mode decides who may reach the application through the Shared Edge:
 
 | Mode | Who can reach the application | Identity delivered to the application |
 | --- | --- | --- |
-| `public` | Anonymous visitors; authentication is not required | None for an anonymous visitor; verified identity may be supplied when a valid Platform Session exists |
-| `authenticated` | Any identity successfully authenticated by the configured platform identity provider | A short-lived, signed assertion scoped to that application |
-| `restricted` | Only authenticated identities in the registration's exact issuer-and-subject membership | The same application-scoped signed assertion after membership succeeds |
+| `public` | Anonymous visitors; authentication is not required | Explicitly `none` or `optional`; optional delivery occurs only after the visitor chooses platform login and has a valid Platform Session |
+| `authenticated` | Any identity successfully authenticated by the configured platform identity provider | Required short-lived signed assertion scoped to that application |
+| `restricted` | Only authenticated identities with an active entry in the environment's Platform Member Directory | Required application-scoped signed assertion after current membership succeeds |
 
 `public` describes only the platform's admission decision. A public application may remain fully
 anonymous, or its Application Owner may add application-owned authentication, including a separate
 OAuth client. That authentication, its client and secret, its sessions, and the resulting
 application identity remain outside platform ownership. Adding it does not change the registration
 to `authenticated` and does not turn an application-issued identity into Verified Identity Context.
-If the application instead consumes the optional platform identity available for a visitor with a
-valid Platform Session, it must verify that platform assertion by the same rules described below.
+If the application instead declares optional Platform Identity, it may offer the platform login
+flow and must verify the resulting assertion by the same rules described below. An unrelated
+ambient Platform Session does not override an Identity Delivery policy of `none`.
 
 Applications registered as `authenticated` or `restricted` rely on platform admission for their
 platform-route visitor identity. After admission, each application must independently verify the
 platform assertion's signature, issuer, application-specific audience, time bounds, and contract
 version before deriving an Application Principal. It receives neither the platform OAuth client
 secret nor the identity provider's original token. A `restricted` application additionally
-benefits from the Shared Edge's exact issuer-and-subject membership check, but still performs the
+benefits from the Shared Edge's current Platform Member Directory lookup, but still performs the
 same assertion verification as an `authenticated` application.
 
-Owner-only access is a `restricted` registration containing only the owner's immutable identity.
-Email is not a membership or ownership key. Admission decides whether a request may reach the
-application; the application still decides its own principals, data access, roles, provider rights,
-and feature entitlements.
+Membership is platform-wide within one environment, not a member list in each registration. An
+environment with only its explicitly enrolled Platform Owner is owner-only for every restricted
+route. Email is not a membership or ownership key. Admission decides whether a request may reach
+the application; the application still decides its own users, principals, data access, roles,
+provider rights, and feature entitlements.
+
+Platform deployment creates the directory infrastructure but does not enroll the active Cloud
+Operator automatically. The Platform Owner is enrolled through a separate confirmed operation, and
+later membership changes do not redeploy an application or activate a Registration Generation.
+Only the current visitor's minimal signed context may cross an application boundary; the directory
+and other members never do.
+
+> **Implementation status:** ADR-015 accepts this model, but AP-M9-W10 must still implement and
+> candidate-qualify the Version 2 contracts, member directory, owner enrollment, member lifecycle,
+> and fixture behavior. The deployed W9 candidate and Version 1 contracts remain predecessor
+> evidence and are not Accepted Source qualification for this model.
 
 ### Catalogue visibility
 
@@ -113,9 +126,9 @@ The included fixture suite demonstrates the three admission modes:
 
 | Fixture | Admission | Catalogue | What it demonstrates |
 | --- | --- | --- | --- |
-| `fixture-public` | Public | Listed | Anonymous routing, subpaths, attachment mounts, and forwarding |
+| `fixture-public` | Public | Listed | Anonymous routing plus explicit no-identity and optional-Platform-Identity behavior |
 | `fixture-authenticated` | Authenticated | Unlisted | Platform login, verified identity delivery, and application assertion verification |
-| `fixture-restricted` | Restricted | Listed | Exact membership admission while application-owned feature authorization remains separate |
+| `fixture-restricted` | Restricted | Listed | Platform-wide member allow/deny while application-owned feature authorization remains separate |
 
 These fixtures are qualification assets, not templates that force a real application into the same
 visibility or product behavior. All initial provider-backed attachments use the same Cloud Run
@@ -445,6 +458,22 @@ Repeat that application-scoped sequence for `fixture-authenticated` with
 `ACCESS_MODE=authenticated` and for `fixture-restricted` with `ACCESS_MODE=restricted`. After the
 required fixtures are active, run `platform-qualify` and `platform-status`.
 
+`platform-qualify` is not wholly read-only. It runs every non-mutating source, provider, DNS/TLS,
+routing, identity, isolation, transport, and redaction check first. Only when all of those checks
+pass does it offer the live rollback exercise. The terminal explains that the exercise temporarily
+moves 100 percent of staging traffic to the reviewed predecessor, asks for exact rollback
+confirmation, verifies the change, then asks for exact restoration confirmation and verifies that
+the original generation is again serving all traffic. Keep the command running through both
+confirmations. If any earlier check fails, rollback is recorded as blocked and traffic is not
+changed.
+
+The identity check uses exactly three browser actions, and the command asks `y/N` immediately
+before each one. The first clears any existing Apps Platform session and asks the operator to sign
+in with the exact reviewed staging account. The second reuses that session to verify restricted
+admission. The third logs out, verifies server-side session deletion, and returns through the
+public fixture without starting another login. Declining a browser action stops qualification with
+a blocker naming the unconfirmed step; the command never opens the next tab on its own.
+
 A repository revision change alone does not require another `platform-deploy`. Fixture commands
 validate their own current source independently, then consume the provider-verified active
 platform revision and Registration Generation recorded in the Platform Integration Bundle. Run
@@ -572,7 +601,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-register ...` | Validate an application attachment and activate a complete immutable generation |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
-| `make platform-qualify ENVIRONMENT=<name>` | Evaluate the exact platform and fixture revisions and write redacted evidence |
+| `make platform-qualify ENVIRONMENT=<name>` | Evaluate the exact platform and fixture revisions, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every non-mutating check passes; write redacted evidence |
 | `make platform-destroy ENVIRONMENT=<name>` | Compile, confirm, execute, and resume safe platform destruction |
 | `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and registration intent, and stop before registration |
 | `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
@@ -672,6 +701,8 @@ and task-specific reading router.
 Useful deeper references are:
 
 - [system design](docs/03_system_design.md) for architecture and ownership;
+- [implementation plan index](docs/plans/README.md) for delivery status, the AP-M9 milestone plan,
+  and the current W10 work-package plan;
 - [contract index](contracts/README.md) for public machine interfaces and compatibility;
 - [threat model](docs/06_threat_model.md) for trust boundaries and required evidence;
 - [repository layout](docs/repository_layout.md) for capability placement;
@@ -687,10 +718,13 @@ environment is deployed or qualified.
 
 ## Operational readiness
 
-AP-M9-W9 remains open for the cross-project fixture correction. Candidate staging platform
-resources have been exercised, but Candidate Source is not accepted qualification and the fixture
-attachment topology has not yet passed. AP-M9-W10 owns the first accepted staging qualification,
-and production remains blocked on explicit ownership transfer and application adoption.
+AP-M9-W9 is implemented and candidate-qualified under the predecessor Version 1 membership model.
+Candidate staging proved the dedicated fixture project, Shared VPC attachment, all three admission
+modes, separate registration, and the restricted-fixture detach, destruction, redeployment, and
+reactivation lifecycle. Candidate Source is not Accepted Source qualification. ADR-015 now requires
+AP-M9-W10 to implement and candidate-qualify the Platform Member Directory and explicit Identity
+Delivery before the first Accepted Source staging operation. Production remains blocked on that
+accepted result, explicit ownership transfer, and application adoption.
 
 See [the documentation index](docs/README.md) for the current work-package sequence, evidence
 boundary, and historical delivery record.

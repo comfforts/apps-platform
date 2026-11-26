@@ -188,14 +188,26 @@ catalogue. It is independent of Admission Mode and does not grant access.
 
 ## Admission Mode
 
-The platform policy deciding whether a request may reach an application attachment, such as public,
-any authenticated identity, an allow-list, or owner-only. Feature authorization remains an
-application responsibility.
+The platform policy deciding whether a request may reach an application attachment: anonymous
+public access, any authenticated Platform Identity, or an authenticated active Platform Member.
+Feature authorization remains an application responsibility.
 
 ## Admission Decision
 
 The platform result that determines whether one request may reach a Registered Application. It does
 not authorize any feature inside that application.
+
+## Identity Delivery
+
+The explicit Application Registration policy deciding whether Platform Identity is absent,
+optional, or required at an application boundary. Public admission permits `none` or `optional`;
+authenticated and restricted admission require it.
+
+## Platform Identity
+
+A Google issuer-and-subject identity authenticated by the Shared Edge and represented by a valid
+Platform Session. It is distinct from a Cloud Operator, an application-owned login, an Application
+Principal, and a Feature Entitlement.
 
 ## Verified Identity Context
 
@@ -206,6 +218,17 @@ Registered Application. It is an input to application identity, not a shared use
 
 A platform-owned, time-bounded browser authentication context established from verified identity.
 It is neither an Application Principal nor a Feature Entitlement.
+
+## Platform Member Directory
+
+The environment-scoped platform authority recording which verified Platform Identities are active
+Platform Members. It is not an Application Registration, application user database, OAuth
+test-user list, Application Principal map, or Feature Entitlement store.
+
+## Platform Member
+
+A Platform Identity with an active entry in the selected environment's Platform Member Directory.
+Membership permits restricted platform admission but grants no application feature permission.
 
 ## Application Principal
 

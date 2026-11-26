@@ -4,6 +4,13 @@ Use this runbook to deploy, inspect, qualify, and remove one App Platform enviro
 environment is one isolated staging or production deployment with its own hostname, cloud project,
 state, identity, OAuth client, DNS and TLS resources, application registrations, and evidence.
 
+> **Identity-model transition:** The commands below currently implement the predecessor model in
+> which restricted members are registration inputs. The accepted target instead uses one
+> environment-wide platform member directory and an explicit identity-delivery choice. That target
+> is not operational yet. Until the implementation lands, use this runbook only to understand or
+> diagnose the current deployment; do not treat a new run as acceptance of the target identity
+> model.
+
 | Environment | Intended hostname | Current operating boundary |
 | --- | --- | --- |
 | `staging` | `apps-staging.comfforts.com` | Available for platform and synthetic fixture operation |
@@ -51,7 +58,7 @@ or otherwise rewrite that record.
 
 ## Normal staging lifecycle
 
-The normal accepted staging journey is:
+The currently implemented predecessor staging journey is:
 
 ```bash
 make fixture-project-bootstrap ENVIRONMENT=staging \
@@ -450,6 +457,32 @@ Qualification checks the exact source, specification, final deployment progress,
 resources, DNS and TLS behavior, catalogue and routing, admission and identity, assertion
 verification, direct-origin denial, isolation, streaming behavior, rollback readiness, and
 redaction. It records only approved, redacted evidence.
+
+The admission check presents three browser steps. Read each step and answer its separate `y/N`
+prompt before the command opens a tab:
+
+1. Clear any prior Apps Platform session and sign in with the exact reviewed staging operator
+   account.
+2. Reuse that platform session to verify restricted-fixture admission; another Google sign-in is
+   not expected.
+3. Log out of Apps Platform and return through the public fixture. Shared Edge verifies that the
+   server-side session is absent before this step succeeds. This does not log the account out of
+   Google and does not start a later sign-in test.
+
+The terminal names the exact step when a browser cannot be opened, a callback does not arrive, or
+the operator declines confirmation. Do not reuse unexplained callback tabs from an earlier run;
+only the tab opened after the current prompt belongs to the current step.
+
+The command completes all non-mutating checks before offering a rollback. If any of them fails,
+`lifecycle-rollback` is recorded as blocked with
+`QUALIFICATION_ROLLBACK_PREREQUISITE_FAILED`; the command does not prompt for rollback and does not
+move traffic. When they all pass, the command explains the traffic effect before asking for the
+exact rollback phrase. Confirmation temporarily moves 100 percent of staging traffic from the
+current Registration Generation to its reviewed predecessor. Keep the command running: after
+provider readback it asks for a second exact phrase to restore the original generation and verifies
+that restoration. Declining or interrupting restoration leaves the predecessor active; follow the
+printed `RESTORATION REQUIRED` guidance and inspect the active generation before attempting
+qualification again.
 
 Do not call the environment qualified if a required check failed, was skipped, used a different
 revision, or could not be read back.

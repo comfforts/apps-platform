@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import redirect_stderr
 import io
 import json
@@ -10,6 +11,8 @@ from pathlib import Path
 import unittest
 from unittest import mock
 import warnings
+
+import httpx
 
 warnings.filterwarnings(
     "ignore",
@@ -22,6 +25,7 @@ from edge.verification import VerificationResult, VerifiedIdentityContext
 from fixtures.identity import VERIFIED_IDENTITY_HEADER
 from fixtures.networked import (
     NetworkFixtureConfiguration,
+    _BoundedJwksFetcher,
     create_environment_app,
     create_network_fixture,
 )
@@ -78,6 +82,31 @@ def configuration(mode: str) -> NetworkFixtureConfiguration:
 
 
 class NetworkedFixtureTest(unittest.TestCase):
+    def test_jwks_fetch_retries_one_transient_http_failure(self) -> None:
+        requests = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal requests
+            requests += 1
+            if requests == 1:
+                return httpx.Response(503, request=request)
+            return httpx.Response(
+                200,
+                json={"keys": [{"kid": "synthetic"}]},
+                request=request,
+            )
+
+        result = asyncio.run(
+            _BoundedJwksFetcher(
+                "https://apps-staging.comfforts.com/.well-known/jwks.json",
+                transport=httpx.MockTransport(handler),
+                retry_delay_seconds=0,
+            ).fetch()
+        )
+
+        self.assertEqual(result, {"keys": [{"kid": "synthetic"}]})
+        self.assertEqual(requests, 2)
+
     def test_public_fixture_exposes_fixed_probe_surfaces_without_identity(self) -> None:
         app = create_network_fixture(configuration("public"))
 

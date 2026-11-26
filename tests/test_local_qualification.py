@@ -235,9 +235,10 @@ class LiveGenerationRollbackExerciseTest(unittest.TestCase):
 
         class Terminal:
             confirmations: list[str] = []
+            messages: list[str] = []
 
             def write(self, message):  # type: ignore[no-untyped-def]
-                del message
+                self.messages.append(message)
 
             def confirm(self, prompt):  # type: ignore[no-untyped-def]
                 del prompt
@@ -260,6 +261,10 @@ class LiveGenerationRollbackExerciseTest(unittest.TestCase):
         self.assertTrue(verified)
         self.assertIs(generations.selected, original)
         self.assertEqual(len(terminal.confirmations), 2)
+        transcript = "\n".join(terminal.messages)
+        self.assertIn("temporarily", transcript)
+        self.assertIn("100 percent", transcript)
+        self.assertIn("restore", transcript.lower())
 
 
 if __name__ == "__main__":

@@ -66,6 +66,12 @@ module "platform_foundation" {
       expiration_field          = "expires_at"
       absolute_lifetime_seconds = 28800
     }
+    member_directory = {
+      database_name             = "app-platform-members"
+      directory_collection_name = "platform-member-directory-v1"
+      member_collection_name    = "platform-members-v1"
+      runtime_role_id           = "appPlatformMemberReader"
+    }
   }
 }
 

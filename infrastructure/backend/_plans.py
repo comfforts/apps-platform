@@ -38,6 +38,7 @@ _PHASE_INVENTORIES = {
             "google_logging_project_sink",
             "google_monitoring_notification_channel",
             "google_project_iam_member",
+            "google_project_iam_custom_role",
             "google_project_service",
             "google_compute_network",
             "google_compute_router",
@@ -152,6 +153,18 @@ _PHASE_EXACT_INHERITED_MUTATIONS = {
         (
             "module.platform_foundation.google_project_iam_member."
             "edge_session_store[0]"
+        ): frozenset({("create",), ("update",)}),
+        (
+            "module.platform_foundation.google_firestore_database."
+            "member_directory[0]"
+        ): frozenset({("create",)}),
+        (
+            "module.platform_foundation.google_project_iam_custom_role."
+            "edge_member_directory_reader[0]"
+        ): frozenset({("create",)}),
+        (
+            "module.platform_foundation.google_project_iam_member."
+            "edge_member_directory_reader[0]"
         ): frozenset({("create",)}),
     },
 }

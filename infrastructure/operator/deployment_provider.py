@@ -33,6 +33,8 @@ _ALLOWED_COMMANDS = {
     ("compute", "ssl-certificates", "describe"),
     ("kms", "keys", "versions", "list"),
     ("kms", "keyrings", "describe"),
+    ("iam", "roles", "describe"),
+    ("projects", "get-iam-policy"),
     ("secrets", "versions", "list"),
     ("services", "enable"),
     ("services", "list"),
@@ -67,6 +69,19 @@ _HOSTNAME = "apps-staging.comfforts.com"
 _IMAGE_PACKAGE = (
     f"{_REGION}-docker.pkg.dev/{_PROJECT_ID}/app-platform-images/shared-edge"
 )
+_EDGE_RUNTIME_PRINCIPAL = (
+    "serviceAccount:app-platform-edge-runtime@"
+    f"{_PROJECT_ID}.iam.gserviceaccount.com"
+)
+_SESSION_DATABASE_REFERENCE = f"projects/{_PROJECT_ID}/databases/(default)"
+_MEMBER_DATABASE_REFERENCE = (
+    f"projects/{_PROJECT_ID}/databases/app-platform-members"
+)
+_MEMBER_RUNTIME_ROLE_ID = "appPlatformMemberReader"
+_MEMBER_RUNTIME_ROLE = (
+    f"projects/{_PROJECT_ID}/roles/{_MEMBER_RUNTIME_ROLE_ID}"
+)
+_MEMBER_RUNTIME_PERMISSIONS = ("datastore.entities.get",)
 _PROJECT_ID_PATTERN = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]")
 _SOURCE_REVISION = re.compile(r"[0-9a-f]{40}")
 _VERSION_REFERENCE = re.compile(
@@ -165,6 +180,18 @@ class CertificateReadback:
     @property
     def ready(self) -> bool:
         return self.status == "ACTIVE" and self.domain_status == "ACTIVE"
+
+
+@dataclass(frozen=True, slots=True)
+class MemberDirectoryIamReadback:
+    """Closed runtime IAM posture for isolated session and member databases."""
+
+    runtime_principal: str
+    session_role: str
+    session_condition: str
+    member_role: str
+    member_permissions: tuple[str, ...]
+    member_condition: str
 
 
 class GcloudDeploymentProvider:
@@ -610,6 +637,107 @@ class GcloudDeploymentProvider:
             raise DeploymentProviderError("OAUTH_SECRET_VERSION_READBACK_INVALID")
         return trusted_prefixes[0] + version
 
+    def member_directory_iam_readback(self) -> MemberDirectoryIamReadback:
+        """Verify exact runtime database grants without retaining the IAM policy."""
+
+        role = self._json(
+            "MEMBER_DIRECTORY_IAM_READBACK_INVALID",
+            self._run_common(
+                "MEMBER_DIRECTORY_IAM_READBACK_FAILED",
+                "iam",
+                "roles",
+                "describe",
+                _MEMBER_RUNTIME_ROLE_ID,
+                "--format=json",
+            ).stdout,
+        )
+        permissions = (
+            role.get("includedPermissions")
+            if isinstance(role, dict)
+            else None
+        )
+        if (
+            not isinstance(role, dict)
+            or role.get("name") != _MEMBER_RUNTIME_ROLE
+            or role.get("stage") != "GA"
+            or role.get("deleted") not in {None, False}
+            or not isinstance(permissions, list)
+            or not all(isinstance(item, str) for item in permissions)
+            or tuple(sorted(permissions))
+            != _MEMBER_RUNTIME_PERMISSIONS
+        ):
+            raise DeploymentProviderError("MEMBER_DIRECTORY_IAM_READBACK_INVALID")
+
+        policy = self._json(
+            "MEMBER_DIRECTORY_IAM_READBACK_INVALID",
+            self._run_common(
+                "MEMBER_DIRECTORY_IAM_READBACK_FAILED",
+                "projects",
+                "get-iam-policy",
+                _PROJECT_ID,
+                "--format=json",
+            ).stdout,
+        )
+        if not isinstance(policy, dict) or not isinstance(
+            policy.get("bindings"), list
+        ):
+            raise DeploymentProviderError("MEMBER_DIRECTORY_IAM_READBACK_INVALID")
+
+        observed: list[tuple[str, str, str]] = []
+        for binding in policy["bindings"]:
+            if not isinstance(binding, dict):
+                raise DeploymentProviderError(
+                    "MEMBER_DIRECTORY_IAM_READBACK_INVALID"
+                )
+            members = binding.get("members")
+            role_name = binding.get("role")
+            if not isinstance(members, list) or not isinstance(role_name, str):
+                raise DeploymentProviderError(
+                    "MEMBER_DIRECTORY_IAM_READBACK_INVALID"
+                )
+            if _EDGE_RUNTIME_PRINCIPAL not in members:
+                continue
+            condition = binding.get("condition")
+            if not isinstance(condition, dict):
+                raise DeploymentProviderError(
+                    "MEMBER_DIRECTORY_IAM_READBACK_MISMATCH"
+                )
+            title = condition.get("title")
+            expression = condition.get("expression")
+            if not isinstance(title, str) or not isinstance(expression, str):
+                raise DeploymentProviderError(
+                    "MEMBER_DIRECTORY_IAM_READBACK_INVALID"
+                )
+            observed.append((role_name, title, expression))
+
+        session_condition = (
+            f"resource.name == '{_SESSION_DATABASE_REFERENCE}'"
+        )
+        member_condition = f"resource.name == '{_MEMBER_DATABASE_REFERENCE}'"
+        expected = [
+            (
+                "roles/datastore.user",
+                "app_platform_session_database",
+                session_condition,
+            ),
+            (
+                _MEMBER_RUNTIME_ROLE,
+                "app_platform_member_database",
+                member_condition,
+            ),
+        ]
+        if sorted(observed) != sorted(expected):
+            raise DeploymentProviderError("MEMBER_DIRECTORY_IAM_READBACK_MISMATCH")
+
+        return MemberDirectoryIamReadback(
+            runtime_principal=_EDGE_RUNTIME_PRINCIPAL,
+            session_role="roles/datastore.user",
+            session_condition=session_condition,
+            member_role=_MEMBER_RUNTIME_ROLE,
+            member_permissions=_MEMBER_RUNTIME_PERMISSIONS,
+            member_condition=member_condition,
+        )
+
     def certificate_readback(self) -> CertificateReadback:
         value = self._json(
             "CERTIFICATE_READBACK_INVALID",
@@ -674,4 +802,5 @@ __all__ = (
     "DeploymentProviderError",
     "DeploymentProviderRunner",
     "GcloudDeploymentProvider",
+    "MemberDirectoryIamReadback",
 )

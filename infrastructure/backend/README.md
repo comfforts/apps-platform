@@ -22,3 +22,8 @@ unavailable and returns `OWNERSHIP_TRANSFER_REQUIRED`. Generated backend files,
 saved plans, state, credentials, provider payloads, and authenticated artifacts must remain outside
 Git in an owner-approved private working directory. AP-M9-W6 may add non-fake command adapters only
 behind the injected boundary and must preserve these declarations and fail-closed policies.
+
+The platform-foundation inventory includes the isolated Firestore member database and its custom
+exact-read runtime role. When an existing Shared Edge makes the foundation pass refresh-only, the
+shared-edge policy admits only the exact named database, role, conditioned binding, and session
+binding reconciliation addresses. Another inherited IAM or Firestore mutation remains prohibited.

@@ -19,11 +19,16 @@ locals {
     "run.googleapis.com",
     "secretmanager.googleapis.com",
   ])
-  shared_network_name     = "app-platform-shared"
-  application_subnet_name = "app-platform-applications-${var.foundation_configuration.region}"
-  application_subnet_cidr = "10.20.0.0/24"
-  application_router_name = "app-platform-applications-${var.foundation_configuration.region}-router"
-  application_nat_name    = "app-platform-applications-${var.foundation_configuration.region}-nat"
+  shared_network_name        = "app-platform-shared"
+  application_subnet_name    = "app-platform-applications-${var.foundation_configuration.region}"
+  application_subnet_cidr    = "10.20.0.0/24"
+  application_router_name    = "app-platform-applications-${var.foundation_configuration.region}-router"
+  application_nat_name       = "app-platform-applications-${var.foundation_configuration.region}-nat"
+  session_database_reference = "projects/${var.foundation_configuration.project_id}/databases/(default)"
+  member_database_reference  = "projects/${var.foundation_configuration.project_id}/databases/${var.foundation_configuration.member_directory.database_name}"
+  member_runtime_permissions = toset([
+    "datastore.entities.get",
+  ])
 }
 
 resource "google_project_service" "platform" {
@@ -198,8 +203,61 @@ resource "google_project_iam_member" "edge_session_store" {
   role    = "roles/datastore.user"
   member  = local.edge_runtime_principal
 
+  condition {
+    title       = "app_platform_session_database"
+    description = "Confines the Shared Edge session data role to the default Firestore database."
+    expression  = "resource.name == '${local.session_database_reference}'"
+  }
+
   depends_on = [
     google_firestore_database.sessions,
+    google_service_account.edge_runtime,
+  ]
+}
+
+resource "google_firestore_database" "member_directory" {
+  count = local.retained_only ? 0 : 1
+
+  project     = var.foundation_configuration.project_id
+  name        = var.foundation_configuration.member_directory.database_name
+  location_id = var.foundation_configuration.region
+  type        = "FIRESTORE_NATIVE"
+
+  depends_on = [google_project_service.platform]
+
+  database_edition                  = "STANDARD"
+  app_engine_integration_mode       = "DISABLED"
+  point_in_time_recovery_enablement = "POINT_IN_TIME_RECOVERY_DISABLED"
+  delete_protection_state           = local.destruction_enabled ? "DELETE_PROTECTION_DISABLED" : "DELETE_PROTECTION_ENABLED"
+  deletion_policy                   = local.destruction_enabled ? "DELETE" : "PREVENT"
+}
+
+resource "google_project_iam_custom_role" "edge_member_directory_reader" {
+  count = local.retained_only ? 0 : 1
+
+  project     = var.foundation_configuration.project_id
+  role_id     = var.foundation_configuration.member_directory.runtime_role_id
+  title       = "App Platform member reader"
+  description = "Exact-document read access for Shared Edge member admission."
+  permissions = local.member_runtime_permissions
+  stage       = "GA"
+}
+
+resource "google_project_iam_member" "edge_member_directory_reader" {
+  count = local.retained_only ? 0 : 1
+
+  project = var.foundation_configuration.project_id
+  role    = google_project_iam_custom_role.edge_member_directory_reader[0].name
+  member  = local.edge_runtime_principal
+
+  condition {
+    title       = "app_platform_member_database"
+    description = "Confines exact member reads to the isolated member directory database."
+    expression  = "resource.name == '${local.member_database_reference}'"
+  }
+
+  depends_on = [
+    google_firestore_database.member_directory,
     google_service_account.edge_runtime,
   ]
 }

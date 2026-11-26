@@ -43,6 +43,17 @@ class FakeGcloud:
     certificate_domain_status: str = "ACTIVE"
     build_stdout: bytes = b""
     build_stderr: bytes | None = None
+    member_role_permissions: tuple[str, ...] = ("datastore.entities.get",)
+    member_role_stage: str = "GA"
+    member_session_condition: str = (
+        "resource.name == 'projects/comfforts-platform-non-prod/"
+        "databases/(default)'"
+    )
+    member_database_condition: str = (
+        "resource.name == 'projects/comfforts-platform-non-prod/"
+        "databases/app-platform-members'"
+    )
+    extra_runtime_role: str | None = None
 
     def run(self, request: ProviderCommandRequest) -> ProviderCommandResult:
         self.requests.append(request)
@@ -92,6 +103,61 @@ class FakeGcloud:
                 "app-platform-edge-oauth/versions/1"
             )
             return ProviderCommandResult(0, json.dumps([{"name": name}]).encode(), b"")
+        if arguments[:3] == ("iam", "roles", "describe"):
+            return ProviderCommandResult(
+                0,
+                json.dumps(
+                    {
+                        "name": (
+                            f"projects/{PROJECT}/roles/"
+                            "appPlatformMemberReader"
+                        ),
+                        "stage": self.member_role_stage,
+                        "includedPermissions": list(
+                            self.member_role_permissions
+                        ),
+                    }
+                ).encode(),
+                b"",
+            )
+        if arguments[:2] == ("projects", "get-iam-policy"):
+            principal = (
+                "serviceAccount:app-platform-edge-runtime@"
+                f"{PROJECT}.iam.gserviceaccount.com"
+            )
+            bindings = [
+                {
+                    "role": "roles/datastore.user",
+                    "members": [principal],
+                    "condition": {
+                        "title": "app_platform_session_database",
+                        "expression": self.member_session_condition,
+                    },
+                },
+                {
+                    "role": (
+                        f"projects/{PROJECT}/roles/"
+                        "appPlatformMemberReader"
+                    ),
+                    "members": [principal],
+                    "condition": {
+                        "title": "app_platform_member_database",
+                        "expression": self.member_database_condition,
+                    },
+                },
+            ]
+            if self.extra_runtime_role is not None:
+                bindings.append(
+                    {
+                        "role": self.extra_runtime_role,
+                        "members": [principal],
+                    }
+                )
+            return ProviderCommandResult(
+                0,
+                json.dumps({"bindings": bindings}).encode(),
+                b"",
+            )
         if arguments[:3] == ("compute", "ssl-certificates", "describe"):
             return ProviderCommandResult(
                 0,
@@ -261,6 +327,7 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
             key_ring = provider.signing_key_ring_identity()
             signing = provider.active_signing_key_version()
             secret = provider.oauth_secret_version()
+            member_iam = provider.member_directory_iam_readback()
             certificate = provider.certificate_readback()
 
         self.assertEqual(
@@ -269,10 +336,67 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
         )
         self.assertTrue(signing.endswith("/cryptoKeyVersions/1"))
         self.assertTrue(secret.endswith("/versions/1"))
+        self.assertEqual(
+            member_iam.member_permissions,
+            ("datastore.entities.get",),
+        )
+        self.assertEqual(
+            member_iam.member_role,
+            f"projects/{PROJECT}/roles/appPlatformMemberReader",
+        )
         self.assertTrue(certificate.ready)
         self.assertEqual(certificate.status, "ACTIVE")
         self.assertEqual(certificate.domain_status, "ACTIVE")
         self.assertNotIn("secret payload", repr((signing, secret, certificate)))
+
+    def test_member_directory_readback_rejects_broader_runtime_access(self) -> None:
+        generation = initial_generation("c" * 40)
+        failures = (
+            {
+                "member_role_permissions": (
+                    "datastore.entities.get",
+                    "datastore.entities.list",
+                ),
+                "expected": "MEMBER_DIRECTORY_IAM_READBACK_INVALID",
+            },
+            {
+                "member_role_permissions": (
+                    "datastore.entities.get",
+                    "datastore.entities.update",
+                ),
+                "expected": "MEMBER_DIRECTORY_IAM_READBACK_INVALID",
+            },
+            {
+                "member_session_condition": "resource.name != ''",
+                "expected": "MEMBER_DIRECTORY_IAM_READBACK_MISMATCH",
+            },
+            {
+                "member_database_condition": "resource.name != ''",
+                "expected": "MEMBER_DIRECTORY_IAM_READBACK_MISMATCH",
+            },
+            {
+                "extra_runtime_role": "roles/datastore.viewer",
+                "expected": "MEMBER_DIRECTORY_IAM_READBACK_MISMATCH",
+            },
+        )
+        for values in failures:
+            with self.subTest(values=values):
+                expected = str(values["expected"])
+                options = {
+                    key: value
+                    for key, value in values.items()
+                    if key != "expected"
+                }
+                with tempfile.TemporaryDirectory() as directory:
+                    provider = self._provider(
+                        directory,
+                        FakeGcloud(generation.contents, **options),
+                    )
+                    with self.assertRaisesRegex(
+                        DeploymentProviderError,
+                        expected,
+                    ):
+                        provider.member_directory_iam_readback()
 
     def test_certificate_readback_distinguishes_provisioning_from_failure(self) -> None:
         generation = initial_generation("c" * 40)
@@ -544,6 +668,51 @@ class DeploymentProviderCommandsTest(unittest.TestCase):
 
             for request in unsafe:
                 with self.subTest(argv=request.argv), self.assertRaises(ValueError):
+                    runner.validate(request)
+
+    def test_closed_runner_allows_only_read_only_member_iam_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "gcloud"
+            executable.write_bytes(b"binary")
+            configuration = root / "cloud-sdk"
+            configuration.mkdir()
+            runner = ClosedDeploymentGcloudRunner(executable, root, configuration)
+            environment = (
+                ("CLOUDSDK_CONFIG", str(configuration.resolve())),
+                ("CLOUDSDK_CORE_DISABLE_PROMPTS", "1"),
+                ("CLOUDSDK_PYTHON_SITEPACKAGES", "0"),
+            )
+            safe = (
+                ProviderCommandRequest(
+                    (
+                        str(executable),
+                        "iam",
+                        "roles",
+                        "describe",
+                        "appPlatformMemberReader",
+                        f"--project={PROJECT}",
+                        "--quiet",
+                    ),
+                    root,
+                    environment,
+                ),
+                ProviderCommandRequest(
+                    (
+                        str(executable),
+                        "projects",
+                        "get-iam-policy",
+                        PROJECT,
+                        f"--project={PROJECT}",
+                        "--quiet",
+                    ),
+                    root,
+                    environment,
+                ),
+            )
+
+            for request in safe:
+                with self.subTest(argv=request.argv):
                     runner.validate(request)
 
 

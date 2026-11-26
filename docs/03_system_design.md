@@ -1,7 +1,7 @@
 # App Platform system design
 
-Version 1.13 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence and AP-M9-W10 Slice 1 provides only inert Version 2 contract compatibility
+Version 1.14 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence and AP-M9-W10 Slices 1-2 provide inert Version 2 contracts plus directory infrastructure
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -419,11 +419,29 @@ identity.
 
 ### Platform Member Directory and member lifecycle
 
-Each environment uses a dedicated Firestore collection or equivalent isolated namespace in its
-platform-owned database. Terraform owns database configuration and least-privilege Shared Edge IAM;
-it never owns member documents. The directory adapter exposes only current-visitor lookup and
-bounded operator lifecycle operations. A request path cannot enumerate members, search by email,
-or read another identity.
+Each environment uses the platform-owned named Firestore database `app-platform-members`, separate
+from the `(default)` database used for Platform Sessions. Terraform owns both database
+configurations and the Shared Edge IAM posture; it never owns a directory-control document or
+member document. The default-database `roles/datastore.user` grant is conditioned to
+`projects/<project-id>/databases/(default)`. The named member database uses the custom
+`appPlatformMemberReader` role, containing only `datastore.entities.get`, with an exact
+per-database condition. The runtime therefore cannot enumerate, create, update, or delete member
+documents. Exact document lookup requires no composite query index, and the foundation output
+records the required composite-index set as empty.
+
+The outputs of the member-directory infrastructure slice expose only closed database, namespace,
+index, runtime-principal, custom-role, permission, and IAM-condition references. They do not expose
+member identities, member records, session records, provider policy payloads, or a mutation
+interface.
+
+The private member-document format is independently versioned. Its namespace is Version 1 even
+though the public Identity Delivery contracts are Version 2. Directory state uses
+`platform-member-directory-v1/state`; members use
+`platform-members-v1/<member-reference>`. Platform Sessions remain under their existing
+`platform-login-flows` and `platform-sessions` collections in the default database. Provider
+readback verifies the custom-role permissions and both exact conditioned runtime grants from the
+live project IAM policy. An absent, changed, unconditioned, additional project-level runtime grant,
+or broader custom-role permission fails closed without retaining the raw policy.
 
 Platform Sessions and Platform Member records occupy disjoint namespaces and have different
 lifecycles. The Shared Edge may look up only the current visitor's member state while serving a
@@ -434,13 +452,24 @@ that separation. If the provider's available role model would grant the runtime 
 mutation or enumeration than this design permits, implementation must stop and re-scope the data
 or identity boundary instead of describing the broader grant as least privilege.
 
-The canonical member key derives from normalized verified Google issuer and immutable subject. A
-member has a lifecycle sufficient to distinguish active admission from suspension, reactivation,
-and removal. The private member-document format is independently versioned. Its initial collection
-path, fields, mutation cursor, opaque-reference derivation, removal representation, transaction
-boundary, and readback rules are outputs of the member-directory infrastructure slice and must be
-recorded here with the implementation that proves them. They must not grow into application
-profiles, feature roles, or arbitrary user metadata.
+The canonical member reference is `pmr1_` plus lowercase SHA-256 over the NUL-delimited reference
+scheme, environment, canonical Google issuer, and immutable subject. It is stable within one
+environment and different across environments. Issuer and subject are used transiently to derive
+the key and are not stored in the member document. Email and display name never enter either
+namespace.
+
+The `platform-member-directory-v1/state` control document contains exactly `contract_version`,
+`initialized`, `mutation_cursor`, `created_at`, and `updated_at`. A
+`platform-members-v1/<member-reference>` member document contains exactly `contract_version`,
+`lifecycle`, `mutation_cursor`, `created_at`, and `updated_at`; lifecycle is `active` or
+`suspended`. Removal is represented by absence of the member document after the directory control
+cursor advances. This retained control document distinguishes a never-initialized empty directory
+from a previously initialized directory whose members were removed, preventing owner rebootstrap
+from an empty local cache. Later lifecycle mutations must update the control document and selected
+member document in one Firestore transaction and then perform exact document readback. The current
+infrastructure slice establishes and tests this private format and an exact-key in-memory lookup
+seam; it does not yet implement provider-backed lookup or any mutation. They must not grow into
+application profiles, feature roles, or arbitrary user metadata.
 
 Restricted admission performs a current positive lookup. Absent, suspended, removed, malformed, or
 unreadable state denies the request without revealing which condition occurred. Public and

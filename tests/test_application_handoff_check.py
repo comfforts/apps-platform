@@ -103,6 +103,7 @@ def protected_bundle() -> dict[str, object]:
     origin = "https://apps-staging.comfforts.com"
     return {
         "access_mode": "authenticated",
+        "identity_delivery": "required",
         "endpoints": {
             "external_origin": origin,
             "issuer": f"{origin}/_platform",
@@ -124,6 +125,7 @@ class ApplicationHandoffCheckTest(unittest.TestCase):
             application_id="example-app",
             application_project_id="application-project",
             access_mode="authenticated",
+            identity_delivery="required",
             route_intent="/example-app",
             platform_source_revision=SOURCE_REVISION,
             platform_generation=5,
@@ -234,6 +236,7 @@ class ApplicationHandoffCheckTest(unittest.TestCase):
     def test_public_mode_requires_no_platform_identity_values(self) -> None:
         public = protected_bundle()
         public["access_mode"] = "public"
+        public["identity_delivery"] = "none"
         public["endpoints"] = {
             "external_origin": "https://apps-staging.comfforts.com",
             "issuer": None,
@@ -247,13 +250,36 @@ class ApplicationHandoffCheckTest(unittest.TestCase):
         }
 
         result = self.checker(bundle=public).check(
-            replace(self.request(), access_mode="public")
+            replace(
+                self.request(),
+                access_mode="public",
+                identity_delivery="none",
+            )
         )
 
         self.assertTrue(result.ready)
         self.assertEqual(
             dict(result.checks)["application-identity-projection"],
             "not-required",
+        )
+
+    def test_public_optional_requires_the_explicit_identity_projection(self) -> None:
+        optional = protected_bundle()
+        optional["access_mode"] = "public"
+        optional["identity_delivery"] = "optional"
+
+        result = self.checker(bundle=optional).check(
+            replace(
+                self.request(),
+                access_mode="public",
+                identity_delivery="optional",
+            )
+        )
+
+        self.assertTrue(result.ready)
+        self.assertEqual(
+            dict(result.checks)["application-identity-projection"],
+            "pass",
         )
 
     def test_protected_mode_rejects_an_invalid_application_identity_projection(
@@ -290,6 +316,8 @@ class ApplicationHandoffCheckTest(unittest.TestCase):
                     "application-project",
                     "--access-mode",
                     "authenticated",
+                    "--identity-delivery",
+                    "required",
                     "--route-intent",
                     "/example-app",
                     "--platform-source-revision",

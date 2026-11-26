@@ -1,7 +1,7 @@
 # App Platform repository layout
 
-Version 2.11 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
-ADR-015 accepted and AP-M9-W10 Slices 1-4 implemented without Version 2 runtime activation
+Version 2.12 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
+ADR-015 accepted and AP-M9-W10 Slices 1-5 implemented without a Live Version 2 operation
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -18,9 +18,9 @@ permission to create a resource or perform an external action.
 | `docs/plans/` | canonical implementation-plan index, AP-M3 through AP-M8 origin plan, and milestone directories containing `000-` entry points plus substantial work-package plans |
 | `docs/history/` | superseded delivery records with no action authority |
 | `prompts/` | bounded next-task entry points subordinate to current documents |
-| `contracts/` | active Version 1 plus inert Version 2 schemas, compilers, migration, vectors, and bounded loading |
-| `contracts/lifecycle/` | AP-M9 profiles plus active Version 1 and inert Version 2 lifecycle schemas, vectors, digests, and cross-document validation |
-| `fixtures/` | deterministic in-process Fixture platform and synthetic applications |
+| `contracts/` | readable Version 1 predecessors plus active Version 2 schemas, compilers, migration, vectors, and bounded loading |
+| `contracts/lifecycle/` | AP-M9 profiles plus readable Version 1 and active Version 2 handoff schemas, vectors, digests, and cross-document validation |
+| [`fixtures/`](../fixtures/README.md) | current networked synthetic applications plus the retained deterministic Version 1 reference harness |
 | [`edge/`](../edge/README.md) | network Shared Edge and production-adapter implementation |
 | `integrations/` | inactive application-adoption drafts |
 | `infrastructure/tools/` | credential-free dependency setup and static validation |

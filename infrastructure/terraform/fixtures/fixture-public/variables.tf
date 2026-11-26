@@ -42,7 +42,10 @@ variable "fixture_configuration" {
       var.fixture_configuration.state_owner == "application" &&
       var.fixture_configuration.service_name == "fixture-public" &&
       var.fixture_configuration.admission_mode == "public" &&
-      var.fixture_configuration.assertion_audience == null
+      (
+        var.fixture_configuration.assertion_audience == null ||
+        var.fixture_configuration.assertion_audience == "urn:comfforts:app-platform:audience:fixture-public"
+      )
     )
     error_message = "this root is exclusively bound to the public Fixture Application profile."
   }

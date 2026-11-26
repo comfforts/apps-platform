@@ -1300,7 +1300,6 @@ def build_local_fixture_operator(
     gcloud = verified.executable
     configuration = verified.configuration
     resolved_state = verified.state_root
-    session = verified.facts
     fixture_project = fixtures_project_id()
     working_root = _fixture_working_root(resolved_state, fixture_project)
 
@@ -1363,7 +1362,6 @@ def build_local_fixture_operator(
             integration,
             image_provider,
             executor,
-            (session.operator_issuer, session.operator_subject),
             LocalApplicationHandoffs(filesystem),
             terminal,
             LocalFixturePreparations(filesystem),

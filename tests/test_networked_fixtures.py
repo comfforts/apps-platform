@@ -52,7 +52,7 @@ class FakeVerifier:
             True,
             "identity_verified",
             VerifiedIdentityContext(
-                contract_version=1,
+                contract_version=2,
                 issuer="https://apps-staging.comfforts.com/_platform",
                 subject="synthetic-subject",
                 audience=(
@@ -61,6 +61,7 @@ class FakeVerifier:
                 issued_at=1_800_000_000,
                 expires_at=1_800_000_060,
                 correlation_id="synthetic-correlation",
+                platform_member=True,
             ),
         )
 
@@ -130,6 +131,32 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertEqual(failure.status_code, 503)
         self.assertEqual(missing.status_code, 404)
         self.assertNotIn("synthetic", repr(root.headers).lower())
+
+    def test_public_optional_accepts_anonymous_or_verified_platform_identity(self) -> None:
+        optional = NetworkFixtureConfiguration(
+            application_id="fixture-public",
+            admission_mode="public",
+            platform_issuer="https://apps-staging.comfforts.com/_platform",
+            public_key_reference=(
+                "https://apps-staging.comfforts.com/.well-known/jwks.json"
+            ),
+            assertion_audience=(
+                "urn:comfforts:app-platform:audience:fixture-public"
+            ),
+        )
+        verifier = FakeVerifier()
+        app = create_network_fixture(optional, verifier=verifier)
+
+        with TestClient(app) as client:
+            anonymous = client.get("/")
+            verified = client.get(
+                "/",
+                headers={VERIFIED_IDENTITY_HEADER: "synthetic.assertion.value"},
+            )
+
+        self.assertEqual(anonymous.status_code, 200)
+        self.assertEqual(verified.status_code, 200)
+        self.assertEqual(verifier.assertions, ["synthetic.assertion.value"])
 
     def test_browser_qualification_returns_only_a_loopback_challenge(self) -> None:
         app = create_network_fixture(configuration("public"))

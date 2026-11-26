@@ -27,10 +27,13 @@ _REQUIRED_APPLICATION_SERVICES = frozenset(
 )
 @dataclass(frozen=True, slots=True)
 class ApplicationHandoffCheckRequest:
+    """Exact application-facing posture to prove without mutating either owner."""
+
     environment: str
     application_id: str
     application_project_id: str
     access_mode: str
+    identity_delivery: str
     route_intent: str
     platform_source_revision: str
     platform_generation: int
@@ -75,6 +78,7 @@ class ApplicationHandoffCheck:
     @staticmethod
     def _identity_projection_ready(
         access_mode: str,
+        identity_delivery: str,
         application_id: str,
         bundle: dict[str, object],
     ) -> tuple[bool, str]:
@@ -82,12 +86,13 @@ class ApplicationHandoffCheck:
         identity = bundle.get("identity")
         if not isinstance(endpoints, dict) or not isinstance(identity, dict):
             return False, "blocked"
-        protected = access_mode in {"authenticated", "restricted"}
+        identity_enabled = identity_delivery in {"optional", "required"}
         origin = endpoints.get("external_origin")
         client_id = identity.get("oauth_client_id")
-        if protected:
+        if identity_enabled:
             return (
                 bundle.get("access_mode") == access_mode
+                and bundle.get("identity_delivery") == identity_delivery
                 and isinstance(origin, str)
                 and bool(origin)
                 and endpoints.get("issuer") == f"{origin}/_platform"
@@ -102,6 +107,7 @@ class ApplicationHandoffCheck:
             )
         return (
             bundle.get("access_mode") == "public"
+            and bundle.get("identity_delivery") == "none"
             and endpoints.get("issuer") is None
             and endpoints.get("jwks_uri") is None
             and endpoints.get("oauth_redirect_uri") is None
@@ -161,6 +167,7 @@ class ApplicationHandoffCheck:
                 environment=request.environment,
                 application_id=request.application_id,
                 access_mode=request.access_mode,
+                identity_delivery=request.identity_delivery,
                 route_intent=request.route_intent,
                 expected_platform_source_revision=request.platform_source_revision,
                 expected_generation=request.platform_generation,
@@ -172,6 +179,7 @@ class ApplicationHandoffCheck:
             checks["bundle-contract"] = "pass"
             identity_ready, identity_outcome = self._identity_projection_ready(
                 request.access_mode,
+                request.identity_delivery,
                 request.application_id,
                 bundle_result.bundle,
             )

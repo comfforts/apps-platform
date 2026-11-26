@@ -176,7 +176,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Version 1 remains the deployed compatibility predecessor",
             "Repository implementation alone does not prove that a Version 2 runtime is deployed or qualified",
             "Public and authenticated Version 2 routes do not consult the member directory",
-            "`edge/verification.py` is currently the Version 1 application-side compatibility verifier",
+            "`edge/verification.py` validates both readable Version 1 and active Version 2 assertion contracts",
             "A deployment may lower those limits but cannot raise them",
             "tests must not discover provider state or contact external services",
         ):
@@ -996,7 +996,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, normalized)
         self.assertIn("ADR-010 and ADR-011 remain the accepted authority", normalized)
 
-    def test_ap_m9_w10_handoff_limits_the_next_chat_to_application_handoff_slice(
+    def test_ap_m9_w10_handoff_limits_the_next_chat_to_operator_reconciliation_slice(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -1016,15 +1016,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "fifth of seven ordered AP-M9-W10 functional slices",
+            "sixth of seven ordered AP-M9-W10 functional slices",
             "feat/platform-member-directory",
-            "feat/identity-delivery-application-handoffs",
-            "Version 2 application handoffs",
-            "IDENTITY_DELIVERY=<none|optional|required>",
-            "public/optional",
-            "one complete immutable Version 2 generation",
-            "Application Feature Entitlements remain application-owned",
-            "point this prompt to Slice 6 without implementing Slice 6",
+            "docs/identity-delivery-operator-handoff",
+            "operator and reviewer documentation",
+            "Admission Mode/Identity Delivery combinations",
+            "complete Version 2 activation",
+            "point this prompt to Slice 7",
             "Do not perform Candidate Source staging operations",
             "only after all seven W10 slices merge",
             "pull request must target that integration branch, not `main`",
@@ -1032,14 +1030,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(boundary, normalized_prompt)
         for excluded_later_slice in (
-            "docs/identity-delivery-operator-handoff",
             "evidence/member-admission-candidate-qualification",
         ):
             self.assertNotIn(excluded_later_slice, prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W10 Slice 5 application-handoff handoff](starting_prompt.md)",
+            "[AP-M9-W10 Slice 6 operator-handoff reconciliation](starting_prompt.md)",
             prompt_index,
         )
 
@@ -1071,7 +1068,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
         self.assertIn("### AP-M9-W10", m9)
         self.assertIn("### AP-M9-W12", m9)
-        self.assertIn("AP-M9-W10 Slices 1-4 implemented", m9)
+        self.assertIn("AP-M9-W10 Slices 1-5 implemented", m9)
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
         self.assertIn(
@@ -1123,7 +1120,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "No\nslice targets `main`",
             "current governance pull\nrequest and every implementation slice use that integration branch",
             "one or more coherent commits",
-            "Slice 1 is an additive, inert compatibility slice",
+            "Slice 1 was an additive, inert compatibility slice",
             "does not silently change a Version 1 consumer",
             "merged Accepted Source revision",
             "ask the owner before adding a full",
@@ -2057,7 +2054,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-M9-W9 is implemented and candidate-qualified",
             overview,
         )
-        self.assertIn("AP-M9-W10 Slices 1 through 4 implement", overview)
+        self.assertIn("AP-M9-W10 Slices 1 through 5 implement", overview)
         self.assertIn("bounded member lifecycle commands", overview)
         self.assertIn("diagnostic pre-merge evidence", docs_index)
         self.assertIn("platform-prepare", overview)
@@ -2088,10 +2085,9 @@ class ProjectAuthorityTest(unittest.TestCase):
         for required in (
             "AP-M9-W10",
             "AP-EVAL-M9-09",
-            "fifth of seven ordered AP-M9-W10 functional slices",
-            "feat/identity-delivery-application-handoffs",
-            "Version 2 application handoffs",
-            "IDENTITY_DELIVERY=<none|optional|required>",
+            "sixth of seven ordered AP-M9-W10 functional slices",
+            "docs/identity-delivery-operator-handoff",
+            "operator and reviewer documentation",
             "Do not perform Candidate Source staging operations",
             "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
             "Do not mutate staging, production, DNS, identity, Finance Assistant, or any real application",

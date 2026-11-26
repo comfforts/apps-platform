@@ -29,12 +29,13 @@ def proposal(
     generation: int = 1,
     *,
     previous: str | None = None,
+    contract_version: int = 1,
 ) -> RegistrationGenerationProposal:
     digest = _digest(str(generation))
     return RegistrationGenerationProposal(
         environment="staging",
         registration_set={
-            "contract_version": 1,
+            "contract_version": contract_version,
             "generation": generation,
             "previous_generation_digest": previous,
             "proposal": {
@@ -44,7 +45,7 @@ def proposal(
             "registrations": [],
         },
         compiled_configuration={
-            "contract_version": 1,
+            "contract_version": contract_version,
             "generation": generation,
             "generation_digest": digest,
             "routes": [],
@@ -284,6 +285,62 @@ class LocalGenerationControlTest(unittest.TestCase):
                 ":revision:app-platform-edge-g3-current-source"
             )
         )
+
+    def test_version_two_generation_rebinds_and_can_roll_back_to_v1(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            control, provider = self._control(directory)
+            predecessor = proposal()
+            predecessor_publication = control.publish(predecessor)
+            control.activate(
+                "staging",
+                predecessor_publication.publication_reference,
+                predecessor.generation_digest,
+            )
+            successor = proposal(
+                2,
+                previous=predecessor.generation_digest,
+                contract_version=2,
+            )
+            successor_publication = control.publish(successor)
+            control.activate(
+                "staging",
+                successor_publication.publication_reference,
+                successor.generation_digest,
+            )
+            provider.active_binding = ProviderGenerationBinding(
+                environment="staging",
+                revision_name="app-platform-edge-g2-v2",
+                platform_source_revision="b" * 40,
+                image_reference=(
+                    "us-west1-docker.pkg.dev/example/edge@sha256:" + "9" * 64
+                ),
+                generation=2,
+                generation_digest=successor.generation_digest,
+                content_digest=successor.content_digest,
+                object_name=(
+                    "environments/staging/generations/2/"
+                    "compiled-shared-edge.v2.json"
+                ),
+                object_generation=44,
+            )
+
+            control.record_active_runtime(provider.active_binding)
+            reviewed = LocalReviewedGenerationControl(control)
+            predecessor_review = reviewed.read_reviewed(
+                "staging",
+                predecessor.generation_digest,
+            )
+            assert predecessor_review is not None
+            rolled_back = reviewed.activate(
+                "staging",
+                predecessor_review.publication_reference,
+                predecessor.generation_digest,
+            )
+            current = control.current("staging")
+
+        self.assertTrue(rolled_back.activated)
+        assert current is not None
+        self.assertEqual(current.registration_set["contract_version"], 1)
 
     def test_rejects_deployed_initial_generation_binding_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

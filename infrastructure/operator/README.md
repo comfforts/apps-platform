@@ -1,8 +1,8 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W9 Version 1 lifecycle candidate-qualified; AP-M9-W10 Slices 1 through 4 implement
-the Version 2 contracts, directory infrastructure, Shared Edge enforcement, and member lifecycle
-without Version 2 handoff activation
+Status: AP-M9-W9 Version 1 lifecycle candidate-qualified; AP-M9-W10 Slices 1 through 5 implement
+the Version 2 contracts, directory infrastructure, Shared Edge enforcement, member lifecycle, and
+application handoff/activation path without a Live Version 2 operation
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -11,8 +11,9 @@ fakes and the non-fake command boundary exercise the same orchestration interfac
 
 ## Implemented commands
 
-These commands implement the Version 1 predecessor identity model. Their candidate evidence is
-truthful for that model but cannot qualify the accepted Platform Member Directory decision.
+The deployed evidence still describes the Version 1 predecessor operation. Repository consumers
+now emit and validate the complete Version 2 application-handoff family, but that implementation
+has not performed or qualified a Live Version 2 activation.
 
 The deploy target populates or verifies the checksum-bound local toolchain automatically. The
 operator must already have an active `gcloud` login, user Application Default Credentials, and the
@@ -37,6 +38,7 @@ make application-handoff-check \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-authenticated \
   ACCESS_MODE=authenticated \
+  IDENTITY_DELIVERY=required \
   ROUTE_INTENT=/fixture-authenticated \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   PLATFORM_GENERATION=1
@@ -45,6 +47,7 @@ make platform-outputs \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-authenticated \
   ACCESS_MODE=authenticated \
+  IDENTITY_DELIVERY=required \
   ROUTE_INTENT=/fixture-authenticated \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   PLATFORM_GENERATION=1
@@ -68,7 +71,7 @@ make platform-destroy ENVIRONMENT=staging
 make fixture-handoff \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-authenticated \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 make fixture-status ENVIRONMENT=staging
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
@@ -128,12 +131,15 @@ The default `PREFLIGHT_MODE=operational` enforces the selected Accepted or Candi
 
 ## Platform member lifecycle
 
-W10 now contains the inert Version 2 contracts and repository implementation for the isolated
-member-directory database, exact-read runtime IAM, Shared Edge enforcement, and member lifecycle.
+W10 now contains the Version 2 contracts and repository implementation for the isolated
+member-directory database, exact-read runtime IAM, Shared Edge enforcement, member lifecycle, and
+application handoff/activation path.
 Provider readback accepts only the
 conditioned default-database session grant and the named-database custom member role containing
 `datastore.entities.get`; a broader project-level runtime grant fails closed. These additions have
-not been reconciled to a provider and are not consumed by the active Version 1 Shared Edge.
+not been reconciled to a provider or Live-qualified. Version 1 generation documents remain
+readable predecessors; a reviewed application handoff creates one complete Version 2 successor
+rather than a mixed generation.
 
 `platform-deploy` reconciles the empty Firestore directory infrastructure but never enrolls a
 member. `platform-member-bootstrap-owner` enrolls the first owner only after remote-empty readback,
@@ -157,10 +163,15 @@ malformed, and provider-unavailable results remain distinct safe blocker classes
 exact typed phrase and retains initialized control so an empty private journal cannot enable owner
 rebootstrap.
 
-The next application-handoff slice will add explicit Identity Delivery: `none` or `optional` for public
-admission and `required` for authenticated or restricted admission. Until that slice implements and
-tests these commands and inputs, they are design authority rather than executable operator
-interfaces; do not infer them from the current Make targets.
+`application-handoff-check` and `platform-outputs` require explicit Identity Delivery: `none` or
+`optional` for public admission and `required` for authenticated or restricted admission.
+`fixture-handoff` consumes that decision from the Version 2 Integration Bundle, and
+`platform-register` requires the exact Version 2 integration, attachment, and intent relationship;
+it accepts no independent identity-policy argument. Mixed handoff versions fail closed. The first
+successor over a readable Version 1 generation discards registration-scoped members, maps public
+to `none` and protected routes to `required`, and activates one complete immutable Version 2
+generation. This is repository behavior only until the later Candidate operation exercises it.
+
 For local code maintenance, `platform-preflight-check` runs the same read-only profile, Git,
 GitHub, GCP, ADC, Terraform-tool, and DNS checks. It skips `SOURCE_NOT_CLEAN`, because the command
 exists to inspect uncommitted changes, and reports other source-admission findings separately

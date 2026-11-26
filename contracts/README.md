@@ -3,10 +3,9 @@
 Versions 1 and 2 | Scope: repository-owned machine interfaces and deterministic validation; no
 operation authority
 
-Status: Version 1 remains the active readable predecessor family. Version 2 schemas, deterministic
-Version 1 migration, canonical validation, and a pure compiler seam are implemented as an inert
-compatibility layer. No runtime, operator command, fixture, bundle publisher, or active
-Registration Generation selects Version 2 yet.
+Status: Version 1 remains a readable historical predecessor family. Version 2 is the active
+repository interface for application handoffs, registration compilation, Shared Edge loading, and
+independent application verification. No Live Version 2 operation or qualification is implied.
 
 The `contracts/` directory defines the versioned data exchanged between platform components,
 operators, and applications. It answers four questions:
@@ -47,7 +46,7 @@ mistaken for a registration or runtime document.
 | `schemas/state-ownership-manifest.v1.schema.json` | `urn:comfforts:app-platform:schema:state-ownership-manifest:v1` | Exclusive platform/application resource-owner declaration for a generation |
 | `schemas/registration-set.v2.schema.json` | `urn:comfforts:app-platform:schema:registration-set:v2` | Complete registrations with explicit Identity Delivery and no registration-scoped member data |
 | `schemas/application-attachment.v2.schema.json` | `urn:comfforts:app-platform:schema:application-attachment:v2` | Application target requirements for `none`, `optional`, or verified identity delivery |
-| `schemas/compiled-shared-edge.v2.schema.json` | `urn:comfforts:app-platform:schema:compiled-shared-edge:v2` | Inert deterministic projection of Version 2 routes and admission/identity-delivery bindings |
+| `schemas/compiled-shared-edge.v2.schema.json` | `urn:comfforts:app-platform:schema:compiled-shared-edge:v2` | Deterministic projection of Version 2 routes and admission/identity-delivery bindings |
 | `schemas/verified-identity-context.v2.schema.json` | `urn:comfforts:app-platform:schema:verified-identity-context:v2` | Minimal visitor context with an optional positive-only `platform_member` projection |
 
 The local schema registry is exactly the identifier-to-path mapping in this table. A validator must
@@ -68,7 +67,7 @@ route, admission policy, or provider command.
 | `lifecycle/schemas/platform-integration-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1` | Application- and project-scoped non-secret platform, Shared VPC, identity, and attachment values required before an application deploys its target |
 | `lifecycle/schemas/application-attachment-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1` | Application-owned target project, network, ingress, IAM, and audience posture bound to the exact integration bundle it consumed |
 | `lifecycle/schemas/qualification-evidence.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:qualification-evidence:v1` | Redacted, revision-bound results for evaluated platform and fixture behavior |
-| `lifecycle/schemas/platform-integration-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2` | Inert handoff with explicit Admission Mode and Identity Delivery |
+| `lifecycle/schemas/platform-integration-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2` | Active handoff with explicit Admission Mode and Identity Delivery |
 | `lifecycle/schemas/application-attachment-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v2` | Version 2 application-owned target posture bound to an exact integration-bundle digest |
 | `lifecycle/schemas/registration-intent.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:registration-intent:v2` | Reviewed registration intent with explicit Identity Delivery and no member data |
 
@@ -110,9 +109,10 @@ only a reviewed Version 1 or Version 2 schema for the selected document kind; th
 registration-revision values as a compatibility representation, maps public to Identity Delivery
 `none`, maps authenticated and restricted to `required`, and discards Version 1 restricted member
 sets. It never invents public `optional`. `compile_registration_set_v2` is pure and non-publishing;
-it can compare against a historical Version 1 predecessor while binding the proposed successor to
-that predecessor's normalized generation digest. Ownership semantics are unchanged, so its State
-Ownership Manifest remains Version 1.
+it compares against a historical Version 1 predecessor while binding the proposed successor to
+that predecessor's normalized generation digest. The operator emits only a complete Version 2
+handoff family and activates only a complete Version 2 successor; mixed input versions are
+rejected. Ownership semantics are unchanged, so the State Ownership Manifest remains Version 1.
 
 Before the first accepted Live qualification and Application Adoption, an owner-approved incompatible
 correction may revise Version 1 in place only when every repository consumer, vector, test, and

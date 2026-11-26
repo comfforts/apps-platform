@@ -1,9 +1,9 @@
 # App Platform evaluation strategy
 
-Version 0.24 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.25 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
-without execution; AP-M9-W10 Slices 1-4 supply deterministic Version 2 contract, infrastructure,
-runtime, and member-lifecycle evidence, later W10 slices
+without execution; AP-M9-W10 Slices 1-5 supply deterministic Version 2 contract, infrastructure,
+runtime, member-lifecycle, and application-handoff evidence, later W10 slices
 and Candidate Source qualification remain, and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
@@ -44,6 +44,13 @@ bootstrap, source admission, idempotency, stale-predecessor and conflict handlin
 member transitions, exact readback, privacy, interruption, and stable diagnostics. Its provider
 fakes and loopback/browser seams perform no real member mutation and supply no Live, qualification,
 Version 2 handoff, or activation evidence.
+
+W10 Slice 5 supplies deterministic AP-EVAL-M9-06 and AP-EVAL-M9-07 evidence for explicit
+Admission Mode/Identity Delivery validation, complete Version 2 integration/attachment/intent
+relationships, fixture consumption, application verification, provider object naming, atomic
+Version 1 predecessor migration, complete-generation activation, and rollback compatibility. Its
+operator and provider fakes perform no real publication, application deployment, activation, or
+qualification.
 
 Plan: [App Platform implementation plan index](plans/README.md) and
 [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) and
@@ -1721,6 +1728,13 @@ each selection, culminating in a generation containing all three fixtures. Exerc
 rejection, detach, redeploy/reactivate,
 terminal retirement, route reservation, `503` detached behavior, `410` retired behavior, closed
 unknown routes, and proof that no platform action destroys Application State.
+
+Require one same-version Version 2 integration, attachment, and registration-intent family and
+reject every mixed-version relationship or independent registration-time Identity Delivery value.
+Starting from a readable Version 1 predecessor, prove public maps to `none`, authenticated and
+restricted map to `required`, member sets are discarded, the predecessor remains unchanged, and
+exactly one complete Version 2 successor binds its digest. Prove a retained reviewed Version 1
+generation remains an eligible exact rollback target after Version 2 activation.
 
 For one selected fixture, stop after attachment generation and verify the operator receives exact
 mode-`0600` canonical integration-bundle, attachment-bundle, and registration-intent paths and

@@ -43,15 +43,23 @@ EDGE_CALLER = (
 )
 
 
-def _bundle(application_id: str, access_mode: str) -> dict[str, object]:
-    protected = access_mode != "public"
+def _bundle(
+    application_id: str,
+    access_mode: str,
+    identity_delivery: str | None = None,
+) -> dict[str, object]:
+    selected_delivery = identity_delivery or (
+        "none" if access_mode == "public" else "required"
+    )
+    identity_enabled = selected_delivery in {"optional", "required"}
     origin = "https://apps-staging.comfforts.com"
     return {
-        "contract_version": 1,
+        "contract_version": 2,
         "document_kind": "platform-integration-bundle",
         "environment": "staging",
         "application_id": application_id,
         "access_mode": access_mode,
+        "identity_delivery": selected_delivery,
         "route_intent": f"/{application_id}",
         "generation": 7,
         "profile_digest": "sha256:" + ("1" * 64),
@@ -61,21 +69,21 @@ def _bundle(application_id: str, access_mode: str) -> dict[str, object]:
         "deployment_progress_digest": "sha256:" + ("3" * 64),
         "endpoints": {
             "external_origin": origin,
-            "issuer": f"{origin}/_platform" if protected else None,
-            "jwks_uri": f"{origin}/.well-known/jwks.json" if protected else None,
+            "issuer": f"{origin}/_platform" if identity_enabled else None,
+            "jwks_uri": f"{origin}/.well-known/jwks.json" if identity_enabled else None,
             "oauth_redirect_uri": (
-                f"{origin}/_platform/auth/callback" if protected else None
+                f"{origin}/_platform/auth/callback" if identity_enabled else None
             ),
         },
         "identity": {
             "oauth_client_id": (
                 "1234567890-appsplatform.apps.googleusercontent.com"
-                if protected
+                if identity_enabled
                 else None
             ),
             "audience": (
                 f"urn:comfforts:app-platform:audience:{application_id}"
-                if protected
+                if identity_enabled
                 else None
             ),
             "edge_caller_reference": EDGE_CALLER,

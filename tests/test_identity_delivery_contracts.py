@@ -372,15 +372,9 @@ class IdentityDeliveryContractTest(unittest.TestCase):
                 self.assertEqual(loaded.violations, ())
                 self.assertRegex(loaded.digest or "", r"^sha256:[0-9a-f]{64}$")
 
-    def test_active_v1_consumers_do_not_import_or_select_v2_contracts(self) -> None:
+    def test_active_handoff_consumers_use_version_aware_v2_seams(self) -> None:
         active_roots = (ROOT / "edge", ROOT / "fixtures", ROOT / "infrastructure" / "operator")
-        prohibited = (
-            "compile_registration_set_v2",
-            "migrate_registration_set_v1_to_v2",
-            "load_versioned_contract_document",
-            "load_versioned_lifecycle_document",
-            ".v2.schema.json",
-        )
+        prohibited = (".v2.schema.json",)
         matches: list[str] = []
         for active_root in active_roots:
             for path in active_root.rglob("*.py"):
@@ -389,6 +383,15 @@ class IdentityDeliveryContractTest(unittest.TestCase):
                     if marker in source:
                         matches.append(f"{path.relative_to(ROOT)}: {marker}")
         self.assertEqual(matches, [])
+        integration_source = (
+            ROOT / "infrastructure/operator/integration.py"
+        ).read_text(encoding="utf-8")
+        cli_source = (ROOT / "infrastructure/operator/cli.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("compile_registration_set_v2", integration_source)
+        self.assertIn("migrate_registration_set_v1_to_v2", integration_source)
+        self.assertIn("load_versioned_lifecycle_document", cli_source)
 
 
 if __name__ == "__main__":

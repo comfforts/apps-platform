@@ -1,9 +1,10 @@
 # App Platform threat model
 
-Version 1.17 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
+Version 1.18 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
 the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
 contract, infrastructure, deterministic runtime, and member-lifecycle controls are implemented by
-AP-M9-W10 Slices 1-4 without Version 2 activation or Live qualification
+AP-M9-W10 Slices 1-5, including Version 2 handoff activation behind deterministic boundaries,
+without a Live Version 2 operation or qualification
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -346,8 +347,10 @@ versioned keys, and bounded public-key overlap/cache behavior. AP-M9-W10 Slice 3
 implements exact current-member lookup, explicit public identity delivery, and minimized Version 2
 projection without activating that path in staging. Slice 4 deterministically implements one-use
 browser-derived opaque references, remote-empty bootstrap, exact predecessor mutation, atomic
-control/member updates, and least-data readback. Provider realization and Live qualification remain
-pending later W10 slices.
+control/member updates, and least-data readback. Slice 5 deterministically implements the complete
+Version 2 handoff, application-side Version 1/Version 2 assertion verification, mixed-version
+rejection, and atomic predecessor-bound activation. Provider realization and Live qualification
+remain pending later W10 slices.
 The demo accepts residual cross-instance replay risk because it makes
 no distributed replay-prevention claim.
 
@@ -940,11 +943,12 @@ deployment adapters are wired behind pinned-tool, exact-project, active-account,
 digest-bound plan, confirmation, source-upload allow-list, and readback gates. W9 adds and exercises
 the Fixture Application deployment lifecycle, browser qualification, and closed fixture
 destruction/recovery transition under Candidate Source. ADR-015 supersedes its Version 1
-per-registration membership and implicit public-identity boundary. W10 Slice 1 implements the
-inert Version 2 contract family, deterministic member-discarding migration, compatibility loading,
-and rejection of mixed or member-bearing Version 2 documents. Later W10 slices must implement and
-candidate-qualify the directory, runtime Identity Delivery, owner bootstrap, and second-member
-lifecycle before the Accepted Source operation in W11. Candidate evidence
+per-registration membership and implicit public-identity boundary. W10 Slices 1 through 5
+implement the Version 2 contract family, deterministic member-discarding migration, directory and
+IAM boundary, runtime Identity Delivery, owner/member lifecycle, complete application handoff, and
+rejection of mixed or member-bearing Version 2 documents. Later W10 slices must reconcile the
+operator handoff and candidate-qualify the complete model before the Accepted Source operation in
+W11. Candidate evidence
 proves only the named W9 predecessor bindings. No current result proves ADR-015 realization,
 Accepted Source staging, platform destruction/redeployment, production, or Application Adoption.
 
@@ -962,10 +966,6 @@ pass:
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
 | Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
-| Platform Member Directory storage, namespace separation, runtime IAM, provider readback, and Terraform ownership | AP-M9-W10 Slice 2 acceptance |
-| Shared Edge lookup, explicit Identity Delivery, assertion minimization, and fail-closed admission | AP-M9-W10 Slice 3 acceptance |
-| Owner bootstrap and member lifecycle authorization, concurrency, privacy, and readback | AP-M9-W10 Slice 4 acceptance |
-| Version 2 application handoffs, fixture behavior, and atomic generation activation | AP-M9-W10 Slice 5 acceptance |
 | Live member admission, rollback, least-data, and baseline-restoration evidence | AP-M9-W10 final integration qualification after Slice 7 |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |

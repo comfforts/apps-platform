@@ -1,4 +1,4 @@
-"""Independent application-side verification of Version 1 identity assertions."""
+"""Independent application-side verification of versioned identity assertions."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from contracts import load_json_bytes, validate_contract_instance
 from ._assertions import (
     ASSERTION_CLOCK_SKEW_SECONDS,
     ASSERTION_LIFETIME_SECONDS,
-    IDENTITY_CONTEXT_SCHEMA,
+    IDENTITY_CONTEXT_SCHEMAS,
     JWKS_CACHE_SECONDS,
     KEY_ID_PATTERN,
     MAX_ASSERTION_BYTES,
@@ -196,9 +196,21 @@ class ApplicationIdentityVerifier:
                 return _rejected("identity_contract_invalid")
         except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
             return _rejected("identity_contract_invalid")
-        if validate_contract_instance(payload, IDENTITY_CONTEXT_SCHEMA):
+        contract_version = payload.get("contract_version")
+        if (
+            isinstance(contract_version, bool)
+            or not isinstance(contract_version, int)
+            or contract_version not in IDENTITY_CONTEXT_SCHEMAS
+            or validate_contract_instance(
+                payload,
+                IDENTITY_CONTEXT_SCHEMAS[contract_version],
+            )
+        ):
             return _rejected("identity_contract_invalid")
-        identity = VerifiedIdentityContext(**payload)
+        try:
+            identity = VerifiedIdentityContext(**payload)
+        except TypeError:
+            return _rejected("identity_contract_invalid")
         if identity.issuer != self._expected_issuer:
             return _rejected("identity_issuer_invalid")
         if identity.audience != self._expected_audience:

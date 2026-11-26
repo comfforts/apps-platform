@@ -1,7 +1,7 @@
 # App Platform documentation
 
-Version 1.36 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted,
-ADR-016 proposed, and AP-M9-W10 platform-member implementation is next
+Version 1.37 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted,
+ADR-016 proposed, and AP-M9-W10 Slice 1 implemented as an inert Version 2 compatibility layer
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. W9
@@ -60,7 +60,7 @@ delivery authorities before beginning it.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W9 candidate-qualified; ADR-015 accepted; W10 next | operator-driven environment and application lifecycle |
+| AP-M9 | W9 candidate-qualified; W10 Slice 1 implemented, merge pending | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
@@ -116,7 +116,9 @@ completed.
     and Candidate Source qualification through seven ordered functional-slice pull requests into
     `feat/platform-member-directory`. Candidate-qualify and freeze that complete integration
     revision before its cumulative pull request to `main`. It performs no Accepted Source staging
-    operation.
+    operation. Slice 1 implements only the inert Version 2 contracts, deterministic Version 1
+    migration, and Contract evidence; Slice 2 begins only after Slice 1 merges to the integration
+    branch.
 11. **AP-M9-W11 — accepted staging operation:** from merged W10 code, deploy and qualify
     `apps-staging.comfforts.com` with the three synthetic applications and the reviewed member
     baseline. The deliberate command invocation and same-process confirmations authorize ordinary

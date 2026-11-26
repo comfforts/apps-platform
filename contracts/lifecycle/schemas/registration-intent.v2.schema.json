@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:comfforts:app-platform:lifecycle:registration-intent:v2",
+  "title": "Registration Intent Version 2",
+  "description": "Reviewed platform-facing registration choices bound to one application and explicit Identity Delivery, with no member data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "document_kind",
+    "application_id",
+    "access_mode",
+    "identity_delivery",
+    "catalogue_visibility",
+    "catalogue_title",
+    "catalogue_summary",
+    "attachment_id",
+    "mount_path",
+    "forwarding_mode"
+  ],
+  "properties": {
+    "contract_version": {"const": 2},
+    "document_kind": {"const": "registration-intent"},
+    "application_id": {"$ref": "#/$defs/applicationId"},
+    "access_mode": {"enum": ["authenticated", "public", "restricted"]},
+    "identity_delivery": {"enum": ["none", "optional", "required"]},
+    "catalogue_visibility": {"enum": ["listed", "unlisted"]},
+    "catalogue_title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[^<>\\u0000-\\u001F\\u007F]+$"
+    },
+    "catalogue_summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "^[^<>\\u0000-\\u001F\\u007F]+$"
+    },
+    "attachment_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    },
+    "mount_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?:/|(?:/[a-z0-9][a-z0-9_-]{0,62})+)$"
+    },
+    "forwarding_mode": {
+      "enum": ["preserve", "strip_application_prefix", "strip_attachment_mount"]
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["access_mode", "identity_delivery"],
+      "properties": {"access_mode": {"const": "public"}, "identity_delivery": {"const": "none"}}
+    },
+    {
+      "type": "object",
+      "required": ["access_mode", "identity_delivery"],
+      "properties": {"access_mode": {"const": "public"}, "identity_delivery": {"const": "optional"}}
+    },
+    {
+      "type": "object",
+      "required": ["access_mode", "identity_delivery"],
+      "properties": {"access_mode": {"const": "authenticated"}, "identity_delivery": {"const": "required"}}
+    },
+    {
+      "type": "object",
+      "required": ["access_mode", "identity_delivery"],
+      "properties": {"access_mode": {"const": "restricted"}, "identity_delivery": {"const": "required"}}
+    }
+  ],
+  "$defs": {
+    "applicationId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]$"
+    }
+  }
+}

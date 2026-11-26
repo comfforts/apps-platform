@@ -1,7 +1,7 @@
 # AP-M9 · Operator-driven environment lifecycle
 
-Version 0.3 | Status: AP-M9-W1 through AP-M9-W9 implemented and W9 candidate-qualified;
-AP-M9-W10 Slice 1 is the next delivery slice
+Version 0.4 | Status: AP-M9-W1 through AP-M9-W9 implemented and W9 candidate-qualified;
+AP-M9-W10 Slice 1 implemented as an inert Version 2 compatibility layer, pending integration
 
 This document is the canonical milestone plan for AP-M9 and its ordered work packages. Use the
 [implementation plan index](../README.md) for plan routing. AP-M9-W10 has a separate

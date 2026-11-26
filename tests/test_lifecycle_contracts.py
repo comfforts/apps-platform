@@ -38,10 +38,13 @@ class LifecycleContractTest(unittest.TestCase):
             set(registry),
             {
                 "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1",
+                "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v2",
                 "urn:comfforts:app-platform:lifecycle:deployment-specification:v1",
                 "urn:comfforts:app-platform:lifecycle:environment-profile:v1",
                 "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1",
+                "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2",
                 "urn:comfforts:app-platform:lifecycle:qualification-evidence:v1",
+                "urn:comfforts:app-platform:lifecycle:registration-intent:v2",
             },
         )
 

@@ -1,9 +1,9 @@
 # App Platform evaluation strategy
 
-Version 0.21 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.22 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
-without execution; ADR-015 implementation and Candidate Source qualification are AP-M9-W10 work,
-and the Accepted Source AP-EVAL-M9 result remains AP-M9-W11 work
+without execution; AP-M9-W10 Slice 1 supplies inert Version 2 Contract evidence, later W10 slices
+and Candidate Source qualification remain, and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
@@ -24,6 +24,11 @@ W9 Candidate Source also produced non-accepted Live evidence for the three-fixtu
 Version 1 restricted-fixture destruction and recovery, and the then-declared qualification checks.
 It remains truthful predecessor evidence but cannot qualify ADR-015. It does not qualify Accepted
 Source, production, a consuming application's adoption, or product authorization.
+
+W10 Slice 1 supplies AP-EVAL-M9-02 Contract evidence for the complete inert Version 2 schema
+family, deterministic Version 1 migration, compatibility loading, exact canonical vectors, and
+mixed/member-bearing rejection. It supplies no directory, IAM, runtime, operator, Fixture, Live,
+qualification, or Application Adoption evidence.
 
 Plan: [App Platform implementation plan index](plans/README.md) and
 [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) and

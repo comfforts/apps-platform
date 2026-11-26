@@ -28,10 +28,13 @@ PROFILE_DIRECTORY = (
 )
 SCHEMA_FILES = (
     "application-attachment-bundle.v1.schema.json",
+    "application-attachment-bundle.v2.schema.json",
     "deployment-specification.v1.schema.json",
     "environment-profile.v1.schema.json",
     "platform-integration-bundle.v1.schema.json",
+    "platform-integration-bundle.v2.schema.json",
     "qualification-evidence.v1.schema.json",
+    "registration-intent.v2.schema.json",
 )
 SCHEMA_IDS = {
     "application-attachment-bundle": (
@@ -49,6 +52,19 @@ SCHEMA_IDS = {
     "qualification-evidence": (
         "urn:comfforts:app-platform:lifecycle:qualification-evidence:v1"
     ),
+}
+VERSIONED_SCHEMA_IDS = {
+    "application-attachment-bundle": {
+        1: "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1",
+        2: "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v2",
+    },
+    "platform-integration-bundle": {
+        1: "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1",
+        2: "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2",
+    },
+    "registration-intent": {
+        2: "urn:comfforts:app-platform:lifecycle:registration-intent:v2",
+    },
 }
 
 _PROHIBITED_KEYS = {
@@ -159,6 +175,36 @@ def _scan_prohibited(value: Any, path: str = "") -> list[Violation]:
                     "placeholder values are prohibited",
                 )
             )
+    return violations
+
+
+def _scan_v2_member_material(value: Any, path: str = "") -> list[Violation]:
+    """Reject directory data from every Version 2 handoff nesting level."""
+
+    member_keys = {
+        "member",
+        "member_list",
+        "member_records",
+        "members",
+        "platform_members",
+        "restricted_members",
+    }
+    violations: list[Violation] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            item_path = _pointer(path, key)
+            if key.lower() in member_keys:
+                violations.append(
+                    Violation(
+                        "PROHIBITED_MATERIAL",
+                        item_path,
+                        "member data is prohibited from Version 2 handoffs",
+                    )
+                )
+            violations.extend(_scan_v2_member_material(item, item_path))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            violations.extend(_scan_v2_member_material(item, _pointer(path, index)))
     return violations
 
 
@@ -288,20 +334,28 @@ def _specification_violations(value: dict[str, Any]) -> list[Violation]:
 
 
 def _integration_violations(value: dict[str, Any]) -> list[Violation]:
+    """Validate V1 or V2 identity values against admission and delivery policy."""
+
     violations: list[Violation] = []
     access_mode = value.get("access_mode")
+    contract_version = value.get("contract_version")
+    identity_delivery = value.get("identity_delivery")
     identity = value.get("identity")
     endpoints = value.get("endpoints")
     application_id = value.get("application_id")
-    protected = access_mode in {"authenticated", "restricted"}
+    identity_enabled = (
+        identity_delivery in {"optional", "required"}
+        if contract_version == 2
+        else access_mode in {"authenticated", "restricted"}
+    )
     if isinstance(identity, dict):
         expected_audience = (
             f"urn:comfforts:app-platform:audience:{application_id}"
-            if protected and isinstance(application_id, str)
+            if identity_enabled and isinstance(application_id, str)
             else None
         )
         if identity.get("audience") != expected_audience or (
-            protected != isinstance(identity.get("oauth_client_id"), str)
+            identity_enabled != isinstance(identity.get("oauth_client_id"), str)
         ):
             violations.append(
                 Violation(
@@ -319,10 +373,10 @@ def _integration_violations(value: dict[str, Any]) -> list[Violation]:
             origin = f"https://{hostname}"
             expected = {
                 "external_origin": origin,
-                "issuer": f"{origin}/_platform" if protected else None,
-                "jwks_uri": f"{origin}/.well-known/jwks.json" if protected else None,
+                "issuer": f"{origin}/_platform" if identity_enabled else None,
+                "jwks_uri": f"{origin}/.well-known/jwks.json" if identity_enabled else None,
                 "oauth_redirect_uri": (
-                    f"{origin}/_platform/auth/callback" if protected else None
+                    f"{origin}/_platform/auth/callback" if identity_enabled else None
                 ),
             }
             for field, selected in expected.items():
@@ -338,6 +392,8 @@ def _integration_violations(value: dict[str, Any]) -> list[Violation]:
 
 
 def _attachment_violations(value: dict[str, Any]) -> list[Violation]:
+    """Keep an attachment target bound to the bundle's application owner."""
+
     target = value.get("target")
     if isinstance(target, dict) and target.get("owner_application_id") != value.get(
         "application_id"
@@ -349,6 +405,13 @@ def _attachment_violations(value: dict[str, Any]) -> list[Violation]:
                 "attachment owner must equal the bundle application",
             )
         ]
+    return []
+
+
+def _registration_intent_violations(value: dict[str, Any]) -> list[Violation]:
+    """Reserve a semantic-policy seam for the closed Version 2 intent schema."""
+
+    del value
     return []
 
 
@@ -474,6 +537,7 @@ _POLICY = {
     "platform-integration-bundle": _integration_violations,
     "application-attachment-bundle": _attachment_violations,
     "qualification-evidence": _qualification_violations,
+    "registration-intent": _registration_intent_violations,
 }
 
 
@@ -500,6 +564,47 @@ def validate_lifecycle_document(
                 )
             )
         violations.extend(_POLICY[expected_kind](value))
+    return _ordered(violations)
+
+
+def validate_versioned_lifecycle_document(
+    value: Any,
+    expected_kind: str,
+    *,
+    registry: dict[str, dict[str, Any]] | None = None,
+) -> tuple[Violation, ...]:
+    """Validate readable V1 or inert V2 handoff data without changing V1 consumers."""
+
+    versions = VERSIONED_SCHEMA_IDS.get(expected_kind)
+    if versions is None:
+        raise ValueError(f"unknown versioned lifecycle document kind: {expected_kind}")
+    if not isinstance(value, dict):
+        return (Violation("FIELD_TYPE", "", "document must be an object"),)
+    version = value.get("contract_version")
+    if not isinstance(version, int) or isinstance(version, bool) or version not in versions:
+        return (
+            Violation(
+                "CONTRACT_VERSION_UNSUPPORTED",
+                "/contract_version",
+                "document contract version is not readable for this interface",
+            ),
+        )
+    active_registry = registry or load_lifecycle_schemas()
+    violations = list(
+        validate_contract_instance(value, versions[version], active_registry)
+    )
+    violations.extend(_scan_prohibited(value))
+    if version == 2:
+        violations.extend(_scan_v2_member_material(value))
+    if value.get("document_kind") != expected_kind:
+        violations.append(
+            Violation(
+                "DOCUMENT_KIND_INVALID",
+                "/document_kind",
+                "document kind does not match the selected interface",
+            )
+        )
+    violations.extend(_POLICY[expected_kind](value))
     return _ordered(violations)
 
 
@@ -590,6 +695,114 @@ def validate_lifecycle_relationships(
     return _ordered(violations)
 
 
+def validate_versioned_lifecycle_relationships(
+    *,
+    integration_bundle: dict[str, Any] | None = None,
+    attachment_bundle: dict[str, Any] | None = None,
+    registration_intent: dict[str, Any] | None = None,
+) -> tuple[Violation, ...]:
+    """Validate an all-V1 or all-V2 handoff while rejecting mixed activation input."""
+
+    violations: list[Violation] = []
+    documents = (
+        ("integration_bundle", integration_bundle, "platform-integration-bundle"),
+        ("attachment_bundle", attachment_bundle, "application-attachment-bundle"),
+        ("registration_intent", registration_intent, "registration-intent"),
+    )
+    versions: set[int] = set()
+    for prefix, document, kind in documents:
+        if document is None:
+            continue
+        violations.extend(
+            Violation(
+                item.code,
+                f"/{prefix}{item.path}" if item.path else f"/{prefix}",
+                item.message,
+            )
+            for item in validate_versioned_lifecycle_document(document, kind)
+        )
+        version = document.get("contract_version")
+        if isinstance(version, int) and not isinstance(version, bool):
+            versions.add(version)
+    if len(versions) > 1:
+        violations.append(
+            Violation(
+                "CONTRACT_VERSION_MIXED",
+                "",
+                "one activation handoff cannot mix V1 and V2 documents",
+            )
+        )
+    if violations or integration_bundle is None or attachment_bundle is None:
+        return _ordered(violations)
+
+    if attachment_bundle.get("platform_integration_bundle_digest") != versioned_lifecycle_digest(
+        integration_bundle,
+        "platform-integration-bundle",
+    ):
+        violations.append(
+            Violation(
+                "DIGEST_MISMATCH",
+                "/attachment_bundle/platform_integration_bundle_digest",
+                "attachment is not bound to the exact integration bundle",
+            )
+        )
+    for field in ("environment", "application_id"):
+        if attachment_bundle.get(field) != integration_bundle.get(field):
+            violations.append(
+                Violation(
+                    "DOCUMENT_RELATION_INVALID",
+                    f"/attachment_bundle/{field}",
+                    f"attachment {field} does not match integration bundle",
+                )
+            )
+    target = attachment_bundle.get("target")
+    contract = integration_bundle.get("attachment_contract")
+    identity = integration_bundle.get("identity")
+    if isinstance(target, dict):
+        if target.get("owner_application_id") != integration_bundle.get("application_id"):
+            violations.append(
+                Violation(
+                    "OWNER_CONFLICT",
+                    "/attachment_bundle/target/owner_application_id",
+                    "attachment retains the named application owner",
+                )
+            )
+        if isinstance(contract, dict):
+            for field in ("adapter_kind", "ingress_mode"):
+                if target.get(field) != contract.get(field):
+                    violations.append(
+                        Violation(
+                            "ATTACHMENT_POSTURE_INVALID",
+                            f"/attachment_bundle/target/{field}",
+                            "attachment violates integration contract",
+                        )
+                    )
+        if isinstance(identity, dict):
+            for target_field, identity_field in (
+                ("caller_grant", "edge_caller_reference"),
+                ("audience", "audience"),
+            ):
+                if target.get(target_field) != identity.get(identity_field):
+                    violations.append(
+                        Violation(
+                            "ATTACHMENT_POSTURE_INVALID",
+                            f"/attachment_bundle/target/{target_field}",
+                            "attachment posture does not match integration bundle",
+                        )
+                    )
+    if registration_intent is not None:
+        for field in ("application_id", "access_mode", "identity_delivery"):
+            if registration_intent.get(field) != integration_bundle.get(field):
+                violations.append(
+                    Violation(
+                        "DOCUMENT_RELATION_INVALID",
+                        f"/registration_intent/{field}",
+                        f"registration intent {field} does not match integration bundle",
+                    )
+                )
+    return _ordered(violations)
+
+
 def canonical_lifecycle_bytes(value: Any, expected_kind: str) -> bytes:
     violations = validate_lifecycle_document(value, expected_kind)
     if violations:
@@ -597,8 +810,24 @@ def canonical_lifecycle_bytes(value: Any, expected_kind: str) -> bytes:
     return _canonical_bytes(value)
 
 
+def canonical_versioned_lifecycle_bytes(value: Any, expected_kind: str) -> bytes:
+    """Serialize one valid readable handoff with Canonical JSON Version 1 rules."""
+
+    violations = validate_versioned_lifecycle_document(value, expected_kind)
+    if violations:
+        raise ValueError(f"invalid {expected_kind}: {violations!r}")
+    return _canonical_bytes(value)
+
+
 def lifecycle_digest(value: Any, expected_kind: str) -> str:
     canonical = canonical_lifecycle_bytes(value, expected_kind)
+    return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
+
+
+def versioned_lifecycle_digest(value: Any, expected_kind: str) -> str:
+    """Return the digest for a readable V1 or inert V2 handoff document."""
+
+    canonical = canonical_versioned_lifecycle_bytes(value, expected_kind)
     return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
 
 
@@ -612,6 +841,39 @@ def load_lifecycle_document(
     if loaded.violations:
         return LifecycleDocument(None, None, None, loaded.violations)
     violations = validate_lifecycle_document(loaded.value, expected_kind)
+    if violations or not isinstance(loaded.value, dict):
+        return LifecycleDocument(None, None, None, violations)
+    canonical = _canonical_bytes(loaded.value)
+    stored = path.read_bytes()
+    if stored not in {canonical, canonical + b"\n"}:
+        return LifecycleDocument(
+            None,
+            canonical,
+            None,
+            (
+                Violation(
+                    "DOCUMENT_NOT_CANONICAL",
+                    "",
+                    "document bytes do not match Canonical JSON Version 1",
+                ),
+            ),
+        )
+    digest = f"sha256:{hashlib.sha256(canonical).hexdigest()}"
+    return LifecycleDocument(loaded.value, canonical, digest, ())
+
+
+def load_versioned_lifecycle_document(
+    path: Path,
+    expected_kind: str,
+    *,
+    max_bytes: int = 262_144,
+) -> LifecycleDocument:
+    """Load canonical V1 historical or inert V2 handoff data through compatibility policy."""
+
+    loaded = load_json_document(path, max_bytes=max_bytes)
+    if loaded.violations:
+        return LifecycleDocument(None, None, None, loaded.violations)
+    violations = validate_versioned_lifecycle_document(loaded.value, expected_kind)
     if violations or not isinstance(loaded.value, dict):
         return LifecycleDocument(None, None, None, violations)
     canonical = _canonical_bytes(loaded.value)

@@ -37,7 +37,7 @@ governance-check:
 
 ## Verify versioned contracts without credentials or external services.
 contract-check:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_contracts tests.test_lifecycle_contracts tests.test_lifecycle_vectors tests.test_qualification_contracts
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_contracts tests.test_lifecycle_contracts tests.test_identity_delivery_contracts tests.test_lifecycle_vectors tests.test_qualification_contracts
 
 ## Verify the deterministic in-process fixture edge without external services.
 fixture-check:

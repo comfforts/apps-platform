@@ -940,7 +940,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, normalized)
         self.assertIn("ADR-010 and ADR-011 remain the accepted authority", normalized)
 
-    def test_ap_m9_w10_handoff_limits_the_next_chat_to_contract_slice(
+    def test_ap_m9_w10_handoff_limits_the_next_chat_to_infrastructure_slice(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -960,19 +960,18 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "first of seven ordered AP-M9-W10 functional slices",
+            "second of seven ordered AP-M9-W10 functional slices",
             "feat/platform-member-directory",
-            "feat/identity-delivery-v2-contracts",
-            "Version 2 registration",
-            "Identity Delivery explicitly as `none`, `optional`, or `required`",
-            "Remove every per-registration member set from Version 2",
-            "Implement deterministic Version 1 migration",
-            "Version 1 remains readable historical input",
-            "This slice is additive and inert",
-            "active Version 1 schemas, consumers, fixtures, runtime",
-            "must not become active output",
-            "point this prompt to Slice 2 without implementing Slice 2",
-            "Do not add Firestore resources or IAM",
+            "feat/platform-member-directory-infrastructure",
+            "Platform Member Directory infrastructure",
+            "explicit namespace boundary from session data",
+            "Keep member records and member identities out of Terraform",
+            "least-privilege Shared Edge runtime IAM",
+            "closed non-secret Terraform outputs and provider readback",
+            "deterministic directory adapter seam and in-memory implementation",
+            "without wiring it into the active Shared Edge or operator commands",
+            "point this prompt to Slice 3 without implementing Slice 3",
+            "Do not add Shared Edge membership lookup or admission behavior",
             "only after all seven W10 slices merge",
             "pull request must target that integration branch, not `main`",
             "any real application",
@@ -981,13 +980,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         for excluded_later_slice in (
             "platform-member-bootstrap-owner",
             "platform-member-add",
-            "Candidate Source staging testing",
+            "platform-member-suspend",
         ):
             self.assertNotIn(excluded_later_slice, prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W10 Slice 1 contract handoff](starting_prompt.md)",
+            "[AP-M9-W10 Slice 2 infrastructure handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -1019,7 +1018,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
         self.assertIn("### AP-M9-W10", m9)
         self.assertIn("### AP-M9-W12", m9)
-        self.assertIn("AP-M9-W10 Slice 1 is the next delivery slice", m9)
+        self.assertIn("AP-M9-W10 Slice 1 implemented", m9)
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
         self.assertIn(
@@ -1115,7 +1114,10 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W12"))
         self.assertIn("AP-M9-W10", normalized_prompt)
         self.assertIn("first Accepted Source staging operation", normalized_prompt)
-        self.assertIn("Do not mutate production, `apps.comfforts.com`, Finance Assistant, or any real application", normalized_prompt)
+        self.assertIn(
+            "Do not mutate staging, production, DNS, identity, Finance Assistant, or any real application",
+            normalized_prompt,
+        )
 
     def test_ap_m9_handoff_assigns_candidate_accepted_and_production_work_once(
         self,
@@ -2032,13 +2034,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         for required in (
             "AP-M9-W10",
             "AP-EVAL-M9-09",
-            "first of seven ordered AP-M9-W10 functional slices",
-            "feat/identity-delivery-v2-contracts",
-            "Version 2 contract family",
-            "Identity Delivery explicitly",
-            "Do not add Firestore resources or IAM",
+            "second of seven ordered AP-M9-W10 functional slices",
+            "feat/platform-member-directory-infrastructure",
+            "Platform Member Directory infrastructure",
+            "least-privilege Shared Edge runtime IAM",
+            "Do not add Shared Edge membership lookup or admission behavior",
             "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
-            "Do not mutate production, `apps.comfforts.com`, Finance Assistant, or any real application",
+            "Do not mutate staging, production, DNS, identity, Finance Assistant, or any real application",
         ):
             self.assertIn(required, normalized_prompt)
         self.assertNotIn("AP-M9-W8 qualification and safe destruction handoff", prompt)

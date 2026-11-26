@@ -211,6 +211,45 @@ class PlatformMemberLifecycleTest(unittest.TestCase):
         self.assertEqual(exact.member_reference, SECOND)
         self.assertNotIn(OWNER, repr(exact))
 
+    def test_owner_only_baseline_requires_one_active_reviewed_owner(self) -> None:
+        provider = Provider()
+        provider.control = DirectoryControl(1, 100, 100)
+        provider.members[OWNER] = MemberRecord(OWNER, "active", 1, 100, 100)
+        service, _, _ = lifecycle(provider, [])
+
+        ready = service.owner_only_baseline("staging", OWNER)
+
+        self.assertEqual(ready.outcome, "baseline-ready")
+        self.assertEqual(ready.member_lifecycle, "active")
+        self.assertEqual(ready.member_reference, OWNER)
+        self.assertEqual(ready.blockers, ())
+
+        provider.members[SECOND] = MemberRecord(SECOND, "active", 2, 200, 200)
+        mismatched = service.owner_only_baseline("staging", OWNER)
+        self.assertEqual(mismatched.outcome, "conflicting")
+        self.assertEqual(
+            mismatched.blockers,
+            ("MEMBER_OWNER_BASELINE_MISMATCH",),
+        )
+
+    def test_owner_only_baseline_fails_closed_for_absent_or_inactive_owner(self) -> None:
+        provider = Provider()
+        provider.control = DirectoryControl(2, 100, 200)
+        service, _, _ = lifecycle(provider, [])
+
+        absent = service.owner_only_baseline("staging", OWNER)
+        provider.members[OWNER] = MemberRecord(OWNER, "suspended", 2, 100, 200)
+        suspended = service.owner_only_baseline("staging", OWNER)
+
+        self.assertEqual(
+            absent.blockers,
+            ("MEMBER_OWNER_BASELINE_MISMATCH",),
+        )
+        self.assertEqual(
+            suspended.blockers,
+            ("MEMBER_OWNER_BASELINE_MISMATCH",),
+        )
+
     def test_bootstrap_separates_cloud_operator_and_verified_visitor(self) -> None:
         provider = Provider()
         authorizer = Authorizer()

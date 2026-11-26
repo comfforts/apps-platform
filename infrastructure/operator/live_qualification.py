@@ -18,6 +18,7 @@ from websockets.sync.client import connect as websocket_connect
 
 from infrastructure.operator._interfaces import OperatorTerminal
 from infrastructure.operator.integration import AttachmentTargetReader
+from infrastructure.operator.member_qualification import MemberQualificationResult
 from infrastructure.operator.project_connections import (
     ApplicationProjectReadback,
     NETWORK_REFERENCE,
@@ -57,8 +58,29 @@ class QualificationCallback(Protocol):
     def close(self) -> None: ...
 
 
+class MemberAdmissionQualificationCallback(Protocol):
+    """Receive one coarse restricted-admission decision on loopback."""
+
+    @property
+    def port(self) -> int: ...
+
+    def wait(self, timeout_seconds: float) -> bool: ...
+
+    def close(self) -> None: ...
+
+
 class QualificationLifecycleExercise(Protocol):
     def verify_rollback(self, environment: str, generation_digest: str) -> bool: ...
+
+
+class QualificationMemberExercise(Protocol):
+    """Exercise one temporary member and restore the reviewed baseline."""
+
+    def verify(
+        self,
+        environment: str,
+        owner_member_reference: str,
+    ) -> MemberQualificationResult: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,6 +326,180 @@ class LoopbackBrowserQualification:
         return BrowserQualificationResult(True, True, logged_out, blocker)
 
 
+@dataclass(slots=True)
+class _MemberAdmissionCallbackResult:
+    """Retain only whether the exact expected decision reached loopback."""
+
+    matched: bool = False
+
+
+class _MemberAdmissionCallback:
+    """Validate one challenge-bound coarse admission result on loopback."""
+
+    def __init__(
+        self,
+        challenge: str,
+        application_id: str,
+        expected_admitted: bool,
+    ) -> None:
+        self._challenge = challenge
+        self._application_id = application_id
+        self._expected = expected_admitted
+        self._result = _MemberAdmissionCallbackResult()
+        self._server = HTTPServer(("127.0.0.1", 0), self._handler())
+        self._server.timeout = 0.25
+
+    @property
+    def port(self) -> int:
+        """Return the dynamically assigned non-privileged loopback port."""
+
+        return int(self._server.server_address[1])
+
+    def _handler(self):  # type: ignore[no-untyped-def]
+        """Create a handler that accepts only the expected coarse decision."""
+
+        callback = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:  # noqa: N802
+                """Validate the callback without logging or retaining request data."""
+
+                parsed = urlsplit(self.path)
+                try:
+                    query = parse_qs(
+                        parsed.query,
+                        keep_blank_values=True,
+                        strict_parsing=True,
+                        max_num_fields=3,
+                    )
+                except ValueError:
+                    query = {}
+                valid = (
+                    parsed.path == "/"
+                    and not parsed.fragment
+                    and set(query) == {
+                        "admitted",
+                        "application_id",
+                        "challenge",
+                    }
+                    and query.get("application_id") == [callback._application_id]
+                    and query.get("challenge") == [callback._challenge]
+                    and query.get("admitted")
+                    == ["true" if callback._expected else "false"]
+                    and not callback._result.matched
+                )
+                callback._result.matched = valid
+                body = (
+                    b"App Platform member admission qualification received.\n"
+                    if valid
+                    else b"Invalid member admission qualification response.\n"
+                )
+                self.send_response(200 if valid else 400)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format: str, *args: object) -> None:
+                """Suppress the one-use browser challenge from local logs."""
+
+                del format, args
+
+        return Handler
+
+    def wait(self, timeout_seconds: float) -> bool:
+        """Serve callbacks until the expected result arrives or time expires."""
+
+        deadline = time.monotonic() + timeout_seconds
+        while not self._result.matched and time.monotonic() < deadline:
+            self._server.handle_request()
+        return self._result.matched
+
+    def close(self) -> None:
+        """Close the loopback socket and discard the transient result."""
+
+        self._server.server_close()
+        self._result.matched = False
+
+
+class LoopbackMemberAdmissionQualification:
+    """Verify one live restricted decision without exporting browser state."""
+
+    def __init__(
+        self,
+        launcher: QualificationBrowserLauncher,
+        terminal: OperatorTerminal,
+        *,
+        timeout_seconds: float = 30,
+        challenge_source: Callable[[], str] | None = None,
+        callback_factory: (
+            Callable[
+                [str, str, bool],
+                MemberAdmissionQualificationCallback,
+            ]
+            | None
+        ) = None,
+    ) -> None:
+        """Bind reviewed browser, terminal, entropy, and loopback seams."""
+
+        self._launcher = launcher
+        self._terminal = terminal
+        self._timeout = timeout_seconds
+        self._challenge_source = challenge_source or (lambda: secrets.token_hex(32))
+        self._callback_factory = callback_factory or _MemberAdmissionCallback
+
+    def verify(self, application_id: str, expected_admitted: bool) -> bool:
+        """Confirm and observe one route-bound membership decision."""
+
+        if application_id != "fixture-restricted":
+            raise ValueError("member admission qualification fixture is invalid")
+        expectation = "allow" if expected_admitted else "deny"
+        self._terminal.write(
+            "PLATFORM MEMBER ADMISSION QUALIFICATION\n"
+            f"  Application: {application_id}\n"
+            f"  Expected decision: {expectation}\n\n"
+            "The Shared Edge will evaluate the current browser session against "
+            "the active Platform Member Directory and return only a coarse "
+            "allow/deny result to this process. Identity and browser state remain "
+            "in the browser."
+        )
+        try:
+            confirmed = self._terminal.confirm(
+                "Open the browser for this member admission check? [y/N] "
+            )
+        except Exception:
+            return False
+        if not confirmed:
+            return False
+        challenge = self._challenge_source()
+        if not re.fullmatch(r"[0-9a-f]{64}", challenge):
+            raise ValueError("member admission qualification challenge is invalid")
+        callback = self._callback_factory(
+            challenge,
+            application_id,
+            expected_admitted,
+        )
+        try:
+            url = (
+                f"{_STAGING_ORIGIN}/_platform/member/qualification?"
+                + urlencode(
+                    {
+                        "application_id": application_id,
+                        "callback_port": str(callback.port),
+                        "challenge": challenge,
+                    }
+                )
+            )
+            try:
+                opened = self._launcher.open(url)
+            except Exception:
+                opened = False
+            return opened and callback.wait(self._timeout)
+        finally:
+            callback.close()
+
+
 class HttpxQualificationClient:
     """Exercise only the exact public staging origin without credentials."""
 
@@ -385,13 +581,18 @@ class StagingQualificationProbe:
         targets: AttachmentTargetReader,
         lifecycle: QualificationLifecycleExercise,
         fixture_project: ApplicationProjectReadback,
+        members: QualificationMemberExercise,
+        owner_member_reference: str,
     ) -> None:
         self._http = http
         self._browser = browser
         self._targets = targets
         self._lifecycle = lifecycle
         self._fixture_project = fixture_project
+        self._members = members
+        self._owner_member_reference = owner_member_reference
         self._browser_result: BrowserQualificationResult | None = None
+        self._member_result: MemberQualificationResult | None = None
 
     @staticmethod
     def _pass(check_id: str, **facts: object) -> QualificationProbeOutcome:
@@ -401,11 +602,11 @@ class StagingQualificationProbe:
         )
 
     @staticmethod
-    def _fail(check_id: str, blocker: str) -> QualificationProbeOutcome:
+    def _fail(check_id: str, *blockers: str) -> QualificationProbeOutcome:
         return QualificationProbeOutcome(
             "fail",
             {"check_id": check_id, "result": "mismatch"},
-            (blocker,),
+            tuple(sorted(set(blockers))),
         )
 
     @staticmethod
@@ -420,6 +621,16 @@ class StagingQualificationProbe:
         if self._browser_result is None:
             self._browser_result = self._browser.verify()
         return self._browser_result
+
+    def _member_checks(self, environment: str) -> MemberQualificationResult:
+        """Run the mutation exercise once and retain only its least-data result."""
+
+        if self._member_result is None:
+            self._member_result = self._members.verify(
+                environment,
+                self._owner_member_reference,
+            )
+        return self._member_result
 
     @staticmethod
     def _login_redirect_matches(location: str, return_to: str) -> bool:
@@ -490,7 +701,20 @@ class StagingQualificationProbe:
             return self._fail(check_id, "LIVE_RESTRICTED_BROWSER_CHECK_FAILED")
         if not browser.logout:
             return self._fail(check_id, "LIVE_LOGOUT_BROWSER_CHECK_FAILED")
-        return self._pass(check_id, browser_flows=3, route_modes=3)
+        members = self._member_checks("staging")
+        if not members.verified or not members.baseline_restored:
+            return self._fail(
+                check_id,
+                *(members.blockers or ("LIVE_MEMBER_QUALIFICATION_MISMATCH",)),
+            )
+        return self._pass(
+            check_id,
+            admission_checks=members.admission_checks,
+            baseline_restored=members.baseline_restored,
+            browser_flows=3,
+            member_transitions=members.member_transitions,
+            route_modes=3,
+        )
 
     def _assertion_jwks(self, check_id: str) -> QualificationProbeOutcome:
         response = self._http.request("GET", "/.well-known/jwks.json")
@@ -749,9 +973,12 @@ __all__ = (
     "BrowserQualificationResult",
     "HttpxQualificationClient",
     "LoopbackBrowserQualification",
+    "LoopbackMemberAdmissionQualification",
+    "MemberAdmissionQualificationCallback",
     "QualificationHttpClient",
     "QualificationHttpResponse",
     "QualificationLifecycleExercise",
+    "QualificationMemberExercise",
     "QualificationBrowserLauncher",
     "QualificationCallback",
     "SystemBrowserLauncher",

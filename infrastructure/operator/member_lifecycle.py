@@ -328,6 +328,55 @@ class PlatformMemberLifecycle:
             ),
         )
 
+    def owner_only_baseline(
+        self,
+        environment: str,
+        owner_member_reference: str,
+    ) -> MemberLifecycleResult:
+        """Verify one reviewed active owner and no other remote member record.
+
+        Qualification uses this bounded projection before and after its temporary
+        second-member exercise.  The provider returns only booleans for member
+        presence, so the check neither enumerates the directory nor exposes an
+        identity or an unreviewed member reference.
+        """
+
+        self._validate_environment(environment)
+        self._validate_reference(owner_member_reference)
+        blocked = self._authorized(environment)
+        if blocked is not None:
+            return blocked
+        snapshot = self._read(
+            environment,
+            owner_member_reference,
+            probe_empty=True,
+        )
+        if isinstance(snapshot, MemberLifecycleResult):
+            return snapshot
+        baseline_ready = (
+            snapshot.control is not None
+            and snapshot.member is not None
+            and snapshot.member.lifecycle == "active"
+            and snapshot.members_present is True
+            and snapshot.other_members_present is False
+        )
+        if not baseline_ready:
+            return MemberLifecycleResult(
+                "conflicting",
+                self._state(snapshot),
+                owner_member_reference,
+                self._lifecycle(snapshot),
+                snapshot.control.mutation_cursor if snapshot.control else None,
+                ("MEMBER_OWNER_BASELINE_MISMATCH",),
+            )
+        return MemberLifecycleResult(
+            "baseline-ready",
+            "ready",
+            owner_member_reference,
+            "active",
+            snapshot.control.mutation_cursor,
+        )
+
     @staticmethod
     def _transition_blocker(
         operation: MemberOperation,

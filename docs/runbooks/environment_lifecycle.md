@@ -70,7 +70,8 @@ make platform-connect-project ENVIRONMENT=staging \
 # For each fixture: application-handoff-check, platform-outputs, fixture-handoff,
 # inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging
-make platform-qualify ENVIRONMENT=staging
+make platform-qualify ENVIRONMENT=staging \
+  OWNER_MEMBER_REFERENCE=<reviewed-owner-member-reference>
 make platform-status ENVIRONMENT=staging
 ```
 
@@ -509,13 +510,23 @@ themselves make `route_ready` true.
 After platform and fixture deployment, run:
 
 ```bash
-make platform-qualify ENVIRONMENT=staging
+make platform-qualify ENVIRONMENT=staging \
+  OWNER_MEMBER_REFERENCE=<reviewed-owner-member-reference>
 ```
 
 Qualification checks the exact source, specification, final deployment progress, registration generation, provider
 resources, DNS and TLS behavior, catalogue and routing, admission and identity, assertion
 verification, direct-origin denial, isolation, streaming behavior, rollback readiness, and
 redaction. It records only approved, redacted evidence.
+
+The owner reference is the opaque value returned by the separately confirmed owner-bootstrap
+operation and retained privately by the operator. Qualification first verifies that it identifies
+the only active member. It then uses the same member service as the standalone member commands to
+add one separately verified Visitor, suspend, reactivate, and remove that temporary member. After
+each transition, a separately confirmed browser invocation asks Shared Edge for the current
+`fixture-restricted` admission decision. Only `allowed` or `denied` returns to loopback; identity,
+cookies, directory records, and provider payloads do not. Every exit attempts temporary-member
+cleanup and rereads the owner-only baseline. A restoration-required blocker is a stop condition.
 
 The admission check presents three browser steps. Read each step and answer its separate `y/N`
 prompt before the command opens a tab:
@@ -532,7 +543,8 @@ The terminal names the exact step when a browser cannot be opened, a callback do
 the operator declines confirmation. Do not reuse unexplained callback tabs from an earlier run;
 only the tab opened after the current prompt belongs to the current step.
 
-The command completes all non-mutating checks before offering a rollback. If any of them fails,
+The command completes all source/readback checks and the cleanup-safe temporary-member exercise
+before offering a rollback. If any prerequisite fails,
 `lifecycle-rollback` is recorded as blocked with
 `QUALIFICATION_ROLLBACK_PREREQUISITE_FAILED`; the command does not prompt for rollback and does not
 move traffic. When they all pass, the command explains the traffic effect before asking for the
@@ -741,7 +753,8 @@ open through every separately confirmed browser, member-lifecycle, generation, r
 restoration checkpoint:
 
 ```bash
-make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  OWNER_MEMBER_REFERENCE=<owner-member-reference>
 make platform-member-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
   MEMBER_REFERENCE=<owner-member-reference>
 make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate

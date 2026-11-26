@@ -1033,19 +1033,6 @@ def build_local_member_lifecycle(
     through the separate one-use browser verifier.
     """
 
-    from infrastructure.operator.member_browser import (
-        LoopbackMemberVisitorVerifier,
-    )
-    from infrastructure.operator.member_lifecycle import PlatformMemberLifecycle
-    from infrastructure.operator.local_members import (
-        FirestoreMemberDirectoryProvider,
-        LocalMemberOperationAuthorizer,
-        SystemMemberBrowserLauncher,
-        UnixMemberClock,
-        member_clients,
-        member_origins,
-    )
-
     resolved_project = project_root.resolve()
     terminal = ConsoleTerminal()
     executable_name = shutil.which("gcloud")
@@ -1063,6 +1050,41 @@ def build_local_member_lifecycle(
         state_root,
         terminal,
     )
+    return _compose_local_member_lifecycle(
+        resolved_project,
+        source_authority,
+        verified,
+        terminal,
+    )
+
+
+def _compose_local_member_lifecycle(
+    project_root: Path,
+    source_authority: str,
+    verified: _VerifiedGcpSession,
+    terminal: ConsoleTerminal,
+):
+    """Compose the source-admitted member service from one verified session.
+
+    Member commands and platform qualification call this same constructor.  The
+    qualification path therefore cannot bypass Cloud Operator admission,
+    browser Visitor verification, provider transactions, confirmations, or
+    exact readback by inventing a second administration adapter.
+    """
+
+    from infrastructure.operator.member_browser import (
+        LoopbackMemberVisitorVerifier,
+    )
+    from infrastructure.operator.member_lifecycle import PlatformMemberLifecycle
+    from infrastructure.operator.local_members import (
+        FirestoreMemberDirectoryProvider,
+        LocalMemberOperationAuthorizer,
+        SystemMemberBrowserLauncher,
+        UnixMemberClock,
+        member_clients,
+        member_origins,
+    )
+
     return PlatformMemberLifecycle(
         FirestoreMemberDirectoryProvider(member_clients()),
         LoopbackMemberVisitorVerifier(
@@ -1071,7 +1093,7 @@ def build_local_member_lifecycle(
             member_origins(),
         ),
         LocalMemberOperationAuthorizer(
-            LocalGit(resolved_project),
+            LocalGit(project_root),
             source_authority,
             bool(verified.facts.operator_subject),
         ),
@@ -1497,14 +1519,19 @@ def build_local_qualification(
     project_root: Path,
     state_root: Path,
     source_authority: str = "accepted",
+    owner_member_reference: str = "",
 ):
-    """Construct exact staging qualification only for a verified human session."""
+    """Construct staging qualification bound to one reviewed active owner."""
 
     from infrastructure.operator.live_qualification import (
         HttpxQualificationClient,
         LoopbackBrowserQualification,
+        LoopbackMemberAdmissionQualification,
         StagingQualificationProbe,
         SystemBrowserLauncher,
+    )
+    from infrastructure.operator.member_qualification import (
+        MemberQualificationExercise,
     )
     from infrastructure.operator.local_generation import (
         LocalRegistrationGenerationControl,
@@ -1568,9 +1595,16 @@ def build_local_qualification(
         fixtures_project_id(),
         fixtures_project_name(),
     ).read_project(fixtures_project_id())
+    member_lifecycle = _compose_local_member_lifecycle(
+        resolved_project,
+        source_authority,
+        verified,
+        terminal,
+    )
+    browser_launcher = SystemBrowserLauncher()
     probe = StagingQualificationProbe(
         HttpxQualificationClient(),
-        LoopbackBrowserQualification(SystemBrowserLauncher(), terminal),
+        LoopbackBrowserQualification(browser_launcher, terminal),
         provider,
         LiveGenerationRollbackExercise(
             platform,
@@ -1578,6 +1612,14 @@ def build_local_qualification(
             terminal,
         ),
         fixture_project,
+        MemberQualificationExercise(
+            member_lifecycle,
+            LoopbackMemberAdmissionQualification(
+                browser_launcher,
+                terminal,
+            ),
+        ),
+        owner_member_reference,
     )
     return QualificationLifecycle(state_reader, QualificationSuiteEvaluator(probe))
 

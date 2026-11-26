@@ -1,8 +1,7 @@
 # <u>App Platform system design</u>
 
-Version 1.18 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence and AP-M9-W10 Slices 1-6 add Version 2 contracts, directory infrastructure,
-deterministic Shared Edge enforcement, member lifecycle, and application handoff/activation path
+Version 1.19 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence, AP-M9-W10 Slices 1-6 are integrated, and Slice 7 adds Version 2 qualification readiness
 without a Live Version 2 operation
 
 This document defines the smallest logical design that can support the App Platform requirements
@@ -1117,7 +1116,17 @@ lifecycle, redaction, and rollback. It records revision-scoped evidence without 
 application the test harness. Restricted qualification additionally requires explicit owner
 bootstrap plus a second member's add, suspension or removal, reactivation, and reviewed-baseline
 restoration. Every non-mutating qualification check completes successfully before
-the rollback check can request an owner-confirmed traffic change. The rollback check temporarily
+the temporary member journey begins. That journey receives the privately retained reviewed owner
+reference, proves the remote owner-only baseline, and invokes the existing source-admitted member
+service for add, suspend, reactivate, and remove. Each transition is followed by a separately
+confirmed browser request to `/_platform/member/qualification`. The endpoint validates one named
+restricted Version 2 route, applies the same current-member lookup as ordinary route admission,
+and returns only a boolean decision to a challenge-bound loopback listener. It exposes neither the
+Visitor identity nor a member reference. Every exit attempts temporary-member removal and rereads
+the owner-only baseline.
+
+Only after the other checks and cleanup-safe member journey pass can
+the rollback check request an owner-confirmed traffic change. The rollback check temporarily
 activates the retained reviewed predecessor, verifies it, then requires a second exact confirmation
 and readback to restore the original complete generation. A failed prerequisite blocks that check
 without moving traffic. Fixtures are detached and may be destroyed after evaluation without

@@ -1,10 +1,11 @@
 # <u>App Platform evaluation strategy</u>
 
-Version 0.26 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.27 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
 without execution; AP-M9-W10 Slices 1-6 supply deterministic Version 2 contract, infrastructure,
-runtime, member-lifecycle, application-handoff, and operator-documentation evidence, Slice 7
-and Candidate Source qualification remain, and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
+runtime, member-lifecycle, application-handoff, operator-documentation, and Slice 7 deterministic
+qualification-readiness evidence; Slice 7 integration and Candidate Source qualification remain,
+and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
@@ -57,6 +58,15 @@ contract indexes, component guides, layout, plan, threat model, evaluation strat
 prompt agree with the implemented Version 2 boundary and its limitations. It records the future
 Candidate Source procedure but invokes no command against a provider and supplies no Live,
 qualification, or Application Adoption evidence.
+
+W10 Slice 7 supplies deterministic qualification-support evidence that the existing
+source-admitted member service verifies the reviewed owner-only baseline, performs one temporary
+second-member add/suspend/reactivate/remove journey, checks the current restricted-route decision
+after every transition, reconciles cleanup on failure, blocks rollback without exact baseline
+restoration, and emits no member reference or identity material in qualification evidence. Its
+loopback, in-memory, and provider fakes perform no Live member mutation, browser login, generation
+transition, or provider operation. Candidate Source Live evidence remains available only after the
+slice merges to the exact clean pushed integration revision and the owner invokes the runbook.
 
 Plan: [App Platform implementation plan index](plans/README.md) and
 [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) and
@@ -1582,7 +1592,7 @@ mutation, or browser action. It uses synthetic profiles, command fakes, temporar
 directories, mocked Terraform providers, process-local loopback, and deterministic clocks.
 
 Accepted staging Live gates begin only after the complete W10 integration branch merges and the
-exact protected-main revision passes the complete gate. W10 Slices 1 through 6 produce only
+exact protected-main revision passes the complete gate. W10 Slices 1 through 7 produce only
 deterministic, mocked, local, or documentation evidence and authorize no external operation. Slice
 7 first merges its qualification support to `feat/platform-member-directory`; the exact clean
 pushed integration revision may then run the Version 2 staging journey with
@@ -1784,6 +1794,15 @@ exact member action. They must distinguish the Cloud Operator from the Google Vi
 issuer and immutable subject rather than operator-entered email, and expose no identity claim in
 ordinary output or evidence.
 
+Qualification receives the reviewed owner's opaque reference as private operator input. Before
+adding another member and after every terminal path, require one active matching owner and no other
+member record through a bounded non-enumerating provider projection. After add, suspend,
+reactivate, and remove, require a separately confirmed browser request to evaluate the exact
+restricted fixture through the Shared Edge's ordinary current-member function. The loopback result
+contains only the application identifier, one-use challenge, and boolean decision. A failed
+transition or admission check must attempt removal reconciliation; failed cleanup or a non-exact
+final baseline emits `QUALIFICATION_MEMBER_BASELINE_RESTORATION_REQUIRED` and blocks rollback.
+
 The Version 2 identity projection contains only the current visitor's minimal application-bound
 context. Prove a public application receives no Platform Identity under `none`, receives identity
 only after explicit visitor login under `optional`, and cannot implicitly link a separate
@@ -1851,8 +1870,9 @@ for revision `2fd045f6f720fe122103d42b3ebb6d25f5fbdac8` and restored active gene
 Private provider payloads, state, plans, browser state, and identity material remain outside Git.
 W10 Slices 1 through 5 establish the deterministic Version 2 contract, infrastructure, runtime,
 lifecycle, and application-handoff evidence. Slice 6 reconciles the operator handoff and
-implemented limitations without a provider operation. Slice 7 completes qualification support and merges
-to the integration branch; the exact clean pushed integration revision must then repeat the
+implemented limitations without a provider operation. Slice 7 implements cleanup-safe
+qualification support without a provider operation and remains to merge to the integration branch;
+the exact clean pushed integration revision must then repeat the
 applicable staging journey from Candidate Source, qualify the Version 2 member directory, restore
 the reviewed member baseline, and remain frozen. After the cumulative W10 pull request merges,
 W11 must repeat the journey from Accepted Source and complete the separately approved platform

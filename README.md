@@ -75,12 +75,14 @@ later membership changes do not redeploy an application or activate a Registrati
 Only the current visitor's minimal signed context may cross an application boundary; the directory
 and other members never do.
 
-> **Implementation status:** ADR-015 accepts this model. AP-M9-W10 Slices 1 through 6 implement
+> **Implementation status:** ADR-015 accepts this model. AP-M9-W10 Slices 1 through 7 implement
 > the Version 2 contracts and migration, isolated directory infrastructure and IAM, and
 > deterministic dual-version Shared Edge enforcement plus separately confirmed owner enrollment
 > and bounded member lifecycle commands, Version 2 application handoffs, fixture consumption, and
-> atomic complete-generation activation. The operator handoff now documents those implemented
-> boundaries and the future Candidate Source procedure. Candidate qualification remains. The
+> atomic complete-generation activation. Qualification readiness reuses those same member
+> operations, verifies current-request restricted decisions, restores the reviewed owner-only
+> baseline, and blocks rollback on any mismatch. No Live Version 2 operation occurred on the slice
+> branches; post-merge Candidate qualification remains. The
 > deployed W9 candidate and Version 1 contracts remain predecessor evidence and are not Accepted
 > Source qualification for this model.
 
@@ -467,21 +469,35 @@ Repeat that application-scoped sequence for `fixture-authenticated` with
 delivery from an ambient Platform Session. After the required fixtures are active, run
 `platform-qualify` and `platform-status`.
 
-`platform-qualify` is not wholly read-only. It runs every non-mutating source, provider, DNS/TLS,
-routing, identity, isolation, transport, and redaction check first. Only when all of those checks
-pass does it offer the live rollback exercise. The terminal explains that the exercise temporarily
+`platform-qualify` is not wholly read-only and requires
+`OWNER_MEMBER_REFERENCE=<reviewed-opaque-owner-reference>`. It first verifies source, provider,
+DNS/TLS, routing, identity, isolation, transport, and redaction. It then uses the existing member
+service to verify the owner-only baseline; add a separately verified second member; prove
+allow/suspend-and-deny/reactivate-and-allow/remove-and-deny decisions on the next request; and
+verify the owner-only baseline again. A failed step attempts removal reconciliation and reports a
+restoration-required blocker if the final baseline is not exact. The owner reference and temporary
+member reference are not written to qualification evidence.
+
+Only when every prerequisite passes does qualification offer the live rollback exercise. The
+terminal explains that the exercise temporarily
 moves 100 percent of staging traffic to the reviewed predecessor, asks for exact rollback
 confirmation, verifies the change, then asks for exact restoration confirmation and verifies that
 the original generation is again serving all traffic. Keep the command running through both
 confirmations. If any earlier check fails, rollback is recorded as blocked and traffic is not
 changed.
 
-The identity check uses exactly three browser actions, and the command asks `y/N` immediately
-before each one. The first clears any existing Apps Platform session and asks the operator to sign
+The routing identity check uses exactly three browser actions, and the command asks `y/N`
+immediately before each one. The first clears any existing Apps Platform session and asks the operator to sign
 in with the exact reviewed staging account. The second reuses that session to verify restricted
 admission. The third logs out, verifies server-side session deletion, and returns through the
 public fixture without starting another login. Declining a browser action stops qualification with
 a blocker naming the unconfirmed step; the command never opens the next tab on its own.
+
+The temporary-member exercise has its own separately confirmed browser actions. Member `add`
+performs the normal one-use Visitor verification. Each of the four post-transition checks then
+asks before opening the browser and returns only the coarse current decision for
+`fixture-restricted` to loopback. Cookies, identity claims, directory records, and provider
+payloads remain in their owning boundaries.
 
 A repository revision change alone does not require another `platform-deploy`. Fixture commands
 validate their own current source independently, then consume the provider-verified active
@@ -583,7 +599,8 @@ make platform-connect-project ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
 # For each fixture: application-handoff-check, platform-outputs, fixture-handoff,
 # inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
-make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  OWNER_MEMBER_REFERENCE=<reviewed-owner-member-reference>
 ```
 
 Candidate Source is refused for production. Its specifications, bundles, status, and evidence are
@@ -610,7 +627,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-register ...` | Validate an application attachment and activate a complete immutable generation |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
-| `make platform-qualify ENVIRONMENT=<name>` | Evaluate the exact platform and fixture revisions, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every non-mutating check passes; write redacted evidence |
+| `make platform-qualify ENVIRONMENT=<name> OWNER_MEMBER_REFERENCE=<opaque-reference>` | Evaluate the exact platform and fixture revisions, exercise and clean up one temporary second member, require the reviewed owner-only baseline, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every prerequisite passes; write redacted evidence without member references |
 | `make platform-destroy ENVIRONMENT=<name>` | Compile, confirm, execute, and resume safe platform destruction |
 | `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and registration intent, and stop before registration |
 | `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
@@ -733,8 +750,9 @@ AP-M9-W9 is implemented and candidate-qualified under the predecessor Version 1 
 Candidate staging proved the dedicated fixture project, Shared VPC attachment, all three admission
 modes, separate registration, and the restricted-fixture detach, destruction, redeployment, and
 reactivation lifecycle. Candidate Source is not Accepted Source qualification. AP-M9-W10 has
-implemented its first five repository slices but must still complete operator reconciliation and
-qualification readiness before the first Accepted Source staging operation.
+implemented all seven repository slices without a Live Version 2 operation. Slice 7 must merge to
+the integration branch, then the exact clean pushed integration revision must pass Candidate
+Source staging qualification and be frozen before the cumulative pull request to `main`.
 Production remains blocked on that accepted result, explicit ownership transfer, and application
 adoption.
 

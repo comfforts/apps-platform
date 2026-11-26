@@ -6,9 +6,10 @@ and forwards admitted HTTP or WebSocket requests through injected adapters.
 Version 1 keeps its predecessor embedded-member behavior.  Version 2 applies
 explicit Identity Delivery and performs one exact current-visitor lookup for
 restricted admission.  Provider failures collapse to bounded responses and
-allowlisted diagnostics.  A reserved member-verification endpoint projects only
-the current visitor's opaque environment-scoped reference to a one-use local
-operator callback; this module never mutates registration or member state.
+allowlisted diagnostics.  Reserved member-verification and qualification
+endpoints project only an opaque reference or one coarse restricted-admission
+decision to a one-use local operator callback; this module never mutates
+registration or member state.
 """
 
 from __future__ import annotations
@@ -108,6 +109,7 @@ CALLBACK_PATH = "/_platform/auth/callback"
 LOGOUT_PATH = "/_platform/logout"
 STATUS_PATH = "/_platform/status"
 MEMBER_VERIFY_PATH = "/_platform/member/verify"
+MEMBER_QUALIFICATION_PATH = "/_platform/member/qualification"
 SESSION_LIFETIME_SECONDS = 8 * 60 * 60
 FLOW_LIFETIME_SECONDS = 10 * 60
 MAX_QUERY_BYTES = 2_048
@@ -115,6 +117,7 @@ ENVIRONMENT_PATTERN = re.compile(r"[a-z][a-z0-9-]{1,31}")
 MEMBER_OPERATION_PATTERN = re.compile(
     r"(?:bootstrap-owner|add)"
 )
+APPLICATION_ID_PATTERN = re.compile(r"[a-z][a-z0-9-]{1,61}[a-z0-9]")
 
 
 class _AnyMethodHttpEndpoint:
@@ -388,6 +391,49 @@ def _member_verification_return_to(request: Request) -> str | None:
             "operation": operation,
         }
     )
+
+
+def _member_qualification_values(
+    request: Request,
+) -> tuple[str, int, str] | None:
+    """Validate one route-bound loopback admission qualification request.
+
+    The caller supplies only an application identifier, an ephemeral loopback
+    port, and a challenge.  The current browser session and active generation
+    remain server-side, and the callback later receives only a boolean admission
+    result for that exact application.
+    """
+
+    raw_query = request.scope.get("query_string", b"")
+    if not isinstance(raw_query, bytes) or len(raw_query) > MAX_QUERY_BYTES:
+        return None
+    try:
+        pairs = parse_qsl(
+            raw_query.decode("ascii"),
+            keep_blank_values=True,
+            strict_parsing=True,
+            max_num_fields=3,
+        )
+    except (UnicodeDecodeError, ValueError):
+        return None
+    values = {key: value for key, value in pairs}
+    if len(pairs) != 3 or set(values) != {
+        "application_id",
+        "callback_port",
+        "challenge",
+    }:
+        return None
+    try:
+        port = int(values["callback_port"])
+    except ValueError:
+        return None
+    if (
+        APPLICATION_ID_PATTERN.fullmatch(values["application_id"]) is None
+        or not 1_024 <= port <= 65_535
+        or OPAQUE_TOKEN_PATTERN.fullmatch(values["challenge"]) is None
+    ):
+        return None
+    return values["application_id"], port, values["challenge"]
 
 
 def _identity_ready(
@@ -863,6 +909,59 @@ def create_app(
                     "member_reference": reference,
                     "operation": operation,
                 }
+            )
+            return RedirectResponse(
+                callback_url,
+                status_code=303,
+                headers={"Cache-Control": "no-store"},
+            )
+
+        if path == MEMBER_QUALIFICATION_PATH:
+            values = _member_qualification_values(request)
+            if values is None or runtime_configuration.environment is None:
+                return _closed_response(400, "invalid member qualification")
+            application_id, callback_port, challenge = values
+            if (
+                active_generation.configuration.get("contract_version") != 2
+                or route_admission_mode(
+                    active_generation.configuration,
+                    application_id,
+                )
+                != "restricted"
+                or route_identity_delivery(
+                    active_generation.configuration,
+                    application_id,
+                )
+                != "required"
+            ):
+                return _closed_response(400, "invalid member qualification")
+            identity, identity_store_available = await _session_identity(
+                request,
+                adapters,
+                health,
+            )
+            if identity is None:
+                if not identity_ready or not identity_store_available:
+                    return _closed_response(503, "identity unavailable")
+                return _closed_response(401, "authentication required")
+            admitted = await _current_member_is_active(
+                identity,
+                runtime_configuration,
+                adapters,
+                health,
+                request.scope,
+            )
+            if health.snapshot()["member_directory"] != "available":
+                return _closed_response(503, "member directory unavailable")
+            callback_url = (
+                f"http://127.0.0.1:{callback_port}/?"
+                + urlencode(
+                    {
+                        "admitted": "true" if admitted else "false",
+                        "application_id": application_id,
+                        "challenge": challenge,
+                    }
+                )
             )
             return RedirectResponse(
                 callback_url,

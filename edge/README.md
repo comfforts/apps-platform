@@ -6,10 +6,10 @@ the exact application attachment, and forwards the request within fixed limits. 
 applications, compile registration generations, or administer the platform member directory.
 
 The repository runtime can load and enforce both Version 1 and Version 2 compiled generations.
-Version 1 remains the deployed compatibility predecessor until the operator and qualification
-slices deliberately publish and activate a Version 2 generation. Repository implementation alone
-does not prove that a Version 2 runtime is deployed or qualified. The complete Version 2 handoff
-and activation path is implemented; the future Candidate Source procedure is maintained in the
+Version 1 remains the deployed compatibility predecessor until the operator deliberately publishes
+and activates a Version 2 generation. Repository implementation alone does not prove that a
+Version 2 runtime is deployed or qualified. The complete Version 2 handoff, activation, and
+qualification-readiness paths are implemented; the future Candidate Source procedure is maintained in the
 [environment lifecycle runbook](../docs/runbooks/environment_lifecycle.md#candidate-staging-verification).
 
 ## Component boundary
@@ -72,6 +72,7 @@ Public and authenticated Version 2 routes do not consult the member directory.
 | `/_platform/logout` | Delete the current Platform Session and clear its cookie. |
 | `/_platform/status` | Return coarse runtime and adapter health only to the exact configured operator identity. |
 | `/_platform/member/verify` | Project the current verified Visitor to one opaque environment-scoped reference for a challenge-bound local operator callback; never mutate or enumerate membership. |
+| `/_platform/member/qualification` | During the reviewed qualifier only, evaluate one named restricted Version 2 route for the current browser session and return only `allowed` or `denied` to a challenge-bound loopback callback. |
 | `/.well-known/jwks.json` | Publish the bounded public keys used to verify platform assertions. |
 
 Unknown reserved paths return `404`. Suspended and retired application routes retain their route
@@ -126,6 +127,15 @@ Session through the existing Google OIDC flow, derives the opaque reference insi
 redirects only that reference plus environment, operation, and one-use challenge to a fixed
 loopback host and bounded port. It never receives a target reference from the browser, returns raw
 identity claims, or writes the member database.
+
+Qualification uses a distinct bounded endpoint after each temporary member transition. The
+endpoint accepts only a canonical application identifier, loopback port, and one-use challenge;
+requires that the active Version 2 generation declares that application `restricted` with
+Identity Delivery `required`; resolves the existing Platform Session; and calls the same exact
+current-member function used by normal route admission. Its callback contains only the application
+identifier, challenge, and boolean result. It neither proxies to the application nor exposes a
+member reference, but it proves the route-bound edge decision on the next request without reading
+browser cookies in the operator process.
 
 ## Attachment and proxy enforcement
 

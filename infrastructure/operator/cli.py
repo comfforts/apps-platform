@@ -154,6 +154,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--attachment-bundle", type=Path)
     parser.add_argument("--registration-intent", type=Path)
     parser.add_argument("--member-reference")
+    parser.add_argument(
+        "--owner-member-reference",
+        help=(
+            "reviewed opaque active owner reference used to prove qualification "
+            "restores the owner-only member baseline"
+        ),
+    )
     return parser
 
 
@@ -213,8 +220,14 @@ def _default_application_handoff_check_factory(
 def _default_qualification_factory(
     state_directory: Path,
     source_authority: str,
+    owner_member_reference: str,
 ) -> QualificationLifecycle:
-    return build_local_qualification(PROJECT_ROOT, state_directory, source_authority)
+    return build_local_qualification(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+        owner_member_reference,
+    )
 
 
 def _default_destruction_factory(
@@ -366,7 +379,7 @@ def _main(
         [Path, str], ApplicationIntegrationLifecycle
     ] = _default_integration_factory,
     qualification_factory: Callable[
-        [Path, str], QualificationLifecycle
+        [Path, str, str], QualificationLifecycle
     ] = _default_qualification_factory,
     destruction_factory: Callable[
         [Path, str], DestructionLifecycle
@@ -493,6 +506,7 @@ def _main(
             qualification = qualification_factory(
                 arguments.state_directory,
                 arguments.source_authority,
+                str(_required(arguments, "owner_member_reference")),
             )
         except RuntimeError as error:
             _print(

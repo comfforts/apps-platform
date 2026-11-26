@@ -355,18 +355,20 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("AP-M9-W5 — deployable Terraform (implemented)", index)
         self.assertIn("AP-M9-W6 — interactive platform deployment (implemented)", index)
         self.assertIn("AP-M9-W7 — platform-side application lifecycle (implemented)", index)
-        self.assertIn("Slice 6 pull request has merged", prompt)
         self.assertIn(
-            "seventh and final ordered AP-M9-W10 functional slice",
+            "all seven AP-M9-W10 functional-slice pull requests have merged",
             normalized_prompt,
         )
-        self.assertIn("evidence/member-admission-candidate-qualification", prompt)
-        self.assertIn("deterministic qualification support", normalized_prompt)
         self.assertIn(
-            "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
+            "AP-M9-W10 Candidate Source qualification",
             normalized_prompt,
         )
-        self.assertIn("complete credential-free `make check` gate", normalized_prompt)
+        self.assertIn("cleanup-safe qualification support", normalized_prompt)
+        self.assertIn(
+            "AP-M9-W11 owns the first Accepted Source staging operation",
+            normalized_prompt,
+        )
+        self.assertIn("credential-free `make check` gate pass", normalized_prompt)
         self.assertIn(
             "Candidate Source is not Accepted Source qualification",
             normalized_combined,

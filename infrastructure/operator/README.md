@@ -1,8 +1,8 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W9 Version 1 lifecycle candidate-qualified; AP-M9-W10 Slices 1 through 6 implement
-the Version 2 contracts, directory infrastructure, Shared Edge enforcement, member lifecycle, and
-application handoff/activation path without a Live Version 2 operation
+Status: AP-M9-W9 Version 1 lifecycle candidate-qualified; AP-M9-W10 Slices 1 through 7 implement
+the Version 2 contracts, directory infrastructure, Shared Edge enforcement, member lifecycle,
+application handoff/activation, and qualification readiness without a Live Version 2 operation
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -66,7 +66,8 @@ make platform-retire \
   APPLICATION_ID=fixture-authenticated \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   GENERATION_DIGEST=sha256:<64-lowercase-hex>
-make platform-qualify ENVIRONMENT=staging
+make platform-qualify ENVIRONMENT=staging \
+  OWNER_MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
 make platform-destroy ENVIRONMENT=staging
 make fixture-handoff \
   ENVIRONMENT=staging \
@@ -94,10 +95,17 @@ the last deployment operation, and the source serving the active Shared Edge sep
 differences are source diagnostics, not command failures; unreadable or inconsistent lifecycle
 state remains a blocker.
 
-`platform-qualify` asks for separate `y/N` approval before each of its three browser invocations.
+`platform-qualify` requires the privately retained opaque reference for the reviewed active owner.
+It asks for separate `y/N` approval before each of its three routing-identity browser invocations.
 Those invocations clear any stale Platform Session and authenticate, reuse the session for the
 restricted fixture, then verify platform logout through server-side deletion readback and a public
-fixture callback. A declined or failed step is reported by name and no later browser tab is opened.
+fixture callback. It then calls the same `PlatformMemberLifecycle` used by the member commands to
+verify the owner-only baseline and perform one temporary add/suspend/reactivate/remove journey.
+Add has its normal one-use Visitor browser verification; each transition is followed by a
+separately confirmed browser call that returns only the current `fixture-restricted` allow/deny
+decision to loopback. Any failure attempts cleanup, rereads the baseline, and blocks generation
+rollback unless the owner-only state is exact. A declined or failed browser step is reported and
+no later tab is opened silently.
 
 `fixture-handoff` is the application-owned deployment step. It consumes an existing project-scoped
 Platform Integration Bundle, deploys or reconciles the selected fixture in the dedicated fixture
@@ -247,7 +255,10 @@ first-run or recovered backend bootstrap, immutable source-bound image publicati
 generation publication, OAuth metadata, DNS propagation, and TLS readiness. The Cloud Build upload
 uses a repository-root allow-list and cannot include private operator state. The qualification
 and destruction live defaults retain explicit W9 authority gates; no partial external work occurs.
-Repository tests use deterministic fakes and process-local loopback only. Non-fake command adapters
+W10 Slice 7 expands that profile through `member_qualification.py`, the existing member service,
+and a coarse Shared Edge member-admission callback. Qualification output retains counts, booleans,
+stable blockers, and digests only; owner and temporary references, directory records, identity,
+cookies, and raw provider responses never enter evidence. Repository tests use deterministic fakes and process-local loopback only. Non-fake command adapters
 are not invoked by `make check` and reject path escape, ambient credential variables, shell
 interpolation, mutable scope, and raw-output persistence outside the private diagnostic boundary.
 
@@ -366,6 +377,8 @@ replaying a completed mutation.
 | --- | --- |
 | `member_lifecycle.py` | Deep provider-neutral status, authorization, transition, confirmation, idempotency, atomic-mutation, and exact-readback service. |
 | `member_browser.py` | One-use browser launch and loopback callback that receive only an opaque environment/operation-bound member reference. |
+| `member_qualification.py` | Cleanup-safe composition of the existing member service for the temporary second-member journey; returns only counts, booleans, and blocker codes. |
+| `live_qualification.py` | Bounded staging HTTP/browser probes, including the coarse restricted-admission loopback callback and the complete closed qualification profile. |
 | `local_members.py` | Verified local Cloud Operator composition, named Firestore transaction adapter, strict platform URL launcher, and source-authority binding. |
 | `cli.py` | Shallow operation dispatch and least-data human/machine result formatting. |
 | `local.py` | Composition root for the existing lifecycle and the separate member service. |

@@ -1,7 +1,8 @@
 # App Platform repository layout
 
 Version 2.13 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
-ADR-015 accepted and AP-M9-W10 Slices 1-6 implemented without a Live Version 2 operation
+ADR-015 accepted; AP-M9-W10 Slices 1-6 merged and Slice 7 qualification readiness implemented
+without a Live Version 2 operation
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -26,7 +27,7 @@ permission to create a resource or perform an external action.
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
-| [`infrastructure/operator/`](../infrastructure/operator/README.md) | linear Python preflight, preparation, local-only active-operation cancellation, exact-plan deployment, application integration, member lifecycle, atomic progress, status, resume, external-effect adapters, and thin CLI |
+| [`infrastructure/operator/`](../infrastructure/operator/README.md) | linear Python preflight, preparation, local-only active-operation cancellation, exact-plan deployment, application integration, member lifecycle, cleanup-safe member qualification, atomic progress, status, resume, external-effect adapters, and thin CLI |
 | `infrastructure/backend/` | AP-M9-W5 backend rendering, lineage, operation authority, plan policy, and fake command integration |
 | `infrastructure/terraform/bootstrap/` | state-bucket owner root with closed bootstrap phase output |
 | `infrastructure/terraform/platform/` | phased foundation and Shared Edge configuration on one Platform State lineage |

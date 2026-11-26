@@ -1327,7 +1327,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             r"^#### (AP-EVAL-M9-\d{2}) ·", evaluation, re.MULTILINE
         )
         active_lifecycle_boundaries = re.findall(
-            r"^## (AP-EVAL-M9) ·", evaluation, re.MULTILINE
+            r"^## (?:<u>)?(AP-EVAL-M9) ·", evaluation, re.MULTILINE
         )
 
         self.assertEqual(

@@ -6,10 +6,10 @@ reference derived from a verified Google issuer and immutable subject.  The
 persisted member document contains no issuer, subject, email, display name,
 application role, or feature entitlement.
 
-Only exact current-identity lookup is exposed here.  The Shared Edge imports the
-model and provider-backed reader for Version 2 restricted admission.  The
-operator does not import it yet, and every mutation belongs to a later
-AP-M9-W10 slice.
+The Shared Edge receives only exact current-identity lookup.  The member
+lifecycle imports the shared validated record model but uses a separate
+operator-only provider adapter for bounded mutation; no mutation or enumeration
+surface is added to the runtime reader.
 """
 
 from __future__ import annotations

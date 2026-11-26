@@ -18,6 +18,7 @@ from infrastructure.operator.qualification import QualificationResult
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+OWNER_REFERENCE = "pmr1_" + "1" * 64
 EVIDENCE_VECTOR = (
     PROJECT_ROOT
     / "contracts/lifecycle/test-vectors/valid/"
@@ -74,8 +75,12 @@ class QualificationDestructionCliTest(unittest.TestCase):
                     "staging",
                     "--state-directory",
                     str(state_root),
+                    "--owner-member-reference",
+                    OWNER_REFERENCE,
                 ],
-                qualification_factory=lambda _path, _authority: qualification,
+                qualification_factory=(
+                    lambda _path, _authority, _owner: qualification
+                ),
             )
             evidence_path = state_root / str(result["evidence_path"])
             loaded = load_lifecycle_document(
@@ -100,9 +105,15 @@ class QualificationDestructionCliTest(unittest.TestCase):
     def test_candidate_qualification_uses_a_separate_non_accepted_pointer(self) -> None:
         qualification = FakeQualification()
         observed_authorities: list[str] = []
+        observed_owners: list[str] = []
 
-        def factory(_path: Path, authority: str) -> FakeQualification:
+        def factory(
+            _path: Path,
+            authority: str,
+            owner_reference: str,
+        ) -> FakeQualification:
             observed_authorities.append(authority)
+            observed_owners.append(owner_reference)
             return qualification
 
         original = qualification.qualify_current
@@ -133,6 +144,8 @@ class QualificationDestructionCliTest(unittest.TestCase):
                     "candidate",
                     "--state-directory",
                     str(state_root),
+                    "--owner-member-reference",
+                    OWNER_REFERENCE,
                 ],
                 qualification_factory=factory,
             )
@@ -149,6 +162,7 @@ class QualificationDestructionCliTest(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(result["outcome"], "candidate-qualified")
             self.assertEqual(observed_authorities, ["candidate"])
+            self.assertEqual(observed_owners, [OWNER_REFERENCE])
             self.assertTrue(candidate_pointer.is_file())
             self.assertFalse(accepted_pointer.exists())
 
@@ -183,6 +197,11 @@ class QualificationDestructionCliTest(unittest.TestCase):
                             "staging",
                             "--state-directory",
                             str(state_root),
+                            *(
+                                ["--owner-member-reference", OWNER_REFERENCE]
+                                if operation == "qualify"
+                                else []
+                            ),
                         ]
                     )
                 self.assertEqual(code, 2)

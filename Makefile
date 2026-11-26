@@ -18,6 +18,7 @@ INTEGRATION_BUNDLE ?=
 ATTACHMENT_BUNDLE ?=
 REGISTRATION_INTENT ?=
 MEMBER_REFERENCE ?=
+OWNER_MEMBER_REFERENCE ?=
 
 export FIXTURES_PROJECT_ID FIXTURES_PROJECT_NAME
 
@@ -26,7 +27,6 @@ export FIXTURES_PROJECT_ID FIXTURES_PROJECT_NAME
 ## Install pinned Terraform dependencies into the ignored project-local mirror.
 terraform-setup:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) infrastructure/tools/terraform_setup.py
-
 
 ## Deterministic platform checks include governance, contract, fixture, runtime, and Terraform validations.
 
@@ -55,18 +55,18 @@ terraform-check:
 
 ## Verify the credential-free interactive lifecycle core with deterministic adapters.
 operator-check:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_source_authority tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_local_deployment_inputs tests.test_local_deployment_commands tests.test_deployment_provider_commands tests.test_deployment_dns tests.test_application_integration tests.test_application_handoff_check tests.test_registration_lifecycle tests.test_integration_cli tests.test_local_integration tests.test_local_handoffs tests.test_local_generation_control tests.test_generation_provider_commands tests.test_project_connections tests.test_fixture_deployment_lifecycle tests.test_local_fixture_deployment tests.test_member_lifecycle tests.test_member_browser tests.test_member_cli tests.test_local_members tests.test_qualification_lifecycle tests.test_qualification_suite tests.test_local_qualification tests.test_live_qualification_browser tests.test_live_qualification_probe tests.test_qualification_destruction_cli tests.test_generation_rollback tests.test_destruction_specification tests.test_destruction_lifecycle tests.test_local_destruction_control tests.test_local_destruction_commands
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest tests.test_source_authority tests.test_operator_lifecycle tests.test_platform_deployment tests.test_operator_commands tests.test_local_deployment_inputs tests.test_local_deployment_commands tests.test_deployment_provider_commands tests.test_deployment_dns tests.test_application_integration tests.test_application_handoff_check tests.test_registration_lifecycle tests.test_integration_cli tests.test_local_integration tests.test_local_handoffs tests.test_local_generation_control tests.test_generation_provider_commands tests.test_project_connections tests.test_fixture_deployment_lifecycle tests.test_local_fixture_deployment tests.test_member_lifecycle tests.test_member_browser tests.test_member_cli tests.test_local_members tests.test_member_qualification tests.test_qualification_lifecycle tests.test_qualification_suite tests.test_local_qualification tests.test_live_qualification_browser tests.test_live_qualification_probe tests.test_qualification_destruction_cli tests.test_generation_rollback tests.test_destruction_specification tests.test_destruction_lifecycle tests.test_local_destruction_control tests.test_local_destruction_commands
 
 
 ## Platform management commands.
 
-## Check operational readiness, or use PREFLIGHT_MODE=development for local source diagnostics.
-platform-preflight:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator preflight --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --preflight-mode "$(PREFLIGHT_MODE)"
-
 ## Run real readiness diagnostics from an uncommitted working tree; grants no source authority.
 platform-preflight-check:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator preflight --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --preflight-mode development
+
+## Check operational readiness, or use PREFLIGHT_MODE=development for local source diagnostics.
+platform-preflight:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator preflight --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --preflight-mode "$(PREFLIGHT_MODE)"
 
 ## Prepare and explicitly approve one complete lifecycle specification.
 platform-prepare:
@@ -76,21 +76,19 @@ platform-prepare:
 platform-cancel:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator cancel --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
 
-## Check platform readiness, then prepare, approve, and execute fresh exact plans.
-platform-deploy: terraform-setup
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" $(if $(SPECIFICATION_DIGEST),--specification-digest "$(SPECIFICATION_DIGEST)",)
-
 ## Classify current working-tree platform readiness without approval or mutation.
 platform-deploy-check: terraform-setup
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy-check --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+
+## Check platform readiness, then prepare, approve, and execute fresh exact plans.
+platform-deploy: terraform-setup
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator deploy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" $(if $(SPECIFICATION_DIGEST),--specification-digest "$(SPECIFICATION_DIGEST)",)
 
 ## Report local desired and execution state without changing it.
 platform-status:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator status --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
 
-## Create or repair the dedicated fixture application project; creates no runtime or route.
-fixture-project-bootstrap:
-	FIXTURES_PROJECT_ID="$(FIXTURES_PROJECT_ID)" FIXTURES_PROJECT_NAME="$(FIXTURES_PROJECT_NAME)" PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-project-bootstrap --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-project-id "$(FIXTURES_PROJECT_ID)"
+## Platform application management commands.
 
 ## Attach one existing application project to the platform Shared VPC; creates no runtime or route.
 platform-connect-project:
@@ -116,13 +114,7 @@ platform-detach:
 platform-retire:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator retire --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)" --platform-source-revision "$(PLATFORM_SOURCE_REVISION)" --generation-digest "$(GENERATION_DIGEST)"
 
-## Evaluate and record the exact current platform and fixture revisions.
-platform-qualify:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator qualify --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
-
-## Compile, confirm, and resume exact safe platform destruction.
-platform-destroy:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator destroy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+## Platform member management commands. Manage through exact opaque member references.
 
 ## Read coarse directory state or one exact opaque member reference; never list members.
 platform-member-status:
@@ -148,8 +140,11 @@ platform-member-reactivate:
 platform-member-remove:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-member-remove --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --member-reference "$(MEMBER_REFERENCE)"
 
-
 ## Fixture management commands.
+
+## Create or repair the dedicated fixture application project; creates no runtime or route.
+fixture-project-bootstrap:
+	FIXTURES_PROJECT_ID="$(FIXTURES_PROJECT_ID)" FIXTURES_PROJECT_NAME="$(FIXTURES_PROJECT_NAME)" PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-project-bootstrap --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-project-id "$(FIXTURES_PROJECT_ID)"
 
 ## Deploy one selected fixture from an existing integration bundle and stop before registration.
 fixture-handoff: terraform-setup
@@ -162,3 +157,13 @@ fixture-status:
 ## Destroy one selected fixture after platform-detach has suspended its route.
 fixture-destroy: terraform-setup
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-destroy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)"
+
+## Platform qualification and destruction commands.
+
+## Evaluate and record the exact current platform and fixture revisions.
+platform-qualify:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator qualify --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --owner-member-reference "$(OWNER_MEMBER_REFERENCE)"
+
+## Compile, confirm, and resume exact safe platform destruction.
+platform-destroy:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator destroy --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"

@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from infrastructure.operator.live_qualification import (
     LoopbackBrowserQualification,
+    LoopbackMemberAdmissionQualification,
     SystemBrowserLauncher,
 )
 
@@ -63,6 +64,24 @@ class CallbackSequence:
                 return None
 
         return Callback()
+
+
+@dataclass
+class AdmissionCallback:
+    matched: bool = True
+    selected_port: int = 43001
+    closed: bool = False
+
+    @property
+    def port(self) -> int:
+        return self.selected_port
+
+    def wait(self, timeout_seconds: float) -> bool:
+        del timeout_seconds
+        return self.matched
+
+    def close(self) -> None:
+        self.closed = True
 
 
 class LiveQualificationBrowserTest(unittest.TestCase):
@@ -151,6 +170,44 @@ class LiveQualificationBrowserTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "outside staging"):
             SystemBrowserLauncher().open("https://example.com/")
+
+    def test_member_admission_check_is_confirmed_and_returns_only_a_decision(self) -> None:
+        terminal = Terminal(confirmations=[True, True])
+        launcher = CallbackLauncher(terminal)
+        callbacks = [AdmissionCallback(), AdmissionCallback()]
+        qualification = LoopbackMemberAdmissionQualification(
+            launcher,
+            terminal,
+            timeout_seconds=2,
+            challenge_source=lambda: "d" * 64,
+            callback_factory=lambda challenge, application_id, expected: callbacks.pop(0),
+        )
+
+        allowed = qualification.verify("fixture-restricted", True)
+        denied = qualification.verify("fixture-restricted", False)
+
+        self.assertTrue(allowed)
+        self.assertTrue(denied)
+        self.assertEqual(len(launcher.urls), 2)
+        self.assertTrue(
+            all(
+                urlsplit(url).path == "/_platform/member/qualification"
+                for url in launcher.urls
+            )
+        )
+        queries = [parse_qs(urlsplit(url).query) for url in launcher.urls]
+        self.assertEqual(
+            [query["application_id"] for query in queries],
+            [["fixture-restricted"], ["fixture-restricted"]],
+        )
+        self.assertTrue(all("admitted" not in query for query in queries))
+        self.assertEqual(
+            terminal.events,
+            ["confirm", "open", "confirm", "open"],
+        )
+        transcript = repr(terminal.messages + terminal.prompts + launcher.urls)
+        self.assertNotIn("pmr1_", transcript)
+        self.assertNotIn("cookie", transcript.lower())
 
 
 if __name__ == "__main__":

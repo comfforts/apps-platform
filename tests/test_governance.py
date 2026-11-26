@@ -996,7 +996,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, normalized)
         self.assertIn("ADR-010 and ADR-011 remain the accepted authority", normalized)
 
-    def test_ap_m9_w10_handoff_limits_the_next_chat_to_operator_reconciliation_slice(
+    def test_ap_m9_w10_handoff_limits_the_next_chat_to_candidate_qualification(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -1014,18 +1014,18 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-TM-004",
             "AP-TM-011",
         ):
-            self.assertIn(authority, prompt)
+            self.assertIn(authority, normalized_prompt)
         for boundary in (
-            "seventh and final ordered AP-M9-W10 functional slice",
+            "all seven AP-M9-W10 functional-slice pull requests have merged",
             "feat/platform-member-directory",
-            "evidence/member-admission-candidate-qualification",
-            "deterministic qualification support",
-            "public Identity Delivery `none` and explicit `optional`",
+            "exact integration revision is clean and pushed",
+            "cleanup-safe qualification support",
+            "OWNER_MEMBER_REFERENCE=<reviewed-owner-member-reference>",
             "reviewed owner-only baseline",
-            "Do not run Candidate Source staging from the slice branch",
-            "only after all seven W10 slices merge",
-            "pull request must target that integration branch, not `main`",
-            "real Application Adoption",
+            "Wait for explicit owner direction",
+            "Freeze the qualified integration revision",
+            "Do not treat Candidate Source as Accepted Source",
+            "another real application",
         ):
             self.assertIn(boundary, normalized_prompt)
         for excluded_later_slice in (
@@ -1035,7 +1035,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W10 Slice 7 Candidate qualification readiness](starting_prompt.md)",
+            "[AP-M9-W10 Candidate Source qualification](starting_prompt.md)",
             prompt_index,
         )
 
@@ -1067,7 +1067,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
         self.assertIn("### AP-M9-W10", m9)
         self.assertIn("### AP-M9-W12", m9)
-        self.assertIn("AP-M9-W10 Slices 1-6 implemented", m9)
+        self.assertIn("AP-M9-W10 Slices 1-6 merged", m9)
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
         self.assertIn(
@@ -1163,10 +1163,9 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W12"))
         self.assertIn("AP-M9-W10", normalized_prompt)
         self.assertIn("first Accepted Source staging operation", normalized_prompt)
-        self.assertIn(
-            "Do not mutate staging, production, DNS, identity, Finance Assistant, or any real application",
-            normalized_prompt,
-        )
+        self.assertIn("Wait for explicit owner direction", normalized_prompt)
+        self.assertIn("Do not treat Candidate Source as Accepted Source", normalized_prompt)
+        self.assertIn("mutate production", normalized_prompt)
 
     def test_ap_m9_handoff_assigns_candidate_accepted_and_production_work_once(
         self,
@@ -1206,7 +1205,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             normalized_evaluation,
         )
         self.assertIn(
-            "Slice 7 completes qualification support and merges to the integration branch",
+            "Slice 7 implements cleanup-safe qualification support without a provider operation and remains to merge to the integration branch",
             normalized_evaluation,
         )
         self.assertIn(
@@ -1258,7 +1257,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(control, normalized_threats)
         for evidence_boundary in (
-            "W10 Slices 1 through 6 produce only deterministic, mocked, local, or documentation evidence",
+            "W10 Slices 1 through 7 produce only deterministic, mocked, local, or documentation evidence",
             "Slice 7 first merges its qualification support",
             "exact clean pushed integration revision",
             "Any later tracked change invalidates that qualification",
@@ -2053,8 +2052,9 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-M9-W9 is implemented and candidate-qualified",
             overview,
         )
-        self.assertIn("AP-M9-W10 Slices 1 through 6 implement", overview)
+        self.assertIn("AP-M9-W10 Slices 1 through 7 implement", overview)
         self.assertIn("bounded member lifecycle commands", overview)
+        self.assertIn("Qualification readiness reuses those same member", overview)
         self.assertIn("diagnostic pre-merge evidence", docs_index)
         self.assertIn("platform-prepare", overview)
         self.assertIn("platform-cancel", overview)
@@ -2098,12 +2098,12 @@ class ProjectAuthorityTest(unittest.TestCase):
         for required in (
             "AP-M9-W10",
             "AP-EVAL-M9-09",
-            "seventh and final ordered AP-M9-W10 functional slice",
-            "evidence/member-admission-candidate-qualification",
-            "deterministic qualification support",
-            "Do not run Candidate Source staging from the slice branch",
-            "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
-            "Do not perform Accepted Source staging, production, real Application Adoption, Finance Assistant changes",
+            "all seven AP-M9-W10 functional-slice pull requests have merged",
+            "cleanup-safe qualification support",
+            "Wait for explicit owner direction",
+            "AP-M9-W11 owns the first Accepted Source staging operation",
+            "Do not treat Candidate Source as Accepted Source",
+            "another real application",
         ):
             self.assertIn(required, normalized_prompt)
         self.assertNotIn("AP-M9-W8 qualification and safe destruction handoff", prompt)

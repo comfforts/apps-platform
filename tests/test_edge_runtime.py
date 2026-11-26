@@ -2305,6 +2305,109 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         )
         self.assertEqual((invalid_status, invalid_body), (400, b"invalid member verification\n"))
 
+    def test_member_admission_qualification_reports_only_the_route_decision(self) -> None:
+        identity = PlatformIdentity(
+            CANONICAL_GOOGLE_ISSUER,
+            "qualification-member-subject",
+            "private@example.com",
+        )
+        member_identity = PlatformMemberIdentity(identity.issuer, identity.subject)
+        reference = member_reference("staging", member_identity)
+        configuration, source = configured_generation(
+            compiled_generation_v2(),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        store = InMemoryIdentityStore()
+        session_id = "qualification-session-0123456789"
+        store.sessions[session_id] = PlatformSession(identity, expires_at=20_000)
+        query = urlencode(
+            {
+                "application_id": "gamma-app",
+                "callback_port": "43123",
+                "challenge": "d" * 64,
+            }
+        ).encode("ascii")
+
+        for lifecycle, admitted in (("active", "true"), ("suspended", "false")):
+            with self.subTest(lifecycle=lifecycle):
+                lookup = RecordingMemberLookup(
+                    MemberRecord(reference, lifecycle, 2, 100, 200)
+                )
+                app = create_app(
+                    configuration,
+                    RuntimeAdapters(
+                        generation_source=source,
+                        identity_store=store,
+                        member_lookup=lookup,
+                        clock=FixedClock(10_000),
+                        correlation_ids=FixedCorrelationIds(
+                            [f"member-qualification-{lifecycle}"]
+                        ),
+                    ),
+                )
+
+                _, (status, headers, body) = asyncio.run(
+                    request_during_lifespan(
+                        app,
+                        "/_platform/member/qualification",
+                        query_string=query,
+                        headers=(
+                            (
+                                b"cookie",
+                                f"__Host-comfforts-session={session_id}".encode(),
+                            ),
+                        ),
+                    )
+                )
+
+                location = headers[b"location"].decode("ascii")
+                callback = urlsplit(location)
+                values = parse_qs(callback.query)
+                self.assertEqual((status, body), (303, b""))
+                self.assertEqual(
+                    (callback.scheme, callback.hostname, callback.port),
+                    ("http", "127.0.0.1", 43123),
+                )
+                self.assertEqual(values["application_id"], ["gamma-app"])
+                self.assertEqual(values["admitted"], [admitted])
+                self.assertEqual(values["challenge"], ["d" * 64])
+                self.assertNotIn(reference, location)
+                self.assertNotIn(identity.subject, location)
+                self.assertNotIn(identity.email or "", location)
+                self.assertEqual(lookup.requests, [("staging", member_identity)])
+
+        unavailable = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                identity_store=store,
+                member_lookup=RecordingMemberLookup(
+                    error=PermissionError("private provider detail")
+                ),
+                clock=FixedClock(10_000),
+                correlation_ids=FixedCorrelationIds(
+                    ["member-qualification-unavailable"]
+                ),
+            ),
+        )
+        _, (status, headers, body) = asyncio.run(
+            request_during_lifespan(
+                unavailable,
+                "/_platform/member/qualification",
+                query_string=query,
+                headers=(
+                    (
+                        b"cookie",
+                        f"__Host-comfforts-session={session_id}".encode(),
+                    ),
+                ),
+            )
+        )
+        self.assertEqual((status, body), (503, b"member directory unavailable\n"))
+        self.assertNotIn(b"location", headers)
+        self.assertNotIn("private provider detail", body.decode())
+
     def test_identity_callback_can_return_to_member_verification(self) -> None:
         configuration, source = configured_generation(
             protected_generation("authenticated"),

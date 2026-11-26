@@ -1,7 +1,7 @@
 # App Platform system design
 
-Version 1.17 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence and AP-M9-W10 Slices 1-5 add Version 2 contracts, directory infrastructure,
+Version 1.18 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence and AP-M9-W10 Slices 1-6 add Version 2 contracts, directory infrastructure,
 deterministic Shared Edge enforcement, member lifecycle, and application handoff/activation path
 without a Live Version 2 operation
 
@@ -308,10 +308,10 @@ application or expose an attachment reference.
 
 The catalogue is a read-only projection derived from the same compiled generation as routing. It is
 not maintained separately. Only an `active` registration whose Catalogue Visibility is `listed`
-appears. `unlisted` is the only other Version 1 visibility value and does not change Admission Mode.
+appears. `unlisted` is the only other visibility value and does not change Admission Mode.
 
 Each entry contains only the immutable application identifier, bounded plain-text title and
-summary, canonical route prefix, and an admission label suitable for display. Version 1 catalogue
+summary, canonical route prefix, and an admission label suitable for display. Catalogue
 metadata contains no HTML, scripts, images, arbitrary links, attachment references, allow-list
 members, operator metadata, provider data, or secrets. A renderer must escape all text for its
 output context and must not interpret catalogue text as markup.
@@ -337,13 +337,14 @@ owner-only for every restricted route. Email is not an admission or membership k
 Entitlements are prohibited from registration and membership contracts and remain an application
 concern after admission.
 
-The repository can validate, canonicalize, migrate, and compile this Version 2 shape through
-explicit compatibility interfaces. The Shared Edge can also load either complete compiled version,
-enforce explicit Version 2 admission and Identity Delivery, and query one exact current-member
-document. These interfaces still do not publish a Version 2 bundle, select it in the operator path,
-activate a Version 2 Registration Generation, or mutate the directory. A complete Version 2
-generation becomes operational only after the later lifecycle and handoff slices implement the
-remaining consumers and the atomic transition.
+The repository validates, canonicalizes, migrates, and compiles this Version 2 shape through
+explicit compatibility interfaces. The Shared Edge loads either complete compiled version,
+enforces explicit Version 2 admission and Identity Delivery, and queries one exact current-member
+document. The operator publishes one complete Version 2 bundle/intent family, validates the
+application attachment, migrates a readable Version 1 predecessor without its member list, and
+atomically activates one complete Version 2 Registration Generation. Separate member commands
+mutate the directory without republishing bundles or generations. These implemented paths remain
+unqualified until the later Candidate Source slice exercises them against staging.
 
 When Identity Delivery permits it and identity is present, the Shared Edge supplies a compact signed assertion in the versioned
 `X-Comfforts-Verified-Identity` header. The edge must remove any visitor-supplied value before

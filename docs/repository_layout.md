@@ -1,7 +1,7 @@
 # App Platform repository layout
 
-Version 2.12 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
-ADR-015 accepted and AP-M9-W10 Slices 1-5 implemented without a Live Version 2 operation
+Version 2.13 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
+ADR-015 accepted and AP-M9-W10 Slices 1-6 implemented without a Live Version 2 operation
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.

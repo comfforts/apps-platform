@@ -1,9 +1,9 @@
 # App Platform evaluation strategy
 
-Version 0.25 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.26 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
-without execution; AP-M9-W10 Slices 1-5 supply deterministic Version 2 contract, infrastructure,
-runtime, member-lifecycle, and application-handoff evidence, later W10 slices
+without execution; AP-M9-W10 Slices 1-6 supply deterministic Version 2 contract, infrastructure,
+runtime, member-lifecycle, application-handoff, and operator-documentation evidence, Slice 7
 and Candidate Source qualification remain, and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
@@ -51,6 +51,12 @@ relationships, fixture consumption, application verification, provider object na
 Version 1 predecessor migration, complete-generation activation, and rollback compatibility. Its
 operator and provider fakes perform no real publication, application deployment, activation, or
 qualification.
+
+W10 Slice 6 supplies governance evidence that the public overview, operator runbook, design,
+contract indexes, component guides, layout, plan, threat model, evaluation strategy, and next-task
+prompt agree with the implemented Version 2 boundary and its limitations. It records the future
+Candidate Source procedure but invokes no command against a provider and supplies no Live,
+qualification, or Application Adoption evidence.
 
 Plan: [App Platform implementation plan index](plans/README.md) and
 [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) and
@@ -1843,9 +1849,9 @@ cross-project fixture topology and recorded candidate evidence digest
 for revision `2fd045f6f720fe122103d42b3ebb6d25f5fbdac8` and restored active generation 8 digest
 `sha256:07880efea15027c1209c43e93bd91af2c6655c77582a70233c6cb22117462acf`.
 Private provider payloads, state, plans, browser state, and identity material remain outside Git.
-W10 Slices 1 through 5 must establish the deterministic Version 2 contract, infrastructure,
-runtime, lifecycle, and application-handoff evidence. Slice 6 reconciles the operator handoff and
-implemented limitations before qualification. Slice 7 completes qualification support and merges
+W10 Slices 1 through 5 establish the deterministic Version 2 contract, infrastructure, runtime,
+lifecycle, and application-handoff evidence. Slice 6 reconciles the operator handoff and
+implemented limitations without a provider operation. Slice 7 completes qualification support and merges
 to the integration branch; the exact clean pushed integration revision must then repeat the
 applicable staging journey from Candidate Source, qualify the Version 2 member directory, restore
 the reviewed member baseline, and remain frozen. After the cumulative W10 pull request merges,

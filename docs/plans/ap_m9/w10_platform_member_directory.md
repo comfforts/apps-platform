@@ -1,7 +1,7 @@
 # AP-M9-W10 · Platform Member Directory and explicit Identity Delivery
 
-Status: Slices 1-4 merged to the integration branch; Slice 5 implemented on its named branch
-without a Live operation; its integration merge, Slices 6-7, and Candidate Source qualification
+Status: Slices 1-5 merged to the integration branch; Slice 6 implemented on its named branch
+without a Live operation; its integration merge, Slice 7, and Candidate Source qualification
 remain
 
 Requirements: AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
@@ -241,6 +241,9 @@ Candidate evidence is bound to the exact clean pushed `feat/platform-member-dire
 after every slice has merged. It cannot replace Accepted Source evidence. Any tracked change after
 that run invalidates the qualification and requires it to run again before the cumulative pull
 request to `main`. W11 repeats the complete accepted journey after that pull request merges.
+The linear commands, substitution points, inspection pauses, source boundary, and final baseline
+checks are maintained in the
+[Candidate staging verification procedure](../../runbooks/environment_lifecycle.md#candidate-staging-verification).
 
 ## Planned functional slices and effort signals
 
@@ -266,11 +269,12 @@ authority.
 | 6. Operator handoff reconciliation | `docs/identity-delivery-operator-handoff` | Reconcile README, runbook, design, contracts, plan status, prompt, governance tests, actual limitations, and final qualification procedure without adding behavior | 8-14 | 8k-14k | 4% |
 | 7. Candidate qualification readiness | `evidence/member-admission-candidate-qualification` | Complete qualification support for owner bootstrap, second-member lifecycle, public opt-in, authenticated independence, directory failure, rollback, and least-data evidence; after merge, qualify the exact integration revision | 10-18 | 16k-26k | 12% |
 
-Slices 1 through 4 are merged to the integration branch. Slice 5 is implemented on its named
-branch and is ready for its integration pull request after its verification gate passes. It adds
-the explicit handoff inputs, complete Version 2 bundle and intent consumers, fixture/application
-verification, and atomic migration-safe generation activation without invoking a provider. Slice
-6 remains blocked until this pull request merges to the latest clean
+Slices 1 through 5 are merged to the integration branch. Slice 6 is implemented on its named
+branch and is ready for its integration pull request after its verification gate passes. It
+reconciles the operator-facing documentation with the implemented contracts, directory, runtime,
+member lifecycle, handoff, migration, fixtures, rollback boundary, and known limitations. It also
+records the exact future Candidate Source staging sequence without invoking a provider. Slice 7
+remains blocked until this pull request merges to the latest clean
 `feat/platform-member-directory`.
 
 Estimated total: seven slices, about 55-85 unique changed paths, 122k-196k working tokens, and

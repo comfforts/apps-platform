@@ -75,14 +75,14 @@ later membership changes do not redeploy an application or activate a Registrati
 Only the current visitor's minimal signed context may cross an application boundary; the directory
 and other members never do.
 
-> **Implementation status:** ADR-015 accepts this model. AP-M9-W10 Slices 1 through 5 implement
+> **Implementation status:** ADR-015 accepts this model. AP-M9-W10 Slices 1 through 6 implement
 > the Version 2 contracts and migration, isolated directory infrastructure and IAM, and
 > deterministic dual-version Shared Edge enforcement plus separately confirmed owner enrollment
 > and bounded member lifecycle commands, Version 2 application handoffs, fixture consumption, and
-> atomic complete-generation activation. Operator reconciliation and Candidate qualification
-> remain. The deployed W9
-> candidate and Version 1 contracts remain predecessor evidence and are not Accepted Source
-> qualification for this model.
+> atomic complete-generation activation. The operator handoff now documents those implemented
+> boundaries and the future Candidate Source procedure. Candidate qualification remains. The
+> deployed W9 candidate and Version 1 contracts remain predecessor evidence and are not Accepted
+> Source qualification for this model.
 
 ### Catalogue visibility
 
@@ -651,6 +651,7 @@ make application-handoff-check \
   APPLICATION_PROJECT_ID=<application-project-id> \
   APPLICATION_ID=<application-id> \
   ACCESS_MODE=<public|authenticated|restricted> \
+  IDENTITY_DELIVERY=<none|optional|required> \
   ROUTE_INTENT=/<route> \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   PLATFORM_GENERATION=<positive-integer>
@@ -660,6 +661,7 @@ make platform-outputs \
   APPLICATION_PROJECT_ID=<application-project-id> \
   APPLICATION_ID=<application-id> \
   ACCESS_MODE=<public|authenticated|restricted> \
+  IDENTITY_DELIVERY=<none|optional|required> \
   ROUTE_INTENT=/<route> \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   PLATFORM_GENERATION=<positive-integer>
@@ -670,9 +672,9 @@ make platform-outputs \
 
 make platform-register \
   ENVIRONMENT=staging \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.json \
-  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.json \
-  REGISTRATION_INTENT=/private/path/registration-intent.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
 
 make platform-status ENVIRONMENT=staging
 ```

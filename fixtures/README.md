@@ -110,6 +110,7 @@ the repository-wide credential-free gate with `make check`.
 
 Deterministic fixture tests are Contract or Fixture evidence only. They do not prove a deployed
 provider resource, DNS/TLS, direct-origin isolation, live IAM, member data, production readiness,
-or adoption by a real application. Live claims require the separately governed operator
+Version 2 activation, or adoption by a real application. The existing W9 staging fixtures remain
+Version 1 predecessor evidence until the separately governed operator
 qualification journey described in the
 [environment lifecycle runbook](../docs/runbooks/environment_lifecycle.md).

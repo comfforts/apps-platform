@@ -1,9 +1,9 @@
 # App Platform threat model
 
-Version 1.18 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
+Version 1.19 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
 the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
 contract, infrastructure, deterministic runtime, and member-lifecycle controls are implemented by
-AP-M9-W10 Slices 1-5, including Version 2 handoff activation behind deterministic boundaries,
+AP-M9-W10 Slices 1-6, including Version 2 handoff activation and reconciled operator guidance,
 without a Live Version 2 operation or qualification
 
 This document defines the security and privacy threats created by the logical App Platform design,
@@ -946,9 +946,9 @@ destruction/recovery transition under Candidate Source. ADR-015 supersedes its V
 per-registration membership and implicit public-identity boundary. W10 Slices 1 through 5
 implement the Version 2 contract family, deterministic member-discarding migration, directory and
 IAM boundary, runtime Identity Delivery, owner/member lifecycle, complete application handoff, and
-rejection of mixed or member-bearing Version 2 documents. Later W10 slices must reconcile the
-operator handoff and candidate-qualify the complete model before the Accepted Source operation in
-W11. Candidate evidence
+rejection of mixed or member-bearing Version 2 documents. Slice 6 reconciles the operator handoff
+without changing controls. Slice 7 must candidate-qualify the complete model before the Accepted
+Source operation in W11. Slice 6 supplies documentation evidence only. Candidate evidence
 proves only the named W9 predecessor bindings. No current result proves ADR-015 realization,
 Accepted Source staging, platform destruction/redeployment, production, or Application Adoption.
 

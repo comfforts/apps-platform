@@ -1,6 +1,6 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W9 Version 1 lifecycle candidate-qualified; AP-M9-W10 Slices 1 through 5 implement
+Status: AP-M9-W9 Version 1 lifecycle candidate-qualified; AP-M9-W10 Slices 1 through 6 implement
 the Version 2 contracts, directory infrastructure, Shared Edge enforcement, member lifecycle, and
 application handoff/activation path without a Live Version 2 operation
 
@@ -53,9 +53,9 @@ make platform-outputs \
   PLATFORM_GENERATION=1
 make platform-register \
   ENVIRONMENT=staging \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.json \
-  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.json \
-  REGISTRATION_INTENT=/private/path/registration-intent.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
 make platform-detach \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-authenticated \

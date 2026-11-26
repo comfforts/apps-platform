@@ -330,7 +330,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertNotIn("id-token: write", check_workflow)
         self.assertNotIn("terraform apply", check_workflow)
 
-    def test_status_preserves_history_and_routes_next_work_to_operator_handoff(
+    def test_status_preserves_history_and_routes_next_work_to_candidate_readiness(
         self,
     ) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
@@ -355,13 +355,13 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("AP-M9-W5 — deployable Terraform (implemented)", index)
         self.assertIn("AP-M9-W6 — interactive platform deployment (implemented)", index)
         self.assertIn("AP-M9-W7 — platform-side application lifecycle (implemented)", index)
-        self.assertIn("Slice 5 pull request has merged", prompt)
+        self.assertIn("Slice 6 pull request has merged", prompt)
         self.assertIn(
-            "sixth of seven ordered AP-M9-W10 functional slices",
+            "seventh and final ordered AP-M9-W10 functional slice",
             normalized_prompt,
         )
-        self.assertIn("docs/identity-delivery-operator-handoff", prompt)
-        self.assertIn("operator and reviewer documentation", normalized_prompt)
+        self.assertIn("evidence/member-admission-candidate-qualification", prompt)
+        self.assertIn("deterministic qualification support", normalized_prompt)
         self.assertIn(
             "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
             normalized_prompt,

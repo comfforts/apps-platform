@@ -1,11 +1,11 @@
-# App Platform backlog
+# <u>App Platform backlog</u>
 
 This backlog records useful product and maintenance work that is not part of the active delivery
 sequence. A backlog item is a proposal, not implementation authority. Before work begins, the item
 must be reconciled with the product requirements, accepted architecture decisions, threat model,
 evaluation strategy, implementation plan, and an owner-approved delivery slice.
 
-## Feature-rich catalogue experience
+## <u>Feature-rich catalogue experience</u>
 
 ### Problem
 
@@ -65,7 +65,7 @@ and rollback. Live staging evidence must show that the richer catalogue does not
 routing authority and that its failure leaves application routes and protected admission
 fail-closed.
 
-## Platform observability review and operational diagnostics
+## <u>Platform observability review and operational diagnostics</u>
 
 ### Problem
 
@@ -120,7 +120,7 @@ query one event for each approved failure class, confirm bucket/view access and 
 and prove the default exclusion and no-export posture. The review must leave a concise operator
 troubleshooting map and explicitly record signals that remain unavailable or intentionally absent.
 
-## Fixture project disconnect and clean lifecycle
+## <u>Fixture project disconnect and clean lifecycle</u>
 
 ### Problem
 
@@ -215,7 +215,7 @@ inventory scoping, and redacted readback. A later live staging rehearsal must pr
 recorded fixture project remains active, disconnected, free of the approved removable inventory,
 and able to be bootstrapped and connected again without changing its project identity.
 
-## Environment-derived platform project identity and hostname
+## <u>Environment-derived platform project identity and hostname</u>
 
 ### Problem
 
@@ -290,7 +290,7 @@ names and URLs, and unchanged historical-record compatibility. A later authentic
 readback must confirm that the resolved identity and hostname still point to the existing platform
 environment and do not propose resource replacement, DNS/TLS replacement, or state migration.
 
-## Legacy same-project fixture state-bucket disposition
+## <u>Legacy same-project fixture state-bucket disposition</u>
 
 ### Problem
 

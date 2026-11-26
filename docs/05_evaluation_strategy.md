@@ -1,9 +1,9 @@
-# App Platform evaluation strategy
+# <u>App Platform evaluation strategy</u>
 
-Version 0.25 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.26 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
-without execution; AP-M9-W10 Slices 1-5 supply deterministic Version 2 contract, infrastructure,
-runtime, member-lifecycle, and application-handoff evidence, later W10 slices
+without execution; AP-M9-W10 Slices 1-6 supply deterministic Version 2 contract, infrastructure,
+runtime, member-lifecycle, application-handoff, and operator-documentation evidence, Slice 7
 and Candidate Source qualification remain, and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
@@ -52,6 +52,12 @@ Version 1 predecessor migration, complete-generation activation, and rollback co
 operator and provider fakes perform no real publication, application deployment, activation, or
 qualification.
 
+W10 Slice 6 supplies governance evidence that the public overview, operator runbook, design,
+contract indexes, component guides, layout, plan, threat model, evaluation strategy, and next-task
+prompt agree with the implemented Version 2 boundary and its limitations. It records the future
+Candidate Source procedure but invokes no command against a provider and supplies no Live,
+qualification, or Application Adoption evidence.
+
 Plan: [App Platform implementation plan index](plans/README.md) and
 [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) and
 [AP-M9-W10 delivery plan](plans/ap_m9/w10_platform_member_directory.md)
@@ -60,7 +66,7 @@ Design: [App Platform system design](03_system_design.md)
 
 Threats: [App Platform threat model](06_threat_model.md)
 
-## AP-EVAL-M3 · System-design-and-contracts gate
+## <u>AP-EVAL-M3 · System-design-and-contracts gate</u>
 
 ### Evaluation claim
 
@@ -91,7 +97,7 @@ behavior. It must:
 
 Ordinary ignored interpreter caches are not evidence and must not be required for success.
 
-## Gate structure
+## <u>Gate structure</u>
 
 ### AP-EVAL-M3-01 · Authority and trace integrity
 
@@ -247,7 +253,7 @@ Verify that the AP-M3 change:
 - directs the next task to propose delivery item 4 planning after AP-M3 merges, without treating the
   current branch or pull request as that merge.
 
-## Test-vector manifest
+## <u>Test-vector manifest</u>
 
 `contracts/test-vectors/manifest.v1.json` is the reviewed index of deterministic cases. Each entry
 must declare:
@@ -264,7 +270,7 @@ must declare:
 The manifest contains no executable command, absolute path, environment-specific identifier, or
 expected live result. A vector not indexed by the manifest is test support, not acceptance evidence.
 
-## Determinism and mutation checks
+## <u>Determinism and mutation checks</u>
 
 Tests must isolate nondeterminism by:
 
@@ -280,7 +286,7 @@ The AP-M3 reference compiler may read caller-supplied contract files but exposes
 interface. It returns in-memory values, and tests do not write generated artifacts into the
 repository.
 
-## Threat coverage boundary
+## <u>Threat coverage boundary</u>
 
 | Threats | AP-EVAL-M3 claim |
 | --- | --- |
@@ -297,7 +303,7 @@ repository.
 | AP-TM-013 | Fail-closed declarations only; dependency failure remains unqualified |
 | AP-TM-014 | Authority labels and absence of fixture or adoption behavior |
 
-## Pass, fail, and skip semantics
+## <u>Pass, fail, and skip semantics</u>
 
 AP-EVAL-M3 passes only when:
 
@@ -312,7 +318,7 @@ dependency, unreviewed generated file, secret-like payload, missing trace, or fa
 fails AP-EVAL-M3. A known limitation is recorded as unavailable; it is not converted into a skip or
 passing assertion.
 
-## Required evaluation evidence
+## <u>Required evaluation evidence</u>
 
 The AP-M3 pull-request handoff records:
 
@@ -330,7 +336,7 @@ The AP-M3 pull-request handoff records:
 Evidence reports actual output. It must not pre-fill a success result, omit a failed command, or
 claim runtime qualification from documentation, schemas, or static configuration.
 
-## Limitations
+## <u>Limitations</u>
 
 AP-EVAL-M3 does not perform load, browser, accessibility, cryptographic, network, cloud, DNS, TLS,
 IAM, OAuth, Terraform, provider, runtime, direct-origin, or application-product testing. It does not
@@ -339,7 +345,7 @@ qualify availability, cost controls, logging, incident response, migration, or r
 Those gates require separately approved plans after AP-M3 merges. Finance Application Adoption
 requires Finance-owned authority and evidence in addition to qualified platform behavior.
 
-## AP-EVAL-M4 · Deterministic-fixtures gate
+## <u>AP-EVAL-M4 · Deterministic-fixtures gate</u>
 
 ### Evaluation claim
 
@@ -593,7 +599,7 @@ real application can or should adopt the platform.
 Infrastructure and Live qualification require a separate owner-approved slice after AP-M4 merges.
 Every Application Adoption remains an application-owned later slice with its own evidence.
 
-## AP-EVAL-M5 · Infrastructure-planning gate
+## <u>AP-EVAL-M5 · Infrastructure-planning gate</u>
 
 ### Evaluation claim
 
@@ -829,7 +835,7 @@ load, concurrency, network, DNS, TLS, IAM, OAuth, KMS, Firestore, provider, budg
 deployment, rollback, recovery, incident, migration, or application-product test. It cannot qualify
 any selected control as implemented or operational.
 
-## AP-EVAL-M6 · Networked-provider-runtime gate
+## <u>AP-EVAL-M6 · Networked-provider-runtime gate</u>
 
 ### Evaluation claim
 
@@ -1006,7 +1012,7 @@ IAM, deployment, load, availability, cost, direct-origin network, multi-instance
 recovery, incident, migration, or application-product test. Its production adapters are locally
 tested implementations, not evidence that their required provider resources or permissions exist.
 
-## AP-EVAL-M7 · Terraform-and-workflow gate
+## <u>AP-EVAL-M7 · Terraform-and-workflow gate</u>
 
 ### Evaluation claim
 
@@ -1197,7 +1203,7 @@ multi-instance, rollback, recovery, incident, migration, or application-product 
 configuration and mocked plans are implementation evidence only and cannot satisfy AP-EVAL-M8 or
 AP-EVAL-M9.
 
-## Historical unexecuted evaluation proposals
+## <u>Historical unexecuted evaluation proposals</u>
 
 The following two sections preserve the accepted but unexecuted AP-M8 deployment/readback proposal
 and the withdrawn standalone Live-qualification proposal as they stood at source revision
@@ -1547,7 +1553,7 @@ for the exact revision with zero mandatory skips. Report every failure, limitati
 unavailable cross-project claim, and unimplemented alert. Record Live evidence only; leave Finance
 Assistant and every Application Adoption unchanged and unavailable.
 
-## AP-EVAL-M9 · Operator-driven environment lifecycle gate
+## <u>AP-EVAL-M9 · Operator-driven environment lifecycle gate</u>
 
 ### Evaluation claim
 
@@ -1843,9 +1849,9 @@ cross-project fixture topology and recorded candidate evidence digest
 for revision `2fd045f6f720fe122103d42b3ebb6d25f5fbdac8` and restored active generation 8 digest
 `sha256:07880efea15027c1209c43e93bd91af2c6655c77582a70233c6cb22117462acf`.
 Private provider payloads, state, plans, browser state, and identity material remain outside Git.
-W10 Slices 1 through 5 must establish the deterministic Version 2 contract, infrastructure,
-runtime, lifecycle, and application-handoff evidence. Slice 6 reconciles the operator handoff and
-implemented limitations before qualification. Slice 7 completes qualification support and merges
+W10 Slices 1 through 5 establish the deterministic Version 2 contract, infrastructure, runtime,
+lifecycle, and application-handoff evidence. Slice 6 reconciles the operator handoff and
+implemented limitations without a provider operation. Slice 7 completes qualification support and merges
 to the integration branch; the exact clean pushed integration revision must then repeat the
 applicable staging journey from Candidate Source, qualify the Version 2 member directory, restore
 the reviewed member baseline, and remain frozen. After the cumulative W10 pull request merges,

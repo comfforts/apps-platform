@@ -8,7 +8,9 @@ applications, compile registration generations, or administer the platform membe
 The repository runtime can load and enforce both Version 1 and Version 2 compiled generations.
 Version 1 remains the deployed compatibility predecessor until the operator and qualification
 slices deliberately publish and activate a Version 2 generation. Repository implementation alone
-does not prove that a Version 2 runtime is deployed or qualified.
+does not prove that a Version 2 runtime is deployed or qualified. The complete Version 2 handoff
+and activation path is implemented; the future Candidate Source procedure is maintained in the
+[environment lifecycle runbook](../docs/runbooks/environment_lifecycle.md#candidate-staging-verification).
 
 ## Component boundary
 

@@ -66,6 +66,14 @@ reference. Attachment validation preserves application ownership and matches the
 bundle's application, environment, adapter, ingress, edge caller, audience, and digest; it does not
 transfer target ownership to Platform State.
 
+Version 2 accepts exactly four Admission Mode/Identity Delivery pairs: public `none`, public
+`optional`, authenticated `required`, and restricted `required`. The integration bundle,
+attachment bundle, and registration intent must all be Version 2 and describe the same pair; a
+mixed family or conflicting value fails closed. A readable Version 1 predecessor may be migrated
+only by the operator's complete-generation transition: public becomes `none`, authenticated and
+restricted become `required`, and every registration-scoped member is discarded. The contracts do
+not enumerate or carry the environment member directory.
+
 Qualification Evidence binds observations to an exact environment, source authority and revision,
 profile, specification, final deployment progress, registration generation, and component and fixture
 revisions. It contains only redacted results permitted by its schema. A valid evidence document

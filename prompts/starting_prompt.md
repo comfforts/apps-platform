@@ -1,16 +1,17 @@
-# App Platform AP-M9-W10 Slice 6 operator-handoff reconciliation
+# App Platform AP-M9-W10 Slice 7 Candidate qualification readiness
 
 Continue the separately governed Comfforts App Platform from its canonical repository root.
 
-Use this handoff only after the Slice 5 pull request has merged to
+Use this handoff only after the Slice 6 pull request has merged to
 `feat/platform-member-directory`, that integration branch contains current protected `main`, and
-the integration worktree is clean. Slices 1 through 5 added Version 2 contracts and migration,
-isolated member-directory infrastructure and IAM, dual-version Shared Edge enforcement, bounded
-owner/member lifecycle operations, and the complete Version 2 application-handoff and atomic
-generation-activation path. They performed no Live Version 2 operation. This sixth of seven
-ordered AP-M9-W10 functional slices reconciles only the operator and reviewer documentation on
-`docs/identity-delivery-operator-handoff`. Candidate qualification support and every external
-operation remain outside this branch.
+the integration worktree is clean. Slices 1 through 6 implement the Version 2 contracts and
+migration, isolated member-directory infrastructure and IAM, dual-version Shared Edge
+enforcement, bounded owner/member lifecycle, complete Version 2 application handoff and atomic
+generation activation, plus the reconciled operator procedure. They performed no Live Version 2
+operation. This seventh and final ordered AP-M9-W10 functional slice adds the deterministic
+qualification support needed to evaluate that complete model on
+`evidence/member-admission-candidate-qualification`. The real Candidate Source operation occurs
+only after this slice merges to the integration branch and the owner deliberately invokes it.
 
 Read `AGENTS.md`, follow the complete order in `docs/README.md`, and read
 `docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md` as the milestone plan and
@@ -24,43 +25,47 @@ Inspect the branch, working tree, remotes, relationship to `feat/platform-member
 whether that integration branch contains `origin/main`. Do not pull, reset, switch, commit, push,
 mutate an external system, or change repository settings without the applicable owner direction.
 
-Create `docs/identity-delivery-operator-handoff` from the latest clean
+Create `evidence/member-admission-candidate-qualification` from the latest clean
 `feat/platform-member-directory`. Its pull request must target that integration branch, not
-`main`. Implement only this bounded documentation reconciliation slice:
+`main`. Implement only this bounded qualification-readiness slice:
 
-1. Inventory the implemented Version 2 contracts, infrastructure, edge, member lifecycle,
-   application handoff, fixtures, CLI, Make targets, diagnostics, compatibility behavior, tests,
-   and actual limitations before changing prose.
-2. Reconcile the project README, environment lifecycle runbook, system design, contract indexes,
-   component guides, repository layout, W10 plan status, evaluation strategy, threat model, and
-   documentation router so a human operator can follow the current lifecycle without reconstructing
-   it from milestone identifiers.
-3. Document the exact Admission Mode/Identity Delivery combinations, member-directory boundary,
-   owner bootstrap and member commands, Version 1 predecessor migration, complete Version 2
-   activation, application-side assertion verification, fixture handoff, and rollback compatibility.
-4. Give one linear, copyable Candidate Source staging procedure for the later qualification slice,
-   but label it as a future owner-invoked operation. Keep Accepted Source staging, production, real
-   Application Adoption, and operator recovery explicitly separate.
-5. Reconcile stale Version 1 or “inert Version 2” wording only where the implementation has made it
-   false. Preserve historical records and do not rewrite predecessor evidence into Version 2
-   evidence.
-6. Update governance tests needed to keep documentation routing and status deterministic. Add no
-   product behavior, provider adapter, qualification implementation, or evidence.
-7. At pull-request handoff, record Slice 6 accurately and point this prompt to Slice 7. Run focused
-   deterministic documentation/governance tests and the complete credential-free `make check`
-   gate.
+1. Extend the existing qualification path rather than creating a parallel member-administration
+   mechanism. Reuse the source-admitted member service, browser confirmations, opaque member
+   references, exact predecessor checks, atomic provider transactions, and safe diagnostics.
+2. Add deterministic qualification coverage for an explicitly reviewed second member: add and
+   allow on `fixture-restricted`, suspend and deny, reactivate and allow, remove and deny, then
+   verify restoration of the reviewed owner-only baseline.
+3. Prove public Identity Delivery `none` and explicit `optional`, authenticated admission that is
+   independent of membership, restricted active-member admission, application-owned feature
+   denial, logout and expired-session behavior, visitor-header replacement, directory
+   unavailability, stale cache bounds, HTTP/SSE/WebSocket/upload-download paths, and
+   cross-application isolation.
+4. Preserve the exact retained Version 1 or Version 2 rollback target. Qualification may perform
+   only its separately confirmed temporary rollback and restoration, must stop when a prerequisite
+   fails, and must never leave the predecessor or a temporary member baseline active silently.
+5. Keep evidence least-data and revision-bound. Record only allowlisted coarse results, opaque
+   references where explicitly permitted, and digests. Exclude member identities, assertions,
+   cookies, authorization material, browser state, raw provider payloads, Terraform state, saved
+   plans, and application payloads.
+6. Update the design, threat controls, evaluation wording, operator documentation, component
+   guides, plan status, prompt, and focused tests made concrete by the qualification implementation.
+   Do not implement ADR-016 operator-state recovery or broaden the member-directory product.
+7. Run focused deterministic tests and the complete credential-free `make check` gate. At
+   pull-request handoff, state that no provider operation occurred on this branch and provide the
+   exact owner-invoked post-merge Candidate Source procedure from
+   `docs/runbooks/environment_lifecycle.md`.
 
-Do not perform Candidate Source staging operations, add final qualification evidence, implement
-operator-state recovery, broaden the member lifecycle, or change a real application. Candidate
-qualification readiness and the real Candidate operation belong to Slice 7, and recovery remains
-governed by proposed ADR-016.
+Do not run Candidate Source staging from the slice branch. After the pull request merges, update
+and push the exact clean `feat/platform-member-directory` revision, confirm it still contains
+current protected `main`, and wait for explicit owner direction before invoking the documented
+Candidate Source sequence. A successful run must bind evidence to that exact revision, restore the
+owner-only member baseline and intended Registration Generation, and freeze the integration branch.
+Any later tracked change invalidates the qualification and requires another reviewed slice and
+complete rerun.
 
-Keep credentials, OAuth secrets, member identities, signed assertions, browser state, Terraform
-state, saved plans, raw provider responses, and application payloads out of Git and retained public
-evidence. Do not mutate staging, production, DNS, identity, Finance Assistant, or any real
-application. Do not claim W10 completion, Candidate Source qualification, Accepted Source staging,
-production readiness, or Application Adoption.
-
-AP-M9-W11 owns the first Accepted Source staging operation only after all seven W10 slices merge to
-the integration branch, the exact integration revision is candidate-qualified and frozen, and its
-cumulative pull request merges to `main`.
+Do not mutate staging, production, DNS, identity, Finance Assistant, or any real application from
+this slice branch. Do not perform Accepted Source staging, production, real Application Adoption,
+Finance Assistant changes, or operator-state recovery. AP-M9-W11 owns the first Accepted Source
+staging operation only after all seven W10 slices merge to the integration branch, the exact
+integration revision is candidate-qualified and frozen, and its cumulative pull request merges to
+`main`.

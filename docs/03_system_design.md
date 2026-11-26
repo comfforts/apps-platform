@@ -1,7 +1,7 @@
-# App Platform system design
+# <u>App Platform system design</u>
 
-Version 1.17 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence and AP-M9-W10 Slices 1-5 add Version 2 contracts, directory infrastructure,
+Version 1.18 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence and AP-M9-W10 Slices 1-6 add Version 2 contracts, directory infrastructure,
 deterministic Shared Edge enforcement, member lifecycle, and application handoff/activation path
 without a Live Version 2 operation
 
@@ -14,7 +14,7 @@ Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
 Decisions: ADR-001 through ADR-015
 
-## Design outcome
+## <u>Design outcome</u>
 
 The platform has one configuration seam: a complete, versioned Registration Set is validated and
 compiled into one immutable Shared Edge configuration. The compiler has no deployment side effects.
@@ -38,7 +38,7 @@ in-process form of the second and third kinds. This revision selects the initial
 for infrastructure planning. It does not implement a provider adapter, Terraform configuration,
 cloud resource, DNS change, deployment, or Live qualification.
 
-## Logical topology
+## <u>Logical topology</u>
 
 ```text
                          reviewed Registration Set
@@ -108,7 +108,7 @@ explicit, separately approved operator action. A Google-managed certificate cove
 not application prefixes. No application attachment needs a separate client-facing DNS name or
 certificate, and this planning decision does not create either the record or certificate.
 
-## Modules and seams
+## <u>Modules and seams</u>
 
 ### Registration Compiler
 
@@ -203,7 +203,7 @@ Protected services require both provider-level direct-invocation denial and appl
 assertion verification. The load balancer-to-edge and edge-to-application trust details are refined
 by the later identity profile; topology selection alone is not evidence that either control works.
 
-## Application Registration and Registration Set
+## <u>Application Registration and Registration Set</u>
 
 An Application Registration is versioned data within a complete Registration Set. The logical
 fields are:
@@ -269,7 +269,7 @@ Failure after activation rolls the Shared Edge back as a whole generation withou
 deleting either attachment. Exact acceptance windows and live procedures belong to later
 implementation and evaluation authorities.
 
-## Route model
+## <u>Route model</u>
 
 ### Application prefix
 
@@ -304,14 +304,14 @@ The root catalogue, reserved platform paths, and application routes are disjoint
 malformed, suspended, or retired paths fail closed and never fall through to another
 application or expose an attachment reference.
 
-## Catalogue
+## <u>Catalogue</u>
 
 The catalogue is a read-only projection derived from the same compiled generation as routing. It is
 not maintained separately. Only an `active` registration whose Catalogue Visibility is `listed`
-appears. `unlisted` is the only other Version 1 visibility value and does not change Admission Mode.
+appears. `unlisted` is the only other visibility value and does not change Admission Mode.
 
 Each entry contains only the immutable application identifier, bounded plain-text title and
-summary, canonical route prefix, and an admission label suitable for display. Version 1 catalogue
+summary, canonical route prefix, and an admission label suitable for display. Catalogue
 metadata contains no HTML, scripts, images, arbitrary links, attachment references, allow-list
 members, operator metadata, provider data, or secrets. A renderer must escape all text for its
 output context and must not interpret catalogue text as markup.
@@ -319,7 +319,7 @@ output context and must not interpret catalogue text as markup.
 Being listed does not grant admission. Being unlisted does not create a secret route. Catalogue
 visibility and admission are validated independently.
 
-## Admission and verified identity
+## <u>Admission and verified identity</u>
 
 The Version 2 Registration Compiler accepts the Admission Modes and Identity Delivery combinations
 defined by ADR-003 and ADR-015:
@@ -337,13 +337,14 @@ owner-only for every restricted route. Email is not an admission or membership k
 Entitlements are prohibited from registration and membership contracts and remain an application
 concern after admission.
 
-The repository can validate, canonicalize, migrate, and compile this Version 2 shape through
-explicit compatibility interfaces. The Shared Edge can also load either complete compiled version,
-enforce explicit Version 2 admission and Identity Delivery, and query one exact current-member
-document. These interfaces still do not publish a Version 2 bundle, select it in the operator path,
-activate a Version 2 Registration Generation, or mutate the directory. A complete Version 2
-generation becomes operational only after the later lifecycle and handoff slices implement the
-remaining consumers and the atomic transition.
+The repository validates, canonicalizes, migrates, and compiles this Version 2 shape through
+explicit compatibility interfaces. The Shared Edge loads either complete compiled version,
+enforces explicit Version 2 admission and Identity Delivery, and queries one exact current-member
+document. The operator publishes one complete Version 2 bundle/intent family, validates the
+application attachment, migrates a readable Version 1 predecessor without its member list, and
+atomically activates one complete Version 2 Registration Generation. Separate member commands
+mutate the directory without republishing bundles or generations. These implemented paths remain
+unqualified until the later Candidate Source slice exercises them against staging.
 
 When Identity Delivery permits it and identity is present, the Shared Edge supplies a compact signed assertion in the versioned
 `X-Comfforts-Verified-Identity` header. The edge must remove any visitor-supplied value before
@@ -537,7 +538,7 @@ The provider and private generation history retain readable Version 1 predecesso
 Version 1 or Version 2 generation. Repository implementation and deterministic tests do not imply
 that this transition has been invoked against staging.
 
-## Lifecycle and atomic change
+## <u>Lifecycle and atomic change</u>
 
 The registration contracts define three lifecycle states:
 
@@ -609,7 +610,7 @@ remaining possible through the TTL. DNS action never changes a Registration Gene
 touches `apps.comfforts.com` or any Finance Assistant hostname, record, certificate, load balancer,
 or state.
 
-## Exclusive state ownership
+## <u>Exclusive state ownership</u>
 
 Every managed resource has exactly one owner recorded in the versioned State Ownership Manifest.
 Logical ownership is fixed as follows:
@@ -1305,7 +1306,7 @@ references, billing-account reference, notification destination, and the initial
 Set remain unresolved operator inputs. AP-M7 supplies their typed interfaces and synthetic test
 values only.
 
-## Failure and rollback behavior
+## <u>Failure and rollback behavior</u>
 
 - Schema, semantic, transition, or ownership failure produces ordered violations and no compiled
   output.
@@ -1321,7 +1322,7 @@ values only.
 Runtime status, provider health, and live rollback require measured evidence from later evaluation
 gates. Static configuration or a successful compiler run is not runtime qualification.
 
-## Threat and data boundary
+## <u>Threat and data boundary</u>
 
 Registrations, catalogue text, attachment references, identity headers, request paths, provider
 payloads, and operator-supplied configuration are untrusted inputs. Every interface is bounded,
@@ -1584,7 +1585,7 @@ Provider log routing, the dedicated bucket, seven-day retention, owner-only acce
 external export remain AP-M7 static configuration plus AP-M9 deployment and qualification
 evidence, not AP-M6 behavior.
 
-## Fixture boundary
+## <u>Fixture boundary</u>
 
 Fixture Applications are contract consumers, not internal compiler branches or privileged platform
 runtimes. Each networked fixture registers and attaches through the same active Version 2 handoff
@@ -1740,7 +1741,7 @@ This section is design authority only. No Fixture (`F`) evidence exists until a 
 Real-application code, data, infrastructure, identity, state, and migration are never fixture
 dependencies. Application migration remains under the consuming application's authority.
 
-## Configurability and extraction
+## <u>Configurability and extraction</u>
 
 Canonical documents, schemas, validation code, test vectors, and tests use project-relative paths
 inside the App Platform root. Contract identifiers do not encode the containing repository, a cloud
@@ -1750,7 +1751,7 @@ credential access and no cloud, DNS, identity, or application mutation.
 Extraction to a dedicated repository changes the project root but not contract identifiers,
 compiler behavior, paths relative to that root, or ownership boundaries.
 
-## Historical pre-implementation boundary — superseded
+## <u>Historical pre-implementation boundary — superseded</u>
 
 The original contract-and-fixture design stopped before the following work. This list is preserved
 only as historical scope evidence; the active AP-M9 sections above and the implementation plan
@@ -1775,7 +1776,7 @@ The versioned schemas and deterministic validation from that delivery remain par
 design where later authority did not replace them. This historical boundary does not override the
 active status and claim discipline in `docs/README.md`.
 
-## Design acceptance boundary
+## <u>Design acceptance boundary</u>
 
 This system design remains documentation authority rather than operational evidence. AP-M3 provides
 revision-scoped Contract evidence that the Version 1 schemas and deterministic reference compiler
@@ -1798,7 +1799,7 @@ environment, bundle, application-handoff, qualification, and destruction design.
 provider, network, identity, deployment, or Live evidence. Adoption qualification remains a later
 application-owned gate.
 
-## Design trace
+## <u>Design trace</u>
 
 | Design area | Requirements | Decisions |
 | --- | --- | --- |

@@ -1016,27 +1016,26 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "sixth of seven ordered AP-M9-W10 functional slices",
+            "seventh and final ordered AP-M9-W10 functional slice",
             "feat/platform-member-directory",
-            "docs/identity-delivery-operator-handoff",
-            "operator and reviewer documentation",
-            "Admission Mode/Identity Delivery combinations",
-            "complete Version 2 activation",
-            "point this prompt to Slice 7",
-            "Do not perform Candidate Source staging operations",
+            "evidence/member-admission-candidate-qualification",
+            "deterministic qualification support",
+            "public Identity Delivery `none` and explicit `optional`",
+            "reviewed owner-only baseline",
+            "Do not run Candidate Source staging from the slice branch",
             "only after all seven W10 slices merge",
             "pull request must target that integration branch, not `main`",
-            "any real application",
+            "real Application Adoption",
         ):
             self.assertIn(boundary, normalized_prompt)
         for excluded_later_slice in (
-            "evidence/member-admission-candidate-qualification",
+            "docs/identity-delivery-operator-handoff",
         ):
             self.assertNotIn(excluded_later_slice, prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W10 Slice 6 operator-handoff reconciliation](starting_prompt.md)",
+            "[AP-M9-W10 Slice 7 Candidate qualification readiness](starting_prompt.md)",
             prompt_index,
         )
 
@@ -1068,7 +1067,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
         self.assertIn("### AP-M9-W10", m9)
         self.assertIn("### AP-M9-W12", m9)
-        self.assertIn("AP-M9-W10 Slices 1-5 implemented", m9)
+        self.assertIn("AP-M9-W10 Slices 1-6 implemented", m9)
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
         self.assertIn(
@@ -1203,7 +1202,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             normalized_requirements,
         )
         self.assertIn(
-            "Slice 6 reconciles the operator handoff and implemented limitations before qualification",
+            "Slice 6 reconciles the operator handoff and implemented limitations without a provider operation",
             normalized_evaluation,
         )
         self.assertIn(
@@ -1328,7 +1327,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             r"^#### (AP-EVAL-M9-\d{2}) ·", evaluation, re.MULTILINE
         )
         active_lifecycle_boundaries = re.findall(
-            r"^## (AP-EVAL-M9) ·", evaluation, re.MULTILINE
+            r"^## (?:<u>)?(AP-EVAL-M9) ·", evaluation, re.MULTILINE
         )
 
         self.assertEqual(
@@ -2054,7 +2053,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-M9-W9 is implemented and candidate-qualified",
             overview,
         )
-        self.assertIn("AP-M9-W10 Slices 1 through 5 implement", overview)
+        self.assertIn("AP-M9-W10 Slices 1 through 6 implement", overview)
         self.assertIn("bounded member lifecycle commands", overview)
         self.assertIn("diagnostic pre-merge evidence", docs_index)
         self.assertIn("platform-prepare", overview)
@@ -2069,6 +2068,20 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Resume an interrupted operation", runbook)
         self.assertIn("make platform-cancel", runbook)
         self.assertIn("does not run Terraform", normalized_runbook)
+        for candidate_handoff in (
+            "Do not run it until Slice 7 has merged",
+            "make platform-preflight ENVIRONMENT=staging SOURCE_AUTHORITY=candidate",
+            "make platform-member-bootstrap-owner ENVIRONMENT=staging SOURCE_AUTHORITY=candidate",
+            "APPLICATION_ID=fixture-public ACCESS_MODE=public IDENTITY_DELIVERY=none",
+            "fixture-authenticated` | `authenticated` | `required`",
+            "fixture-restricted` | `restricted` | `required`",
+            "Use the newly reported active Registration Generation after each successful registration",
+            "reviewed owner-only member baseline",
+            "Slice 6 documents this sequence but performs none of its commands",
+        ):
+            self.assertIn(candidate_handoff, normalized_runbook)
+        self.assertIn("platform-integration-bundle.v2.json", overview)
+        self.assertNotIn("platform-integration-bundle.json", overview)
         self.assertIn("## Destroy a platform environment", runbook)
         self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", runbook)
         for governance_identifier in (
@@ -2085,12 +2098,12 @@ class ProjectAuthorityTest(unittest.TestCase):
         for required in (
             "AP-M9-W10",
             "AP-EVAL-M9-09",
-            "sixth of seven ordered AP-M9-W10 functional slices",
-            "docs/identity-delivery-operator-handoff",
-            "operator and reviewer documentation",
-            "Do not perform Candidate Source staging operations",
+            "seventh and final ordered AP-M9-W10 functional slice",
+            "evidence/member-admission-candidate-qualification",
+            "deterministic qualification support",
+            "Do not run Candidate Source staging from the slice branch",
             "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
-            "Do not mutate staging, production, DNS, identity, Finance Assistant, or any real application",
+            "Do not perform Accepted Source staging, production, real Application Adoption, Finance Assistant changes",
         ):
             self.assertIn(required, normalized_prompt)
         self.assertNotIn("AP-M9-W8 qualification and safe destruction handoff", prompt)

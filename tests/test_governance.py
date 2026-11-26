@@ -78,7 +78,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             "docs/04_implementation_plan.md",
             "docs/plans/README.md",
             "docs/plans/000-origin-implementation-plan.md",
-            "docs/plans/ap_m9_w10_platform_member_directory.md",
+            "docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md",
+            "docs/plans/ap_m9/w10_platform_member_directory.md",
             "docs/05_evaluation_strategy.md",
             "docs/06_threat_model.md",
             "docs/README.md",
@@ -929,13 +930,16 @@ class ProjectAuthorityTest(unittest.TestCase):
             prompt_index,
         )
 
-    def test_implementation_plan_index_routes_w10_to_one_current_plan(self) -> None:
+    def test_implementation_plan_index_routes_m9_and_w10_to_current_plans(self) -> None:
         index = (PROJECT_ROOT / "docs/plans/README.md").read_text(encoding="utf-8")
         origin = (
             PROJECT_ROOT / "docs/plans/000-origin-implementation-plan.md"
         ).read_text(encoding="utf-8")
+        m9 = (
+            PROJECT_ROOT / "docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md"
+        ).read_text(encoding="utf-8")
         w10 = (
-            PROJECT_ROOT / "docs/plans/ap_m9_w10_platform_member_directory.md"
+            PROJECT_ROOT / "docs/plans/ap_m9/w10_platform_member_directory.md"
         ).read_text(encoding="utf-8")
         compatibility = (
             PROJECT_ROOT / "docs/04_implementation_plan.md"
@@ -944,18 +948,30 @@ class ProjectAuthorityTest(unittest.TestCase):
 
         self.assertIn("canonical plan router through AP-M9-W12", index)
         self.assertIn("000-origin-implementation-plan.md", index)
-        self.assertIn("ap_m9_w10_platform_member_directory.md", index)
+        self.assertIn("ap_m9/000-m9_interactive_platform_lifecycle.md", index)
+        self.assertIn("ap_m9/w10_platform_member_directory.md", index)
         self.assertIn("only current plan for that\nidentifier", index)
         self.assertIn("estimation signals", index)
         self.assertIn("# App Platform origin implementation plan", origin)
-        self.assertIn("#### AP-M9-W10", origin)
-        self.assertIn("#### AP-M9-W12", origin)
+        self.assertIn("## Historical AP-M8", origin)
+        self.assertNotIn("# AP-M9 · Operator-driven environment lifecycle", origin)
+        self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
+        self.assertIn("### AP-M9-W10", m9)
+        self.assertIn("### AP-M9-W12", m9)
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
-        self.assertIn("plans/ap_m9_w10_platform_member_directory.md", compatibility)
+        self.assertIn(
+            "plans/ap_m9/000-m9_interactive_platform_lifecycle.md",
+            compatibility,
+        )
+        self.assertIn("plans/ap_m9/w10_platform_member_directory.md", compatibility)
         self.assertIn("[Implementation plan index](plans/README.md)", docs_router)
         self.assertIn(
-            "[AP-M9-W10 delivery plan](plans/ap_m9_w10_platform_member_directory.md)",
+            "[AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md)",
+            docs_router,
+        )
+        self.assertIn(
+            "[AP-M9-W10 delivery plan](plans/ap_m9/w10_platform_member_directory.md)",
             docs_router,
         )
 
@@ -1004,6 +1020,59 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("AP-M9-W10", normalized_prompt)
         self.assertIn("first Accepted Source staging operation", normalized_prompt)
         self.assertIn("Do not mutate production, `apps.comfforts.com`, Finance Assistant, or any real application", normalized_prompt)
+
+    def test_ap_m9_handoff_assigns_candidate_accepted_and_production_work_once(
+        self,
+    ) -> None:
+        requirements = (PROJECT_ROOT / "docs/01_product_requirements.md").read_text(
+            encoding="utf-8"
+        )
+        evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
+            encoding="utf-8"
+        )
+        m9 = (
+            PROJECT_ROOT / "docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md"
+        ).read_text(encoding="utf-8")
+        w10 = (
+            PROJECT_ROOT / "docs/plans/ap_m9/w10_platform_member_directory.md"
+        ).read_text(encoding="utf-8")
+        recovery = (
+            PROJECT_ROOT
+            / "docs/adr/016-recover-operator-working-state-without-fabricated-history.md"
+        ).read_text(encoding="utf-8")
+
+        normalized_requirements = " ".join(requirements.split())
+        normalized_evaluation = " ".join(evaluation.split())
+        normalized_m9 = " ".join(m9.split())
+        normalized_recovery = " ".join(recovery.split())
+
+        self.assertIn(
+            "ADR-015 implementation and Candidate Source qualification remain AP-M9-W10 work",
+            normalized_requirements,
+        )
+        self.assertIn(
+            "Accepted Source qualification remains AP-M9-W11 work",
+            normalized_requirements,
+        )
+        self.assertIn(
+            "W10 must repeat the applicable staging journey from Candidate Source",
+            normalized_evaluation,
+        )
+        self.assertIn(
+            "After W10 merges, AP-M9-W11 repeats deployment and qualification from Accepted Source",
+            normalized_evaluation,
+        )
+        self.assertIn("AP-M9-W1 through AP-M9-W12", normalized_m9)
+        self.assertNotIn("AP-M9-W1 through W10 are repository branches", m9)
+        self.assertNotIn("operation-specific service-account impersonation", m9)
+        self.assertIn("no operation-identity fleet", normalized_m9)
+        self.assertIn("seven planned commit outcomes", w10)
+        self.assertIn("ADR-016 operator-state recovery", w10)
+        self.assertIn("Status: Proposed; still in discussion", recovery)
+        self.assertIn(
+            "AP-M9-W10 continues to exclude operator-state recovery",
+            normalized_recovery,
+        )
 
     def test_fixture_design_selects_a_bounded_in_process_profile(self) -> None:
         design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
@@ -1117,13 +1186,16 @@ class ProjectAuthorityTest(unittest.TestCase):
         plan = (PROJECT_ROOT / "docs/plans/000-origin-implementation-plan.md").read_text(
             encoding="utf-8"
         )
+        m9 = (
+            PROJECT_ROOT / "docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md"
+        ).read_text(encoding="utf-8")
         evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
             encoding="utf-8"
         )
 
         work_packages = re.findall(r"^#### (AP-M8-W\d+) ·", plan, re.MULTILINE)
         lifecycle_packages = re.findall(
-            r"^#### (AP-M9-W\d+) ·", plan, re.MULTILINE
+            r"^### (AP-M9-W\d+) ·", m9, re.MULTILINE
         )
         lifecycle_gates = re.findall(
             r"^#### (AP-EVAL-M9-\d{2}) ·", evaluation, re.MULTILINE
@@ -1144,7 +1216,10 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertEqual(len(lifecycle_packages), len(set(lifecycle_packages)))
         self.assertEqual(len(lifecycle_gates), len(set(lifecycle_gates)))
-        self.assertIn("AP-M8-W3 through W12 superseded without execution", plan)
+        self.assertIn(
+            "AP-M8-W3 through AP-M8-W12 were superseded without execution",
+            plan,
+        )
         self.assertIn(
             "Historical standalone Live-qualification gate — withdrawn before implementation",
             evaluation,
@@ -1422,9 +1497,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         plan = (PROJECT_ROOT / "docs/plans/000-origin-implementation-plan.md").read_text(
             encoding="utf-8"
         )
+        m9 = (
+            PROJECT_ROOT / "docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md"
+        ).read_text(encoding="utf-8")
         evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
             encoding="utf-8"
         )
+        routed_plans = f"{plan}\n{m9}"
         normalized_plan = " ".join(plan.split())
         normalized_evaluation = " ".join(evaluation.split())
 
@@ -1435,7 +1514,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-M9 · Operator-driven environment lifecycle",
             "Later Application Adoption",
         ):
-            self.assertIn(later_slice, plan)
+            self.assertIn(later_slice, routed_plans)
 
         for planning_boundary in (
             "AP-M5 produces no Contract, Fixture, Live, or Adoption evidence",

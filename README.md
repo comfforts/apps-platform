@@ -701,7 +701,8 @@ and task-specific reading router.
 Useful deeper references are:
 
 - [system design](docs/03_system_design.md) for architecture and ownership;
-- [implementation plan index](docs/plans/README.md) for delivery status and the current W10 plan;
+- [implementation plan index](docs/plans/README.md) for delivery status, the AP-M9 milestone plan,
+  and the current W10 work-package plan;
 - [contract index](contracts/README.md) for public machine interfaces and compatibility;
 - [threat model](docs/06_threat_model.md) for trust boundaries and required evidence;
 - [repository layout](docs/repository_layout.md) for capability placement;

@@ -1,6 +1,6 @@
 # App Platform implementation plan index
 
-Version 0.1 | Status: canonical plan router through AP-M9-W12
+Version 0.2 | Status: canonical plan router through AP-M9-W12
 
 This directory is the canonical router for App Platform delivery plans. Requirements and accepted
 architecture decisions define required behavior and durable choices. A delivery plan defines how a
@@ -10,15 +10,23 @@ operation.
 
 ## Current plan model
 
-The [origin implementation plan](000-origin-implementation-plan.md) preserves the consolidated
-record through AP-M9-W12. It remains the canonical plan for every delivery item that has not been
-extracted. AP-M9-W10 has an individual plan because the Platform Member Directory and explicit
-Identity Delivery change is substantial enough to require its own baseline, operator journey,
-scope controls, commit map, and effort signals.
+The [origin implementation plan](000-origin-implementation-plan.md) preserves AP-M3 through AP-M8
+and the historical later-sequence notes that accompanied those plans. AP-M9 has its own
+[milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md), which owns the milestone outcome,
+boundaries, ordered work packages, acceptance criteria, and trace. The `000-` prefix marks that
+file as the AP-M9 directory entry point.
+
+The [AP-M9-W10 work-package plan](ap_m9/w10_platform_member_directory.md) is a sibling of the
+milestone plan because the Platform Member Directory and explicit Identity Delivery change is
+substantial enough to require its own baseline, operator journey, scope controls, commit map, and
+effort signals. Not every work package needs an individual file; the milestone plan remains
+canonical when no extracted work-package plan exists.
 
 The compatibility document at `docs/04_implementation_plan.md` routes old links to this index.
 When a delivery item is extracted, its individual file becomes the only current plan for that
-identifier. The origin document remains provenance and cannot override the extracted plan.
+identifier. A milestone plan controls sequence and milestone-wide boundaries; an extracted
+work-package plan controls only that package's implementation detail. The origin document remains
+provenance and cannot override either current plan.
 
 ## Plan inventory
 
@@ -26,10 +34,10 @@ identifier. The origin document remains provenance and cannot override the extra
 | --- | --- | --- |
 | AP-M3 through AP-M7 | Complete | [Origin implementation plan](000-origin-implementation-plan.md) |
 | AP-M8 | Historical; W1/W2 merged and W3-W12 superseded without execution | [Origin implementation plan](000-origin-implementation-plan.md) |
-| AP-M9-W1 through AP-M9-W9 | Implemented; W9 candidate-qualified under the Version 1 predecessor model | [Origin implementation plan](000-origin-implementation-plan.md) |
-| AP-M9-W10 | Planned; implementation and Candidate Source qualification not started | [Platform Member Directory and explicit Identity Delivery](ap_m9_w10_platform_member_directory.md) |
-| AP-M9-W11 | Planned first Accepted Source staging operation | [Origin implementation plan](000-origin-implementation-plan.md#ap-m9-w11--accepted-source-staging-deployment-and-qualification) |
-| AP-M9-W12 | Planned read-only production readiness and Finance handoff | [Origin implementation plan](000-origin-implementation-plan.md#ap-m9-w12--production-readiness-and-finance-handoff) |
+| AP-M9-W1 through AP-M9-W9 | Implemented; W9 candidate-qualified under the Version 1 predecessor model | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md) |
+| AP-M9-W10 | Planned; implementation and Candidate Source qualification not started | [Platform Member Directory and explicit Identity Delivery](ap_m9/w10_platform_member_directory.md) |
+| AP-M9-W11 | Planned first Accepted Source staging operation | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md#ap-m9-w11--accepted-source-staging-deployment-and-qualification) |
+| AP-M9-W12 | Planned read-only production readiness and Finance handoff | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md#ap-m9-w12--production-readiness-and-finance-handoff) |
 
 ## Plan status and estimates
 
@@ -47,8 +55,8 @@ non-additive. Actual verification and evidence, not an estimate, determine compl
 
 - Keep a completed or superseded plan as historical evidence; do not rewrite its result into a
   different outcome.
-- Extract a delivery item when its implementation is large enough that the consolidated record no
-  longer provides a practical review map.
+- Keep milestone plans in a milestone directory with `000-` as the entry point. Add a sibling
+  work-package plan only when the milestone summary no longer provides a practical review map.
 - Update the index, compatibility router, documentation reading order, prompt, and governance tests
   in the same change.
 - Keep implementation detail out of an ADR unless it is necessary to express the durable decision.

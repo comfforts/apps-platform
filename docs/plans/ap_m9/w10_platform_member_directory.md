@@ -260,7 +260,7 @@ Each commit runs focused deterministic tests for its changed seam. Before PR han
 
 The W10 branch is ready for review only when:
 
-- the seven outcomes above are implemented or the owner has approved an explicit smaller commit
+- the seven planned commit outcomes are implemented or the owner has approved an explicit smaller commit
   map;
 - every public contract and repository consumer moves together to Version 2;
 - the existing operator lifecycle remains linear and understandable without a generic orchestration

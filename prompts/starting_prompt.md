@@ -12,7 +12,9 @@ relabeled as ADR-015 qualification or copied into new evidence. W10 must produce
 contract, runtime, operator, fixture, and candidate-qualification evidence.
 
 Read `AGENTS.md`, follow the complete order in `docs/README.md`, and read
-`docs/plans/ap_m9_w10_platform_member_directory.md` as the current delivery plan. State the slice and authority:
+`docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md` as the milestone plan and
+`docs/plans/ap_m9/w10_platform_member_directory.md` as the current work-package plan. State the
+slice and authority:
 AP-M9-W10; AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, and AP-PR-011; AP-QR-001,
 AP-QR-002, AP-QR-004, and AP-QR-006 through AP-QR-009; ADR-003, ADR-004, ADR-006, ADR-008,
 ADR-012, ADR-014, and ADR-015; AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-004 through

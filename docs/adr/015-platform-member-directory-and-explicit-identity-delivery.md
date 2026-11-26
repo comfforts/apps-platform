@@ -111,8 +111,8 @@ registration update.
 The platform must not activate the new admission model until the directory infrastructure, runtime
 IAM, Version 2 compiler and consumers, owner lifecycle, deterministic migration, and rollback
 behavior are complete. Existing Candidate Source staging evidence remains truthful evidence of the
-Version 1 model and cannot qualify ADR-015. The accepted staging operation follows AP-M9-W10
-implementation and candidate qualification.
+Version 1 model and cannot qualify ADR-015. The AP-M9-W11 accepted staging operation follows
+AP-M9-W10 implementation and candidate qualification.
 
 ## Considered alternatives
 

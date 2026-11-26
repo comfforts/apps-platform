@@ -1,6 +1,6 @@
 # App Platform evaluation strategy
 
-Version 0.19 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.20 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
 without execution; ADR-015 implementation and Candidate Source qualification are AP-M9-W10 work,
 and the Accepted Source AP-EVAL-M9 result remains AP-M9-W11 work
@@ -26,7 +26,8 @@ It remains truthful predecessor evidence but cannot qualify ADR-015. It does not
 Source, production, a consuming application's adoption, or product authorization.
 
 Plan: [App Platform implementation plan index](plans/README.md) and
-[AP-M9-W10 delivery plan](plans/ap_m9_w10_platform_member_directory.md)
+[AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) and
+[AP-M9-W10 delivery plan](plans/ap_m9/w10_platform_member_directory.md)
 
 Design: [App Platform system design](03_system_design.md)
 
@@ -1547,12 +1548,12 @@ It performs no credential lookup, provider request, DNS lookup, Terraform backen
 mutation, or browser action. It uses synthetic profiles, command fakes, temporary mode-`0700`
 directories, mocked Terraform providers, process-local loopback, and deterministic clocks.
 
-Accepted staging Live gates begin only after AP-M9-W1 through W9 are merged and the exact
-protected-main revision passes the complete gate. Before merge, a clean pushed pull-request
-revision containing current `origin/main` may run the same staging journey with
+Accepted staging Live gates begin only after AP-M9-W1 through W10 are merged and the exact
+protected-main revision passes the complete gate. During W10, a clean pushed pull-request revision
+containing current `origin/main` may run the Version 2 staging journey with
 `SOURCE_AUTHORITY=candidate` to test provider behavior. Candidate specifications, bundles, and
 evidence remain digest-bound and separate, cannot satisfy AP-EVAL-M9, cannot overwrite accepted
-qualification, and cannot authorize production. After merge, the owner repeats deployment and
+qualification, and cannot authorize production. After W10 merges, AP-M9-W11 repeats deployment and
 qualification from Accepted Source. The owner starts an ordinary reversible staging creation or
 update by deliberately invoking its named command; that process completes specification approval,
 exact plan or bounded-action confirmation, and readback without a duplicate out-of-band approval.
@@ -1798,5 +1799,7 @@ cross-project fixture topology and recorded candidate evidence digest
 for revision `2fd045f6f720fe122103d42b3ebb6d25f5fbdac8` and restored active generation 8 digest
 `sha256:07880efea15027c1209c43e93bd91af2c6655c77582a70233c6cb22117462acf`.
 Private provider payloads, state, plans, browser state, and identity material remain outside Git.
-W10 must repeat the applicable staging journey from Accepted Source and complete the separately
-approved platform destruction/redeployment rehearsal before an accepted AP-EVAL-M9 result exists.
+W10 must repeat the applicable staging journey from Candidate Source, qualify the Version 2 member
+directory, and restore the reviewed member baseline. After W10 merges, W11 must repeat the journey
+from Accepted Source and complete the separately approved platform destruction/redeployment
+rehearsal before an accepted AP-EVAL-M9 result exists.

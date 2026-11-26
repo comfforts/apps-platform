@@ -1,6 +1,6 @@
 # App Platform repository layout
 
-Version 2.7 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
+Version 2.8 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
 ADR-015 accepted and AP-M9-W10 implementation is next
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
@@ -15,7 +15,7 @@ permission to create a resource or perform an external action.
 | `README.md`, `GLOSSARY.md` | product entry point and canonical vocabulary |
 | `docs/` | current requirements, decisions, design, plan compatibility routing, evaluation, and runbooks |
 | `docs/adr/` | canonical architecture-decision index and individual decision records |
-| `docs/plans/` | canonical implementation-plan index, consolidated origin plan, and extracted active delivery plans |
+| `docs/plans/` | canonical implementation-plan index, AP-M3 through AP-M8 origin plan, and milestone directories containing `000-` entry points plus substantial work-package plans |
 | `docs/history/` | superseded delivery records with no action authority |
 | `prompts/` | bounded next-task entry points subordinate to current documents |
 | `contracts/` | Version 1 public schemas, compiler, vectors, and bounded loading |

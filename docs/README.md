@@ -1,6 +1,6 @@
 # App Platform documentation
 
-Version 1.34 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted,
+Version 1.35 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted,
 ADR-016 proposed, and AP-M9-W10 platform-member implementation is next
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
@@ -23,20 +23,22 @@ Read these documents completely, in order, before modifying the platform:
 5. [System design](03_system_design.md) — interfaces, ownership, lifecycle, and provider design.
 6. [Threat model](06_threat_model.md) — trust zones, threats, controls, and evidence classes.
 7. [Implementation plan index](plans/README.md) — routes delivery identifiers to their current
-   canonical plan and preserves the consolidated origin record.
-8. [AP-M9-W10 delivery plan](plans/ap_m9_w10_platform_member_directory.md) — current baseline,
+   canonical milestone or work-package plan and preserves the AP-M3 through AP-M8 origin record.
+8. [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) — milestone outcome,
+   boundaries, ordered work packages, acceptance criteria, and trace.
+9. [AP-M9-W10 delivery plan](plans/ap_m9/w10_platform_member_directory.md) — current baseline,
    scope controls, operator interface, commit map, effort signals, and completion gate.
-9. [Evaluation strategy](05_evaluation_strategy.md) — AP-EVAL-M9 gates and claim boundaries.
-10. [Contract index](../contracts/README.md) — public machine interfaces.
-11. [Repository layout](repository_layout.md) — capability placement and transition rules.
-12. [Runbook index](runbooks/README.md) — subordinate operator procedures.
-13. [Environment lifecycle runbook](runbooks/environment_lifecycle.md) — operator procedure for
+10. [Evaluation strategy](05_evaluation_strategy.md) — AP-EVAL-M9 gates and claim boundaries.
+11. [Contract index](../contracts/README.md) — public machine interfaces.
+12. [Repository layout](repository_layout.md) — capability placement and transition rules.
+13. [Runbook index](runbooks/README.md) — subordinate operator procedures.
+14. [Environment lifecycle runbook](runbooks/environment_lifecycle.md) — operator procedure for
     staging and production preparation, deployment, inspection, qualification, recovery, and
     destruction.
-14. [Repository extraction runbook](runbooks/repository_extraction.md) and
+15. [Repository extraction runbook](runbooks/repository_extraction.md) and
     [handoff](repository_extraction_handoff.md) — completed canonical repository transition
     procedure and evidence.
-15. [Prompt index](../prompts/README.md) — bounded next-task entry points.
+16. [Prompt index](../prompts/README.md) — bounded next-task entry points.
 
 The material under [`docs/history/`](history/README.md) preserves superseded delivery evidence. It
 is not part of the active instruction path and cannot authorize an operation.

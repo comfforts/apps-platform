@@ -25,10 +25,14 @@ from contracts.validation import (
 
 EXPECTED_SCHEMA_IDS = {
     "urn:comfforts:app-platform:schema:application-attachment:v1",
+    "urn:comfforts:app-platform:schema:application-attachment:v2",
     "urn:comfforts:app-platform:schema:compiled-shared-edge:v1",
+    "urn:comfforts:app-platform:schema:compiled-shared-edge:v2",
     "urn:comfforts:app-platform:schema:registration-set:v1",
+    "urn:comfforts:app-platform:schema:registration-set:v2",
     "urn:comfforts:app-platform:schema:state-ownership-manifest:v1",
     "urn:comfforts:app-platform:schema:verified-identity-context:v1",
+    "urn:comfforts:app-platform:schema:verified-identity-context:v2",
 }
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 VECTOR_ROOT = PROJECT_ROOT / "contracts" / "test-vectors"
@@ -193,7 +197,7 @@ class ContractSchemaTest(unittest.TestCase):
         self.assertIn("contract-check:", makefile)
         self.assertIn(
             "tests.test_contracts tests.test_lifecycle_contracts "
-            "tests.test_lifecycle_vectors",
+            "tests.test_identity_delivery_contracts tests.test_lifecycle_vectors",
             makefile,
         )
         self.assertIn("fixture-check:", makefile)

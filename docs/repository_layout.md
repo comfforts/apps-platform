@@ -1,7 +1,7 @@
 # App Platform repository layout
 
-Version 2.8 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
-ADR-015 accepted and AP-M9-W10 implementation is next
+Version 2.9 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
+ADR-015 accepted and AP-M9-W10 Slice 1 implemented as an inert Version 2 compatibility layer
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -18,8 +18,8 @@ permission to create a resource or perform an external action.
 | `docs/plans/` | canonical implementation-plan index, AP-M3 through AP-M8 origin plan, and milestone directories containing `000-` entry points plus substantial work-package plans |
 | `docs/history/` | superseded delivery records with no action authority |
 | `prompts/` | bounded next-task entry points subordinate to current documents |
-| `contracts/` | Version 1 public schemas, compiler, vectors, and bounded loading |
-| `contracts/lifecycle/` | AP-M9 profiles and lifecycle-document schemas, vectors, digests, and cross-document validation |
+| `contracts/` | active Version 1 plus inert Version 2 schemas, compilers, migration, vectors, and bounded loading |
+| `contracts/lifecycle/` | AP-M9 profiles plus active Version 1 and inert Version 2 lifecycle schemas, vectors, digests, and cross-document validation |
 | `fixtures/` | deterministic in-process Fixture platform and synthetic applications |
 | `edge/` | network Shared Edge and production-adapter implementation |
 | `integrations/` | inactive application-adoption drafts |

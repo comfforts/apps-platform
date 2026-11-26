@@ -1,7 +1,7 @@
 # App Platform system design
 
-Version 1.12 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence and AP-M9-W10 member-directory implementation is next
+Version 1.13 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence and AP-M9-W10 Slice 1 provides only inert Version 2 contract compatibility
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -334,6 +334,12 @@ a member set in a registration. An environment with only its explicitly bootstra
 owner-only for every restricted route. Email is not an admission or membership key. Feature
 Entitlements are prohibited from registration and membership contracts and remain an application
 concern after admission.
+
+The repository can now validate, canonicalize, migrate, and compile this Version 2 shape through
+explicit compatibility interfaces. Those interfaces do not publish a bundle, select a runtime
+configuration, activate a Registration Generation, query a member directory, or change the active
+Version 1 operator path. A complete Version 2 generation becomes selectable only after the later
+directory, edge, lifecycle, and handoff slices implement all consumers and the atomic transition.
 
 When Identity Delivery permits it and identity is present, the Shared Edge supplies a compact signed assertion in the versioned
 `X-Comfforts-Verified-Identity` header. The edge must remove any visitor-supplied value before

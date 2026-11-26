@@ -1,0 +1,10 @@
+{
+  "contract_version": 2,
+  "issuer": "urn:comfforts:identity:synthetic",
+  "subject": "synthetic-user-1",
+  "audience": "urn:comfforts:app-platform:audience:alpha-app",
+  "issued_at": 100,
+  "expires_at": 200,
+  "correlation_id": "request-1",
+  "platform_member": true
+}

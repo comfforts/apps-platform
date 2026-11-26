@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2",
+  "title": "Platform Integration Bundle Version 2",
+  "description": "Digest-bound non-secret platform handoff for one application with explicit Identity Delivery and no member data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "document_kind",
+    "environment",
+    "application_id",
+    "access_mode",
+    "identity_delivery",
+    "route_intent",
+    "generation",
+    "profile_digest",
+    "platform_source_authority",
+    "platform_source_revision",
+    "specification_digest",
+    "deployment_progress_digest",
+    "endpoints",
+    "identity",
+    "application_project",
+    "network",
+    "attachment_contract",
+    "qualification_status"
+  ],
+  "properties": {
+    "contract_version": {"const": 2},
+    "document_kind": {"const": "platform-integration-bundle"},
+    "environment": {"enum": ["production", "staging"]},
+    "application_id": {"$ref": "#/$defs/applicationId"},
+    "access_mode": {"enum": ["authenticated", "public", "restricted"]},
+    "identity_delivery": {"enum": ["none", "optional", "required"]},
+    "route_intent": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "pattern": "^/[a-z0-9][a-z0-9_-]{0,62}$"
+    },
+    "generation": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+    "profile_digest": {"$ref": "#/$defs/digest"},
+    "platform_source_authority": {"enum": ["accepted", "candidate"]},
+    "platform_source_revision": {"$ref": "#/$defs/sourceRevision"},
+    "specification_digest": {"$ref": "#/$defs/digest"},
+    "deployment_progress_digest": {"$ref": "#/$defs/digest"},
+    "endpoints": {"$ref": "#/$defs/endpoints"},
+    "identity": {"$ref": "#/$defs/identity"},
+    "application_project": {"$ref": "#/$defs/applicationProject"},
+    "network": {"$ref": "#/$defs/network"},
+    "attachment_contract": {"$ref": "#/$defs/attachmentContract"},
+    "qualification_status": {"enum": ["qualified", "unqualified"]}
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["access_mode", "identity_delivery"],
+      "properties": {"access_mode": {"const": "public"}, "identity_delivery": {"const": "none"}}
+    },
+    {
+      "type": "object",
+      "required": ["access_mode", "identity_delivery"],
+      "properties": {"access_mode": {"const": "public"}, "identity_delivery": {"const": "optional"}}
+    },
+    {
+      "type": "object",
+      "required": ["access_mode", "identity_delivery"],
+      "properties": {"access_mode": {"const": "authenticated"}, "identity_delivery": {"const": "required"}}
+    },
+    {
+      "type": "object",
+      "required": ["access_mode", "identity_delivery"],
+      "properties": {"access_mode": {"const": "restricted"}, "identity_delivery": {"const": "required"}}
+    }
+  ],
+  "$defs": {
+    "applicationId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]$"
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 71,
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "sourceRevision": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 40,
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "nullableUri": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 512,
+          "pattern": "^https://[a-z0-9][a-z0-9./_-]+$"
+        }
+      ]
+    },
+    "endpoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["external_origin", "issuer", "jwks_uri", "oauth_redirect_uri"],
+      "properties": {
+        "external_origin": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 300,
+          "pattern": "^https://[a-z0-9][a-z0-9.-]+$"
+        },
+        "issuer": {"$ref": "#/$defs/nullableUri"},
+        "jwks_uri": {"$ref": "#/$defs/nullableUri"},
+        "oauth_redirect_uri": {"$ref": "#/$defs/nullableUri"}
+      }
+    },
+    "nullableIdentityValue": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 512,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._~:/@-]+$"
+        }
+      ]
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oauth_client_id", "audience", "edge_caller_reference"],
+      "properties": {
+        "oauth_client_id": {"$ref": "#/$defs/nullableIdentityValue"},
+        "audience": {"$ref": "#/$defs/nullableIdentityValue"},
+        "edge_caller_reference": {
+          "type": "string",
+          "minLength": 50,
+          "maxLength": 320,
+          "pattern": "^serviceAccount:[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\\.iam\\.gserviceaccount\\.com$"
+        }
+      }
+    },
+    "attachmentContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter_kind", "ingress_mode"],
+      "properties": {
+        "adapter_kind": {"const": "gcp-cloud-run-v1"},
+        "ingress_mode": {"const": "shared_edge_only"}
+      }
+    },
+    "applicationProject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "project_number"],
+      "properties": {
+        "project_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"},
+        "project_number": {"type": "string", "pattern": "^[1-9][0-9]{5,18}$"}
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host_project_id", "host_project_number", "region", "network_reference", "subnetwork_reference", "egress_mode"],
+      "properties": {
+        "host_project_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"},
+        "host_project_number": {"type": "string", "pattern": "^[1-9][0-9]{5,18}$"},
+        "region": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]$"},
+        "network_reference": {"type": "string", "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/global/networks/[a-z][a-z0-9-]{1,61}[a-z0-9]$"},
+        "subnetwork_reference": {"type": "string", "pattern": "^projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/regions/[a-z][a-z0-9-]{1,61}[a-z0-9]/subnetworks/[a-z][a-z0-9-]{1,61}[a-z0-9]$"},
+        "egress_mode": {"const": "all-traffic"}
+      }
+    }
+  }
+}

@@ -1,8 +1,9 @@
 # App Platform threat model
 
-Version 1.15 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
+Version 1.16 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
 the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
-controls are accepted but remain unimplemented and unqualified until AP-M9-W10
+contract controls are implemented inertly by AP-M9-W10 Slice 1, while runtime controls remain
+unimplemented and unqualified
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -931,13 +932,15 @@ deployment adapters are wired behind pinned-tool, exact-project, active-account,
 digest-bound plan, confirmation, source-upload allow-list, and readback gates. W9 adds and exercises
 the Fixture Application deployment lifecycle, browser qualification, and closed fixture
 destruction/recovery transition under Candidate Source. ADR-015 supersedes its Version 1
-per-registration membership and implicit public-identity boundary. W10 must implement and
-candidate-qualify the directory, explicit Identity Delivery, owner bootstrap, second-member
-lifecycle, and Version 2 contracts before the Accepted Source operation in W11. Candidate evidence
+per-registration membership and implicit public-identity boundary. W10 Slice 1 implements the
+inert Version 2 contract family, deterministic member-discarding migration, compatibility loading,
+and rejection of mixed or member-bearing Version 2 documents. Later W10 slices must implement and
+candidate-qualify the directory, runtime Identity Delivery, owner bootstrap, and second-member
+lifecycle before the Accepted Source operation in W11. Candidate evidence
 proves only the named W9 predecessor bindings. No current result proves ADR-015 realization,
 Accepted Source staging, platform destruction/redeployment, production, or Application Adoption.
 
-## Unresolved security decisions
+## Remaining implementation and security decisions
 
 The following decisions must be approved by their owning later slice before the named evidence can
 pass:
@@ -951,7 +954,6 @@ pass:
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
 | Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
-| Version 2 contracts, deterministic Version 1 migration, and prohibition on mixed activation | AP-M9-W10 Slice 1 acceptance |
 | Platform Member Directory storage, namespace separation, runtime IAM, provider readback, and Terraform ownership | AP-M9-W10 Slice 2 acceptance |
 | Shared Edge lookup, explicit Identity Delivery, assertion minimization, and fail-closed admission | AP-M9-W10 Slice 3 acceptance |
 | Owner bootstrap and member lifecycle authorization, concurrency, privacy, and readback | AP-M9-W10 Slice 4 acceptance |

@@ -14,10 +14,14 @@ from typing import Any
 SCHEMA_DIRECTORY = Path(__file__).with_name("schemas")
 SCHEMA_FILES = (
     "application-attachment.v1.schema.json",
+    "application-attachment.v2.schema.json",
     "compiled-shared-edge.v1.schema.json",
+    "compiled-shared-edge.v2.schema.json",
     "registration-set.v1.schema.json",
+    "registration-set.v2.schema.json",
     "state-ownership-manifest.v1.schema.json",
     "verified-identity-context.v1.schema.json",
+    "verified-identity-context.v2.schema.json",
 )
 SCHEMA_KEYWORDS = {
     "$defs",
@@ -72,6 +76,25 @@ class CompilationResult:
     compiled_configuration: dict[str, Any] | None
     ownership_manifest: dict[str, Any] | None
     generation_digest: str | None
+    violations: tuple[Violation, ...]
+
+
+@dataclass(frozen=True)
+class RegistrationMigrationResult:
+    """A complete Version 2 registration translation or ordered violations."""
+
+    registration_set: dict[str, Any] | None
+    violations: tuple[Violation, ...]
+
+
+@dataclass(frozen=True)
+class VersionedContractDocument:
+    """One validated V1 or V2 contract with deterministic canonical bytes."""
+
+    value: dict[str, Any] | None
+    contract_version: int | None
+    canonical_bytes: bytes | None
+    digest: str | None
     violations: tuple[Violation, ...]
 
 
@@ -184,7 +207,7 @@ def _normalized_registration_set(registration_set: dict[str, Any]) -> dict[str, 
             registration["attachments"], key=lambda value: value["attachment_id"]
         )
         admission = registration["admission"]
-        if admission["mode"] == "restricted":
+        if admission["mode"] == "restricted" and "members" in admission:
             admission["members"] = sorted(
                 admission["members"],
                 key=lambda value: (value["issuer"], value["subject"]),
@@ -692,7 +715,10 @@ def validate_contract_instance(
     if (
         not violations
         and target_schema_id
-        == "urn:comfforts:app-platform:schema:verified-identity-context:v1"
+        in {
+            "urn:comfforts:app-platform:schema:verified-identity-context:v1",
+            "urn:comfforts:app-platform:schema:verified-identity-context:v2",
+        }
         and isinstance(value, dict)
         and value["expires_at"] <= value["issued_at"]
     ):
@@ -1078,3 +1104,545 @@ def _lifecycle_transition_violations(
                 )
             )
     return violations
+
+
+_VERSIONED_CONTRACT_SCHEMAS = {
+    "application-attachment": {
+        1: "urn:comfforts:app-platform:schema:application-attachment:v1",
+        2: "urn:comfforts:app-platform:schema:application-attachment:v2",
+    },
+    "compiled-shared-edge": {
+        1: "urn:comfforts:app-platform:schema:compiled-shared-edge:v1",
+        2: "urn:comfforts:app-platform:schema:compiled-shared-edge:v2",
+    },
+    "registration-set": {
+        1: "urn:comfforts:app-platform:schema:registration-set:v1",
+        2: "urn:comfforts:app-platform:schema:registration-set:v2",
+    },
+    "verified-identity-context": {
+        1: "urn:comfforts:app-platform:schema:verified-identity-context:v1",
+        2: "urn:comfforts:app-platform:schema:verified-identity-context:v2",
+    },
+}
+
+
+def validate_versioned_contract_document(
+    value: Any,
+    expected_kind: str,
+    *,
+    registry: dict[str, dict[str, Any]] | None = None,
+) -> tuple[Violation, ...]:
+    """Validate a readable V1 or inert V2 document without selecting it for activation."""
+
+    versions = _VERSIONED_CONTRACT_SCHEMAS.get(expected_kind)
+    if versions is None:
+        raise ValueError(f"unknown versioned contract kind: {expected_kind}")
+    if not isinstance(value, dict):
+        return (Violation("FIELD_TYPE", "", "document must be an object"),)
+    version = value.get("contract_version")
+    if not isinstance(version, int) or isinstance(version, bool) or version not in versions:
+        return (
+            Violation(
+                "CONTRACT_VERSION_UNSUPPORTED",
+                "/contract_version",
+                "document contract version is not readable for this interface",
+            ),
+        )
+    return validate_contract_instance(value, versions[version], registry)
+
+
+def canonical_versioned_contract_bytes(value: Any, expected_kind: str) -> bytes:
+    """Serialize one valid readable contract with Canonical JSON Version 1 rules."""
+
+    violations = validate_versioned_contract_document(value, expected_kind)
+    if violations:
+        raise ValueError(f"invalid {expected_kind}: {violations!r}")
+    return _canonical_bytes(value)
+
+
+def versioned_contract_digest(value: Any, expected_kind: str) -> str:
+    """Return the deterministic SHA-256 digest of one readable contract."""
+
+    return f"sha256:{hashlib.sha256(canonical_versioned_contract_bytes(value, expected_kind)).hexdigest()}"
+
+
+def load_versioned_contract_document(
+    path: Path,
+    expected_kind: str,
+    *,
+    max_bytes: int = 1_048_576,
+) -> VersionedContractDocument:
+    """Load V1 historical or inert V2 contract input through one explicit compatibility seam."""
+
+    loaded = load_json_document(path, max_bytes=max_bytes)
+    if loaded.violations or not isinstance(loaded.value, dict):
+        return VersionedContractDocument(
+            None,
+            None,
+            None,
+            None,
+            loaded.violations
+            or (Violation("FIELD_TYPE", "", "document must be an object"),),
+        )
+    violations = validate_versioned_contract_document(loaded.value, expected_kind)
+    if violations:
+        return VersionedContractDocument(None, None, None, None, violations)
+    canonical = _canonical_bytes(loaded.value)
+    return VersionedContractDocument(
+        loaded.value,
+        int(loaded.value["contract_version"]),
+        canonical,
+        f"sha256:{hashlib.sha256(canonical).hexdigest()}",
+        (),
+    )
+
+
+def migrate_registration_set_v1_to_v2(
+    registration_set: dict[str, Any],
+) -> RegistrationMigrationResult:
+    """Translate readable V1 registrations to V2 without activating or revising them.
+
+    The translation preserves generation and registration revision values because it is a
+    compatibility representation, not an activation. A later compiler call creates the next
+    complete generation and binds its predecessor to the original V1 digest.
+    """
+
+    registry = load_contract_schemas()
+    violations = validate_contract_instance(
+        registration_set,
+        "urn:comfforts:app-platform:schema:registration-set:v1",
+        registry,
+    )
+    if violations:
+        return RegistrationMigrationResult(None, violations)
+
+    migrated = copy.deepcopy(registration_set)
+    migrated["contract_version"] = 2
+    for registration in migrated["registrations"]:
+        registration["contract_version"] = 2
+        mode = registration["admission"]["mode"]
+        delivery = "none" if mode == "public" else "required"
+        registration["admission"] = {"mode": mode}
+        registration["identity_delivery"] = delivery
+        for attachment in registration["attachments"]:
+            attachment["contract_version"] = 2
+            if delivery == "none":
+                attachment["identity_requirement"] = "none"
+                attachment["audience"] = None
+            else:
+                attachment["identity_requirement"] = "verified"
+
+    migrated_violations = validate_contract_instance(
+        migrated,
+        "urn:comfforts:app-platform:schema:registration-set:v2",
+        registry,
+    )
+    if migrated_violations:
+        return RegistrationMigrationResult(None, migrated_violations)
+    return RegistrationMigrationResult(migrated, ())
+
+
+def _attachment_binding_violations_v2(
+    registration_set: dict[str, Any], platform_configuration: dict[str, Any]
+) -> list[Violation]:
+    """Enforce V2 adapter, owner, audience, and Identity Delivery bindings."""
+
+    enabled = set(platform_configuration["enabled_attachment_adapter_kinds"])
+    violations: list[Violation] = []
+    platform_resource_references = {
+        "urn:comfforts:app-platform:catalogue:root",
+        "urn:comfforts:app-platform:shared-edge:root",
+    }
+    for registration in registration_set["registrations"]:
+        platform_resource_references.add(
+            "urn:comfforts:app-platform:route:"
+            f"{registration['application_id']}"
+        )
+        platform_resource_references.update(
+            "urn:comfforts:app-platform:edge-connector:"
+            f"{registration['application_id']}:{attachment['attachment_id']}"
+            for attachment in registration["attachments"]
+        )
+
+    resource_owners: dict[str, str] = {}
+    audience_owners: dict[str, str] = {}
+    requirement_by_delivery = {
+        "none": "none",
+        "optional": "optional",
+        "required": "verified",
+    }
+    for registration_index, registration in enumerate(
+        registration_set["registrations"]
+    ):
+        seen_attachment_ids: set[str] = set()
+        seen_mounts: set[str] = set()
+        for attachment_index, attachment in enumerate(registration["attachments"]):
+            path = f"/registrations/{registration_index}/attachments/{attachment_index}"
+            duplicate_attachment_id = attachment["attachment_id"] in seen_attachment_ids
+            if duplicate_attachment_id:
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_CONFLICT",
+                        f"{path}/attachment_id",
+                        "attachment identifier is already used in this registration",
+                    )
+                )
+            seen_attachment_ids.add(attachment["attachment_id"])
+
+            prior_owner = resource_owners.get(attachment["resource_reference"])
+            if attachment["resource_reference"] in platform_resource_references:
+                violations.append(
+                    Violation(
+                        "OWNER_CONFLICT",
+                        f"{path}/resource_reference",
+                        "attachment resource is reserved for platform ownership",
+                    )
+                )
+            elif prior_owner is not None and not (
+                duplicate_attachment_id
+                and prior_owner == registration["application_id"]
+            ):
+                code = (
+                    "OWNER_CONFLICT"
+                    if prior_owner != registration["application_id"]
+                    else "ATTACHMENT_CONFLICT"
+                )
+                violations.append(
+                    Violation(
+                        code,
+                        f"{path}/resource_reference",
+                        (
+                            "attachment resource is declared by another application owner"
+                            if code == "OWNER_CONFLICT"
+                            else "attachment resource is repeated in this application"
+                        ),
+                    )
+                )
+            else:
+                resource_owners[attachment["resource_reference"]] = registration[
+                    "application_id"
+                ]
+
+            if attachment["mount_path"] in seen_mounts:
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_CONFLICT",
+                        f"{path}/mount_path",
+                        "attachment mount is already used in this registration",
+                    )
+                )
+            seen_mounts.add(attachment["mount_path"])
+            if attachment["adapter_kind"] not in enabled:
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_INVALID",
+                        f"{path}/adapter_kind",
+                        "attachment adapter kind is not enabled",
+                    )
+                )
+            if attachment["owner_application_id"] != registration["application_id"]:
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_INVALID",
+                        f"{path}/owner_application_id",
+                        "attachment owner does not match the registered application",
+                    )
+                )
+            expected_reference = None
+            if attachment["adapter_kind"] == "contract-test-v1":
+                expected_reference = (
+                    "urn:comfforts:app-platform:contract-test:"
+                    f"{registration['application_id']}:{attachment['attachment_id']}"
+                )
+            elif attachment["adapter_kind"] == "fixture-in-process-v1":
+                expected_reference = (
+                    "urn:comfforts:app-platform:fixture:"
+                    f"{registration['application_id']}:{attachment['attachment_id']}"
+                )
+            if (
+                expected_reference is not None
+                and attachment["resource_reference"] != expected_reference
+            ):
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_INVALID",
+                        f"{path}/resource_reference",
+                        "attachment reference does not match its owner and identifier",
+                    )
+                )
+
+            expected_requirement = requirement_by_delivery[
+                registration["identity_delivery"]
+            ]
+            if attachment["identity_requirement"] != expected_requirement:
+                violations.append(
+                    Violation(
+                        "IDENTITY_INVALID",
+                        f"{path}/identity_requirement",
+                        "attachment identity posture does not match Identity Delivery",
+                    )
+                )
+            audience = attachment["audience"]
+            if registration["identity_delivery"] == "none" and audience is not None:
+                violations.append(
+                    Violation(
+                        "IDENTITY_INVALID",
+                        f"{path}/audience",
+                        "Identity Delivery none cannot bind an application audience",
+                    )
+                )
+            if registration["identity_delivery"] != "none" and audience is None:
+                violations.append(
+                    Violation(
+                        "IDENTITY_INVALID",
+                        f"{path}/audience",
+                        "optional or required identity delivery needs an application audience",
+                    )
+                )
+            if audience is not None:
+                prior_audience_owner = audience_owners.get(audience)
+                if (
+                    prior_audience_owner is not None
+                    and prior_audience_owner != registration["application_id"]
+                ):
+                    violations.append(
+                        Violation(
+                            "IDENTITY_INVALID",
+                            f"{path}/audience",
+                            "identity audience is already bound to another application",
+                        )
+                    )
+                audience_owners[audience] = registration["application_id"]
+    return violations
+
+
+def compile_registration_set_v2(
+    previous_generation: dict[str, Any] | None,
+    proposed_registration_set: dict[str, Any],
+    platform_configuration: dict[str, Any],
+) -> CompilationResult:
+    """Compile an inert complete V2 generation without changing the active V1 path.
+
+    A V1 predecessor is accepted only as historical input. It is migrated in memory for
+    transition comparison while the proposed set must be wholly V2 and names the digest of the
+    original V1 bytes. The function never activates or publishes its result.
+    """
+
+    registry = load_contract_schemas()
+    violations = list(
+        validate_contract_instance(
+            proposed_registration_set,
+            "urn:comfforts:app-platform:schema:registration-set:v2",
+            registry,
+        )
+    )
+    violations.extend(
+        validate_contract_instance(
+            platform_configuration,
+            "urn:comfforts:app-platform:schema:registration-set:v2"
+            "#/$defs/platformConfiguration",
+            registry,
+        )
+    )
+
+    comparison_previous: dict[str, Any] | None = None
+    if previous_generation is not None:
+        version = previous_generation.get("contract_version")
+        if version == 1:
+            migration = migrate_registration_set_v1_to_v2(previous_generation)
+            violations.extend(migration.violations)
+            comparison_previous = migration.registration_set
+        elif version == 2:
+            violations.extend(
+                validate_contract_instance(
+                    previous_generation,
+                    "urn:comfforts:app-platform:schema:registration-set:v2",
+                    registry,
+                )
+            )
+            comparison_previous = previous_generation
+        else:
+            violations.append(
+                Violation(
+                    "CONTRACT_VERSION_UNSUPPORTED",
+                    "/previous_generation/contract_version",
+                    "V2 compilation can read only V1 or V2 predecessor input",
+                )
+            )
+
+    reserved_route_violations = _reserved_route_violations(proposed_registration_set)
+    if reserved_route_violations:
+        reserved_paths = {violation.path for violation in reserved_route_violations}
+        violations = [
+            violation
+            for violation in violations
+            if not (
+                violation.code == "FIELD_PATTERN" and violation.path in reserved_paths
+            )
+        ]
+        violations.extend(reserved_route_violations)
+    if not violations:
+        violations.extend(
+            _registration_key_conflict_violations(proposed_registration_set)
+        )
+        violations.extend(
+            _attachment_binding_violations_v2(
+                proposed_registration_set, platform_configuration
+            )
+        )
+    if not violations and previous_generation is None:
+        violations.extend(_initial_generation_violations(proposed_registration_set))
+        violations.extend(_new_application_violations(proposed_registration_set))
+    if not violations and previous_generation is not None:
+        assert comparison_previous is not None
+        if proposed_registration_set["generation"] != previous_generation["generation"] + 1:
+            violations.append(
+                Violation(
+                    "GENERATION_INVALID",
+                    "/generation",
+                    "generation must advance exactly once",
+                )
+            )
+        if proposed_registration_set["previous_generation_digest"] != _generation_digest(
+            previous_generation
+        ):
+            violations.append(
+                Violation(
+                    "GENERATION_INVALID",
+                    "/previous_generation_digest",
+                    "predecessor digest does not match the reviewed generation",
+                )
+            )
+        violations.extend(
+            _registration_update_violations(
+                comparison_previous, proposed_registration_set
+            )
+        )
+        violations.extend(
+            _lifecycle_transition_violations(
+                comparison_previous, proposed_registration_set
+            )
+        )
+    if violations:
+        return CompilationResult(None, None, None, _ordered_violations(violations))
+
+    normalized = _normalized_registration_set(proposed_registration_set)
+    digest = _generation_digest(normalized)
+    active_registrations = [
+        registration
+        for registration in normalized["registrations"]
+        if registration["lifecycle"] == "active"
+    ]
+    compiled = {
+        "contract_version": 2,
+        "compiler_version": 2,
+        "generation": normalized["generation"],
+        "generation_digest": digest,
+        "previous_generation_digest": normalized["previous_generation_digest"],
+        "reserved_paths": ["/", "/.well-known", "/_platform"],
+        "identity_delivery": {
+            "header_name": "X-Comfforts-Verified-Identity",
+            "context_contract_version": 2,
+        },
+        "application_states": [
+            {
+                "application_id": registration["application_id"],
+                "registration_revision": registration["registration_revision"],
+                "route_prefix": registration["route_prefix"],
+                "lifecycle": registration["lifecycle"],
+            }
+            for registration in normalized["registrations"]
+        ],
+        "catalogue": [
+            {
+                "application_id": registration["application_id"],
+                "title": registration["catalogue"]["title"],
+                "summary": registration["catalogue"]["summary"],
+                "route_prefix": registration["route_prefix"],
+                "admission_mode": registration["admission"]["mode"],
+            }
+            for registration in active_registrations
+            if registration["catalogue"]["visibility"] == "listed"
+        ],
+        "routes": [
+            {
+                "application_id": registration["application_id"],
+                "route_prefix": registration["route_prefix"],
+                "attachments": sorted(
+                    copy.deepcopy(registration["attachments"]),
+                    key=_mount_specificity,
+                ),
+            }
+            for registration in sorted(
+                active_registrations, key=lambda value: value["route_prefix"]
+            )
+        ],
+        "admission_policies": [
+            {
+                "application_id": registration["application_id"],
+                "admission_mode": registration["admission"]["mode"],
+                "identity_delivery": registration["identity_delivery"],
+            }
+            for registration in active_registrations
+        ],
+    }
+
+    resources = [
+        _platform_resource(
+            "urn:comfforts:app-platform:catalogue:root", "catalogue"
+        ),
+        _platform_resource(
+            "urn:comfforts:app-platform:shared-edge:root", "shared-edge"
+        ),
+    ]
+    for registration in normalized["registrations"]:
+        if registration["lifecycle"] != "retired":
+            resources.extend(
+                _application_resource(attachment)
+                for attachment in registration["attachments"]
+            )
+        if registration["lifecycle"] == "active":
+            resources.append(
+                _platform_resource(
+                    "urn:comfforts:app-platform:route:"
+                    f"{registration['application_id']}",
+                    "route",
+                )
+            )
+            resources.extend(
+                _platform_resource(
+                    "urn:comfforts:app-platform:edge-connector:"
+                    f"{registration['application_id']}:{attachment['attachment_id']}",
+                    "edge-connector",
+                )
+                for attachment in registration["attachments"]
+            )
+    ownership = {
+        "contract_version": 1,
+        "generation": normalized["generation"],
+        "generation_digest": digest,
+        "resources": sorted(resources, key=lambda value: value["resource_reference"]),
+    }
+
+    internal_violations = list(
+        validate_contract_instance(
+            compiled,
+            "urn:comfforts:app-platform:schema:compiled-shared-edge:v2",
+            registry,
+        )
+    )
+    internal_violations.extend(
+        validate_contract_instance(
+            ownership,
+            "urn:comfforts:app-platform:schema:state-ownership-manifest:v1",
+            registry,
+        )
+    )
+    if internal_violations:
+        return CompilationResult(
+            None,
+            None,
+            None,
+            _ordered_violations(internal_violations),
+        )
+    return CompilationResult(compiled, ownership, digest, ())

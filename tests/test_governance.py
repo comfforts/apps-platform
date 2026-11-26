@@ -330,6 +330,27 @@ class ProjectAuthorityTest(unittest.TestCase):
             "An approved implementation slice does not implicitly authorize an external mutation",
             normalized_instructions,
         )
+        self.assertIn("## Code documentation", instructions)
+        self.assertIn(
+            "Treat documentation debt as touched-code work",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "For every undocumented function or method encountered while tracing or changing the requested execution path",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "Keep an existing module docstring and component `README.md` current",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "report the gap and ask the owner whether complete current-state documentation should be created",
+            normalized_instructions,
+        )
+        self.assertIn(
+            "Treat that work as an explicit scope decision",
+            normalized_instructions,
+        )
         self.assertNotRegex(instructions, r"AP-M\d")
         self.assertNotIn("Finance Assistant", instructions)
         self.assertNotIn("platform-deploy", instructions)

@@ -73,10 +73,16 @@ documentation. [docs/README.md](docs/README.md) is the canonical router to that 
 
 - Start each new approved slice from an updated, clean `main` on a dedicated semantically named
   branch.
+- Treat milestones and work packages as planning containers rather than automatic branch or pull-
+  request boundaries. Decompose a substantial work item into ordered, independently reviewable
+  functional slices; give each slice its own branch and pull request, and merge it before beginning
+  the next slice.
 - Name branches `<type>/<short-scope>` using the primary change: `docs/` for documentation or
   governance-only work, `feat/` for product behavior, `fix/` for defect correction, `evidence/`
   for qualification evidence, and `chore/` for small maintenance. Use an owner-specified branch
   name when provided; never substitute an author or tool name such as `codex/` for the change type.
+- Keep `<short-scope>` functionality-oriented. Omit milestone and work-package identifiers from
+  branch names; name a `feat/` branch for the behavior that its slice delivers.
 - Keep one bounded slice per pull request. Merge it before starting the next documented slice.
 - Plan each slice for approximately five to eight coherent commits. Treat that range as a scope
   signal, not a reason to split one atomic cross-cutting change artificially.

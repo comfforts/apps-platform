@@ -1,7 +1,7 @@
 # App Platform repository layout
 
-Version 2.9 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
-ADR-015 accepted and AP-M9-W10 Slices 1-2 implemented without Version 2 runtime activation
+Version 2.10 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
+ADR-015 accepted and AP-M9-W10 Slices 1-3 implemented without Version 2 runtime activation
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -21,7 +21,7 @@ permission to create a resource or perform an external action.
 | `contracts/` | active Version 1 plus inert Version 2 schemas, compilers, migration, vectors, and bounded loading |
 | `contracts/lifecycle/` | AP-M9 profiles plus active Version 1 and inert Version 2 lifecycle schemas, vectors, digests, and cross-document validation |
 | `fixtures/` | deterministic in-process Fixture platform and synthetic applications |
-| `edge/` | network Shared Edge and production-adapter implementation |
+| [`edge/`](../edge/README.md) | network Shared Edge and production-adapter implementation |
 | `integrations/` | inactive application-adoption drafts |
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |

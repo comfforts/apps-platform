@@ -115,6 +115,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "fixtures/reference_edge.py",
             "fixtures/registrations/manifest.v1.json",
             "edge/__init__.py",
+            "edge/README.md",
             "edge/_attachments.py",
             "edge/_assertions.py",
             "edge/_generation.py",
@@ -151,6 +152,61 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
 
         self.assertTrue(all((PROJECT_ROOT / path).is_file() for path in expected_files))
+
+    def test_edge_component_guide_describes_current_runtime_and_boundaries(self) -> None:
+        guide = (PROJECT_ROOT / "edge/README.md").read_text(encoding="utf-8")
+        overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+        layout = (PROJECT_ROOT / "docs/repository_layout.md").read_text(
+            encoding="utf-8"
+        )
+        normalized = " ".join(guide.split())
+
+        for section in (
+            "## Component boundary",
+            "## Request path",
+            "## Admission and identity delivery",
+            "## Sessions and member lookup",
+            "## Attachment and proxy enforcement",
+            "## Live process composition",
+            "## Module map",
+            "## Deterministic construction and verification",
+        ):
+            self.assertIn(section, guide)
+        for boundary in (
+            "Version 1 remains the deployed compatibility predecessor",
+            "Repository implementation alone does not prove that a Version 2 runtime is deployed or qualified",
+            "Public and authenticated Version 2 routes do not consult the member directory",
+            "`edge/verification.py` is currently the Version 1 application-side compatibility verifier",
+            "A deployment may lower those limits but cannot raise them",
+            "tests must not discover provider state or contact external services",
+        ):
+            self.assertIn(boundary, normalized)
+        for endpoint in (
+            "/_platform/login",
+            "/_platform/auth/callback",
+            "/_platform/logout",
+            "/_platform/status",
+            "/.well-known/jwks.json",
+        ):
+            self.assertIn(endpoint, guide)
+        for module in (
+            "edge/_runtime.py",
+            "edge/_generation.py",
+            "edge/_routing.py",
+            "edge/_identity.py",
+            "edge/_assertions.py",
+            "edge/_attachments.py",
+            "edge/_proxy.py",
+            "edge/_observability.py",
+            "edge/live.py",
+            "edge/verification.py",
+            "infrastructure/member_directory.py",
+        ):
+            self.assertIn(module, guide)
+        self.assertIn("make runtime-check", guide)
+        self.assertIn("make check", guide)
+        self.assertIn("[`edge/`](edge/README.md)", overview)
+        self.assertIn("[`edge/`](../edge/README.md)", layout)
 
     def test_extraction_owned_workflow_is_root_relative_and_read_only(self) -> None:
         workflow = (PROJECT_ROOT / ".github/workflows/check.yml").read_text(
@@ -940,7 +996,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, normalized)
         self.assertIn("ADR-010 and ADR-011 remain the accepted authority", normalized)
 
-    def test_ap_m9_w10_handoff_limits_the_next_chat_to_edge_enforcement_slice(
+    def test_ap_m9_w10_handoff_limits_the_next_chat_to_member_lifecycle_slice(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -960,34 +1016,32 @@ class ProjectAuthorityTest(unittest.TestCase):
         ):
             self.assertIn(authority, prompt)
         for boundary in (
-            "third of seven ordered AP-M9-W10 functional slices",
+            "fourth of seven ordered AP-M9-W10 functional slices",
             "feat/platform-member-directory",
-            "feat/member-directory-edge-enforcement",
-            "Shared Edge member enforcement",
-            "provider-backed exact-current-member lookup adapter",
-            "Do not add member enumeration",
-            "public plus `none` stays anonymous",
-            "authenticated plus `required` needs verified identity but not membership",
-            "restricted plus `required` needs verified identity and a current active member record",
-            "Fail restricted admission closed",
-            "Version 1 compatibility",
-            "point this prompt to Slice 4 without implementing Slice 4",
-            "Do not add owner bootstrap or member lifecycle commands",
+            "feat/platform-member-lifecycle",
+            "bounded member lifecycle operations",
+            "remotely never-initialized empty directory",
+            "Cloud Operator and Google Visitor",
+            "platform-member-bootstrap-owner",
+            "platform-member-reactivate",
+            "monotonic mutation cursors",
+            "point this prompt to Slice 5 without implementing Slice 5",
+            "Do not activate Version 2 in the deployment path",
             "only after all seven W10 slices merge",
             "pull request must target that integration branch, not `main`",
             "any real application",
         ):
             self.assertIn(boundary, normalized_prompt)
         for excluded_later_slice in (
-            "platform-member-bootstrap-owner",
-            "platform-member-add",
-            "platform-member-suspend",
+            "IDENTITY_DELIVERY=",
+            "platform-outputs IDENTITY_DELIVERY",
+            "feat/identity-delivery-application-handoffs",
         ):
             self.assertNotIn(excluded_later_slice, prompt)
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W10 Slice 3 edge-enforcement handoff](starting_prompt.md)",
+            "[AP-M9-W10 Slice 4 member-lifecycle handoff](starting_prompt.md)",
             prompt_index,
         )
 
@@ -1019,7 +1073,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
         self.assertIn("### AP-M9-W10", m9)
         self.assertIn("### AP-M9-W12", m9)
-        self.assertIn("AP-M9-W10 Slices 1-2 implemented", m9)
+        self.assertIn("AP-M9-W10 Slices 1-3 implemented", m9)
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
         self.assertIn(
@@ -2005,7 +2059,8 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-M9-W9 is implemented and candidate-qualified",
             overview,
         )
-        self.assertIn("AP-M9-W10 must still implement and", overview)
+        self.assertIn("AP-M9-W10 Slices 1 through 3 implement", overview)
+        self.assertIn("Owner enrollment, member lifecycle", overview)
         self.assertIn("diagnostic pre-merge evidence", docs_index)
         self.assertIn("platform-prepare", overview)
         self.assertIn("platform-cancel", overview)
@@ -2035,11 +2090,11 @@ class ProjectAuthorityTest(unittest.TestCase):
         for required in (
             "AP-M9-W10",
             "AP-EVAL-M9-09",
-            "third of seven ordered AP-M9-W10 functional slices",
-            "feat/member-directory-edge-enforcement",
-            "Shared Edge member enforcement",
-            "provider-backed exact-current-member lookup adapter",
-            "Do not add owner bootstrap or member lifecycle commands",
+            "fourth of seven ordered AP-M9-W10 functional slices",
+            "feat/platform-member-lifecycle",
+            "bounded member lifecycle operations",
+            "platform-member-bootstrap-owner",
+            "Do not activate Version 2 in the deployment path",
             "first Accepted Source staging operation only after all seven W10 slices merge to the integration branch",
             "Do not mutate staging, production, DNS, identity, Finance Assistant, or any real application",
         ):

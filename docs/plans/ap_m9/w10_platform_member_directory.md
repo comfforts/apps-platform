@@ -1,7 +1,7 @@
 # AP-M9-W10 · Platform Member Directory and explicit Identity Delivery
 
-Status: Slices 1-2 implemented on their named branches without Version 2 runtime activation; the
-Slice 2 integration merge, Slices 3 through 7, and Candidate Source qualification remain
+Status: Slices 1-3 implemented on their named branches without Version 2 runtime activation; the
+Slice 3 integration merge, Slices 4 through 7, and Candidate Source qualification remain
 
 Requirements: AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
 AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009
@@ -257,16 +257,16 @@ authority.
 | --- | --- | --- | ---: | ---: | ---: |
 | 1. Version 2 contracts and migration | `feat/identity-delivery-v2-contracts` | Add the complete Version 2 schema family, deterministic Version 1 migration, canonical validation, vectors, and compatibility tests | 37 actual | 18k-28k | 16% |
 | 2. Member-directory infrastructure | `feat/platform-member-directory-infrastructure` | Add the isolated named Firestore database, conditioned session/member IAM, closed outputs/readback, exact plan policy, an unwired exact-key adapter, and deterministic infrastructure tests | 32 actual | 18k-30k | 16% |
-| 3. Shared Edge enforcement | `feat/member-directory-edge-enforcement` | Add current-member lookup, public `none`/`optional`, authenticated/restricted behavior, minimal Version 2 assertions, fail-closed handling, and runtime tests | 12-18 | 24k-36k | 20% |
+| 3. Shared Edge enforcement | `feat/member-directory-edge-enforcement` | Add current-member lookup, public `none`/`optional`, authenticated/restricted behavior, minimal Version 2 assertions, fail-closed handling, and runtime tests | 29 actual | 24k-36k | 20% |
 | 4. Member lifecycle operations | `feat/platform-member-lifecycle` | Add owner bootstrap and status/add/suspend/reactivate/remove commands, browser confirmations, opaque references, idempotency, readback, diagnostics, Make targets, and focused tests | 14-22 | 24k-38k | 20% |
 | 5. Version 2 application handoffs | `feat/identity-delivery-application-handoffs` | Add Identity Delivery handoff inputs, Version 2 bundle/intent consumers, fixture behavior, migration-safe registration, and application-boundary tests | 10-16 | 14k-24k | 12% |
 | 6. Operator handoff reconciliation | `docs/identity-delivery-operator-handoff` | Reconcile README, runbook, design, contracts, plan status, prompt, governance tests, actual limitations, and final qualification procedure without adding behavior | 8-14 | 8k-14k | 4% |
 | 7. Candidate qualification readiness | `evidence/member-admission-candidate-qualification` | Complete qualification support for owner bootstrap, second-member lifecycle, public opt-in, authenticated independence, directory failure, rollback, and least-data evidence; after merge, qualify the exact integration revision | 10-18 | 16k-26k | 12% |
 
-Slice 1 is merged to the integration branch. Slice 2 is implemented on its named branch and is
-ready for its integration pull request after its verification gate passes. Slice 3 remains blocked
-until that pull request merges to the latest clean `feat/platform-member-directory`; no Shared Edge
-member lookup or admission behavior belongs in the Slice 2 branch.
+Slices 1 and 2 are merged to the integration branch. Slice 3 is implemented on its named branch and
+is ready for its integration pull request after its verification gate passes. Slice 4 remains
+blocked until that pull request merges to the latest clean `feat/platform-member-directory`; no
+member mutation or owner-bootstrap behavior belongs in the Slice 3 branch.
 
 Estimated total: seven slices, about 55-85 unique changed paths, 122k-196k working tokens, and
 roughly 7-12 focused implementation days excluding owner review, provider propagation, and waiting

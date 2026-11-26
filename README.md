@@ -75,10 +75,12 @@ later membership changes do not redeploy an application or activate a Registrati
 Only the current visitor's minimal signed context may cross an application boundary; the directory
 and other members never do.
 
-> **Implementation status:** ADR-015 accepts this model, but AP-M9-W10 must still implement and
-> candidate-qualify the Version 2 contracts, member directory, owner enrollment, member lifecycle,
-> and fixture behavior. The deployed W9 candidate and Version 1 contracts remain predecessor
-> evidence and are not Accepted Source qualification for this model.
+> **Implementation status:** ADR-015 accepts this model. AP-M9-W10 Slices 1 through 3 implement
+> the Version 2 contracts and migration, isolated directory infrastructure and IAM, and
+> deterministic dual-version Shared Edge enforcement. Owner enrollment, member lifecycle,
+> Version 2 handoffs and activation, fixtures, and Candidate qualification remain. The deployed W9
+> candidate and Version 1 contracts remain predecessor evidence and are not Accepted Source
+> qualification for this model.
 
 ### Catalogue visibility
 
@@ -268,7 +270,7 @@ the exact service. No service-account key is created or stored.
 
 | Path | Purpose |
 | --- | --- |
-| `edge/` | Shared Edge runtime, identity, routing, proxy, limits, and provider adapters |
+| [`edge/`](edge/README.md) | Shared Edge runtime, identity, routing, proxy, limits, and provider adapters |
 | `contracts/` | Public registration, identity, ownership, lifecycle, and bundle contracts |
 | `fixtures/` | Deterministic synthetic applications and registration generations |
 | `infrastructure/operator/` | Interactive platform and fixture lifecycle product |
@@ -721,10 +723,11 @@ environment is deployed or qualified.
 AP-M9-W9 is implemented and candidate-qualified under the predecessor Version 1 membership model.
 Candidate staging proved the dedicated fixture project, Shared VPC attachment, all three admission
 modes, separate registration, and the restricted-fixture detach, destruction, redeployment, and
-reactivation lifecycle. Candidate Source is not Accepted Source qualification. ADR-015 now requires
-AP-M9-W10 to implement and candidate-qualify the Platform Member Directory and explicit Identity
-Delivery before the first Accepted Source staging operation. Production remains blocked on that
-accepted result, explicit ownership transfer, and application adoption.
+reactivation lifecycle. Candidate Source is not Accepted Source qualification. AP-M9-W10 has
+implemented its first three repository slices but must still complete lifecycle, handoff,
+reconciliation, and qualification work before the first Accepted Source staging operation.
+Production remains blocked on that accepted result, explicit ownership transfer, and application
+adoption.
 
 See [the documentation index](docs/README.md) for the current work-package sequence, evidence
 boundary, and historical delivery record.

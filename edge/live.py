@@ -1,4 +1,11 @@
-"""Production composition for the Shared Edge Cloud Run process."""
+"""Production composition for the Shared Edge Cloud Run process.
+
+Composition binds immutable generation storage, default-database session state,
+the separate named member-directory reader, Google OIDC, KMS assertion signing,
+Cloud Run attachment resolution, bounded proxy transport, and minimized logging.
+Constructors open no listener; provider discovery is limited to the explicit
+credential and client construction performed by the Uvicorn factory.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +24,11 @@ from google.auth.transport.requests import AuthorizedSession, Request
 from google.cloud import firestore, kms, run_v2, storage
 import google_crc32c
 import httpx
+
+from infrastructure.member_directory import (
+    FirestoreCurrentMemberLookup,
+    MEMBER_DATABASE_NAME,
+)
 
 from ._assertions import AssertionIssuer, CloudKmsAssertionKeys, KmsKeyVersion
 from ._attachments import CloudRunAttachmentResolver, GoogleCloudRunMetadataProvider
@@ -47,6 +59,7 @@ _DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 _PROJECT_ID = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]")
 _REGION = re.compile(r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?")
 _SUBJECT = re.compile(r"[1-9][0-9]{5,63}")
+_ENVIRONMENT = re.compile(r"[a-z][a-z0-9-]{1,31}")
 _SECRET_VERSION = re.compile(
     r"projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/secrets/"
     r"[A-Za-z][A-Za-z0-9_-]{0,254}/versions/[1-9][0-9]{0,18}"
@@ -61,6 +74,7 @@ _REQUIRED_ENVIRONMENT = (
     "APP_PLATFORM_CONFIGURATION_OBJECT",
     "APP_PLATFORM_CONFIGURATION_OBJECT_GENERATION",
     "APP_PLATFORM_EDGE_CALLER_PRINCIPAL",
+    "APP_PLATFORM_ENVIRONMENT",
     "APP_PLATFORM_GENERATION_DIGEST",
     "APP_PLATFORM_ISSUER",
     "APP_PLATFORM_IDENTITY_CLIENT_ID",
@@ -95,6 +109,7 @@ class LiveRuntimeSettings:
     """Complete non-secret settings for one immutable Shared Edge revision."""
 
     source_revision: str
+    environment: str
     project_id: str
     project_number: str
     region: str
@@ -113,6 +128,8 @@ class LiveRuntimeSettings:
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str]) -> LiveRuntimeSettings:
+        """Parse one complete immutable revision binding or fail with a safe code."""
+
         missing = tuple(name for name in _REQUIRED_ENVIRONMENT if not environment.get(name))
         if missing:
             raise LiveConfigurationError("LIVE_RUNTIME_CONFIGURATION_INCOMPLETE")
@@ -127,6 +144,7 @@ class LiveRuntimeSettings:
         project_id = environment["APP_PLATFORM_PROJECT_ID"]
         project_number = environment["APP_PLATFORM_PROJECT_NUMBER"]
         region = environment["APP_PLATFORM_REGION"]
+        platform_environment = environment["APP_PLATFORM_ENVIRONMENT"]
         secret_version = environment["APP_PLATFORM_OAUTH_CLIENT_SECRET_VERSION"]
         signing_key_version = environment["APP_PLATFORM_SIGNING_KEY_VERSION"]
         edge_caller = environment["APP_PLATFORM_EDGE_CALLER_PRINCIPAL"]
@@ -138,6 +156,7 @@ class LiveRuntimeSettings:
             or _PROJECT_ID.fullmatch(project_id) is None
             or re.fullmatch(r"[1-9][0-9]{5,18}", project_number) is None
             or _REGION.fullmatch(region) is None
+            or _ENVIRONMENT.fullmatch(platform_environment) is None
             or object_generation < 1
             or _DIGEST.fullmatch(
                 environment["APP_PLATFORM_CONFIGURATION_CONTENT_DIGEST"]
@@ -161,6 +180,7 @@ class LiveRuntimeSettings:
 
         settings = cls(
             source_revision=environment["APP_PLATFORM_SOURCE_REVISION"],
+            environment=platform_environment,
             project_id=project_id,
             project_number=project_number,
             region=region,
@@ -188,12 +208,17 @@ class LiveRuntimeSettings:
 
     @property
     def key_id(self) -> str:
+        """Derive the bounded published identifier for the exact KMS version."""
+
         return f"kms-{self.signing_key_version.rsplit('/', maxsplit=1)[-1]}"
 
     def runtime_configuration(self) -> RuntimeConfiguration:
+        """Project provider-neutral ASGI configuration from validated live settings."""
+
         return RuntimeConfiguration(
             profile="qualification-v1",
             source_revision=self.source_revision,
+            environment=self.environment,
             generation_bucket=self.generation_bucket,
             generation_object=self.generation_object,
             generation_object_generation=self.generation_object_generation,
@@ -209,6 +234,7 @@ class LiveClients:
 
     storage: Any
     firestore: Any
+    member_firestore: Any
     cloud_run: Any
     kms: Any
     auth_request: Any
@@ -311,6 +337,7 @@ def build_live_app(
             client_secret=oauth_client_secret,
         ),
         identity_store=FirestoreIdentityStore(clients.firestore),
+        member_lookup=FirestoreCurrentMemberLookup(clients.member_firestore),
         clock=clock,
         token_source=tokens,
         assertion_issuer=AssertionIssuer(
@@ -341,6 +368,10 @@ def create_live_app() -> Any:
         firestore=firestore.AsyncClient(
             project=settings.project_id,
             database="(default)",
+        ),
+        member_firestore=firestore.AsyncClient(
+            project=settings.project_id,
+            database=MEMBER_DATABASE_NAME,
         ),
         cloud_run=run_v2.ServicesAsyncClient(
             credentials=edge_caller_credentials,

@@ -1,6 +1,6 @@
 # App Platform documentation
 
-Version 1.35 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted,
+Version 1.36 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted,
 ADR-016 proposed, and AP-M9-W10 platform-member implementation is next
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
@@ -27,7 +27,7 @@ Read these documents completely, in order, before modifying the platform:
 8. [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) — milestone outcome,
    boundaries, ordered work packages, acceptance criteria, and trace.
 9. [AP-M9-W10 delivery plan](plans/ap_m9/w10_platform_member_directory.md) — current baseline,
-   scope controls, operator interface, commit map, effort signals, and completion gate.
+   scope controls, operator interface, functional-slice map, effort signals, and completion gate.
 10. [Evaluation strategy](05_evaluation_strategy.md) — AP-EVAL-M9 gates and claim boundaries.
 11. [Contract index](../contracts/README.md) — public machine interfaces.
 12. [Repository layout](repository_layout.md) — capability placement and transition rules.
@@ -68,8 +68,15 @@ retroactively turn them into deployment evidence.
 
 ## Active AP-M9 sequence
 
-Each work package is one bounded branch and pull request. Start it from updated, clean `main`, use
-small reviewable commits, merge it, and only then begin the next package.
+Milestones and work packages are planning containers rather than automatic branch boundaries.
+Decompose substantial work into ordered, independently reviewable functional slices. The default
+is to start a slice from updated clean `main` and merge its pull request before beginning the next
+slice. W10 is an explicitly planned atomic integration exception: `feat/platform-member-directory`
+starts from clean `main`, every W10 slice starts from and targets the latest clean integration
+branch, and no partial W10 implementation merges to `main`. After all slices merge, the exact
+integration revision is candidate-qualified and frozen before one cumulative pull request targets
+`main`. Historical packages W1 through W9 retain the delivery shape under which they were
+completed.
 
 1. **AP-M9-W1 — governance rebaseline (merged):** define the product lifecycle, authority,
    architecture, threat controls, plan, evaluation, documentation routing, and historical
@@ -106,7 +113,10 @@ small reviewable commits, merge it, and only then begin the next package.
 10. **AP-M9-W10 — Platform Member Directory and explicit Identity Delivery:** implement the
     ADR-015 Version 2 contracts, environment-wide Firestore membership, explicit owner enrollment,
     bounded member lifecycle, public identity opt-in, Shared Edge enforcement, migration, fixtures,
-    and Candidate Source qualification. It performs no Accepted Source staging operation.
+    and Candidate Source qualification through seven ordered functional-slice pull requests into
+    `feat/platform-member-directory`. Candidate-qualify and freeze that complete integration
+    revision before its cumulative pull request to `main`. It performs no Accepted Source staging
+    operation.
 11. **AP-M9-W11 — accepted staging operation:** from merged W10 code, deploy and qualify
     `apps-staging.comfforts.com` with the three synthetic applications and the reviewed member
     baseline. The deliberate command invocation and same-process confirmations authorize ordinary

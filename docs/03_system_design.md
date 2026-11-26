@@ -1,6 +1,6 @@
 # App Platform system design
 
-Version 1.11 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+Version 1.12 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
 evidence and AP-M9-W10 member-directory implementation is next
 
 This document defines the smallest logical design that can support the App Platform requirements
@@ -419,10 +419,22 @@ it never owns member documents. The directory adapter exposes only current-visit
 bounded operator lifecycle operations. A request path cannot enumerate members, search by email,
 or read another identity.
 
+Platform Sessions and Platform Member records occupy disjoint namespaces and have different
+lifecycles. The Shared Edge may look up only the current visitor's member state while serving a
+request. Member creation and lifecycle mutation are available only through the verified operator
+boundary; neither a request nor an application receives a member-write or directory-enumeration
+capability. The infrastructure slice must prove that its database and IAM realization preserves
+that separation. If the provider's available role model would grant the runtime broader member
+mutation or enumeration than this design permits, implementation must stop and re-scope the data
+or identity boundary instead of describing the broader grant as least privilege.
+
 The canonical member key derives from normalized verified Google issuer and immutable subject. A
 member has a lifecycle sufficient to distinguish active admission from suspension, reactivation,
-and removal. Exact Version 1 directory-document fields are an AP-M9-W10 implementation contract;
-they must not grow into application profiles, feature roles, or arbitrary user metadata.
+and removal. The private member-document format is independently versioned. Its initial collection
+path, fields, mutation cursor, opaque-reference derivation, removal representation, transaction
+boundary, and readback rules are outputs of the member-directory infrastructure slice and must be
+recorded here with the implementation that proves them. They must not grow into application
+profiles, feature roles, or arbitrary user metadata.
 
 Restricted admission performs a current positive lookup. Absent, suspended, removed, malformed, or
 unreadable state denies the request without revealing which condition occurred. Public and
@@ -1283,11 +1295,14 @@ at concurrency 10. Streams last at most 55 minutes and hold concurrency while op
 profile has one non-production edge and load balancer and no CDN, WAF, HSM, production replica,
 always-on instance, Firestore backup, or Firestore point-in-time recovery.
 
-Firestore holds only expiring Platform Sessions. KMS keeps only active and required overlapping
-verification versions. Artifact Registry retains active, rollback, and current-candidate images;
-cleanup begins in dry-run and deletion remains owner-approved. Terraform checks reject unbounded or
-larger runtimes, extra environments or edges, unapproved billable services, longer retention, and
-missing `environment`, `managed_by`, `state_owner`, or applicable `application_id` labels.
+Firestore holds expiring Platform Sessions and the minimum environment-scoped Platform Member
+records required by ADR-015, in disjoint namespaces. Session expiry does not remove or alter a
+member; member retention changes only through the explicit member lifecycle. KMS keeps only active
+and required overlapping verification versions. Artifact Registry retains active, rollback, and
+current-candidate images; cleanup begins in dry-run and deletion remains owner-approved. Terraform
+checks reject unbounded or larger runtimes, extra environments or edges, unapproved billable
+services, longer retention, and missing `environment`, `managed_by`, `state_owner`, or applicable
+`application_id` labels.
 
 The platform project pays for Shared Edge and Shared VPC host resources. The dedicated fixture
 project pays for fixture runtimes, images, and state. Other application projects pay for their

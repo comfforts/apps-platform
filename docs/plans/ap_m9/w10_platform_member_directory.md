@@ -1,6 +1,7 @@
 # AP-M9-W10 · Platform Member Directory and explicit Identity Delivery
 
-Status: Planned; implementation and Candidate Source qualification not started
+Status: Planned as seven ordered functional slices; implementation and Candidate Source
+qualification not started
 
 Requirements: AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
 AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009
@@ -9,7 +10,7 @@ Decisions: ADR-003, ADR-004, ADR-006, ADR-008, ADR-012, ADR-014, ADR-015
 
 Evaluation: AP-EVAL-M9-01 through AP-EVAL-M9-09
 
-Threats: AP-TM-004 through AP-TM-006, AP-TM-008 through AP-TM-010, AP-TM-013, AP-TM-014
+Threats: AP-TM-004 through AP-TM-011, AP-TM-013, AP-TM-014
 
 ## Delivery outcome
 
@@ -19,9 +20,10 @@ existing platform/application ownership boundary and top-level lifecycle while m
 admission platform-wide, public identity delivery deliberate, and member administration independent
 of Registration Generations and application deployment.
 
-The slice ends with deterministic repository evidence and Candidate Source staging qualification
-for the new model. It does not perform the first Accepted Source staging operation; AP-M9-W11 owns
-that operation after W10 merges.
+The work package ends with deterministic repository evidence and Candidate Source staging
+qualification for the new model. It does not perform the first Accepted Source staging operation;
+AP-M9-W11 owns that operation after the complete, candidate-qualified W10 integration branch merges
+to `main`.
 
 ## Current platform baseline
 
@@ -97,7 +99,8 @@ explicit application-owned process.
   address.
 
 If implementation requires one of these exclusions, a new contract family beyond Version 2, a
-second provider, or a ninth substantive commit, stop and re-scope with the owner.
+second provider, or any functional slice approaching a ninth substantive commit, stop and re-scope
+with the owner.
 
 ## Contract and data transition
 
@@ -107,6 +110,15 @@ Version 1 remains readable historical input. Migration is deterministic:
 - authenticated and restricted registrations become `required`;
 - every per-registration member set is discarded rather than copied; and
 - public `optional` requires an explicit reviewed registration update.
+
+Slice 1 is an additive, inert compatibility slice. It adds independently versioned Version 2
+schemas, canonical loaders, validators, migration, vectors, and Contract evidence alongside the
+unchanged active Version 1 family. It does not make any runtime, operator command, fixture, bundle
+publisher, or active Registration Generation emit or activate Version 2. Adding those inactive
+contracts therefore does not silently change a Version 1 consumer. The active transition occurs
+only through one complete Version 2 generation after the infrastructure, runtime, lifecycle, and
+handoff consumers in Slices 2 through 5 are implemented. A slice must stop rather than introduce a
+partially migrated consumer or mixed Version 1/Version 2 activation.
 
 The migration must not activate a mixed Version 1/Version 2 generation. The new runtime admission
 model becomes active only after the directory infrastructure, runtime IAM, Version 2 compiler and
@@ -210,34 +222,67 @@ terminated; the new state applies to the next request or new connection.
    application-owned feature denial, directory failure, logout, rollback, isolation, and evidence
    privacy.
 
-Candidate evidence is bound to the exact branch revision and cannot replace Accepted Source
-evidence. W11 repeats the complete accepted journey from merged `main`.
+Candidate evidence is bound to the exact clean pushed `feat/platform-member-directory` revision
+after every slice has merged. It cannot replace Accepted Source evidence. Any tracked change after
+that run invalidates the qualification and requires it to run again before the cumulative pull
+request to `main`. W11 repeats the complete accepted journey after that pull request merges.
 
-## Planned commits and effort signals
+## Planned functional slices and effort signals
 
-The target is seven coherent commits. Percentages express relative implementation effort. File
-counts are paths expected to be touched in that commit and overlap across rows. Working tokens are
-rough agent-context and reasoning estimates, not repository artifacts or budget authority.
+The target is seven ordered, independently reviewable functional slices integrated atomically.
+Create `feat/platform-member-directory` once from updated clean `main`. The current governance pull
+request and every implementation slice use that integration branch as their base and pull-request
+target. After a slice merges, its successor starts from the latest clean integration branch. No
+slice targets `main`, and each slice contains one or more coherent commits. If `main` advances,
+reconcile it into the integration branch through a
+reviewed synchronization before starting the next slice and before final qualification; do not
+rewrite published slice or integration history. Percentages express relative implementation
+effort. File counts are paths expected to be touched in that slice and overlap across rows. Working
+tokens are rough agent-context and reasoning estimates, not repository artifacts or budget
+authority.
 
-| Commit | Reviewable outcome | Expected paths | Working tokens | Relative effort |
-| --- | --- | ---: | ---: | ---: |
-| `feat(contracts): introduce identity delivery and member-free v2 registrations` | Add the complete Version 2 schema family, deterministic Version 1 migration, canonical validation, vectors, and compatibility tests | 15-22 | 18k-28k | 16% |
-| `feat(platform): provision the environment member directory` | Add Firestore configuration/index/IAM ownership, closed outputs/readback, provider policy, deterministic adapter, and infrastructure tests | 12-20 | 18k-30k | 16% |
-| `feat(edge): enforce platform membership and explicit identity delivery` | Add current-member lookup, public `none`/`optional`, authenticated/restricted behavior, minimal Version 2 assertions, fail-closed handling, and runtime tests | 12-18 | 24k-36k | 20% |
-| `feat(operator): add explicit platform member lifecycle` | Add owner bootstrap and status/add/suspend/reactivate/remove commands, browser confirmations, opaque references, idempotency, readback, diagnostics, Make targets, and focused tests | 14-22 | 24k-38k | 20% |
-| `feat(applications): exchange v2 handoffs and qualify fixtures` | Add Identity Delivery handoff inputs, Version 2 bundle/intent consumers, fixture behavior, migration-safe registration, and application-boundary tests | 10-16 | 14k-24k | 12% |
-| `evidence(platform): qualify member admission and privacy boundaries` | Extend candidate qualification for owner bootstrap, second-member lifecycle, public opt-in, authenticated independence, directory failure, rollback, and least-data evidence | 10-18 | 16k-26k | 12% |
-| `docs(platform): reconcile the v2 operator handoff` | Reconcile README, runbook, design, contracts, plan status, prompt, governance tests, actual limitations, and PR handoff without adding behavior | 8-14 | 8k-14k | 4% |
+| Slice | Branch | Reviewable outcome | Expected paths | Working tokens | Relative effort |
+| --- | --- | --- | ---: | ---: | ---: |
+| 1. Version 2 contracts and migration | `feat/identity-delivery-v2-contracts` | Add the complete Version 2 schema family, deterministic Version 1 migration, canonical validation, vectors, and compatibility tests | 15-22 | 18k-28k | 16% |
+| 2. Member-directory infrastructure | `feat/platform-member-directory-infrastructure` | Add Firestore configuration/index/IAM ownership, closed outputs/readback, provider policy, deterministic adapter, and infrastructure tests | 12-20 | 18k-30k | 16% |
+| 3. Shared Edge enforcement | `feat/member-directory-edge-enforcement` | Add current-member lookup, public `none`/`optional`, authenticated/restricted behavior, minimal Version 2 assertions, fail-closed handling, and runtime tests | 12-18 | 24k-36k | 20% |
+| 4. Member lifecycle operations | `feat/platform-member-lifecycle` | Add owner bootstrap and status/add/suspend/reactivate/remove commands, browser confirmations, opaque references, idempotency, readback, diagnostics, Make targets, and focused tests | 14-22 | 24k-38k | 20% |
+| 5. Version 2 application handoffs | `feat/identity-delivery-application-handoffs` | Add Identity Delivery handoff inputs, Version 2 bundle/intent consumers, fixture behavior, migration-safe registration, and application-boundary tests | 10-16 | 14k-24k | 12% |
+| 6. Operator handoff reconciliation | `docs/identity-delivery-operator-handoff` | Reconcile README, runbook, design, contracts, plan status, prompt, governance tests, actual limitations, and final qualification procedure without adding behavior | 8-14 | 8k-14k | 4% |
+| 7. Candidate qualification readiness | `evidence/member-admission-candidate-qualification` | Complete qualification support for owner bootstrap, second-member lifecycle, public opt-in, authenticated independence, directory failure, rollback, and least-data evidence; after merge, qualify the exact integration revision | 10-18 | 16k-26k | 12% |
 
-Estimated total: seven commits, about 55-85 unique changed paths, 122k-196k working tokens, and
+Estimated total: seven slices, about 55-85 unique changed paths, 122k-196k working tokens, and
 roughly 7-12 focused implementation days excluding owner review, provider propagation, and waiting
 for external checks. These estimates should be revised when a concrete implementation result shows
-that the scope is materially smaller or larger; they must never be used to waive a test or force an
-unsafe artificial commit boundary.
+that the scope is materially smaller or larger; they must never be used to waive a test, combine
+independent outcomes, or force an unsafe artificial commit boundary.
 
 ## Verification strategy
 
-Each commit runs focused deterministic tests for its changed seam. Before PR handoff:
+### Evidence ownership by functional slice
+
+| Slice | Evidence owned by the slice | External-operation boundary |
+| --- | --- | --- |
+| 1. Version 2 contracts and migration | Deterministic AP-EVAL-M9-02 Contract evidence for schemas, canonical migration, compatibility loading, and rejection vectors | No credential lookup or external operation |
+| 2. Member-directory infrastructure | Deterministic and mocked-plan AP-EVAL-M9-04 evidence for database ownership, namespace/IAM posture, closed outputs, and readback | No provider mutation; real reconciliation remains later |
+| 3. Shared Edge enforcement | Deterministic AP-EVAL-M9-07 runtime evidence for lookup, admission combinations, minimized assertions, and fail-closed behavior | No deployment or Live claim |
+| 4. Member lifecycle operations | Deterministic AP-EVAL-M9-03 and AP-EVAL-M9-07 evidence for bootstrap, lifecycle authorization, idempotency, conflict, privacy, diagnostics, and readback | No real member mutation |
+| 5. Version 2 application handoffs | Deterministic AP-EVAL-M9-06 and AP-EVAL-M9-07 evidence for bundles, intents, fixtures, registration, and application boundaries | No real application or platform mutation |
+| 6. Operator handoff reconciliation | Governance and documentation evidence that records implemented behavior, limits, commands, and the final qualification procedure | No external operation |
+| 7. Candidate qualification readiness | Deterministic qualification-support evidence in its pull request; after merge, applicable AP-EVAL-M9 Live evidence for the exact clean pushed integration revision, including migration, member lifecycle, admission, rollback, privacy, and restored baseline | Owner-invoked Candidate Source staging operations only after the Slice 7 pull request merges |
+
+Each implementation slice updates the design, threat controls, evaluation wording, existing
+component documentation, and operator documentation made concrete by that slice. When an owning
+component has no documentation, follow `AGENTS.md` and ask the owner before adding a full
+current-state component guide. Exact private fields, provider IAM realization, runtime limitations,
+and command diagnostics must be documented with the implementation and tests that establish them,
+not guessed in an earlier governance slice. After Slice 7 merges, Candidate Source evidence is
+bound to the exact integration revision and the branch is frozen. A defect fix or documentation
+change requires another slice pull request and a complete qualification rerun. W11 is the first
+gate that can qualify the final merged Accepted Source revision.
+
+Each slice runs focused deterministic tests for its changed seam and the complete credential-free
+`make check` gate before its pull-request handoff. Before W10 may advance to W11:
 
 1. Version 1 inputs migrate deterministically and cannot activate mixed or member-carrying Version
    2 output.
@@ -256,18 +301,26 @@ Each commit runs focused deterministic tests for its changed seam. Before PR han
    owner-only baseline. No member identity, assertion, browser state, raw provider response, state,
    or saved plan enters Git or public evidence.
 
-## PR-ready definition
+## Slice and W10 completion definition
 
-The W10 branch is ready for review only when:
+Each slice pull request is ready for review only when its named outcome is complete, its public
+contracts and repository consumers remain consistent, focused tests and `make check` pass, and no
+later-slice behavior has entered the branch. W10 is ready to advance to W11 only when:
 
-- the seven planned commit outcomes are implemented or the owner has approved an explicit smaller commit
-  map;
+- all seven functional-slice pull requests are implemented and merged in order to
+  `feat/platform-member-directory`, or the owner has first approved and documented an explicit
+  replacement slice map;
 - every public contract and repository consumer moves together to Version 2;
 - the existing operator lifecycle remains linear and understandable without a generic orchestration
   framework;
 - Candidate Source qualification records every mandatory result and limitation for the exact
-  revision;
+  clean pushed integration revision after all slice pull requests merge;
 - the owner-only member baseline is restored after qualification;
 - `make check` passes with exact results reported; and
 - documentation truthfully distinguishes implementation, Candidate Source qualification, the W11
   Accepted Source operation, W12 production readiness, and later Application Adoption.
+
+After those conditions pass, freeze the integration revision and open one cumulative pull request
+from `feat/platform-member-directory` to `main`. A merge records completed W10 repository work but
+does not transfer Candidate Source evidence to the resulting Accepted Source revision; W11 still
+owns that deployment and qualification.

@@ -1,6 +1,6 @@
 # App Platform threat model
 
-Version 1.14 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
+Version 1.15 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
 the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
 controls are accepted but remain unimplemented and unqualified until AP-M9-W10
 
@@ -318,7 +318,8 @@ denial must never be reported as origin isolation.
 
 **Scenario:** An unsigned, expired, replayed, wrong-issuer, wrong-audience, or visitor-controlled
 assertion is treated as Verified Identity Context. An assertion for one application is reused
-against another, or mutable email is treated as an ownership key.
+against another, mutable email is treated as an ownership key, or an enrollment callback is bound
+to a different visitor or member action than the one the operator reviewed.
 
 **Required controls:** Admission and the application validate signature, configured issuer,
 immutable subject, application-specific audience, issued and expiry times, and contract version.
@@ -327,6 +328,10 @@ the environment-wide Platform Member Directory using exact issuer and immutable 
 identity delivery is explicit and cannot be inferred from an ambient Platform Session.
 Applications derive their own principals and never use email as an ownership or account-linking
 key.
+
+Owner bootstrap and member addition bind a one-use browser callback, exact environment, reviewed
+action, verified issuer and immutable subject before mutation. The Cloud Operator is never treated
+as the enrolling Visitor merely because the identities share a browser or workstation.
 
 **Evidence:** `C` covers claim shape and rejection semantics, not cryptographic validity. `F` covers
 missing, forged, expired, wrong-issuer, wrong-audience, and cross-application assertions. `L` covers
@@ -363,7 +368,8 @@ provider rights.
 
 **Scenario:** Two proposals race, a stale generation overwrites a reviewed one, catalogue and route
 updates diverge, a suspension leaves a route active, or a failed attachment replacement destroys
-the rollback target.
+the rollback target. Concurrent or stale member add, suspend, reactivate, or remove operations may
+also overwrite a newer directory state or report success without the reviewed transition.
 
 **Required controls:** Each complete Registration Set carries a monotonic generation and preceding
 digest. The compiler enforces lifecycle transitions and produces one canonical generation. Future
@@ -371,9 +377,14 @@ activation is atomic across catalogue, routes, admission, attachments, and owner
 attachment and Last Reviewed Working Configuration remain available through the declared rollback
 window.
 
+Every member mutation binds the exact remote predecessor, uses an atomic provider operation or
+transaction, is idempotent for its reviewed outcome, and succeeds only after exact remote
+readback. A conflict or unreadable predecessor fails closed without synthesizing local success.
+
 **Evidence:** `C` covers stale digests, invalid transitions, deterministic generations, and
-all-or-no-output failure. `F` covers register, update, suspend, retire, attachment replacement, and
-rollback journeys. `L` covers provider partial-failure recovery and drift.
+all-or-no-output failure. `F` covers register, update, suspend, retire, attachment replacement,
+rollback journeys, and deterministic member-operation conflicts. `L` covers provider
+partial-failure recovery, member concurrency and readback, and drift.
 
 **Residual risk:** GCS locking, protected-main concurrency, immutable edge revisions, and one
 traffic pointer are selected but not implemented. Terraform cannot make several provider control
@@ -429,6 +440,12 @@ logs, plans, test vectors, evidence, or Git.
 **Required controls:** Contracts accept only non-secret references and bounded identity policy;
 they never contain member records or lists. The Shared Edge may project only the current visitor's
 minimal signed context after a positive lookup.
+
+Opaque member references are scoped to one environment and must not enable identity recovery,
+cross-environment correlation, directory enumeration, or probing through status, errors, logs, or
+evidence. Ordinary status is either coarse directory state or one explicitly requested opaque
+reference; it never lists members.
+
 Synthetic values are used in tests. Logs and evidence allow only contract versions, generation
 digests, application and route identifiers, coarse outcomes, violation codes, and correlation
 identifiers. Secret payloads and application data are prohibited and externally stored.
@@ -449,12 +466,20 @@ behavior.
 
 **Scenario:** A repository, dependency, workflow, operator credential, or provider-console change
 alters routing or admission outside the reviewed Registration Generation. Validation tooling or
-contract schemas are substituted between review and apply.
+contract schemas are substituted between review and apply. An unauthorized operator, application,
+edge request, stale bootstrap session, or drifted IAM grant mutates or enumerates the Platform
+Member Directory outside the reviewed member lifecycle.
 
 **Required controls:** Canonical output is bound to input and compiler versions by digest. Protected
 review covers schemas, registrations, validation code, and provider plans. Default checks are
 deterministic and credential-free. Live mutation uses separate explicit operator actions. Manual
 provider changes are drift and never become configuration authority.
+
+Member bootstrap and mutation require the verified operator boundary, separately verified Visitor
+identity where enrollment is involved, exact confirmation, remote predecessor, and readback.
+Remote directory state is authoritative for the empty-directory bootstrap guard. Terraform owns
+the database and runtime-access posture but never member documents; provider readback must reject
+unexpected member writers, readers, or enumeration capability.
 
 **Evidence:** `C` covers deterministic output, schema identifiers, test-vector expectations, and
 extraction-safe checks. `L` covers revision binding, workload identity, least privilege, drift
@@ -517,7 +542,9 @@ unavailable verification keys closed; public routes may remain anonymous. AP-M6-
 unavailable or mismatched attachment closed without selecting another target. AP-M6-W8 maps local
 transport failure, timeout, malformed response, disconnect, and cancellation to closed outcomes
 without another target. AP-M9-W9 Terraform grants only the edge runtime the project-level
-Firestore data role required for login-flow and session entities. Runtime failure diagnostics use
+Firestore data role required for login-flow and session entities. AP-M9-W10 must replace that
+predecessor posture with a proved session/member namespace and IAM boundary before member lookup or
+mutation may be called implemented. Runtime failure diagnostics use
 constant allowlisted boundary codes carried only by the minimized completion event routed to the
 dedicated seven-day regional log bucket. The isolated JSON-line logger prevents `INFO` completion
 events from being suppressed or misclassified as unselected text logs. Diagnostics never include
@@ -924,7 +951,12 @@ pass:
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
 | Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
-| Platform Member Directory realization, explicit Identity Delivery, Version 2 migration, owner bootstrap, and member lifecycle | AP-M9-W10 implementation and Candidate Source qualification |
+| Version 2 contracts, deterministic Version 1 migration, and prohibition on mixed activation | AP-M9-W10 Slice 1 acceptance |
+| Platform Member Directory storage, namespace separation, runtime IAM, provider readback, and Terraform ownership | AP-M9-W10 Slice 2 acceptance |
+| Shared Edge lookup, explicit Identity Delivery, assertion minimization, and fail-closed admission | AP-M9-W10 Slice 3 acceptance |
+| Owner bootstrap and member lifecycle authorization, concurrency, privacy, and readback | AP-M9-W10 Slice 4 acceptance |
+| Version 2 application handoffs, fixture behavior, and atomic generation activation | AP-M9-W10 Slice 5 acceptance |
+| Live member admission, rollback, least-data, and baseline-restoration evidence | AP-M9-W10 final integration qualification after Slice 7 |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |

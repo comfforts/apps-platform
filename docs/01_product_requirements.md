@@ -1,9 +1,9 @@
 # <u>App Platform product requirements</u>
 
-Version 0.8 | Status: requirements authority through the AP-M9 operator lifecycle; W9 Candidate
-Qualification exists; ADR-015 implementation is integrated; Version 2 Candidate Source
-qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c` and must be repeated
-after the final documentation reconciliation; Accepted Source qualification remains AP-M9-W11 work
+Version 0.9 | Status: requirements authority through the AP-M9 operator lifecycle; ADR-015 is
+implemented; AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; real-application adoption, destructive recovery, and
+production readiness remain W12, W13, and W14 work
 
 This document defines what Comfforts App Platform must provide and the ownership boundaries it must
 preserve. It is authoritative for the platform project only. It does not change a consuming
@@ -107,11 +107,14 @@ isolation, public access with no identity and optional identity, authenticated a
 restricted member allow/deny, verified identity delivery, application-owned feature denial,
 unmatched paths, and lifecycle changes without paid providers or production application data.
 
-The first staging qualification must deploy the public, authenticated, and restricted fixtures
-through separate Application State, exchange the same versioned bundles required of a real
-application, and exercise deployment, registration, detachment, destruction, redeployment, and
-reactivation. Static Terraform, process-local loopback, or an undeployed fixture image is not
-staging qualification. Provider-backed fixtures must run in an application project separate from
+The first staging platform qualification must deploy the public, authenticated, and restricted
+fixtures through separate Application State, exchange the same versioned bundles required of a
+real application, and exercise deployment, registration, routing, admission, identity, rollback,
+and restoration. Static Terraform, process-local loopback, or an undeployed fixture image is not
+staging qualification. After one real application adopts staging, a separate destructive-recovery
+qualification must exercise safe refusal with active attachments, detachment, fixture destruction,
+platform destruction without real-application mutation, platform recovery, fixture redeployment,
+application reattachment, and requalification. Provider-backed fixtures must run in an application project separate from
 the platform project and use the same explicit Shared VPC project connection, internal ingress,
 edge-caller IAM, project-scoped bundle, and registration boundaries required by an independently
 owned GCP application. A same-project fixture cannot qualify cross-project application attachment.

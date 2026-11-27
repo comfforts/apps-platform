@@ -5,7 +5,8 @@ operation authority
 
 Status: Version 1 remains a readable historical predecessor family. Version 2 is the active
 repository interface for application handoffs, registration compilation, Shared Edge loading, and
-independent application verification. No Live Version 2 operation or qualification is implied.
+independent application verification. AP-M9-W11 qualified the platform and fixtures using Version
+2 from Accepted Source; no real Application Adoption or production qualification is implied.
 
 The `contracts/` directory defines the versioned data exchanged between platform components,
 operators, and applications. It answers four questions:
@@ -114,13 +115,15 @@ that predecessor's normalized generation digest. The operator emits only a compl
 handoff family and activates only a complete Version 2 successor; mixed input versions are
 rejected. Ownership semantics are unchanged, so the State Ownership Manifest remains Version 1.
 
-Before the first accepted Live qualification and Application Adoption, an owner-approved incompatible
-correction may revise Version 1 in place only when every repository consumer, vector, test, and
-authority reference changes atomically and no released external consumer exists. This repository
-is still in that pre-accepted-qualification, pre-Adoption condition; candidate staging operation
-does not release a public application contract.
+Because Accepted Source Live qualification now exists, an incompatible correction must introduce
+a new contract version rather than revising the qualified Version 2 meaning in place. A compatible
+correction may update Version 2 only when every repository consumer, vector, test, and
+authority reference changes atomically and no released external consumer exists. Accepted Source
+platform/fixture qualification now exists, so the repository is no longer in its earlier
+pre-qualification condition. No real Application Adoption has yet released the contract to an
+external application.
 
-After the first Live deployment or Application Adoption, Version 1 is strict. Removing a field,
+After the first Accepted Source Live deployment, Version 2 is strict. Removing a field,
 adding a required field, adding a property that an existing closed-object consumer would reject,
 changing a field meaning, narrowing an accepted value, changing canonicalization, changing digest
 semantics, or adding an enum value requires a new major schema and contract_version. Documentation

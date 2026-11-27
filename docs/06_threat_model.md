@@ -1,13 +1,9 @@
 # <u>App Platform threat model</u>
 
-Version 1.22 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
-the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
-contract, infrastructure, deterministic runtime, and member-lifecycle controls are integrated by
-all seven AP-M9-W10 slices and candidate-readiness corrections, including Version 2 handoff
-activation, reconciled operator guidance, cleanup-safe temporary membership, and least-data
-admission readback; Version 2 Candidate Source qualification passed at revision
-`d8fdb8afb2048e87b591ae400d7807a38784fd5c`, with one post-reconciliation exact-revision rerun
-required before freeze
+Version 1.23 | Status: ADR-015 controls are implemented and Candidate-qualified by AP-M9-W10;
+AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; real-application adoption, destructive recovery, and
+production readiness remain separate W12, W13, and W14 evidence boundaries
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -965,10 +961,9 @@ IAM boundary, runtime Identity Delivery, owner/member lifecycle, complete applic
   the exact stable blocker remains in least-data evidence. Predecessor public-identity failure
   cannot suppress restoration. Its branch invokes no provider. After it merged, integration
   revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c` Candidate-qualified the complete Version 2 model
-  and restored the owner-only baseline. That evidence is exact-revision Candidate evidence, not
-  Accepted Source evidence; the final documentation revision must repeat the qualification before
-  freeze. No current result proves Accepted Source staging, platform destruction/redeployment,
-  production, or Application Adoption.
+  and restored the owner-only baseline. AP-M9-W11 later qualified the platform and fixtures from
+  Accepted Source at `b43333756b509d0f35cb82938a13f6abc459f7c4`. No current result proves a
+  real Application Adoption, platform destruction/redeployment, or production readiness.
 
 ## <u>Remaining implementation and security decisions</u>
 
@@ -984,7 +979,8 @@ pass:
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
 | Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
-| Live member admission, rollback, least-data, and baseline-restoration evidence | AP-M9-W10 final integration qualification after Slice 7 |
+| First real-application route, identity, isolation, and state-ownership evidence | AP-M9-W12 application adoption |
+| Platform destruction, retained real-application resources, recovery, reattachment, and requalification evidence | AP-M9-W13 destructive rehearsal |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |

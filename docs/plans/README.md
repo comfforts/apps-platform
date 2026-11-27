@@ -1,6 +1,7 @@
 # App Platform implementation plan index
 
-Version 0.5 | Status: canonical plan router through AP-M9-W12
+Version 0.6 | Status: canonical plan router through AP-M9-W14; AP-M9-W11 Accepted Source
+qualification complete; AP-M9-W12 is next
 
 This directory is the canonical router for App Platform delivery plans. Requirements and accepted
 architecture decisions define required behavior and durable choices. A delivery plan defines how a
@@ -22,6 +23,11 @@ substantial enough to require its own baseline, operator journey, scope controls
 map, atomic integration branch, and effort signals. Not every work package needs an individual
 file; the milestone plan remains canonical when no extracted work-package plan exists.
 
+The [AP-M9-W12 work-package plan](ap_m9/w12_real_application_staging_adoption.md) is the current
+handoff for the first real-application staging adoption. It remains application-neutral until the
+Platform Owner and one Application Owner accept the same named adoption boundary in their
+respective repositories.
+
 The compatibility document at `docs/04_implementation_plan.md` routes old links to this index.
 When a delivery item is extracted, its individual file becomes the only current plan for that
 identifier. A milestone plan controls sequence and milestone-wide boundaries; an extracted
@@ -35,9 +41,11 @@ provenance and cannot override either current plan.
 | AP-M3 through AP-M7 | Complete | [Origin implementation plan](000-origin-implementation-plan.md) |
 | AP-M8 | Historical; W1/W2 merged and W3-W12 superseded without execution | [Origin implementation plan](000-origin-implementation-plan.md) |
 | AP-M9-W1 through AP-M9-W9 | Implemented; W9 candidate-qualified under the Version 1 predecessor model | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md) |
-| AP-M9-W10 | All seven slices and candidate-readiness corrections are integrated; Candidate Source qualification passed at `d8fdb8a…`; one final post-reconciliation exact-revision rerun and freeze remain | [Platform Member Directory and explicit Identity Delivery](ap_m9/w10_platform_member_directory.md) |
-| AP-M9-W11 | Planned first Accepted Source staging operation | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md#ap-m9-w11--accepted-source-staging-deployment-and-qualification) |
-| AP-M9-W12 | Planned read-only production readiness and Finance handoff | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md#ap-m9-w12--production-readiness-and-finance-handoff) |
+| AP-M9-W10 | Complete; all seven slices merged and Version 2 Candidate Source qualified before the cumulative merge to `main` | [Platform Member Directory and explicit Identity Delivery](ap_m9/w10_platform_member_directory.md) |
+| AP-M9-W11 | Complete; Accepted Source staging platform and fixture qualification passed at `b43333756b509d0f35cb82938a13f6abc459f7c4` | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md#ap-m9-w11--accepted-source-staging-deployment-and-qualification--complete) |
+| AP-M9-W12 | Next; first real-application staging adoption qualification | [Real-application staging adoption](ap_m9/w12_real_application_staging_adoption.md) |
+| AP-M9-W13 | Planned platform destruction, recovery, reattachment, and requalification | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md#ap-m9-w13--platform-destruction-recovery-and-requalification) |
+| AP-M9-W14 | Planned read-only production readiness and ownership handoff | [AP-M9 milestone plan](ap_m9/000-m9_interactive_platform_lifecycle.md#ap-m9-w14--production-readiness-and-ownership-handoff) |
 
 ## Plan status and estimates
 

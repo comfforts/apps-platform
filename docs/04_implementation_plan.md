@@ -11,6 +11,7 @@ The current AP-M9 plans are:
 
 - [AP-M9 · Operator-driven environment lifecycle](plans/ap_m9/000-m9_interactive_platform_lifecycle.md)
 - [AP-M9-W10 · Platform Member Directory and explicit Identity Delivery](plans/ap_m9/w10_platform_member_directory.md)
+- [AP-M9-W12 · First real-application staging adoption qualification](plans/ap_m9/w12_real_application_staging_adoption.md)
 
 This file remains only as a compatibility path for existing links. It is not a second plan and
 does not authorize implementation or an external operation.

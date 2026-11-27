@@ -1,7 +1,7 @@
 # Adopt a real application
 
-Status: application-owner handoff reference; no real Application Adoption is currently authorized
-or qualified
+Status: AP-M9-W12 application-neutral staging handoff; no application is selected or authorized
+until matching authority exists in both repositories
 
 This runbook explains how a real application will join one deployed App Platform environment after
 the application repository has approved its own adoption requirements, architecture, migration,
@@ -16,9 +16,10 @@ operations and produce the application side of the handoff.
 
 ## Current readiness boundary
 
-Real Application Adoption remains separately governed after the platform's accepted staging and
-production-readiness work. Before using this procedure for a live application, all of these must be
-true:
+AP-M9-W11 completed Accepted Source staging platform and fixture qualification at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`. AP-M9-W12 now permits selection of one real staging
+application only through matching platform and application-repository authority. Before using this
+procedure, all of these must be true:
 
 - the selected Platform Environment is deployed and qualified under the required Source Authority;
 - the application repository has accepted its own adoption and rollback plan;
@@ -28,9 +29,9 @@ true:
 - the platform's Cloud Run target readback accepts the selected real environment rather than the
   currently hardcoded `environment=qualification` fixture label.
 
-The last condition is not implemented today. Stop before a real deployment until it is replaced by
-an environment-derived, validated staging or production value and qualified through the applicable
-delivery authority.
+The last condition is the first Apps Platform implementation boundary in W12. Stop before a real
+deployment until a reviewed functional slice replaces it with an environment-derived, validated
+staging value and the repository gate passes.
 
 ## Ownership through the handoff
 

@@ -1,9 +1,9 @@
 # AP-M9 · Operator-driven environment lifecycle
 
-Version 0.11 | Status: AP-M9-W1 through AP-M9-W9 implemented and W9 candidate-qualified; all seven
-AP-M9-W10 slices and candidate-readiness corrections are integrated; Version 2 Candidate Source
-qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; one final
-post-reconciliation exact-revision rerun and freeze remain
+Version 0.12 | Status: AP-M9-W1 through AP-M9-W10 complete; AP-M9-W11 Accepted Source staging
+platform and fixture qualification completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`;
+AP-M9-W12 real-application staging adoption is next; destruction/recovery and production readiness
+are separate W13 and W14 packages
 
 This document is the canonical milestone plan for AP-M9 and its ordered work packages. Use the
 [implementation plan index](../README.md) for plan routing. AP-M9-W10 has a separate
@@ -39,8 +39,10 @@ An AP-M9 functional slice normally begins from updated clean `main`, uses a func
 branch and pull request, passes `make check`, and merges before the next ordered slice starts.
 Milestones and work packages remain planning containers; a substantial package may require
 multiple slices. W10 is the explicit atomic exception: its slices target the
-`feat/platform-member-directory` integration branch so the Version 1/Version 2 transition reaches
-`main` only as one completed, candidate-qualified feature.
+`feat/platform-member-directory` integration branch so the Version 1/Version 2 transition reached
+`main` only as one completed, candidate-qualified feature. W11 then repeated the staging journey
+from Accepted Source and qualified the platform and fixtures without performing environment
+destruction.
 Repository implementation does not initiate an external operation. For ordinary reversible staging
 creation or update, the owner's deliberate invocation of the named command plus its same-process
 specification and plan confirmations authorizes the execution; no duplicate out-of-band approval is
@@ -339,29 +341,58 @@ functionality-oriented branch and pull request targeting that integration branch
 more coherent commits, and merges before its successor begins. Candidate-qualify and freeze the
 exact complete integration revision before opening its cumulative pull request to `main`.
 
-### AP-M9-W11 · Accepted Source staging deployment and qualification
+### AP-M9-W11 · Accepted Source staging deployment and qualification — complete
 
-From Accepted Source on clean protected main, deliberately invoke staging preparation/deployment,
-bootstrap or verify the Platform Owner member through the separate member lifecycle, complete the
-OAuth and Squarespace checkpoints, deploy/register the Version 2 fixture suite, complete
-AP-EVAL-M9, exercise the reviewed member allow/deny baseline, detach and destroy fixture assets,
-and perform an owner-approved platform destroy/redeploy rehearsal. Ordinary staging creation and
-update use the command's same-process review and confirmations; destructive steps retain their
-separate authority. Leave staging deployed and qualified at the accepted revision. Commit only an
-approved secret-free evidence index; no credential, secret, member identity, state, plan, raw
-provider response, browser state, or application payload enters Git.
+From clean protected `main`, the owner deployed and qualified the Version 2 staging platform and
+all three cross-project fixtures, verified the reviewed owner-only member baseline and temporary
+second-member lifecycle, exercised public `none`/`optional`, authenticated, restricted, logout,
+rollback, restoration, isolation, and least-data evidence, and left staging deployed and qualified.
+The Accepted Source result is bound to
+`b43333756b509d0f35cb82938a13f6abc459f7c4`. Private evidence remains outside Git.
 
-### AP-M9-W12 · Production readiness and Finance handoff
+W11 did not detach or destroy the fixture suite and did not destroy or redeploy the Platform
+Environment. Those destructive claims are intentionally moved to W13 so a real application can
+first prove the cross-owner adoption boundary and then remain untouched while the platform is
+destroyed and recovered.
 
-Enable only read-only production preparation. Discover existing production ownership, return
-`OWNERSHIP_TRANSFER_REQUIRED`, inventory future Platform versus Finance Application State, and
-define the application-script change, state transfer or replacement, DNS/traffic cutover, rollback,
-and evidence prerequisites. This package changes no production resource. Actual production
-deployment is a later joint platform checkpoint plus Finance-owned Application Adoption.
+### AP-M9-W12 · First real-application staging adoption qualification
+
+Select one real application only through matching platform and application-repository authority.
+Replace the fixture-only target-readback assumption with environment-derived validation, then use
+the existing project connection, Version 2 bundle, application-owned deployment, returned
+attachment, and complete-generation registration flow. Qualify the named staging route, admission,
+identity delivery, independent application authorization, direct-origin denial, failure isolation,
+rollback, and exclusive state ownership without making Apps Platform the application deployer or
+state owner. Leave the application active for W13. The detailed handoff is in the
+[W12 work-package plan](w12_real_application_staging_adoption.md).
+
+### AP-M9-W13 · Platform destruction, recovery, and requalification
+
+Prove the platform refuses destruction while any application attachment is active. Detach the real
+application and fixtures through platform lifecycle operations; destroy only fixture Application
+State through fixture authority, while deliberately retaining the real application's runtime,
+data, and state. Under separately approved destructive authority, destroy the platform-owned
+environment scope, verify retained backends/evidence/recovery and the connected Shared VPC
+foundation, and prove the real application's provider resources were untouched.
+
+Redeploy the platform from Accepted Source, read back or restore its owner-member baseline,
+reconnect where required, generate fresh application-scoped bundles, reattach and register the
+retained real application, redeploy/register the fixtures, and repeat mandatory platform and
+application qualification. Leave staging deployed, qualified, and ready.
+
+### AP-M9-W14 · Production readiness and ownership handoff
+
+Run only read-only production preparation. Prove staging/production isolation, discover existing
+`apps.comfforts.com`, DNS, traffic, cloud-resource, and Terraform-state ownership, return
+`OWNERSHIP_TRANSFER_REQUIRED`, and inventory future Platform versus application ownership. Define
+the prerequisites for resource transfer or replacement, application-owned adoption, DNS/traffic
+cutover, rollback, and evidence. This package changes no production resource. Actual production
+deployment remains a later separately approved platform checkpoint plus the selected
+application's own adoption authority.
 
 ## Ordered delivery and external-action gate
 
-AP-M9-W1 through AP-M9-W12 are ordered planning containers. Substantial work packages are delivered
+AP-M9-W1 through AP-M9-W14 are ordered planning containers. Substantial work packages are delivered
 through separately merged functional slices rather than being forced into one branch. No staging
 resource is created merely because W6 contains shared-platform deployment mechanics or W9 contains
 Fixture Application deployment mechanics. The clean pushed W9 pull-request revision deliberately
@@ -371,24 +402,27 @@ W10 uses seven ordered functional slices on `feat/platform-member-directory` to 
 1 identity and restricted-membership model without partially changing `main`. After every slice is
 merged, the exact complete integration revision is candidate-qualified and frozen, then one
 cumulative pull request merges it to `main`. Candidate qualification passed at revision
-`d8fdb8afb2048e87b591ae400d7807a38784fd5c`; the documentation reconciliation changes that exact
-revision and therefore requires one complete rerun before freeze. W11 begins only after the final
-merge to `main` and repeats the complete journey from Accepted Source, producing the first accepted
-staging result. W12 follows that result.
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c`; later corrections were requalified before the
+cumulative merge to `main`. W11 then repeated the complete journey from Accepted Source and
+produced the first accepted staging platform/fixture result at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`. W12 follows that result with one named real
+application; W13 owns destructive rehearsal only after adoption; W14 owns read-only production
+readiness only after recovery succeeds.
 
-Within W10 the operator first deploys the directory infrastructure, deliberately bootstraps the
-owner, exercises member lifecycle, deploys the Version 2 fixtures, and performs candidate
-qualification. Within W11 the operator order is preparation and digest approval; shared-platform
-deployment; owner-member verification; fixture integration-bundle generation; fixture application
-deployment; attachment registration; qualification; fixture detachment and application-owned
-cleanup; optional approved platform destroy/redeploy rehearsal; final qualification; and evidence
-reconciliation. The first failed or discrepant stage stops every dependent action.
+Within W10 the operator first deployed the directory infrastructure, deliberately bootstrapped the
+owner, exercised member lifecycle, deployed the Version 2 fixtures, and performed candidate
+qualification. W11 repeated deployment, member verification, fixture handoff/registration, and
+qualification from Accepted Source. W12 performs one cross-owner real-application adoption. W13
+then detaches applications, preserves the real application's state, destroys and recovers only the
+platform and fixture-owned scopes, reattaches, and requalifies. W14 performs the production
+ownership check without mutation. The first failed or discrepant stage stops every dependent
+action.
 
 ## Acceptance criteria
 
 AP-M9 is accepted only when:
 
-1. AP-M9-W1 through AP-M9-W12 complete in order, their repository changes merge, and the complete
+1. AP-M9-W1 through AP-M9-W14 complete in order, their repository changes merge, and the complete
    deterministic gate passes.
 2. A fresh operator can deploy staging from reviewed source through one interactive session.
 3. OAuth and Squarespace actions use exact same-process Enter checkpoints and truthful readback or
@@ -402,14 +436,16 @@ AP-M9 is accepted only when:
    restricted active-member admission, owner bootstrap, second-member suspension/reactivation/removal,
    directory failure, and application-owned Feature Entitlements pass deterministic, Candidate
    Source, and Accepted Source staging qualification without exposing member records.
-8. AP-EVAL-M9 passes for the exact staging revision with secret-free evidence.
-9. Platform destruction refuses unsafe state, changes no application-owned resource, and passes its
-   approved staging rehearsal.
-10. Production preparation proves staging/production isolation and blocks on current Finance
-   ownership rather than importing or mutating it.
-11. `make check` remains deterministic, credential-free, network-free, and non-mutating.
-12. Finance Assistant, `apps.comfforts.com`, and every real application remain unchanged pending
-    their own adoption and production-cutover approvals.
+8. One named real application passes its own AP-M9-W12 staging adoption authority while Apps
+   Platform validates the shared handoff and retains no Application State authority.
+9. AP-EVAL-M9 passes for the exact platform and application revisions with secret-free evidence.
+10. Platform destruction refuses unsafe state, changes no real-application-owned resource, and
+    passes its approved destruction, recovery, reattachment, and requalification rehearsal.
+11. Production preparation proves staging/production isolation and blocks on current external
+    ownership rather than importing or mutating it.
+12. `make check` remains deterministic, credential-free, network-free, and non-mutating.
+13. `apps.comfforts.com` and every application not explicitly selected for W12 remain unchanged
+    pending their own adoption and production-cutover approvals.
 
 ## Trace
 
@@ -422,4 +458,6 @@ AP-M9 is accepted only when:
 | AP-M9-W8, AP-M9-W9 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-014 | AP-TM-001 through AP-TM-014 |
 | AP-M9-W10 | AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011; AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009 | ADR-003, ADR-004, ADR-006, ADR-008, ADR-012, ADR-014, ADR-015 | AP-TM-004 through AP-TM-011, AP-TM-013, AP-TM-014 |
 | AP-M9-W11 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-015 | AP-TM-001 through AP-TM-014 |
-| AP-M9-W12 | AP-PR-007, AP-PR-009 through AP-PR-012; AP-QR-001, AP-QR-003 through AP-QR-009 | ADR-001, ADR-002, ADR-004, ADR-007, ADR-010 through ADR-015 | AP-TM-007 through AP-TM-014 |
+| AP-M9-W12 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-015 | AP-TM-001 through AP-TM-014 |
+| AP-M9-W13 | AP-PR-001 through AP-PR-003, AP-PR-007 through AP-PR-012; AP-QR-001, AP-QR-003 through AP-QR-009 | ADR-001, ADR-002, ADR-004, ADR-007, ADR-008, ADR-010 through ADR-015 | AP-TM-007 through AP-TM-014 |
+| AP-M9-W14 | AP-PR-007, AP-PR-009 through AP-PR-012; AP-QR-001, AP-QR-003 through AP-QR-009 | ADR-001, ADR-002, ADR-004, ADR-007, ADR-010 through ADR-015 | AP-TM-007 through AP-TM-014 |

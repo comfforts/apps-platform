@@ -457,6 +457,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Operator Invocation", glossary)
         self.assertIn("separate Application State", requirements)
         self.assertIn("Static Terraform, process-local loopback", requirements)
+        self.assertIn("a separate destructive-recovery\nqualification", requirements)
+        self.assertIn("platform destruction without real-application mutation", requirements)
         self.assertIn("`fixture-handoff`", design)
         self.assertIn("`fixture-project-bootstrap`", design)
         self.assertIn("`platform-connect-project`", design)
@@ -474,21 +476,21 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_layout = " ".join(layout.split())
         normalized_overview = " ".join(overview.split())
 
-        self.assertIn(
-            "AP-M9-W9 candidate-qualified under Version 1",
-            normalized_index,
-        )
+        self.assertIn("AP-M9-W10 complete", normalized_index)
         self.assertIn("Contract (`C`) and Fixture (`F`) evidence", normalized_index)
         self.assertIn("Candidate Source Live (`L`) evidence", normalized_index)
         self.assertIn(
-            "Accepted Source Live evidence and Application Adoption (`A`) evidence do not yet exist",
+            "W11 then produced Accepted Source Live evidence",
             normalized_index,
         )
+        self.assertIn("Application Adoption (`A`) evidence does not yet exist", normalized_index)
         self.assertIn("AP-M8 | historical", index)
         self.assertIn("AP-M9-W1 — governance rebaseline", index)
-        self.assertIn("AP-M9-W12 — production readiness", index)
-        self.assertIn("candidate staging proved the dedicated fixture project", normalized_overview.lower())
-        self.assertIn("not accepted source qualification", normalized_overview.lower())
+        self.assertIn("AP-M9-W12 — first real-application staging adoption", index)
+        self.assertIn("AP-M9-W13 — platform destruction and recovery", index)
+        self.assertIn("AP-M9-W14 — production readiness", index)
+        self.assertIn("qualified the staging platform and all three cross-project fixtures", normalized_overview.lower())
+        self.assertIn("does not qualify a real application", normalized_overview.lower())
         self.assertIn("Platform Integration Bundle", overview)
         self.assertIn("Application Attachment Bundle", overview)
         self.assertIn("OWNERSHIP_TRANSFER_REQUIRED", overview)
@@ -996,7 +998,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertIn(boundary, normalized)
         self.assertIn("ADR-010 and ADR-011 remain the accepted authority", normalized)
 
-    def test_ap_m9_w10_handoff_limits_the_next_chat_to_candidate_qualification(
+    def test_ap_m9_w12_handoff_limits_the_next_chat_to_real_application_adoption(
         self,
     ) -> None:
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -1006,26 +1008,24 @@ class ProjectAuthorityTest(unittest.TestCase):
         for authority in (
             "AGENTS.md",
             "docs/README.md",
-            "AP-M9-W10",
-            "AP-PR-004 through AP-PR-006",
-            "AP-QR-006 through AP-QR-009",
+            "AP-M9-W12",
+            "AP-PR-001 through AP-PR-012",
+            "AP-QR-001 through AP-QR-009",
             "ADR-015",
-            "AP-EVAL-M9-09",
-            "AP-TM-004",
-            "AP-TM-011",
+            "AP-EVAL-M9-10",
+            "AP-TM-001 through AP-TM-014",
         ):
             self.assertIn(authority, normalized_prompt)
         for boundary in (
-            "all seven AP-M9-W10 functional-slice pull requests have merged",
-            "feat/platform-member-directory",
-            "exact integration revision is clean and pushed",
-            "cleanup-safe qualification support",
-            "OWNER_MEMBER_REFERENCE=<reviewed-owner-member-reference>",
-            "reviewed owner-only baseline",
-            "Wait for explicit owner direction",
-            "Freeze the qualified integration revision",
-            "Do not treat Candidate Source as Accepted Source",
-            "another real application",
+            "application-neutral",
+            "matching adoption authority",
+            "environment=qualification",
+            "application-handoff-check",
+            "Platform Integration Bundle",
+            "Application Attachment Bundle",
+            "Add no generic `application-deploy` or `application-destroy` command",
+            "Leave the selected real application active for AP-M9-W13",
+            "Do not perform platform destruction",
         ):
             self.assertIn(boundary, normalized_prompt)
         for excluded_later_slice in (
@@ -1035,7 +1035,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("### AP-PR-", prompt)
         self.assertNotIn("## ADR-", prompt)
         self.assertIn(
-            "[AP-M9-W10 Candidate Source qualification](starting_prompt.md)",
+            "[AP-M9-W12 real-application staging adoption](starting_prompt.md)",
             prompt_index,
         )
 
@@ -1055,10 +1055,11 @@ class ProjectAuthorityTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         docs_router = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
 
-        self.assertIn("canonical plan router through AP-M9-W12", index)
+        self.assertIn("canonical plan router through AP-M9-W14", index)
         self.assertIn("000-origin-implementation-plan.md", index)
         self.assertIn("ap_m9/000-m9_interactive_platform_lifecycle.md", index)
         self.assertIn("ap_m9/w10_platform_member_directory.md", index)
+        self.assertIn("ap_m9/w12_real_application_staging_adoption.md", index)
         self.assertIn("only current plan for that\nidentifier", index)
         self.assertIn("estimation signals", index)
         self.assertIn("# App Platform origin implementation plan", origin)
@@ -1067,10 +1068,9 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
         self.assertIn("### AP-M9-W10", m9)
         self.assertIn("### AP-M9-W12", m9)
-        self.assertIn(
-            "all seven\nAP-M9-W10 slices and candidate-readiness corrections are integrated",
-            m9,
-        )
+        self.assertIn("### AP-M9-W13", m9)
+        self.assertIn("### AP-M9-W14", m9)
+        self.assertIn("AP-M9-W11 Accepted Source staging", m9)
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
         self.assertIn(
@@ -1078,13 +1078,17 @@ class ProjectAuthorityTest(unittest.TestCase):
             compatibility,
         )
         self.assertIn("plans/ap_m9/w10_platform_member_directory.md", compatibility)
+        self.assertIn(
+            "plans/ap_m9/w12_real_application_staging_adoption.md",
+            compatibility,
+        )
         self.assertIn("[Implementation plan index](plans/README.md)", docs_router)
         self.assertIn(
             "[AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md)",
             docs_router,
         )
         self.assertIn(
-            "[AP-M9-W10 delivery plan](plans/ap_m9/w10_platform_member_directory.md)",
+            "[AP-M9-W12 delivery plan](plans/ap_m9/w12_real_application_staging_adoption.md)",
             docs_router,
         )
 
@@ -1128,7 +1132,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "does not silently change a Version 1 consumer",
             "merged Accepted Source revision",
             "ask the owner before adding a full",
-            "freeze the integration revision",
+            "integration branch was Candidate-qualified and frozen",
         ):
             self.assertIn(boundary, w10)
         slice_branches = (
@@ -1152,7 +1156,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_index = " ".join(index.split())
         normalized_prompt = " ".join(prompt.split())
 
-        for work_package in range(1, 13):
+        for work_package in range(1, 15):
             self.assertIn(f"AP-M9-W{work_package}", index)
         self.assertIn(
             "Milestones and work packages are planning containers rather than automatic branch boundaries",
@@ -1165,12 +1169,12 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("feat/platform-member-directory", normalized_index)
         self.assertIn("no partial W10 implementation merges to `main`", normalized_index)
         self.assertNotIn("Each work package is one bounded branch and pull request", normalized_index)
-        self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W12"))
-        self.assertIn("AP-M9-W10", normalized_prompt)
-        self.assertIn("first Accepted Source staging operation", normalized_prompt)
-        self.assertIn("Wait for explicit owner direction", normalized_prompt)
-        self.assertIn("Do not treat Candidate Source as Accepted Source", normalized_prompt)
-        self.assertIn("mutate production", normalized_prompt)
+        self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W14"))
+        self.assertIn("AP-M9-W12", normalized_prompt)
+        self.assertIn("real-application staging adoption", normalized_prompt)
+        self.assertIn("matching adoption authority", normalized_prompt)
+        self.assertIn("Do not perform platform destruction", normalized_prompt)
+        self.assertIn("production preparation or mutation", normalized_prompt)
 
     def test_ap_m9_handoff_assigns_candidate_accepted_and_production_work_once(
         self,
@@ -1199,36 +1203,32 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_recovery = " ".join(recovery.split())
 
         self.assertIn(
-            "ADR-015 implementation is integrated; Version 2 Candidate Source qualification passed",
+            "ADR-015 is implemented; AP-M9-W11 Accepted Source staging platform and fixture qualification completed",
             normalized_requirements,
         )
         self.assertIn(
-            "must be repeated after the final documentation reconciliation",
+            "real-application adoption, destructive recovery, and production readiness remain W12, W13, and W14 work",
             normalized_requirements,
         )
         self.assertIn(
-            "Accepted Source qualification remains AP-M9-W11 work",
-            normalized_requirements,
-        )
-        self.assertIn(
-            "Slice 6 reconciles the operator handoff and implemented limitations without a provider operation",
+            "AP-M9-W11 repeated deployment and qualification from Accepted Source",
             normalized_evaluation,
         )
         self.assertIn(
-            "Slice 7 and its candidate-readiness corrections implement cleanup-safe qualification support without a provider operation",
+            "AP-EVAL-M9-10 · First real-application staging adoption",
             normalized_evaluation,
         )
         self.assertIn(
-            "After the cumulative W10 pull request merges, W11 must repeat the journey from Accepted Source",
+            "AP-EVAL-M9-11 · Platform destruction, recovery, reattachment, and requalification",
             normalized_evaluation,
         )
-        self.assertIn("AP-M9-W1 through AP-M9-W12", normalized_m9)
+        self.assertIn("AP-M9-W1 through AP-M9-W14", normalized_m9)
         self.assertNotIn("AP-M9-W1 through W10 are repository branches", m9)
         self.assertNotIn("operation-specific service-account impersonation", m9)
         self.assertIn("no operation-identity fleet", normalized_m9)
         self.assertIn("all seven functional-slice pull requests", w10)
         self.assertIn(
-            "does not inherit that evidence: after merge, repeat the complete Candidate qualification",
+            "AP-M9-W11 then completed Accepted Source staging platform and fixture qualification",
             normalized_w10,
         )
         self.assertIn("ADR-016 operator-state recovery", w10)
@@ -1267,14 +1267,15 @@ class ProjectAuthorityTest(unittest.TestCase):
             "Concurrent or stale member add, suspend, reactivate, or remove",
             "Opaque member references are scoped to one environment",
             "stale bootstrap session",
-            "AP-M9-W10 final integration qualification after Slice 7",
+            "First real-application route, identity, isolation, and state-ownership evidence",
+            "Platform destruction, retained real-application resources",
         ):
             self.assertIn(control, normalized_threats)
         for evidence_boundary in (
-            "W10 Slices 1 through 7 produce only deterministic, mocked, local, or documentation evidence",
-            "Slice 7 first merges its qualification support",
-            "exact clean pushed integration revision",
-            "Any later tracked change invalidates that qualification",
+            "AP-M9-W11 repeated deployment and qualification from Accepted Source",
+            "W12 adds one separately governed real application",
+            "W13 owns destructive recovery",
+            "W14 owns read-only production readiness",
         ):
             self.assertIn(evidence_boundary, normalized_evaluation)
 
@@ -1369,7 +1370,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertEqual(
             live_gates,
-            [f"AP-EVAL-M9-{index:02d}" for index in range(1, 11)],
+            [f"AP-EVAL-M9-{index:02d}" for index in range(1, 13)],
         )
         self.assertEqual(
             active_lifecycle_boundaries,
@@ -1411,12 +1412,12 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertEqual(
             lifecycle_packages,
-            [f"AP-M9-W{index}" for index in range(1, 13)],
+            [f"AP-M9-W{index}" for index in range(1, 15)],
         )
         self.assertEqual(len(work_packages), len(set(work_packages)))
         self.assertEqual(
             lifecycle_gates,
-            [f"AP-EVAL-M9-{index:02d}" for index in range(1, 11)],
+            [f"AP-EVAL-M9-{index:02d}" for index in range(1, 13)],
         )
         self.assertEqual(len(lifecycle_packages), len(set(lifecycle_packages)))
         self.assertEqual(len(lifecycle_gates), len(set(lifecycle_gates)))
@@ -2062,10 +2063,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         for document in (docs_index, layout):
             self.assertIn("AP-M9-W9", document)
             self.assertIn("implemented", document.lower())
-        self.assertIn(
-            "AP-M9-W9 is implemented and candidate-qualified",
-            overview,
-        )
+        self.assertIn("AP-M9-W10 completed and Candidate-qualified", overview)
         self.assertIn("AP-M9-W10 Slices 1 through 7 implement", overview)
         self.assertIn("bounded member lifecycle commands", overview)
         self.assertIn("Qualification readiness reuses those same member", overview)
@@ -2083,7 +2081,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("make platform-cancel", runbook)
         self.assertIn("does not run Terraform", normalized_runbook)
         for candidate_handoff in (
-            "Run it only after every W10 slice and candidate-readiness correction has merged",
+            "Candidate evidence is bound to that exact branch revision",
             "make platform-preflight ENVIRONMENT=staging SOURCE_AUTHORITY=candidate",
             "make platform-member-bootstrap-owner ENVIRONMENT=staging SOURCE_AUTHORITY=candidate",
             "APPLICATION_ID=fixture-public ACCESS_MODE=public IDENTITY_DELIVERY=none",
@@ -2091,7 +2089,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "fixture-restricted` | `restricted` | `required`",
             "Use the newly reported active Registration Generation after each successful registration",
             "reviewed owner-only member baseline",
-            "documented repository work performs none of these provider commands",
+            "Documentation work performs none of these provider commands",
         ):
             self.assertIn(candidate_handoff, normalized_runbook)
         self.assertIn("platform-integration-bundle.v2.json", overview)
@@ -2110,14 +2108,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("`infrastructure/operator/`", layout)
 
         for required in (
-            "AP-M9-W10",
-            "AP-EVAL-M9-09",
-            "all seven AP-M9-W10 functional-slice pull requests have merged",
-            "cleanup-safe qualification support",
-            "Wait for explicit owner direction",
-            "AP-M9-W11 owns the first Accepted Source staging operation",
-            "Do not treat Candidate Source as Accepted Source",
-            "another real application",
+            "AP-M9-W12",
+            "AP-EVAL-M9-10",
+            "matching adoption authority",
+            "environment=qualification",
+            "application-handoff-check",
+            "Application Attachment Bundle",
+            "Do not perform platform destruction",
         ):
             self.assertIn(required, normalized_prompt)
         self.assertNotIn("AP-M9-W8 qualification and safe destruction handoff", prompt)

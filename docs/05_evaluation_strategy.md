@@ -1,12 +1,9 @@
 # <u>App Platform evaluation strategy</u>
 
-Version 0.29 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
-Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
-without execution; all seven AP-M9-W10 slices and candidate-readiness corrections supply
-deterministic Version 2 contract, infrastructure, runtime, member-lifecycle, application-handoff,
-operator-documentation, and qualification-readiness evidence; Version 2 Candidate Source
-qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; one complete
-post-reconciliation rerun and freeze remain; Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
+Version 0.30 | Status: AP-M9-W10 Version 2 Candidate Source qualification complete; AP-M9-W11
+Accepted Source staging platform and fixture qualification completed at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-EVAL-M9-10 real-application adoption is next;
+destructive recovery and production readiness remain AP-EVAL-M9-11 and AP-EVAL-M9-12
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
@@ -1594,8 +1591,8 @@ It performs no credential lookup, provider request, DNS lookup, Terraform backen
 mutation, or browser action. It uses synthetic profiles, command fakes, temporary mode-`0700`
 directories, mocked Terraform providers, process-local loopback, and deterministic clocks.
 
-Accepted staging Live gates begin only after the complete W10 integration branch merges and the
-exact protected-main revision passes the complete gate. W10 Slices 1 through 7 produce only
+Accepted staging Live gates began only after the complete W10 integration branch merged and the
+exact protected-main revision passed the complete gate. W10 Slices 1 through 7 produced only
 deterministic, mocked, local, or documentation evidence and authorize no external operation. Slice
 7 first merges its qualification support to `feat/platform-member-directory`; the exact clean
 pushed integration revision may then run the Version 2 staging journey with
@@ -1603,7 +1600,9 @@ pushed integration revision may then run the Version 2 staging journey with
 exact integration revision, cannot satisfy the Accepted Source AP-EVAL-M9 result, and cannot
 authorize production. Any later tracked change invalidates that qualification and requires a
 complete rerun before the cumulative pull request to `main`. After that pull request merges,
-AP-M9-W11 repeats deployment and qualification from Accepted Source. The owner starts an ordinary
+AP-M9-W11 repeated deployment and qualification from Accepted Source and completed at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`. W12 adds one separately governed real application;
+W13 owns destructive recovery; W14 owns read-only production readiness. The owner starts an ordinary
 reversible staging creation or update by deliberately invoking its named command; that process
 completes specification approval, exact plan or bounded-action confirmation, and readback without
 a duplicate out-of-band approval.
@@ -1633,7 +1632,7 @@ gate.
 #### AP-EVAL-M9-01 · Authority, supersession, source, and regression integrity
 
 Verify AP-PR-001 through AP-PR-012, AP-QR-001 through AP-QR-009, ADR-001 through ADR-015,
-AP-TM-001 through AP-TM-014, AP-M9-W1 through W12, and this evaluation definition are complete and
+AP-TM-001 through AP-TM-014, AP-M9-W1 through W14, and this evaluation definition are complete and
 uniquely traced. Confirm AP-M8-W1/W2 remain historical, AP-M8-W3 through W12 and the old standalone
 AP-M9 proposal are superseded without execution, the source is clean protected main, and every
 prior deterministic gate passes without credential or mutation.
@@ -1818,7 +1817,7 @@ application-owned OAuth identity. Prove no application receives the member direc
 member, an application role, provider right, or Feature Entitlement. Application authorization
 tests must continue to deny a synthetic feature independently of platform admission.
 
-#### AP-EVAL-M9-08 · Rollback, fixture cleanup, platform destruction, and redeployment
+#### AP-EVAL-M9-08 · Accepted staging rollback and restoration
 
 Only after every non-mutating qualification check passes, explain the traffic effect and obtain
 explicit confirmation before temporarily activating the reviewed predecessor complete generation.
@@ -1836,12 +1835,8 @@ Retain the exact stable predecessor-step blocker in a failed qualification resul
 that browser result, obtain separate explicit restoration
 confirmation, restore the original public-`optional` generation, and verify it owns 100 percent of
 traffic, all while preserving Application State. A failed prerequisite must block the rollback
-exercise without prompting or changing traffic. Detach and destroy fixture-owned assets under fixture authority. Verify platform
-destruction refuses an active attachment, names the exact environment and inventory, requires
-typed confirmation, handles DNS/cache and OAuth checkpoints, touches no application resource,
-stops on partial failure, and retains backends/evidence and the connected Shared VPC foundation
-absent separate disconnect or purge authority. After an approved staging destroy, redeploy and
-repeat mandatory qualification before reporting staging ready.
+exercise without prompting or changing traffic. This gate does not detach applications or destroy
+the Platform Environment; AP-EVAL-M9-11 owns that later boundary.
 
 #### AP-EVAL-M9-09 · Evidence privacy, truthful status, drift, and handoff
 
@@ -1851,13 +1846,40 @@ detection, operator-attested versus verified labels, and final source-bound stat
 malformed, expired, mismatched, skipped, or prohibited record fails rather than being waived or
 reconstructed.
 
-#### AP-EVAL-M9-10 · Production isolation and Application Adoption boundary
+#### AP-EVAL-M9-10 · First real-application staging adoption
+
+For one application selected through matching platform and application-repository authority,
+verify the application-project connection and application handoff without using fixture-only
+labels or Apps Platform deployment authority. Bind a Version 2 Platform Integration Bundle to the
+exact Accepted Source platform revision and generation. Require the Application Owner to deploy
+its runtime and return a valid Application Attachment Bundle and registration intent from its own
+repository and state lineage. Register one complete successor generation and verify the named
+route, target posture, admission, Identity Delivery, independent application authorization,
+direct-origin denial, failure isolation, rollback, and exclusive state ownership. Record exact
+platform and application revisions and least-data evidence in their separately governed records.
+Leave the application active for the destructive-recovery gate.
+
+#### AP-EVAL-M9-11 · Platform destruction, recovery, reattachment, and requalification
+
+First prove platform destruction refuses while any application attachment remains active. Detach
+the real application and fixtures through the platform lifecycle. Destroy only fixture-owned
+Application State through fixture authority; retain the real application's runtime, data, secrets,
+and state. Under separately approved destructive authority, destroy the platform-owned environment
+scope and prove no real-application resource changed. Verify the documented retained backends,
+evidence, recovery material, and connected Shared VPC foundation.
+
+Redeploy from Accepted Source, restore or read back the owner-member baseline, reconnect projects
+where required, generate fresh bundles, reattach the retained real application, redeploy/register
+the fixtures, and repeat the mandatory platform and application checks. Pass only when staging is
+again deployed, qualified, and ready with exact provider, state, ownership, and route readback.
+
+#### AP-EVAL-M9-12 · Production isolation and ownership boundary
 
 Run production preparation read-only. Prove it uses distinct profile, state, identity, OAuth,
 DNS/TLS, evidence, and destructive authority; detects current `apps.comfforts.com` ownership; emits
-`OWNERSHIP_TRANSFER_REQUIRED`; and performs no provider mutation or import. Confirm the Finance
-integration remains inactive, Finance scripts and state are unchanged, and actual production
-cutover requires a separate platform checkpoint plus Finance-owned adoption authority.
+`OWNERSHIP_TRANSFER_REQUIRED`; and performs no provider mutation or import. Confirm every current
+production owner and application remains unchanged and actual production cutover requires a
+separate platform checkpoint plus each selected application's own adoption authority.
 
 ### Pass, fail, blocked, and unavailable semantics
 
@@ -1865,15 +1887,15 @@ Every gate reachable for the current AP-M9 work package is mandatory. `pass` req
 complete evidence. `fail` records any mismatch, unexpected warning, command error, prohibited data,
 scope expansion, false claim, or unsafe mutation. A dependent gate after failure is `blocked` with
 its cause. Behavior owned by an unimplemented later AP-M9 package is `unavailable`, never a pass or
-skip. At final AP-M9 acceptance all ten gates must pass with zero failures, blocked gates,
+skip. At final AP-M9 acceptance all twelve gates must pass with zero failures, blocked gates,
 unexpected warnings, prohibited findings, or mandatory skips.
 
 ### Limitations
 
-AP-EVAL-M9 does not qualify production traffic, Finance Assistant compatibility, another real
-application, production availability, cross-cloud behavior, Python-to-Go migration, or an
-application's principals, data isolation, provider rights, Feature Entitlements, recovery, or
-destruction. Those remain production-cutover, later migration, or Application Adoption evidence.
+AP-EVAL-M9 does not qualify production traffic, general compatibility for applications other than
+the W12 selection, production availability, cross-cloud behavior, Python-to-Go migration, or an
+application's principals, provider rights, Feature Entitlements, or data semantics. Those remain
+production-cutover, later migration, or application-owned evidence.
 
 This definition originated in AP-M9-W1. AP-M9-W2 removed the retired manifest path, W3 implemented
 the lifecycle contracts, W4 implemented credential-free preparation/status and deterministic fake
@@ -1891,10 +1913,9 @@ W10 Slices 1 through 5 establish the deterministic Version 2 contract, infrastru
 lifecycle, and application-handoff evidence. Slice 6 reconciles the operator handoff and
 implemented limitations without a provider operation. Slice 7 and its candidate-readiness
 corrections implement cleanup-safe qualification support without a provider operation. Revision
-`d8fdb8afb2048e87b591ae400d7807a38784fd5c` subsequently completed the applicable Candidate Source
-staging journey, qualified the Version 2 member directory, and restored the reviewed member
-baseline. This documentation reconciliation changes the exact revision, so the resulting clean
-pushed integration head must repeat the complete qualification and then remain frozen. After the
-cumulative W10 pull request merges,
-W11 must repeat the journey from Accepted Source and complete the separately approved platform
-destruction/redeployment rehearsal before an accepted AP-EVAL-M9 result exists.
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c` completed an applicable Candidate Source staging
+journey, qualified the Version 2 member directory, and restored the reviewed member baseline. W11
+then repeated the platform and fixture journey from Accepted Source at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`. That accepted result deliberately excluded the
+destructive rehearsal. W12 next owns one real-application adoption, W13 owns destruction and
+recovery after that adoption, and W14 owns the read-only production ownership check.

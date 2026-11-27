@@ -59,8 +59,9 @@ Fixtures use the same cross-owner sequence expected of an external application:
 4. The operator inspects the three canonical documents and invokes `platform-register`.
 5. Registration validates the complete Version 2 family, reads back the target, compiles one
    immutable complete generation, and atomically activates it at the Shared Edge.
-6. `fixture-status` reports target and route readiness separately. Detachment precedes
-   `fixture-destroy`; registration recovery and reactivation remain platform operations.
+6. `fixture-status` reports the active `listed` or `unlisted` catalogue policy and reports target
+   and route readiness separately. Detachment precedes `fixture-destroy`; registration recovery
+   and reactivation remain platform operations.
 
 The fixture helper exists so real application repositories can copy the ownership pattern, not so
 Apps Platform can deploy real applications. A real application owns its equivalent deploy, status,
@@ -84,7 +85,10 @@ The runtime exposes only bounded qualification surfaces:
 - `POST /upload` for request-stream handling;
 - `GET /stream` for SSE-like streaming behavior;
 - `GET /failure` for application failure isolation;
-- `GET /qualification/browser` for a challenge-bound loopback qualification callback; and
+- `GET /qualification/browser` for a challenge-bound loopback callback carrying only the fixture
+  identifier, one-use challenge, and whether identity delivery was observed; enabled identity is
+  counted only after verification, while a disabled public fixture reports any prohibited header
+  presence so public-`none` qualification fails closed; and
 - `/socket` for WebSocket admission and delivery.
 
 Unknown paths return the fixture's fixed not-found response. Responses contain only the fixture ID

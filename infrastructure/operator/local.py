@@ -1602,14 +1602,16 @@ def build_local_qualification(
         terminal,
     )
     browser_launcher = SystemBrowserLauncher()
+    browser_qualification = LoopbackBrowserQualification(browser_launcher, terminal)
     probe = StagingQualificationProbe(
         HttpxQualificationClient(),
-        LoopbackBrowserQualification(browser_launcher, terminal),
+        browser_qualification,
         provider,
         LiveGenerationRollbackExercise(
             platform,
             LocalReviewedGenerationControl(generations),
             terminal,
+            browser_qualification.verify_public_none,
         ),
         fixture_project,
         MemberQualificationExercise(

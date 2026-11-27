@@ -26,7 +26,12 @@ from tests.test_qualification_suite import readback
 
 @dataclass
 class Browser:
-    result: BrowserQualificationResult = BrowserQualificationResult(True, True, True)
+    result: BrowserQualificationResult = BrowserQualificationResult(
+        True,
+        True,
+        True,
+        True,
+    )
     calls: int = 0
 
     def verify(self) -> BrowserQualificationResult:
@@ -66,7 +71,7 @@ class Http:
             return QualificationHttpResponse(
                 200,
                 {},
-                b"Public fixture Restricted fixture",
+                b"Authenticated fixture Public fixture Restricted fixture",
             )
         if path == "/fixture-public/upload":
             return QualificationHttpResponse(204, {}, b"")
@@ -104,11 +109,7 @@ class Targets:
                 "serviceAccount:app-platform-edge-caller@"
                 "comfforts-platform-non-prod.iam.gserviceaccount.com"
             ),
-            (
-                None
-                if application_id == "fixture-public"
-                else f"urn:comfforts:app-platform:audience:{application_id}"
-            ),
+            f"urn:comfforts:app-platform:audience:{application_id}",
             application_project_id=FIXTURES_PROJECT_ID,
             network_reference=NETWORK_REFERENCE,
             subnetwork_reference=SUBNETWORK_REFERENCE,
@@ -214,11 +215,106 @@ class LiveQualificationProbeTest(unittest.TestCase):
         self.assertEqual(members.calls, [("staging", self.owner_reference)])
         self.assertTrue(all(not item.blockers for item in results))
 
+    def test_live_posture_and_catalogue_follow_the_active_generation_policy(
+        self,
+    ) -> None:
+        """Accept reviewed public-optional and all-listed fixture configuration."""
+
+        class ActiveTargets(Targets):
+            def read_target(self, environment, resource_reference):  # type: ignore[no-untyped-def]
+                observed = super().read_target(environment, resource_reference)
+                if observed.owner_application_id == "fixture-public":
+                    return replace(
+                        observed,
+                        audience=(
+                            "urn:comfforts:app-platform:audience:fixture-public"
+                        ),
+                    )
+                return observed
+
+        class ActiveCatalogue(Http):
+            def request(self, method, path, **kwargs):  # type: ignore[no-untyped-def]
+                observed = super().request(method, path, **kwargs)
+                if path == "/" and not kwargs.get("insecure_http"):
+                    return replace(
+                        observed,
+                        body=(
+                            b"Public fixture Authenticated fixture Restricted fixture"
+                        ),
+                    )
+                return observed
+
+        current = self._current()
+        probe = StagingQualificationProbe(
+            ActiveCatalogue(),
+            Browser(),
+            ActiveTargets(),
+            Lifecycle(),
+            self._fixture_project(),
+            Members(),
+            self.owner_reference,
+        )
+
+        results = {
+            check: probe.evaluate(QualificationProbeRequest(check, (), current))
+            for check in (
+                "attachment-posture",
+                "catalogue-routing",
+                "direct-origin-denial",
+            )
+        }
+
+        self.assertEqual(
+            {check: result.blockers for check, result in results.items()},
+            {
+                "attachment-posture": (),
+                "catalogue-routing": (),
+                "direct-origin-denial": (),
+            },
+        )
+
+    def test_admission_requires_active_public_optional_identity_policy(self) -> None:
+        """Reject a generation that does not expose the W10 optional path."""
+
+        current = self._current()
+        current = replace(
+            current,
+            fixture_policies=tuple(
+                replace(
+                    policy,
+                    identity_delivery="none",
+                    target_audience=None,
+                )
+                if policy.application_id == "fixture-public"
+                else policy
+                for policy in current.fixture_policies
+            ),
+        )
+        probe = StagingQualificationProbe(
+            Http(),
+            Browser(),
+            Targets(),
+            Lifecycle(),
+            self._fixture_project(),
+            Members(),
+            self.owner_reference,
+        )
+
+        result = probe.evaluate(
+            QualificationProbeRequest("admission-identity", (), current)
+        )
+
+        self.assertEqual(result.outcome, "fail")
+        self.assertEqual(
+            result.blockers,
+            ("LIVE_PUBLIC_OPTIONAL_POLICY_MISMATCH",),
+        )
+
     def test_browser_failure_preserves_the_exact_step_blocker(self) -> None:
         current = self._current()
         probe = StagingQualificationProbe(
             Http(),
-            Browser(BrowserQualificationResult(False, False, False)),
+            Browser(BrowserQualificationResult(False, False, False, False)),
             Targets(),
             Lifecycle(),
             self._fixture_project(),
@@ -241,6 +337,7 @@ class LiveQualificationProbeTest(unittest.TestCase):
             Browser(
                 BrowserQualificationResult(
                     True,
+                    False,
                     False,
                     False,
                     "LIVE_RESTRICTED_BROWSER_CHECK_NOT_CONFIRMED",

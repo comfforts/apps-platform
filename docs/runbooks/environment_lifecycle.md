@@ -514,7 +514,8 @@ mutate foundation resources.
 
 `fixture-status` reconciles all three fixture registrations and provider targets by default. During
 an individual rollout or investigation, add `APPLICATION_ID=<fixture-application-id>` to narrow the
-read-only result to one fixture. `target_ready` is Cloud Run/provider posture;
+read-only result to one fixture. Each result includes the active Registration Generation's
+`catalogue_visibility` (`listed` or `unlisted`). `target_ready` is Cloud Run/provider posture;
 `route_ready` is a separate HTTPS read of the platform route and becomes true only for a successful
 response or a real authentication redirect. An active registration and ready target do not by
 themselves make `route_ready` true.
@@ -542,14 +543,16 @@ each transition, a separately confirmed browser invocation asks Shared Edge for 
 cookies, directory records, and provider payloads do not. Every exit attempts temporary-member
 cleanup and rereads the owner-only baseline. A restoration-required blocker is a stop condition.
 
-The admission check presents three browser steps. Read each step and answer its separate `y/N`
+The active-generation admission check presents four browser steps. Read each step and answer its separate `y/N`
 prompt before the command opens a tab:
 
 1. Clear any prior Apps Platform session and sign in with the exact reviewed staging operator
    account.
-2. Reuse that platform session to verify restricted-fixture admission; another Google sign-in is
+2. Reuse that platform session to prove that public `optional` delivers independently verified
+   Platform Identity without requiring it for anonymous access.
+3. Reuse that platform session to verify restricted-fixture admission; another Google sign-in is
    not expected.
-3. Log out of Apps Platform and return through the public fixture. Shared Edge verifies that the
+4. Log out of Apps Platform and return through the public fixture. Shared Edge verifies that the
    server-side session is absent before this step succeeds. This does not log the account out of
    Google and does not start a later sign-in test.
 
@@ -564,8 +567,10 @@ before offering a rollback. If any prerequisite fails,
 move traffic. When they all pass, the command explains the traffic effect before asking for the
 exact rollback phrase. Confirmation temporarily moves 100 percent of staging traffic from the
 current Registration Generation to its reviewed predecessor. Keep the command running: after
-provider readback it asks for a second exact phrase to restore the original generation and verifies
-that restoration. Declining or interrupting restoration leaves the predecessor active; follow the
+provider readback, two more separately confirmed browser checks establish an authenticated session
+and prove that the predecessor's public `none` policy withholds Platform Identity. The command then
+asks for a second exact phrase to restore the original generation and verifies that restoration,
+even when the predecessor browser proof fails. Declining or interrupting restoration leaves the predecessor active; follow the
 printed `RESTORATION REQUIRED` guidance and inspect the active generation before attempting
 qualification again.
 
@@ -764,6 +769,14 @@ complete Version 2 successor. Later registrations preserve every unaffected Vers
 mixed-version bundle family, stale generation, edited artifact, or failed target readback is a stop
 condition.
 
+After all three fixtures are active under public `none`, perform the public sequence one more time
+with the latest platform generation and `IDENTITY_DELIVERY=optional`. Generate and inspect a fresh
+integration bundle, attachment bundle, and registration intent; keep
+`CATALOGUE_VISIBILITY=listed`; then register and verify `fixture-public` again. The unchanged
+runtime may be reused, but the new complete Registration Generation must become active. This final
+registration makes public `optional` the active policy and retains the immediately preceding
+complete public-`none` generation for the qualification rollback exercise.
+
 After all three routes pass `fixture-status`, run the Slice 7 qualification command and keep it
 open through every separately confirmed browser, member-lifecycle, generation, rollback, and
 restoration checkpoint:
@@ -777,7 +790,8 @@ make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 make platform-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 ```
 
-Qualification must prove public `none` and explicit `optional`, authenticated admission independent
+Qualification must prove active public `optional` identity delivery and, during reviewed rollback,
+public `none` identity withholding after an authenticated session. It also proves authenticated admission independent
 of membership, restricted active/suspended/reactivated/removed behavior for a reviewed second
 member, directory failure, logout, assertion minimization, cross-application isolation, exact
 rollback, and restoration. It must finish with the reviewed owner-only member baseline and the

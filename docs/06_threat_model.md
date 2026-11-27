@@ -952,8 +952,10 @@ IAM boundary, runtime Identity Delivery, owner/member lifecycle, complete applic
   rejection of mixed or member-bearing Version 2 documents. Slice 6 reconciles the operator handoff
   without changing controls. Slice 7 reuses the source-admitted member service, refuses to start
   without the reviewed owner-only baseline, reports only coarse route decisions through a
-  challenge-bound loopback callback, attempts temporary-member cleanup on every failure, and blocks
-  rollback unless the final owner-only baseline is exact. Its branch invokes no provider. After it
+  challenge-bound loopback callback, derives target and catalogue expectations from the active
+  generation, reports only coarse identity presence during browser qualification, attempts
+  temporary-member cleanup on every failure, and blocks rollback unless the final owner-only
+  baseline is exact. Predecessor public-identity failure cannot suppress restoration. Its branch invokes no provider. After it
   merges, the exact integration revision must candidate-qualify the complete model before the
   Accepted Source operation in W11. Candidate evidence
 proves only the named W9 predecessor bindings. No current result proves ADR-015 realization,

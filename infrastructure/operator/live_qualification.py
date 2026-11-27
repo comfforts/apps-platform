@@ -53,7 +53,10 @@ class QualificationCallback(Protocol):
     @property
     def port(self) -> int: ...
 
-    def wait(self, timeout_seconds: float) -> str | None: ...
+    def wait(
+        self,
+        timeout_seconds: float,
+    ) -> QualificationCallbackResult | None: ...
 
     def close(self) -> None: ...
 
@@ -124,14 +127,24 @@ class SystemBrowserLauncher:
 @dataclass(frozen=True, slots=True)
 class BrowserQualificationResult:
     authenticated: bool
+    public_optional: bool
     restricted: bool
     logout: bool
     blocker: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class QualificationCallbackResult:
+    """Coarse fixture and identity-presence result returned over loopback."""
+
+    application_id: str
+    identity_present: bool
+
+
 @dataclass(slots=True)
 class _CallbackResult:
     application_id: str | None = None
+    identity_present: bool | None = None
 
 
 class _CallbackServer:
@@ -158,20 +171,24 @@ class _CallbackServer:
                     parsed.query,
                     keep_blank_values=True,
                     strict_parsing=True,
-                    max_num_fields=2,
+                    max_num_fields=3,
                 )
                 application_values = query.get("application_id", [])
                 challenge_values = query.get("challenge", [])
+                identity_values = query.get("identity_present", [])
                 valid = (
                     parsed.path == "/"
                     and not parsed.fragment
-                    and set(query) == {"application_id", "challenge"}
+                    and set(query)
+                    == {"application_id", "challenge", "identity_present"}
                     and len(application_values) == 1
                     and application_values[0] in _FIXTURE_APPLICATIONS
                     and challenge_values == [challenge]
+                    and identity_values in (["true"], ["false"])
                 )
                 if valid:
                     result.application_id = application_values[0]
+                    result.identity_present = identity_values == ["true"]
                 body = b"App Platform qualification callback received.\n"
                 self.send_response(200 if valid else 400)
                 self.send_header("Cache-Control", "no-store")
@@ -185,11 +202,22 @@ class _CallbackServer:
 
         return Handler
 
-    def wait(self, timeout_seconds: float) -> str | None:
+    def wait(
+        self,
+        timeout_seconds: float,
+    ) -> QualificationCallbackResult | None:
         deadline = time.monotonic() + timeout_seconds
         while self._result.application_id is None and time.monotonic() < deadline:
             self._server.handle_request()
-        return self._result.application_id
+        if (
+            self._result.application_id is None
+            or self._result.identity_present is None
+        ):
+            return None
+        return QualificationCallbackResult(
+            self._result.application_id,
+            self._result.identity_present,
+        )
 
     def close(self) -> None:
         self._server.server_close()
@@ -239,13 +267,18 @@ class LoopbackBrowserQualification:
         instructions: str,
         blocker_prefix: str,
         clear_session: bool,
+        expected_identity_present: bool,
+        step_total: int = 4,
     ) -> tuple[bool, str | None]:
+        """Run one confirmed browser callback and retain only its coarse result."""
+
         self._terminal.write(
-            f"BROWSER CHECK {step_number}/3: {title}\n\n{instructions}"
+            f"BROWSER CHECK {step_number}/{step_total}: {title}\n\n{instructions}"
         )
         try:
             confirmed = self._terminal.confirm(
-                f"Open the browser for qualification step {step_number}/3? [y/N] "
+                "Open the browser for qualification step "
+                f"{step_number}/{step_total}? [y/N] "
             )
         except Exception:
             return False, f"LIVE_{blocker_prefix}_BROWSER_CHECK_FAILED"
@@ -270,7 +303,10 @@ class LoopbackBrowserQualification:
                 opened = False
             if not opened:
                 return False, f"LIVE_{blocker_prefix}_BROWSER_CHECK_FAILED"
-            if callback.wait(timeout_seconds) != application_id:
+            if callback.wait(timeout_seconds) != QualificationCallbackResult(
+                application_id,
+                expected_identity_present,
+            ):
                 return False, f"LIVE_{blocker_prefix}_BROWSER_CHECK_FAILED"
             return True, None
         finally:
@@ -290,14 +326,32 @@ class LoopbackBrowserQualification:
             ),
             blocker_prefix="AUTHENTICATED",
             clear_session=True,
+            expected_identity_present=True,
         )
         if not authenticated:
-            return BrowserQualificationResult(False, False, False, blocker)
+            return BrowserQualificationResult(False, False, False, False, blocker)
+
+        public_optional, blocker = self._run_browser_step(
+            "fixture-public",
+            self._callback_timeout,
+            step_number=2,
+            title="Verify optional identity delivery",
+            instructions=(
+                "This step reuses the Apps Platform session established in step 1. "
+                "The public fixture should remain reachable and independently verify "
+                "that optional Platform Identity was delivered."
+            ),
+            blocker_prefix="PUBLIC_OPTIONAL",
+            clear_session=False,
+            expected_identity_present=True,
+        )
+        if not public_optional:
+            return BrowserQualificationResult(True, False, False, False, blocker)
 
         restricted, blocker = self._run_browser_step(
             "fixture-restricted",
             self._callback_timeout,
-            step_number=2,
+            step_number=3,
             title="Verify restricted application admission",
             instructions=(
                 "This step reuses the Apps Platform session established in step 1. "
@@ -306,14 +360,15 @@ class LoopbackBrowserQualification:
             ),
             blocker_prefix="RESTRICTED",
             clear_session=False,
+            expected_identity_present=True,
         )
         if not restricted:
-            return BrowserQualificationResult(True, False, False, blocker)
+            return BrowserQualificationResult(True, True, False, False, blocker)
 
         logged_out, blocker = self._run_browser_step(
             "fixture-public",
             self._callback_timeout,
-            step_number=3,
+            step_number=4,
             title="Verify platform logout",
             instructions=(
                 "This step asks the Shared Edge to delete and read back the current "
@@ -322,8 +377,53 @@ class LoopbackBrowserQualification:
             ),
             blocker_prefix="LOGOUT",
             clear_session=True,
+            expected_identity_present=False,
         )
-        return BrowserQualificationResult(True, True, logged_out, blocker)
+        return BrowserQualificationResult(
+            True,
+            True,
+            True,
+            logged_out,
+            blocker,
+        )
+
+    def verify_public_none(self) -> bool:
+        """Prove a reviewed predecessor withholds identity from its public fixture."""
+
+        authenticated, _ = self._run_browser_step(
+            "fixture-authenticated",
+            self._login_timeout,
+            step_number=1,
+            step_total=2,
+            title="Establish a predecessor-generation session",
+            instructions=(
+                "The predecessor generation is temporarily active. This step "
+                "clears any existing Apps Platform session, then establishes a "
+                "reviewed platform session so public identity withholding can be "
+                "tested rather than inferred from an anonymous request."
+            ),
+            blocker_prefix="PREDECESSOR_AUTHENTICATED",
+            clear_session=True,
+            expected_identity_present=True,
+        )
+        if not authenticated:
+            return False
+        public_none, _ = self._run_browser_step(
+            "fixture-public",
+            self._callback_timeout,
+            step_number=2,
+            step_total=2,
+            title="Verify predecessor public identity withholding",
+            instructions=(
+                "This step reuses the predecessor-generation platform session. "
+                "The public fixture must remain reachable while reporting that "
+                "no Platform Identity was delivered."
+            ),
+            blocker_prefix="PREDECESSOR_PUBLIC_NONE",
+            clear_session=False,
+            expected_identity_present=False,
+        )
+        return public_none
 
 
 @dataclass(slots=True)
@@ -669,7 +769,28 @@ class StagingQualificationProbe:
             and not parsed.fragment
         )
 
-    def _admission_identity(self, check_id: str) -> QualificationProbeOutcome:
+    def _admission_identity(
+        self,
+        check_id: str,
+        request: QualificationProbeRequest,
+    ) -> QualificationProbeOutcome:
+        """Verify active W10 admission, identity delivery, and member behavior."""
+
+        policies = {
+            policy.application_id: policy
+            for policy in request.current.fixture_policies
+        }
+        public_policy = policies.get("fixture-public")
+        if (
+            set(policies) != _FIXTURE_APPLICATIONS
+            or public_policy is None
+            or public_policy.identity_delivery != "optional"
+            or public_policy.target_audience is None
+        ):
+            return self._fail(
+                check_id,
+                "LIVE_PUBLIC_OPTIONAL_POLICY_MISMATCH",
+            )
         public = self._http.request("GET", "/fixture-public")
         authenticated = self._http.request("GET", "/fixture-authenticated")
         restricted = self._http.request("GET", "/fixture-restricted")
@@ -697,6 +818,8 @@ class StagingQualificationProbe:
             return self._fail(check_id, browser.blocker)
         if not browser.authenticated:
             return self._fail(check_id, "LIVE_AUTHENTICATED_BROWSER_CHECK_FAILED")
+        if not browser.public_optional:
+            return self._fail(check_id, "LIVE_PUBLIC_OPTIONAL_BROWSER_CHECK_FAILED")
         if not browser.restricted:
             return self._fail(check_id, "LIVE_RESTRICTED_BROWSER_CHECK_FAILED")
         if not browser.logout:
@@ -711,7 +834,7 @@ class StagingQualificationProbe:
             check_id,
             admission_checks=members.admission_checks,
             baseline_restored=members.baseline_restored,
-            browser_flows=3,
+            browser_flows=4,
             member_transitions=members.member_transitions,
             route_modes=3,
         )
@@ -748,6 +871,8 @@ class StagingQualificationProbe:
         )
 
     def _target_posture(self, request: QualificationProbeRequest) -> bool:
+        """Match provider targets to the exact active-generation attachment policy."""
+
         project = self._fixture_project
         if (
             not project.exists
@@ -765,22 +890,26 @@ class StagingQualificationProbe:
             "fixture-public": "public",
             "fixture-restricted": "restricted",
         }
+        policies = {
+            item.application_id: item
+            for item in request.current.fixture_policies
+        }
+        if set(policies) != set(modes):
+            return False
         for application_id, mode in modes.items():
+            policy = policies[application_id]
             reference = self._target_reference(application_id)
             target = self._targets.read_target(request.current.environment, reference)
-            expected_audience = (
-                None
-                if mode == "public"
-                else f"urn:comfforts:app-platform:audience:{application_id}"
-            )
             if (
-                not target.exists
+                policy.admission_mode != mode
+                or policy.target_reference != reference
+                or not target.exists
                 or not target.ready
                 or target.owner_application_id != application_id
                 or target.resource_reference != reference
                 or target.ingress_mode != "shared_edge_only"
                 or target.caller_grant != _EDGE_CALLER
-                or target.audience != expected_audience
+                or target.audience != policy.target_audience
                 or target.application_project_id != project.project_id
                 or target.network_reference != NETWORK_REFERENCE
                 or target.subnetwork_reference != SUBNETWORK_REFERENCE
@@ -801,17 +930,32 @@ class StagingQualificationProbe:
             else self._fail(check_id, "LIVE_ATTACHMENT_POSTURE_MISMATCH")
         )
 
-    def _catalogue_routing(self, check_id: str) -> QualificationProbeOutcome:
+    def _catalogue_routing(
+        self,
+        check_id: str,
+        request: QualificationProbeRequest,
+    ) -> QualificationProbeOutcome:
+        """Verify catalogue projection against the active compiled generation."""
+
         catalogue = self._http.request("GET", "/")
         public = self._http.request("GET", "/fixture-public")
         mounted = self._http.request("GET", "/fixture-public/api")
         public_value = self._json(public)
         mounted_value = self._json(mounted)
+        policies = request.current.fixture_policies
+        catalogue_matches = len(policies) == 3 and all(
+            (
+                policy.catalogue_title.encode("utf-8") in catalogue.body
+            )
+            == (policy.catalogue_visibility == "listed")
+            for policy in policies
+        )
+        listed = sum(
+            policy.catalogue_visibility == "listed" for policy in policies
+        )
         valid = (
             catalogue.status_code == 200
-            and b"Public fixture" in catalogue.body
-            and b"Restricted fixture" in catalogue.body
-            and b"Authenticated fixture" not in catalogue.body
+            and catalogue_matches
             and public.status_code == 200
             and mounted.status_code == 200
             and public_value is not None
@@ -820,7 +964,7 @@ class StagingQualificationProbe:
             and mounted_value.get("application_id") == "fixture-public"
         )
         return (
-            self._pass(check_id, catalogue_entries=2, routed_paths=2)
+            self._pass(check_id, catalogue_entries=listed, routed_paths=2)
             if valid
             else self._fail(check_id, "LIVE_CATALOGUE_ROUTING_MISMATCH")
         )
@@ -941,13 +1085,13 @@ class StagingQualificationProbe:
             return self._fail(request.check_id, "QUALIFICATION_ENVIRONMENT_UNAVAILABLE")
         try:
             if request.check_id == "admission-identity":
-                return self._admission_identity(request.check_id)
+                return self._admission_identity(request.check_id, request)
             if request.check_id == "assertion-jwks":
                 return self._assertion_jwks(request.check_id)
             if request.check_id == "attachment-posture":
                 return self._attachment_posture(request.check_id, request)
             if request.check_id == "catalogue-routing":
-                return self._catalogue_routing(request.check_id)
+                return self._catalogue_routing(request.check_id, request)
             if request.check_id == "direct-origin-denial":
                 return (
                     self._pass(request.check_id, targets=3)
@@ -981,6 +1125,7 @@ __all__ = (
     "QualificationMemberExercise",
     "QualificationBrowserLauncher",
     "QualificationCallback",
+    "QualificationCallbackResult",
     "SystemBrowserLauncher",
     "StagingQualificationProbe",
 )

@@ -87,6 +87,9 @@ make platform-member-reactivate ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lo
 make platform-member-remove ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
 ```
 
+Fixture status is read-only. Each returned application includes its active Registration
+Generation `catalogue_visibility` together with lifecycle, provider-target, and route readiness.
+
 Fixture handoff and destroy always require one fixture application identifier and operate only that
 fixture's Application State. Destruction additionally requires a prior platform detachment.
 Fixture status is suite-wide by default and accepts the same optional identifier when a
@@ -268,7 +271,9 @@ generation publication, OAuth metadata, DNS propagation, and TLS readiness. The 
 uses a repository-root allow-list and cannot include private operator state. The qualification
 and destruction live defaults retain explicit W9 authority gates; no partial external work occurs.
 W10 Slice 7 expands that profile through `member_qualification.py`, the existing member service,
-and a coarse Shared Edge member-admission callback. Qualification output retains counts, booleans,
+generation-derived fixture policy, a coarse Shared Edge member-admission callback, and a coarse
+identity-presence callback. The active generation must prove public `optional`; the reviewed
+predecessor must prove public `none` before the active generation is restored. Qualification output retains counts, booleans,
 stable blockers, and digests only; owner and temporary references, directory records, identity,
 cookies, and raw provider responses never enter evidence. Repository tests use deterministic fakes and process-local loopback only. Non-fake command adapters
 are not invoked by `make check` and reject path escape, ambient credential variables, shell

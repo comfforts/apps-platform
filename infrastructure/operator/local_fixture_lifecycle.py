@@ -95,6 +95,7 @@ def _status(
             FixtureApplicationStatus(
                 item.application_id,
                 item.lifecycle,
+                item.catalogue_visibility,
                 item.target_exists,
                 item.target_ready,
                 (

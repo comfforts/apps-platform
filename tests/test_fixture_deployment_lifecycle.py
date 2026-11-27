@@ -187,7 +187,16 @@ class Commands:
             "read",
             2,
             "sha256:" + ("5" * 64),
-            (FixtureApplicationStatus(selected, "active", True, True, True),),
+            (
+                FixtureApplicationStatus(
+                    selected,
+                    "active",
+                    "listed",
+                    True,
+                    True,
+                    True,
+                ),
+            ),
         )
 
     def destroy_application(self, request):  # type: ignore[no-untyped-def]
@@ -247,6 +256,7 @@ class FixtureHandoffLifecycleTest(unittest.TestCase):
                         RegistrationApplicationStatus(
                             application_id,
                             "active",
+                            "listed",
                             "urn:fixture",
                             True,
                             True,

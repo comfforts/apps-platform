@@ -463,6 +463,10 @@ make platform-register \
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-public
 ```
 
+The status result reports the active registration's `catalogue_visibility` (`listed` or
+`unlisted`) beside lifecycle, target, and route readiness; it does not infer visibility from the
+catalogue page.
+
 Repeat that application-scoped sequence for `fixture-authenticated` with
 `ACCESS_MODE=authenticated IDENTITY_DELIVERY=required` and for `fixture-restricted` with
 `ACCESS_MODE=restricted IDENTITY_DELIVERY=required`. Public applications may instead select
@@ -483,16 +487,20 @@ Only when every prerequisite passes does qualification offer the live rollback e
 terminal explains that the exercise temporarily
 moves 100 percent of staging traffic to the reviewed predecessor, asks for exact rollback
 confirmation, verifies the change, then asks for exact restoration confirmation and verifies that
-the original generation is again serving all traffic. Keep the command running through both
-confirmations. If any earlier check fails, rollback is recorded as blocked and traffic is not
-changed.
+the original generation is again serving all traffic. While the predecessor is active, two
+separately confirmed browser checks first establish a Platform Session and then prove that the
+predecessor's public `none` policy withholds Platform Identity. Restoration is still attempted if
+that proof fails. Keep the command running through every browser and generation confirmation. If
+any earlier check fails, rollback is recorded as blocked and traffic is not changed.
 
-The routing identity check uses exactly three browser actions, and the command asks `y/N`
-immediately before each one. The first clears any existing Apps Platform session and asks the operator to sign
-in with the exact reviewed staging account. The second reuses that session to verify restricted
-admission. The third logs out, verifies server-side session deletion, and returns through the
-public fixture without starting another login. Declining a browser action stops qualification with
-a blocker naming the unconfirmed step; the command never opens the next tab on its own.
+The active-generation routing identity check uses exactly four browser actions, and the command
+asks `y/N` immediately before each one. The first clears any existing Apps Platform session and
+asks the operator to sign in with the exact reviewed staging account. The second reuses that
+session to prove optional identity delivery to the public fixture. The third verifies restricted
+admission. The fourth logs out, verifies server-side session deletion, and returns through the
+public fixture with identity absent and without starting another login. Declining a browser action
+stops qualification with a blocker naming the unconfirmed step; the command never opens the next
+tab on its own.
 
 The temporary-member exercise has its own separately confirmed browser actions. Member `add`
 performs the normal one-use Visitor verification. Each of the four post-transition checks then
@@ -519,7 +527,9 @@ for fixtures because the fixture flow deliberately demonstrates the same separat
 a real application. Rerunning the handoff reuses the exact prepared pair only while the source,
 project connection, platform generation, image, bundle digests, and live target remain current.
 `fixture-status` is suite-wide by default, or narrowed with an optional `APPLICATION_ID`, so an
-operator can inspect the whole qualification suite or diagnose one fixture without mutation.
+operator can inspect the whole qualification suite or diagnose one fixture without mutation. Each
+application row includes the active registration's `catalogue_visibility` as well as lifecycle,
+target, and route readiness.
 
 `platform-deploy` remains active across OAuth and DNS checkpoints. Ordinary reviewed plans use one
 `y/N` confirmation. Typed confirmation is reserved for destruction, retirement, ownership
@@ -632,7 +642,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-qualify ENVIRONMENT=<name> OWNER_MEMBER_REFERENCE=<opaque-reference>` | Evaluate the exact platform and fixture revisions, exercise and clean up one temporary second member, require the reviewed owner-only baseline, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every prerequisite passes; write redacted evidence without member references |
 | `make platform-destroy ENVIRONMENT=<name>` | Compile, confirm, execute, and resume safe platform destruction |
 | `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> CATALOGUE_VISIBILITY=<listed\|unlisted> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and explicit catalogue intent, and stop before registration |
-| `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
+| `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Report active catalogue visibility and reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
 | `make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=<id>` | After `platform-detach`, destroy only one fixture's Application State |
 
 Production uses a separate profile, state, identity, OAuth client, DNS/TLS resources, evidence, and

@@ -8,6 +8,7 @@ import unittest
 from infrastructure.operator.qualification import (
     QUALIFICATION_CHECK_CAPABILITIES,
     ComponentRevision,
+    FixtureQualificationPolicy,
     FixtureRevision,
     QualificationFailureInjection,
     QualificationProbeOutcome,
@@ -46,6 +47,24 @@ def readback() -> QualificationReadback:
                 ("public", "b"),
                 ("restricted", "c"),
             )
+        ),
+        fixture_policies=tuple(
+            FixtureQualificationPolicy(
+                application_id=f"fixture-{mode}",
+                admission_mode=mode,
+                identity_delivery=("optional" if mode == "public" else "required"),
+                catalogue_visibility="listed",
+                catalogue_title=f"{mode.title()} fixture",
+                route_prefix=f"/fixture-{mode}",
+                target_reference=(
+                    "urn:comfforts:app-platform:gcp:cloud-run:"
+                    f"123456789012:us-west1:fixture-{mode}"
+                ),
+                target_audience=(
+                    f"urn:comfforts:app-platform:audience:fixture-{mode}"
+                ),
+            )
+            for mode in ("authenticated", "public", "restricted")
         ),
     )
 

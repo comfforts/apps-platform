@@ -69,6 +69,7 @@ class FakeProvider:
     stage_matches: bool = True
     activation_matches: bool = True
     active_binding: ProviderGenerationBinding | None = None
+    bindings: dict[str, ProviderGenerationBinding] = field(default_factory=dict)
 
     def stage(
         self,
@@ -76,10 +77,31 @@ class FakeProvider:
         compiled_configuration: bytes,
     ) -> ProviderGenerationPublication:
         self.published.append((value, compiled_configuration))
+        generation = value.registration_set["generation"]
+        contract_version = value.compiled_configuration["contract_version"]
+        revision_name = f"app-platform-edge-g{generation}"
+        self.bindings[revision_name] = ProviderGenerationBinding(
+            environment=value.environment,
+            revision_name=revision_name,
+            platform_source_revision=value.registration_set["proposal"][
+                "source_revision"
+            ],
+            image_reference=(
+                "us-west1-docker.pkg.dev/example/edge@sha256:" + "8" * 64
+            ),
+            generation=generation,
+            generation_digest=value.generation_digest,
+            content_digest=value.content_digest,
+            object_name=(
+                f"environments/{value.environment}/generations/{generation}/"
+                f"compiled-shared-edge.v{contract_version}.json"
+            ),
+            object_generation=len(self.published),
+        )
         return ProviderGenerationPublication(
             created=True,
             object_generation=len(self.published),
-            revision_name=f"app-platform-edge-g{value.registration_set['generation']}",
+            revision_name=revision_name,
             readback_matches=self.stage_matches,
         )
 
@@ -105,6 +127,24 @@ class FakeProvider:
         if self.active_binding is None or self.active_binding.environment != environment:
             raise RuntimeError("active generation binding is unavailable")
         return self.active_binding
+
+    def read_revision_binding(
+        self,
+        environment: str,
+        revision_name: str,
+    ) -> ProviderGenerationBinding:
+        """Return one exact synthetic revision or the configured active rebind."""
+
+        if (
+            self.active_binding is not None
+            and self.active_binding.environment == environment
+            and self.active_binding.revision_name == revision_name
+        ):
+            return self.active_binding
+        binding = self.bindings.get(revision_name)
+        if binding is None or binding.environment != environment:
+            raise RuntimeError("generation binding is unavailable")
+        return binding
 
 
 class LocalGenerationControlTest(unittest.TestCase):
@@ -237,6 +277,7 @@ class LocalGenerationControlTest(unittest.TestCase):
 
         assert current is not None
         self.assertEqual(current.proposal, proposal())
+        self.assertEqual(current.platform_source_revision, "b" * 40)
         self.assertTrue(
             current.publication_reference.endswith(
                 ":revision:app-platform-edge-g1-current-source"
@@ -280,6 +321,7 @@ class LocalGenerationControlTest(unittest.TestCase):
 
         assert current is not None
         self.assertEqual(current.proposal, current_proposal)
+        self.assertEqual(current.platform_source_revision, "b" * 40)
         self.assertTrue(
             current.publication_reference.endswith(
                 ":revision:app-platform-edge-g3-current-source"
@@ -331,6 +373,10 @@ class LocalGenerationControlTest(unittest.TestCase):
                 predecessor.generation_digest,
             )
             assert predecessor_review is not None
+            self.assertEqual(
+                predecessor_review.platform_source_revision,
+                "a" * 40,
+            )
             rolled_back = reviewed.activate(
                 "staging",
                 predecessor_review.publication_reference,

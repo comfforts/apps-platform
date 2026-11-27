@@ -607,8 +607,9 @@ operational control. The following controls refine the existing threats:
   audience remains distinct; and no IAM or infrastructure value grants a Feature Entitlement.
   These are static intents until AP-EVAL-M9 proves provider enforcement.
 - **AP-TM-007:** Immutable source, image, generation, object, and plan digests, explicit predecessor
-  inputs, root-scoped concurrency templates, backend-lock intent, and one 100-percent candidate
-  traffic value prevent a configuration from describing a partial registration activation.
+  inputs, provider-verified source equality between the active and predecessor runtimes,
+  root-scoped concurrency templates, backend-lock intent, and one 100-percent candidate traffic
+  value prevent a configuration from describing a partial or stale-source registration activation.
   Workflow templates stop on failure and never auto-retry, unlock, roll back, change DNS, or destroy.
 - **AP-TM-008 and AP-TM-009:** The bootstrap, platform, and three Fixture Application roots have
   disjoint resource allow-lists. Cross-state values conform to typed non-secret reference contracts;

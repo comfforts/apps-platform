@@ -1819,14 +1819,16 @@ tests must continue to deny a synthetic feature independently of platform admiss
 
 Only after every non-mutating qualification check passes, explain the traffic effect and obtain
 explicit confirmation before temporarily activating the reviewed predecessor complete generation.
-Verify the predecessor readback. Through one separately confirmed browser invocation, establish a
-Platform Session, then use a second separately confirmed invocation to prove that the predecessor's
-public `none` policy remains routable and withholds Platform Identity even when the same current
-application target advertises its canonical optional-identity capability. The registration remains
-the delivery authority, and a different target audience still fails closed. If the second callback
-instead observes the successor's optional-identity policy, allow no more than two additional
-separately confirmed observations separated by a bounded traffic-convergence wait; do not retry
-another failure class.
+Verify the predecessor readback and require its provider-bound platform source revision to equal
+the active candidate source before prompting or changing traffic. A stale predecessor must return
+`ROLLBACK_PREDECESSOR_SOURCE_MISMATCH` with no confirmation or activation. Through one separately
+confirmed browser invocation, establish a Platform Session, then use a second separately confirmed
+invocation to prove that the predecessor's public `none` policy remains routable and withholds
+Platform Identity even when the same current application target advertises its canonical
+optional-identity capability. The registration remains the delivery authority, and a different
+target audience still fails closed. If the second callback instead observes the successor's
+optional-identity policy, allow no more than two additional separately confirmed observations
+separated by a bounded traffic-convergence wait; do not retry another failure class.
 Retain the exact stable predecessor-step blocker in a failed qualification result. Regardless of
 that browser result, obtain separate explicit restoration
 confirmation, restore the original public-`optional` generation, and verify it owns 100 percent of

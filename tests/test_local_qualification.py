@@ -257,7 +257,11 @@ class LiveGenerationRollbackExerciseTest(unittest.TestCase):
                 generation_digest=digest,
                 content_digest="sha256:" + ("5" * 64),
             )
-            return ReviewedGeneration(f"revision:{generation}", proposal)
+            return ReviewedGeneration(
+                f"revision:{generation}",
+                proposal,
+                "a" * 40,
+            )
 
         predecessor = reviewed(1, predecessor_digest, None)
         original = reviewed(2, original_digest, predecessor_digest)

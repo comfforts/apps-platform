@@ -287,8 +287,10 @@ expectations come from the exact current generation rather than hardcoded fixtur
 reviewed rollback proves predecessor public `none` before restoring active public `optional`. A
 callback that still observes successor optional-identity policy receives at most two additional,
 separately confirmed observations after bounded traffic-convergence waits; terminal failure keeps
-its exact stable blocker and cannot suppress restoration. It performs no provider operation on the
-slice branch. The real Candidate Source journey begins only from the exact clean pushed
+its exact stable blocker and cannot suppress restoration. Provider readback must bind both the
+active and predecessor runtimes to the exact candidate platform source before rollback can prompt;
+a stale predecessor requires a fresh public-`none` registration followed by its public-`optional`
+successor. It performs no provider operation on the slice branch. The real Candidate Source journey begins only from the exact clean pushed
 `feat/platform-member-directory` revision after its complete repository gate passes.
 
 `platform-qualify` now requires `OWNER_MEMBER_REFERENCE=<opaque-reference>`. The reference is the

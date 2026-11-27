@@ -178,7 +178,10 @@ rebootstrap.
 it accepts no independent identity-policy argument. Mixed handoff versions fail closed. The first
 successor over a readable Version 1 generation discards registration-scoped members, maps public
 to `none` and protected routes to `required`, and activates one complete immutable Version 2
-generation. This is repository behavior only until the later Candidate operation exercises it.
+generation. An application whose normalized registration is unchanged keeps its existing
+registration revision during that migration; only an actual application-registration change
+increments the revision. This is repository behavior only until the later Candidate operation
+exercises it.
 
 For local code maintenance, `platform-preflight-check` runs the same read-only profile, Git,
 GitHub, GCP, ADC, Terraform-tool, and DNS checks. It skips `SOURCE_NOT_CLEAN`, because the command

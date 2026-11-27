@@ -28,6 +28,7 @@ from infrastructure.operator.project_connections import (
 from infrastructure.operator.qualification import (
     QualificationProbeOutcome,
     QualificationProbeRequest,
+    QualificationVerificationResult,
 )
 
 
@@ -73,7 +74,11 @@ class MemberAdmissionQualificationCallback(Protocol):
 
 
 class QualificationLifecycleExercise(Protocol):
-    def verify_rollback(self, environment: str, generation_digest: str) -> bool: ...
+    def verify_rollback(
+        self,
+        environment: str,
+        generation_digest: str,
+    ) -> QualificationVerificationResult: ...
 
 
 class QualificationMemberExercise(Protocol):
@@ -233,13 +238,23 @@ class LoopbackBrowserQualification:
         *,
         login_timeout_seconds: float = 300,
         callback_timeout_seconds: float = 30,
+        predecessor_attempts: int = 3,
+        predecessor_retry_seconds: float = 5,
+        sleep: Callable[[float], None] = time.sleep,
         challenge_source: Callable[[], str] | None = None,
         callback_factory: Callable[[str], QualificationCallback] | None = None,
     ) -> None:
+        if predecessor_attempts < 1 or predecessor_attempts > 5:
+            raise ValueError("predecessor attempts are outside the approved bound")
+        if predecessor_retry_seconds < 0 or predecessor_retry_seconds > 30:
+            raise ValueError("predecessor retry delay is outside the approved bound")
         self._launcher = launcher
         self._terminal = terminal
         self._login_timeout = login_timeout_seconds
         self._callback_timeout = callback_timeout_seconds
+        self._predecessor_attempts = predecessor_attempts
+        self._predecessor_retry_seconds = predecessor_retry_seconds
+        self._sleep = sleep
         self._challenge_source = challenge_source or (lambda: secrets.token_hex(32))
         self._callback_factory = callback_factory or _CallbackServer
 
@@ -269,6 +284,7 @@ class LoopbackBrowserQualification:
         clear_session: bool,
         expected_identity_present: bool,
         step_total: int = 4,
+        identity_mismatch_blocker: str | None = None,
     ) -> tuple[bool, str | None]:
         """Run one confirmed browser callback and retain only its coarse result."""
 
@@ -303,10 +319,19 @@ class LoopbackBrowserQualification:
                 opened = False
             if not opened:
                 return False, f"LIVE_{blocker_prefix}_BROWSER_CHECK_FAILED"
-            if callback.wait(timeout_seconds) != QualificationCallbackResult(
+            observed = callback.wait(timeout_seconds)
+            expected = QualificationCallbackResult(
                 application_id,
                 expected_identity_present,
-            ):
+            )
+            if observed != expected:
+                if (
+                    identity_mismatch_blocker is not None
+                    and observed is not None
+                    and observed.application_id == application_id
+                    and observed.identity_present != expected_identity_present
+                ):
+                    return False, identity_mismatch_blocker
                 return False, f"LIVE_{blocker_prefix}_BROWSER_CHECK_FAILED"
             return True, None
         finally:
@@ -387,10 +412,10 @@ class LoopbackBrowserQualification:
             blocker,
         )
 
-    def verify_public_none(self) -> bool:
+    def verify_public_none(self) -> QualificationVerificationResult:
         """Prove a reviewed predecessor withholds identity from its public fixture."""
 
-        authenticated, _ = self._run_browser_step(
+        authenticated, blocker = self._run_browser_step(
             "fixture-authenticated",
             self._login_timeout,
             step_number=1,
@@ -407,23 +432,48 @@ class LoopbackBrowserQualification:
             expected_identity_present=True,
         )
         if not authenticated:
-            return False
-        public_none, _ = self._run_browser_step(
-            "fixture-public",
-            self._callback_timeout,
-            step_number=2,
-            step_total=2,
-            title="Verify predecessor public identity withholding",
-            instructions=(
-                "This step reuses the predecessor-generation platform session. "
-                "The public fixture must remain reachable while reporting that "
-                "no Platform Identity was delivered."
-            ),
-            blocker_prefix="PREDECESSOR_PUBLIC_NONE",
-            clear_session=False,
-            expected_identity_present=False,
-        )
-        return public_none
+            return QualificationVerificationResult(
+                False,
+                (blocker or "LIVE_PREDECESSOR_AUTHENTICATED_BROWSER_CHECK_FAILED",),
+            )
+        for attempt in range(1, self._predecessor_attempts + 1):
+            public_none, blocker = self._run_browser_step(
+                "fixture-public",
+                self._callback_timeout,
+                step_number=2,
+                step_total=2,
+                title="Verify predecessor public identity withholding",
+                instructions=(
+                    "This step reuses the predecessor-generation platform session. "
+                    "The public fixture must remain reachable while reporting that "
+                    "no Platform Identity was delivered. "
+                    f"This is observation {attempt} of "
+                    f"{self._predecessor_attempts}."
+                ),
+                blocker_prefix="PREDECESSOR_PUBLIC_NONE",
+                clear_session=False,
+                expected_identity_present=False,
+                identity_mismatch_blocker=(
+                    "LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH"
+                ),
+            )
+            if public_none:
+                return QualificationVerificationResult(True)
+            if (
+                blocker != "LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH"
+                or attempt == self._predecessor_attempts
+            ):
+                return QualificationVerificationResult(
+                    False,
+                    (blocker or "LIVE_PREDECESSOR_PUBLIC_NONE_BROWSER_CHECK_FAILED",),
+                )
+            self._terminal.write(
+                "The public fixture still reports the successor generation's "
+                "identity-delivery policy. Waiting for bounded traffic convergence "
+                "before offering another separately confirmed browser observation."
+            )
+            self._sleep(self._predecessor_retry_seconds)
+        raise AssertionError("bounded predecessor observations did not terminate")
 
 
 @dataclass(slots=True)
@@ -1021,14 +1071,18 @@ class StagingQualificationProbe:
         check_id: str,
         request: QualificationProbeRequest,
     ) -> QualificationProbeOutcome:
-        verified = self._lifecycle.verify_rollback(
+        result = self._lifecycle.verify_rollback(
             request.current.environment,
             request.current.registration_generation_digest,
         )
         return (
             self._pass(check_id, generation_transitions=2)
-            if verified
-            else self._fail(check_id, "LIVE_LIFECYCLE_ROLLBACK_MISMATCH")
+            if result.verified
+            else self._fail(
+                check_id,
+                "LIVE_LIFECYCLE_ROLLBACK_MISMATCH",
+                *result.blockers,
+            )
         )
 
     def _redaction(self, check_id: str) -> QualificationProbeOutcome:

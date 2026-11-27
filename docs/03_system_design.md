@@ -1134,11 +1134,15 @@ the owner-only baseline.
 
 Only after the other checks and cleanup-safe member journey pass can
 the rollback check request an owner-confirmed traffic change. The rollback check temporarily
-activates the retained reviewed predecessor and verifies provider readback. Two separately
-confirmed browser checks then establish a Platform Session and prove that the predecessor's public
-`none` policy withholds identity. The operator must then provide the separate exact restoration
+activates the retained reviewed predecessor and verifies provider readback. One separately
+confirmed browser check establishes a Platform Session and a second proves that the predecessor's
+public `none` policy withholds identity. When that second callback instead observes the successor's
+optional-identity policy, the qualifier performs a bounded traffic-convergence wait and may offer
+up to two additional separately confirmed observations. Other browser failures do not retry. The
+operator must then provide the separate exact restoration
 confirmation, and provider readback must show the original public-`optional` complete generation
-again. A failed predecessor browser proof still proceeds to restoration and fails qualification;
+again. A failed predecessor browser proof retains its exact stable blocker, still proceeds to
+restoration, and fails qualification;
 a failed prerequisite blocks rollback without moving traffic. Fixtures are detached and may be
 destroyed after evaluation without retiring their identities.
 

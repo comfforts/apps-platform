@@ -23,7 +23,10 @@ from infrastructure.operator.local_qualification import (
     LocalQualificationStateReader,
     ProviderQualificationSnapshot,
 )
-from infrastructure.operator.qualification import ComponentRevision
+from infrastructure.operator.qualification import (
+    ComponentRevision,
+    QualificationVerificationResult,
+)
 from infrastructure.operator.rollback import ReviewedGeneration
 
 
@@ -316,9 +319,14 @@ class LiveGenerationRollbackExerciseTest(unittest.TestCase):
                 terminal = Terminal()
                 observed: list[ReviewedGeneration] = []
 
-                def verify_predecessor() -> bool:
+                def verify_predecessor() -> QualificationVerificationResult:
                     observed.append(generations.selected)
-                    return predecessor_valid
+                    return QualificationVerificationResult(
+                        predecessor_valid,
+                        ()
+                        if predecessor_valid
+                        else ("LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",),
+                    )
 
                 verified = LiveGenerationRollbackExercise(
                     Platform(),
@@ -327,7 +335,7 @@ class LiveGenerationRollbackExerciseTest(unittest.TestCase):
                     verify_predecessor,
                 ).verify_rollback("staging", original_digest)
 
-                self.assertEqual(verified, predecessor_valid)
+                self.assertEqual(verified.verified, predecessor_valid)
                 self.assertEqual(observed, [predecessor])
                 self.assertIs(generations.selected, original)
                 self.assertEqual(len(terminal.confirmations), 2)
@@ -337,6 +345,14 @@ class LiveGenerationRollbackExerciseTest(unittest.TestCase):
                 self.assertIn("restore", transcript.lower())
                 if not predecessor_valid:
                     self.assertIn("Restoration will continue", transcript)
+                    self.assertIn(
+                        "LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",
+                        transcript,
+                    )
+                    self.assertEqual(
+                        verified.blockers,
+                        ("LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",),
+                    )
 
 
 if __name__ == "__main__":

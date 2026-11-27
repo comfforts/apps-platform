@@ -955,7 +955,10 @@ IAM boundary, runtime Identity Delivery, owner/member lifecycle, complete applic
   challenge-bound loopback callback, derives target and catalogue expectations from the active
   generation, reports only coarse identity presence during browser qualification, attempts
   temporary-member cleanup on every failure, and blocks rollback unless the final owner-only
-  baseline is exact. Predecessor public-identity failure cannot suppress restoration. Its branch invokes no provider. After it
+  baseline is exact. A predecessor callback that still observes successor identity policy gets
+  only bounded, separately confirmed traffic-convergence retries; other failures do not retry, and
+  the exact stable blocker remains in least-data evidence. Predecessor public-identity failure
+  cannot suppress restoration. Its branch invokes no provider. After it
   merges, the exact integration revision must candidate-qualify the complete model before the
   Accepted Source operation in W11. Candidate evidence
 proves only the named W9 predecessor bindings. No current result proves ADR-015 realization,

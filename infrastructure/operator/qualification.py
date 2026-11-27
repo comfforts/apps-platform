@@ -102,6 +102,23 @@ _CHECK_VERIFICATIONS = {
 _BLOCKER = re.compile(r"[A-Z][A-Z0-9_]{2,63}")
 
 
+@dataclass(frozen=True, slots=True)
+class QualificationVerificationResult:
+    """Carry one least-data live proof and its stable failure reasons."""
+
+    verified: bool
+    blockers: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        normalized = tuple(sorted(set(self.blockers)))
+        if normalized != self.blockers:
+            raise ValueError("qualification verification blockers are not canonical")
+        if any(_BLOCKER.fullmatch(blocker) is None for blocker in normalized):
+            raise ValueError("qualification verification blocker is invalid")
+        if self.verified == bool(normalized):
+            raise ValueError("qualification verification result is inconsistent")
+
+
 @dataclass(frozen=True, slots=True, order=True)
 class ComponentRevision:
     name: str
@@ -558,4 +575,5 @@ __all__ = (
     "QualificationResult",
     "QualificationStateReader",
     "QualificationSuiteEvaluator",
+    "QualificationVerificationResult",
 )

@@ -717,6 +717,11 @@ mode, `platform-outputs` creates the application-specific handoff, and
 `platform-register` validates the returned attachment and activates the new complete Registration
 Generation.
 
+The [real-application adoption runbook](docs/runbooks/application_adoption.md) records the full
+cross-owner sequence, Cloud Run posture, `application_id` bindings, and the separation between
+verified Platform Identity and application-owned permissions. It is a readiness reference, not
+current authority to adopt a real application.
+
 The integration bundle contains only values the named application is allowed to consume. It may
 contain an OAuth client identifier when required, but never the OAuth client secret, a credential,
 Terraform state, another application's value, or an unauthorized secret reference.

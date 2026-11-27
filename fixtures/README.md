@@ -28,7 +28,10 @@ its state and resources remain Application State.
 `create_environment_app()` is the image entry point. It loads the closed non-secret environment
 configuration, constructs an independent `ApplicationIdentityVerifier` when Identity Delivery is
 enabled, and returns the ASGI application. `create_network_fixture()` is the deterministic
-construction seam used by repository tests.
+construction seam used by repository tests. The fixture image packages only `contracts/`,
+`edge/`, and `fixtures/`; a hermetic startup test constructs the application from that exact
+package set so an accidental dependency on platform-owned `infrastructure/` code fails before a
+provider-backed rollout.
 
 ## Fixture profiles
 

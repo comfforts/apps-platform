@@ -198,7 +198,7 @@ listener and performs no external operation.
 
 | Module | Responsibility |
 | --- | --- |
-| `edge/__init__.py` | Small public import surface for runtime construction and application verification. |
+| `edge/__init__.py` | Small public import surface that exposes application verification eagerly and loads platform-runtime construction only when requested. |
 | `edge/_runtime.py` | ASGI endpoints, admission sequencing, member lookup, assertion delivery, and forwarding orchestration. |
 | `edge/_generation.py` | Exact immutable Version 1 or Version 2 compiled-generation loading and validation. |
 | `edge/_routing.py` | Catalogue projection, reserved-path handling, route selection, and forwarding-path derivation. |
@@ -215,7 +215,9 @@ deterministic fake, and provider-backed exact lookup used by the runtime. Member
 belongs to the operator component, not to `edge/`.
 
 Modules prefixed with `_` are internal implementation details. Prefer the exports from
-`edge/__init__.py` in repository consumers.
+`edge/__init__.py` in repository consumers. Runtime exports are deliberately lazy: an independent
+application importing `edge.verification` must not load the platform-only runtime or member-
+directory modules into its process or image.
 
 ## Deterministic construction and verification
 

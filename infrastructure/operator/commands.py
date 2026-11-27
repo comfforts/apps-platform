@@ -335,6 +335,8 @@ class TerraformCliAdapter:
     @staticmethod
     def _apply_failure_code(stderr: bytes) -> str:
         normalized = stderr.lower()
+        if b"user-provided container failed to start and listen on the port" in normalized:
+            return "TERRAFORM_APPLY_CONTAINER_STARTUP_FAILED"
         if all(
             marker in normalized
             for marker in (

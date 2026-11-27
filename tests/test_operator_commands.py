@@ -636,6 +636,10 @@ class OperatorCommandTest(unittest.TestCase):
             b"Error 400: INVALID_ARGUMENT": "TERRAFORM_APPLY_INVALID_ARGUMENT",
             b"Error 409: ALREADY_EXISTS": "TERRAFORM_APPLY_CONFLICT",
             (
+                b"The user-provided container failed to start and listen on "
+                b"the port defined provided by the PORT=8080 environment variable"
+            ): "TERRAFORM_APPLY_CONTAINER_STARTUP_FAILED",
+            (
                 b"Error 409: Revision named 'app-platform-edge-g1-deadbeef0000' "
                 b"with different configuration already exists."
             ): "TERRAFORM_APPLY_IMMUTABLE_REVISION_CONFLICT",

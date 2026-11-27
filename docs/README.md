@@ -1,8 +1,8 @@
 # App Platform documentation
 
-Version 1.43 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted,
-AP-M9-W10 Slices 1-6 merged, and Slice 7 qualification readiness implemented
-with no Live Version 2 operation; ADR-016 proposed
+Version 1.44 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted;
+all seven AP-M9-W10 slices and their candidate-readiness corrections are integrated with no Live
+Version 2 qualification; ADR-016 proposed
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. W9
@@ -61,7 +61,7 @@ delivery authorities before beginning it.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W9 candidate-qualified; W10 Slices 1-6 merged to its integration branch and Slice 7 qualification readiness implemented on its ordered branch | operator-driven environment and application lifecycle |
+| AP-M9 | W9 candidate-qualified; all W10 repository slices and candidate-readiness corrections are integrated, with exact-revision Candidate Source qualification remaining | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not

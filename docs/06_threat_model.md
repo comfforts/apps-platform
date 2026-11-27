@@ -1,11 +1,11 @@
 # <u>App Platform threat model</u>
 
-Version 1.20 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
+Version 1.21 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
 the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
-contract, infrastructure, deterministic runtime, and member-lifecycle controls are implemented by
-AP-M9-W10 Slices 1-6 plus Slice 7 qualification readiness, including Version 2 handoff activation,
-reconciled operator guidance, cleanup-safe temporary membership, and least-data admission readback,
-without a Live Version 2 operation or qualification
+contract, infrastructure, deterministic runtime, and member-lifecycle controls are integrated by
+all seven AP-M9-W10 slices and candidate-readiness corrections, including Version 2 handoff
+activation, reconciled operator guidance, cleanup-safe temporary membership, and least-data
+admission readback, without a Live Version 2 qualification
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called

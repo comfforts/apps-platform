@@ -81,8 +81,8 @@ and other members never do.
 > and bounded member lifecycle commands, Version 2 application handoffs, fixture consumption, and
 > atomic complete-generation activation. Qualification readiness reuses those same member
 > operations, verifies current-request restricted decisions, restores the reviewed owner-only
-> baseline, and blocks rollback on any mismatch. No Live Version 2 operation occurred on the slice
-> branches; post-merge Candidate qualification remains. The
+> baseline, and blocks rollback on any mismatch. All repository slices and candidate-readiness
+> corrections are integrated; exact-revision Candidate Source qualification remains. The
 > deployed W9 candidate and Version 1 contracts remain predecessor evidence and are not Accepted
 > Source qualification for this model.
 
@@ -752,9 +752,9 @@ AP-M9-W9 is implemented and candidate-qualified under the predecessor Version 1 
 Candidate staging proved the dedicated fixture project, Shared VPC attachment, all three admission
 modes, separate registration, and the restricted-fixture detach, destruction, redeployment, and
 reactivation lifecycle. Candidate Source is not Accepted Source qualification. AP-M9-W10 has
-implemented all seven repository slices without a Live Version 2 operation. Slice 7 must merge to
-the integration branch, then the exact clean pushed integration revision must pass Candidate
-Source staging qualification and be frozen before the cumulative pull request to `main`.
+integrated all seven repository slices and its candidate-readiness corrections without a Live
+Version 2 qualification. The exact clean pushed integration revision must pass Candidate Source
+staging qualification and be frozen before the cumulative pull request to `main`.
 Production remains blocked on that accepted result, explicit ownership transfer, and application
 adoption.
 

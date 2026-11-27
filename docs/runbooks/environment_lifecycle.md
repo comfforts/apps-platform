@@ -6,10 +6,11 @@ state, identity, OAuth client, DNS and TLS resources, application registrations,
 
 > **Identity-model transition:** The repository implements the Version 2 contracts, directory
 > infrastructure, Shared Edge enforcement, member lifecycle, application handoff, and complete
-> generation activation. No Live Version 2 operation or qualification has occurred. The deployed
-> staging environment and W9 qualification therefore remain Version 1 predecessor evidence. Use
-> the Candidate Source procedure below only after the final qualification-support slice merges and
-> the owner deliberately starts that operation.
+> generation activation. All repository slices and candidate-readiness corrections are integrated,
+> but no Live Version 2 qualification has occurred. The deployed staging environment and W9
+> qualification therefore remain Version 1 predecessor evidence. Use the Candidate Source
+> procedure below only from the exact clean pushed integration revision after its repository gate
+> passes and the owner deliberately starts that operation.
 
 | Environment | Intended hostname | Current operating boundary |
 | --- | --- | --- |
@@ -670,10 +671,11 @@ inspection, not as permission to bypass the failed boundary.
 ## Candidate staging verification
 
 A clean pushed `feat/platform-member-directory` integration revision containing current
-`origin/main` may exercise staging before the cumulative pull request to `main`. This is the future
-W10 Candidate Source procedure. **Do not run it until Slice 7 has merged, the exact integration
-revision is pushed, `make check` passes, and the owner deliberately begins the staging operation.**
-Slice 6 documents this sequence but performs none of its commands.
+`origin/main` may exercise staging before the cumulative pull request to `main`. This is the
+remaining W10 Candidate Source procedure. **Run it only after every W10 slice and
+candidate-readiness correction has merged, the exact integration revision is pushed, `make check`
+passes, and the owner deliberately begins the staging operation.** The documented repository work
+performs none of these provider commands.
 
 Run the repository and read-only readiness gates first:
 

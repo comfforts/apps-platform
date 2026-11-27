@@ -1,8 +1,8 @@
 # <u>App Platform product requirements</u>
 
-Version 0.6 | Status: requirements authority through the AP-M9 operator lifecycle; W9 Candidate
-Qualification exists, ADR-015 implementation and Candidate Source qualification remain AP-M9-W10
-work, and Accepted Source qualification remains AP-M9-W11 work
+Version 0.7 | Status: requirements authority through the AP-M9 operator lifecycle; W9 Candidate
+Qualification exists, ADR-015 implementation is integrated, Candidate Source qualification remains
+AP-M9-W10 work, and Accepted Source qualification remains AP-M9-W11 work
 
 This document defines what Comfforts App Platform must provide and the ownership boundaries it must
 preserve. It is authoritative for the platform project only. It does not change a consuming

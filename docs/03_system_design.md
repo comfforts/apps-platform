@@ -1,8 +1,8 @@
 # <u>App Platform system design</u>
 
-Version 1.19 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence, AP-M9-W10 Slices 1-6 are integrated, and Slice 7 adds Version 2 qualification readiness
-without a Live Version 2 operation
+Version 1.20 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence, and all seven AP-M9-W10 slices and candidate-readiness corrections are integrated without
+a Live Version 2 qualification
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It

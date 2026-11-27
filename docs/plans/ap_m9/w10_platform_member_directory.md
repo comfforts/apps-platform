@@ -1,8 +1,7 @@
 # AP-M9-W10 · Platform Member Directory and explicit Identity Delivery
 
-Status: Slices 1-6 merged to the integration branch; Slice 7 qualification readiness implemented
-on its named branch without a Live operation; its integration merge and Candidate Source
-qualification remain
+Status: All seven functional slices and candidate-readiness corrections are integrated without a
+Live Version 2 qualification; exact-revision Candidate Source qualification and freeze remain
 
 Requirements: AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
 AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009
@@ -276,13 +275,12 @@ authority.
 | 6. Operator handoff reconciliation | `docs/identity-delivery-operator-handoff` | Reconcile README, runbook, design, contracts, plan status, prompt, governance tests, actual limitations, and final qualification procedure without adding behavior | 8-14 | 8k-14k | 4% |
 | 7. Candidate qualification readiness | `evidence/member-admission-candidate-qualification` | Complete qualification support for owner bootstrap, second-member lifecycle, public opt-in, authenticated independence, directory failure, rollback, and least-data evidence; after merge, qualify the exact integration revision | 10-18 | 16k-26k | 12% |
 
-Slices 1 through 6 are merged to the integration branch. Slice 7 is implemented on its named
-branch and is ready for its integration pull request after its verification gate passes. It
-extends the existing qualifier with the source-admitted member service, a reviewed owner-only
+Slices 1 through 7 and their candidate-readiness corrections are integrated. Slice 7 extends the
+existing qualifier with the source-admitted member service, a reviewed owner-only
 baseline, one temporary second-member lifecycle, and a least-data browser callback that reports
 only the current restricted-route admission decision. It performs no provider operation on the
-slice branch. The real Candidate Source journey remains blocked until this pull request merges to
-the latest clean `feat/platform-member-directory`.
+slice branch. The real Candidate Source journey begins only from the exact clean pushed
+`feat/platform-member-directory` revision after its complete repository gate passes.
 
 `platform-qualify` now requires `OWNER_MEMBER_REFERENCE=<opaque-reference>`. The reference is the
 reviewed active owner returned by owner bootstrap and retained privately by the operator. It is

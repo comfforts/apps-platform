@@ -9,7 +9,7 @@ The repository runtime can load and enforce both Version 1 and Version 2 compile
 Version 1 remains the deployed compatibility predecessor until the operator deliberately publishes
 and activates a Version 2 generation. Repository implementation alone does not prove that a
 Version 2 runtime is deployed or qualified. The complete Version 2 handoff, activation, and
-qualification-readiness paths are implemented; the future Candidate Source procedure is maintained in the
+qualification-readiness paths are implemented; the remaining Candidate Source procedure is maintained in the
 [environment lifecycle runbook](../docs/runbooks/environment_lifecycle.md#candidate-staging-verification).
 
 ## Component boundary

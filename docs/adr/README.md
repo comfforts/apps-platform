@@ -41,7 +41,7 @@ continues to resolve to exactly one current record.
 | ADR-012 | Exchange versioned non-secret bundles across platform and application ownership | Accepted; identity projection amended by ADR-015 | [Extracted ADR-012](012-exchange-versioned-non-secret-bundles.md) |
 | ADR-013 | Isolate environments and distinguish detachment from permanent retirement | Accepted | [Origin ADR-013](000-origin-architecture-decision-records.md#adr-013--isolate-environments-and-distinguish-detachment-from-permanent-retirement) |
 | ADR-014 | Qualify cross-project attachment through an explicit Shared VPC connection | Accepted | [Origin ADR-014](000-origin-architecture-decision-records.md#adr-014--qualify-cross-project-attachment-through-an-explicit-shared-vpc-connection) |
-| ADR-015 | Use a platform-owned member directory and explicit identity delivery | Accepted; implementation and qualification pending AP-M9-W10 | [ADR-015](015-platform-member-directory-and-explicit-identity-delivery.md) |
+| ADR-015 | Use a platform-owned member directory and explicit identity delivery | Accepted; implementation integrated and Candidate Source qualification pending AP-M9-W10 | [ADR-015](015-platform-member-directory-and-explicit-identity-delivery.md) |
 | ADR-016 | Recover operator working state without fabricated history | Proposed; still in discussion and not implementation authority | [ADR-016](016-recover-operator-working-state-without-fabricated-history.md) |
 
 ## Realization and evidence

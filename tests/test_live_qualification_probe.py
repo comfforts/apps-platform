@@ -12,7 +12,10 @@ from infrastructure.operator.live_qualification import (
     QualificationHttpResponse,
     StagingQualificationProbe,
 )
-from infrastructure.operator.qualification import QualificationProbeRequest
+from infrastructure.operator.qualification import (
+    QualificationProbeRequest,
+    QualificationVerificationResult,
+)
 from infrastructure.operator.member_qualification import MemberQualificationResult
 from infrastructure.operator.project_connections import (
     ApplicationProjectReadback,
@@ -120,9 +123,19 @@ class Targets:
 @dataclass
 class Lifecycle:
     verified: bool = True
+    blockers: tuple[str, ...] = ()
 
-    def verify_rollback(self, environment: str, generation_digest: str) -> bool:
-        return environment == "staging" and bool(generation_digest) and self.verified
+    def verify_rollback(
+        self,
+        environment: str,
+        generation_digest: str,
+    ) -> QualificationVerificationResult:
+        verified = (
+            environment == "staging"
+            and bool(generation_digest)
+            and self.verified
+        )
+        return QualificationVerificationResult(verified, self.blockers)
 
 
 @dataclass
@@ -214,6 +227,33 @@ class LiveQualificationProbeTest(unittest.TestCase):
         self.assertEqual(browser.calls, 1)
         self.assertEqual(members.calls, [("staging", self.owner_reference)])
         self.assertTrue(all(not item.blockers for item in results))
+
+    def test_rollback_failure_preserves_the_exact_predecessor_blocker(self) -> None:
+        probe = StagingQualificationProbe(
+            Http(),
+            Browser(),
+            Targets(),
+            Lifecycle(
+                False,
+                ("LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",),
+            ),
+            self._fixture_project(),
+            Members(),
+            self.owner_reference,
+        )
+
+        result = probe.evaluate(
+            QualificationProbeRequest("lifecycle-rollback", (), self._current())
+        )
+
+        self.assertEqual(result.outcome, "fail")
+        self.assertEqual(
+            result.blockers,
+            (
+                "LIVE_LIFECYCLE_ROLLBACK_MISMATCH",
+                "LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",
+            ),
+        )
 
     def test_live_posture_and_catalogue_follow_the_active_generation_policy(
         self,

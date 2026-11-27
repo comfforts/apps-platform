@@ -487,10 +487,13 @@ Only when every prerequisite passes does qualification offer the live rollback e
 terminal explains that the exercise temporarily
 moves 100 percent of staging traffic to the reviewed predecessor, asks for exact rollback
 confirmation, verifies the change, then asks for exact restoration confirmation and verifies that
-the original generation is again serving all traffic. While the predecessor is active, two
-separately confirmed browser checks first establish a Platform Session and then prove that the
-predecessor's public `none` policy withholds Platform Identity. Restoration is still attempted if
-that proof fails. Keep the command running through every browser and generation confirmation. If
+the original generation is again serving all traffic. While the predecessor is active, one
+separately confirmed browser check establishes a Platform Session and a second proves that the
+predecessor's public `none` policy withholds Platform Identity. If that second callback still
+observes the successor's optional-identity policy, qualification waits briefly and may offer up to
+two more separately confirmed observations for bounded traffic convergence. A final failure keeps
+its exact stable blocker in the qualification result. Restoration is still attempted if that proof
+fails. Keep the command running through every browser and generation confirmation. If
 any earlier check fails, rollback is recorded as blocked and traffic is not changed.
 
 The active-generation routing identity check uses exactly four browser actions, and the command

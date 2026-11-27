@@ -282,7 +282,10 @@ existing qualifier with the source-admitted member service, a reviewed owner-onl
 baseline, one temporary second-member lifecycle, and a least-data browser callback that reports
 only coarse restricted-admission and identity-presence decisions. Active attachment and catalogue
 expectations come from the exact current generation rather than hardcoded fixture posture. The
-reviewed rollback proves predecessor public `none` before restoring active public `optional`. It performs no provider operation on the
+reviewed rollback proves predecessor public `none` before restoring active public `optional`. A
+callback that still observes successor optional-identity policy receives at most two additional,
+separately confirmed observations after bounded traffic-convergence waits; terminal failure keeps
+its exact stable blocker and cannot suppress restoration. It performs no provider operation on the
 slice branch. The real Candidate Source journey begins only from the exact clean pushed
 `feat/platform-member-directory` revision after its complete repository gate passes.
 

@@ -273,7 +273,11 @@ and destruction live defaults retain explicit W9 authority gates; no partial ext
 W10 Slice 7 expands that profile through `member_qualification.py`, the existing member service,
 generation-derived fixture policy, a coarse Shared Edge member-admission callback, and a coarse
 identity-presence callback. The active generation must prove public `optional`; the reviewed
-predecessor must prove public `none` before the active generation is restored. Qualification output retains counts, booleans,
+predecessor must prove public `none` before the active generation is restored. A callback that
+still observes successor optional identity receives at most two additional separately confirmed
+observations after five-second traffic-convergence waits; other browser failures do not retry.
+Predecessor failure retains its exact stable blocker while restoration remains unconditional.
+Qualification output retains counts, booleans,
 stable blockers, and digests only; owner and temporary references, directory records, identity,
 cookies, and raw provider responses never enter evidence. Repository tests use deterministic fakes and process-local loopback only. Non-fake command adapters
 are not invoked by `make check` and reject path escape, ambient credential variables, shell

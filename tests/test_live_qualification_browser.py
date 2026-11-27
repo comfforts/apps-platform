@@ -12,6 +12,7 @@ from infrastructure.operator.live_qualification import (
     QualificationCallbackResult,
     SystemBrowserLauncher,
 )
+from infrastructure.operator.qualification import QualificationVerificationResult
 
 
 @dataclass
@@ -199,10 +200,75 @@ class LiveQualificationBrowserTest(unittest.TestCase):
             ),
         )
 
-        self.assertTrue(qualification.verify_public_none())
+        self.assertEqual(
+            qualification.verify_public_none(),
+            QualificationVerificationResult(True),
+        )
         self.assertEqual(len(launcher.urls), 2)
         self.assertTrue(any("1/2" in message for message in terminal.messages))
         self.assertTrue(any("2/2" in message for message in terminal.messages))
+
+    def test_predecessor_public_none_waits_and_retries_after_successor_policy(
+        self,
+    ) -> None:
+        """Let provider traffic convergence settle without hiding the first result."""
+
+        terminal = Terminal(confirmations=[True, True, True])
+        launcher = CallbackLauncher(terminal)
+        delays: list[float] = []
+        qualification = LoopbackBrowserQualification(
+            launcher,
+            terminal,
+            login_timeout_seconds=2,
+            callback_timeout_seconds=2,
+            predecessor_attempts=2,
+            predecessor_retry_seconds=3,
+            sleep=delays.append,
+            challenge_source=lambda: "f" * 64,
+            callback_factory=CallbackSequence(
+                [
+                    QualificationCallbackResult("fixture-authenticated", True),
+                    QualificationCallbackResult("fixture-public", True),
+                    QualificationCallbackResult("fixture-public", False),
+                ]
+            ),
+        )
+
+        result = qualification.verify_public_none()
+
+        self.assertEqual(result, QualificationVerificationResult(True))
+        self.assertEqual(delays, [3])
+        self.assertEqual(len(launcher.urls), 3)
+        self.assertTrue(
+            any("traffic convergence" in message for message in terminal.messages)
+        )
+
+    def test_predecessor_public_none_returns_exact_terminal_blocker(self) -> None:
+        terminal = Terminal(confirmations=[True, True])
+        qualification = LoopbackBrowserQualification(
+            CallbackLauncher(terminal),
+            terminal,
+            login_timeout_seconds=2,
+            callback_timeout_seconds=2,
+            predecessor_attempts=1,
+            challenge_source=lambda: "1" * 64,
+            callback_factory=CallbackSequence(
+                [
+                    QualificationCallbackResult("fixture-authenticated", True),
+                    QualificationCallbackResult("fixture-public", True),
+                ]
+            ),
+        )
+
+        result = qualification.verify_public_none()
+
+        self.assertEqual(
+            result,
+            QualificationVerificationResult(
+                False,
+                ("LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",),
+            ),
+        )
 
     def test_invalid_or_unavailable_browser_fails_closed(self) -> None:
         class Unavailable:

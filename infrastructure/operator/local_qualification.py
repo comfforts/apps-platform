@@ -12,6 +12,7 @@ from infrastructure.operator.qualification import (
     ComponentRevision,
     FixtureQualificationPolicy,
     QualificationReadback,
+    QualificationVerificationResult,
 )
 from infrastructure.operator.rollback import (
     GenerationRollbackLifecycle,
@@ -222,34 +223,47 @@ class LiveGenerationRollbackExercise:
         platform: PlatformIntegrationReader,
         generations: ReviewedGenerationControl,
         terminal: OperatorTerminal,
-        predecessor_public_none: Callable[[], bool],
+        predecessor_public_none: Callable[[], QualificationVerificationResult],
     ) -> None:
         self._platform = platform
         self._generations = generations
         self._terminal = terminal
         self._predecessor_public_none = predecessor_public_none
 
-    def verify_rollback(self, environment: str, generation_digest: str) -> bool:
+    @staticmethod
+    def _failed(*blockers: str) -> QualificationVerificationResult:
+        """Return one canonical least-data failure without runtime payloads."""
+
+        return QualificationVerificationResult(
+            False,
+            tuple(sorted(set(blockers))),
+        )
+
+    def verify_rollback(
+        self,
+        environment: str,
+        generation_digest: str,
+    ) -> QualificationVerificationResult:
         """Activate, exercise, and restore one reviewed predecessor generation."""
 
         try:
             platform = self._platform.read_platform(environment)
             original = self._generations.current(environment)
         except Exception:
-            return False
+            return self._failed("LIVE_ROLLBACK_READBACK_FAILED")
         if (
             original is None
             or original.proposal.generation_digest != generation_digest
         ):
-            return False
+            return self._failed("LIVE_ROLLBACK_ACTIVE_GENERATION_MISMATCH")
         predecessor_digest = original.proposal.registration_set.get(
             "previous_generation_digest"
         )
         if not isinstance(predecessor_digest, str):
-            return False
+            return self._failed("LIVE_ROLLBACK_PREDECESSOR_UNAVAILABLE")
         generation = original.proposal.registration_set.get("generation")
         if not isinstance(generation, int) or generation < 2:
-            return False
+            return self._failed("LIVE_ROLLBACK_PREDECESSOR_UNAVAILABLE")
         predecessor_generation = generation - 1
         self._terminal.write(
             "LIVE ROLLBACK CHECK\n"
@@ -276,15 +290,21 @@ class LiveGenerationRollbackExercise:
             )
         )
         if rollback.outcome != "activated":
-            return False
+            return self._failed(
+                *(rollback.blockers or ("LIVE_ROLLBACK_ACTIVATION_FAILED",))
+            )
 
         try:
-            predecessor_verified = self._predecessor_public_none()
+            predecessor_result = self._predecessor_public_none()
         except Exception:
-            predecessor_verified = False
-        if not predecessor_verified:
+            predecessor_result = self._failed(
+                "LIVE_PREDECESSOR_BROWSER_CHECK_FAILED"
+            )
+        if not predecessor_result.verified:
             self._terminal.write(
-                "PREDECESSOR CHECK FAILED: the reviewed predecessor did not "
+                "PREDECESSOR CHECK FAILED "
+                f"({', '.join(predecessor_result.blockers)}): the reviewed "
+                "predecessor did not "
                 "prove that a platform-authenticated session reaches the public "
                 "fixture without Platform Identity. Restoration will continue."
             )
@@ -306,14 +326,20 @@ class LiveGenerationRollbackExercise:
                 f"{predecessor_generation} remains active. Restore reviewed "
                 f"generation {generation} before continuing qualification."
             )
-            return False
+            return self._failed(
+                "LIVE_ROLLBACK_RESTORATION_REQUIRED",
+                *predecessor_result.blockers,
+            )
         if not confirmed:
             self._terminal.write(
                 f"RESTORATION REQUIRED: predecessor generation "
                 f"{predecessor_generation} remains active. Restore reviewed "
                 f"generation {generation} before continuing qualification."
             )
-            return False
+            return self._failed(
+                "LIVE_ROLLBACK_RESTORATION_REQUIRED",
+                *predecessor_result.blockers,
+            )
         try:
             restored = self._generations.activate(
                 environment,
@@ -327,7 +353,10 @@ class LiveGenerationRollbackExercise:
                 f"{generation} could not be verified. Inspect the active "
                 "generation before continuing qualification."
             )
-            return False
+            return self._failed(
+                "LIVE_ROLLBACK_RESTORATION_FAILED",
+                *predecessor_result.blockers,
+            )
         verified = (
             restored.activated
             and restored.active_generation_digest == generation_digest
@@ -345,7 +374,14 @@ class LiveGenerationRollbackExercise:
                 f"{generation} did not match provider readback. Inspect the "
                 "active generation before continuing qualification."
             )
-        return verified and predecessor_verified
+        if not verified:
+            return self._failed(
+                "LIVE_ROLLBACK_RESTORATION_MISMATCH",
+                *predecessor_result.blockers,
+            )
+        if not predecessor_result.verified:
+            return predecessor_result
+        return QualificationVerificationResult(True)
 
 
 __all__ = (

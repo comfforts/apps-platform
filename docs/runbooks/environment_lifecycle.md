@@ -567,9 +567,13 @@ before offering a rollback. If any prerequisite fails,
 move traffic. When they all pass, the command explains the traffic effect before asking for the
 exact rollback phrase. Confirmation temporarily moves 100 percent of staging traffic from the
 current Registration Generation to its reviewed predecessor. Keep the command running: after
-provider readback, two more separately confirmed browser checks establish an authenticated session
-and prove that the predecessor's public `none` policy withholds Platform Identity. The command then
-asks for a second exact phrase to restore the original generation and verifies that restoration,
+provider readback, one separately confirmed browser check establishes an authenticated session and
+a second proves that the predecessor's public `none` policy withholds Platform Identity. If that
+second callback still observes the successor's optional-identity policy, the command waits five
+seconds and may offer up to two more separately confirmed observations. It does not retry a browser
+launch, timeout, callback, or confirmation failure. A terminal failure prints and records the exact
+stable predecessor-step blocker. The command then asks for a second exact phrase to restore the
+original generation and verifies that restoration,
 even when the predecessor browser proof fails. Declining or interrupting restoration leaves the predecessor active; follow the
 printed `RESTORATION REQUIRED` guidance and inspect the active generation before attempting
 qualification again.

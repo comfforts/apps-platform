@@ -8,7 +8,7 @@ output "foundation_reference" {
     oauth_secret_id                = try(google_secret_manager_secret.edge_oauth[0].id, null)
     session_database               = try(google_firestore_database.sessions[0].name, null)
     member_directory = local.retained_only ? null : {
-      database_name              = google_firestore_database.member_directory[0].name
+      database_name              = try(google_firestore_database.member_directory[0].name, null)
       database_reference         = local.member_database_reference
       directory_collection_name  = var.foundation_configuration.member_directory.directory_collection_name
       member_collection_name     = var.foundation_configuration.member_directory.member_collection_name

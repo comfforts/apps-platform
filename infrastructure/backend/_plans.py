@@ -153,7 +153,7 @@ _PHASE_EXACT_INHERITED_MUTATIONS = {
         (
             "module.platform_foundation.google_project_iam_member."
             "edge_session_store[0]"
-        ): frozenset({("create",), ("update",)}),
+        ): frozenset({("create",), ("update",), ("delete", "create")}),
         (
             "module.platform_foundation.google_firestore_database."
             "member_directory[0]"
@@ -393,6 +393,15 @@ def _change_summaries(
     planning_mode: str,
     violations: list[PlanViolation],
 ) -> list[dict[str, object]]:
+    """Validate and redact every observed resource change for one phase.
+
+    Resources must belong to the phase or its inherited read-only inventory,
+    use the reviewed provider, and select only phase-authorized actions.  A
+    closed map permits narrowly reviewed inherited migrations; all other
+    inherited mutations, replacements, deletes, and unsupported actions remain
+    prohibited.  Accepted changes are returned as safe canonical summaries.
+    """
+
     changes = observation.get("changes")
     if not isinstance(changes, list):
         violations.append(
@@ -470,6 +479,14 @@ def _change_summaries(
             normalized_actions: tuple[str, ...] = ()
         else:
             normalized_actions = tuple(actions)
+            exact_inherited_mutation = (
+                inherited_read_only_resource
+                and normalized_actions
+                in _PHASE_EXACT_INHERITED_MUTATIONS.get(
+                    policy.phase,
+                    {},
+                ).get(safe_address, frozenset())
+            )
             if (
                 planning_mode == "refresh-only"
                 and normalized_actions not in {("no-op",), ("read",)}
@@ -484,14 +501,11 @@ def _change_summaries(
                         actions=normalized_actions,
                     )
                 )
+            elif exact_inherited_mutation:
+                pass
             elif (
                 inherited_read_only_resource
                 and normalized_actions not in {("no-op",), ("read",)}
-                and normalized_actions
-                not in _PHASE_EXACT_INHERITED_MUTATIONS.get(
-                    policy.phase,
-                    {},
-                ).get(safe_address, frozenset())
             ):
                 violations.append(
                     _violation(
@@ -503,7 +517,10 @@ def _change_summaries(
                         actions=normalized_actions,
                     )
                 )
-            elif "create" in normalized_actions and "delete" in normalized_actions:
+            elif (
+                "create" in normalized_actions
+                and "delete" in normalized_actions
+            ):
                 violations.append(
                     _violation(
                         "REPLACEMENT_PROHIBITED",

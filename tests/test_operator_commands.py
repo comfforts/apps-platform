@@ -868,6 +868,7 @@ destroyed.
             ),
             b"Error 429: quota exceeded": "TERRAFORM_PROVIDER_QUOTA_EXCEEDED",
             b"Error: Missing required argument": "TERRAFORM_CONFIGURATION_INVALID",
+            b"Error: Invalid index": "TERRAFORM_CONFIGURATION_INVALID",
             b"Failed to load plugin schemas": "TERRAFORM_PROVIDER_PLUGIN_FAILED",
             b"unclassified private provider diagnostic": "TERRAFORM_PLAN_FAILED_UNKNOWN",
         }

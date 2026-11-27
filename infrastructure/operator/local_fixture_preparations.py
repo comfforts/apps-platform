@@ -51,8 +51,11 @@ class LocalFixturePreparations:
 
     @staticmethod
     def _request_value(request: FixtureDeployRequest) -> dict[str, object]:
+        """Project every input that distinguishes a reusable preparation."""
+
         return {
             "application_id": request.application_id,
+            "catalogue_visibility": request.catalogue_visibility,
             "environment": request.environment,
             "expected_platform_generation": request.expected_platform_generation,
             "expected_platform_source_revision": (
@@ -100,9 +103,18 @@ class LocalFixturePreparations:
         cls,
         value: object,
     ) -> dict[str, object]:
+        """Validate current metadata while recognizing legacy records as stale.
+
+        Preparations written before catalogue visibility became an explicit
+        input remain valid private history. They cannot be reused because the
+        new request projection will not match them, but they must remain
+        readable so the operator can safely generate a successor preparation.
+        """
+
         expected = {
             "application_id",
             "attachment_bundle_digest",
+            "catalogue_visibility",
             "environment",
             "expected_platform_generation",
             "expected_platform_source_revision",
@@ -113,13 +125,22 @@ class LocalFixturePreparations:
             "preparation_digest",
             "source_authority",
         }
-        if not isinstance(value, dict) or set(value) != expected:
+        legacy_expected = expected - {"catalogue_visibility"}
+        if (
+            not isinstance(value, dict)
+            or frozenset(value)
+            not in {frozenset(expected), frozenset(legacy_expected)}
+        ):
             raise ValueError("stored fixture preparation is invalid")
         if (
             value["format_version"] != 1
             or value["environment"] != "staging"
             or not isinstance(value["application_id"], str)
             or _APPLICATION_ID.fullmatch(value["application_id"]) is None
+            or (
+                "catalogue_visibility" in value
+                and value["catalogue_visibility"] not in {"listed", "unlisted"}
+            )
             or not isinstance(value["expected_platform_generation"], int)
             or value["expected_platform_generation"] < 1
             or value["source_authority"] not in {"accepted", "candidate"}

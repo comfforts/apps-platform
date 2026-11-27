@@ -1235,19 +1235,21 @@ class ApplicationIntegrationLifecycle:
                 for key, value in desired.items()
                 if key != "registration_revision"
             }
+            registration_unchanged = previous_values == desired_values
             if (
                 current is not None
                 and current.registration_set.get("contract_version") == 2
-                and previous_values == desired_values
+                and registration_unchanged
             ):
                 return RegistrationLifecycleResult(
                     outcome="unchanged",
                     generation=int(current.registration_set["generation"]),
                     generation_digest=current.generation_digest,
                 )
-            desired["registration_revision"] = (
-                int(current_registration["registration_revision"]) + 1
-            )
+            if not registration_unchanged:
+                desired["registration_revision"] = (
+                    int(current_registration["registration_revision"]) + 1
+                )
 
         source_revision = str(integration_bundle["platform_source_revision"])
         proposal = self._compile_generation(

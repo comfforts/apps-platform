@@ -81,8 +81,8 @@ and other members never do.
 > and bounded member lifecycle commands, Version 2 application handoffs, fixture consumption, and
 > atomic complete-generation activation. Qualification readiness reuses those same member
 > operations, verifies current-request restricted decisions, restores the reviewed owner-only
-> baseline, and blocks rollback on any mismatch. No Live Version 2 operation occurred on the slice
-> branches; post-merge Candidate qualification remains. The
+> baseline, and blocks rollback on any mismatch. All repository slices and candidate-readiness
+> corrections are integrated; exact-revision Candidate Source qualification remains. The
 > deployed W9 candidate and Version 1 contracts remain predecessor evidence and are not Accepted
 > Source qualification for this model.
 
@@ -450,6 +450,7 @@ make platform-outputs \
 make fixture-handoff \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-public \
+  CATALOGUE_VISIBILITY=listed \
   INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 
 # Inspect the three paths printed by fixture-handoff without editing them.
@@ -620,6 +621,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-deploy ENVIRONMENT=<name>` | Run platform readiness, stop on an unreadable or invalid check, then reuse or prepare approval and reconcile fresh exact plans, checkpoints, and readback |
 | `make platform-deploy-check ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Classify platform readiness from required services, working-tree state compatibility, provider readback, and lock-free plan policy without mutation |
 | `make platform-status ENVIRONMENT=<name>` | Report checkout, recorded deployment, active runtime, execution, and qualification state without mutation |
+| `make platform-member-identify ENVIRONMENT=<name>` | Confirm a browser login, recover only that Visitor's opaque member reference, and read its exact lifecycle without listing or mutation |
 | `make fixture-project-bootstrap ENVIRONMENT=staging FIXTURES_PROJECT_ID=<project-id> FIXTURES_PROJECT_NAME="<display-name>"` | Idempotently create or repair the selected fixture application project, state bucket, and image repository; read back its provider-assigned project number; create no runtime or route |
 | `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |
 | `make application-handoff-check ...` | Require the platform-ready result, then verify the named application project, its services and Shared VPC grants, bundle inputs, access mode, and application identity projection without mutation |
@@ -629,7 +631,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
 | `make platform-qualify ENVIRONMENT=<name> OWNER_MEMBER_REFERENCE=<opaque-reference>` | Evaluate the exact platform and fixture revisions, exercise and clean up one temporary second member, require the reviewed owner-only baseline, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every prerequisite passes; write redacted evidence without member references |
 | `make platform-destroy ENVIRONMENT=<name>` | Compile, confirm, execute, and resume safe platform destruction |
-| `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and registration intent, and stop before registration |
+| `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> CATALOGUE_VISIBILITY=<listed\|unlisted> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and explicit catalogue intent, and stop before registration |
 | `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
 | `make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=<id>` | After `platform-detach`, destroy only one fixture's Application State |
 
@@ -750,9 +752,9 @@ AP-M9-W9 is implemented and candidate-qualified under the predecessor Version 1 
 Candidate staging proved the dedicated fixture project, Shared VPC attachment, all three admission
 modes, separate registration, and the restricted-fixture detach, destruction, redeployment, and
 reactivation lifecycle. Candidate Source is not Accepted Source qualification. AP-M9-W10 has
-implemented all seven repository slices without a Live Version 2 operation. Slice 7 must merge to
-the integration branch, then the exact clean pushed integration revision must pass Candidate
-Source staging qualification and be frozen before the cumulative pull request to `main`.
+integrated all seven repository slices and its candidate-readiness corrections without a Live
+Version 2 qualification. The exact clean pushed integration revision must pass Candidate Source
+staging qualification and be frozen before the cumulative pull request to `main`.
 Production remains blocked on that accepted result, explicit ownership transfer, and application
 adoption.
 

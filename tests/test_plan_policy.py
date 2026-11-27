@@ -204,7 +204,7 @@ class PlanPolicyTest(unittest.TestCase):
                 "module.platform_foundation.google_project_iam_member."
                 "edge_session_store[0]",
                 "google_project_iam_member",
-                ["update"],
+                ["delete", "create"],
             ),
         )
         for address, resource_type, actions in addresses:
@@ -232,6 +232,25 @@ class PlanPolicyTest(unittest.TestCase):
                 "resource_type": "google_project_iam_member",
                 "provider_source": "registry.terraform.io/hashicorp/google",
                 "actions": ["create"],
+            }
+        )
+        rejected = evaluate_plan(policy, observation)
+        self.assertFalse(rejected.accepted)
+        self.assertIn(
+            "INHERITED_RESOURCE_MUTATION_PROHIBITED",
+            [item.code for item in rejected.violations],
+        )
+
+        observation = _shared_edge_observation()
+        observation["changes"].append(  # type: ignore[union-attr]
+            {
+                "address": (
+                    "module.platform_foundation.google_project_iam_member."
+                    "edge_member_directory_reader[0]"
+                ),
+                "resource_type": "google_project_iam_member",
+                "provider_source": "registry.terraform.io/hashicorp/google",
+                "actions": ["delete", "create"],
             }
         )
         rejected = evaluate_plan(policy, observation)

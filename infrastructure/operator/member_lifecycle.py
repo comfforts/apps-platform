@@ -23,7 +23,14 @@ from infrastructure.operator._interfaces import OperatorTerminal
 
 _MEMBER_REFERENCE = re.compile(r"pmr1_[0-9a-f]{64}")
 _ENVIRONMENT = re.compile(r"[a-z][a-z0-9-]{1,31}")
-MemberOperation = Literal["bootstrap-owner", "add", "suspend", "reactivate", "remove"]
+MemberOperation = Literal[
+    "bootstrap-owner",
+    "add",
+    "identify",
+    "suspend",
+    "reactivate",
+    "remove",
+]
 
 
 class MemberProviderUnavailable(RuntimeError):
@@ -119,6 +126,7 @@ class VerifiedMemberVisitor:
         if self.operation not in {
             "bootstrap-owner",
             "add",
+            "identify",
             "suspend",
             "reactivate",
             "remove",
@@ -148,7 +156,14 @@ class MemberMutation:
         if not isinstance(self.predecessor, MemberDirectorySnapshot):
             raise TypeError("member mutation predecessor is not validated")
         if (
-            isinstance(self.timestamp, bool)
+            self.operation not in {
+                "bootstrap-owner",
+                "add",
+                "suspend",
+                "reactivate",
+                "remove",
+            }
+            or isinstance(self.timestamp, bool)
             or not isinstance(self.timestamp, int)
             or self.timestamp < 1
         ):
@@ -326,6 +341,49 @@ class PlatformMemberLifecycle:
             mutation_cursor=(
                 snapshot.control.mutation_cursor if snapshot.control is not None else None
             ),
+        )
+
+    def identify(self, environment: str) -> MemberLifecycleResult:
+        """Recover the verified Visitor's opaque reference and current state.
+
+        The operation reuses the challenge-bound browser verifier, reads only
+        the resulting exact member document, and never enumerates or mutates
+        the directory.
+        """
+
+        self._validate_environment(environment)
+        blocked = self._authorized(environment)
+        if blocked is not None:
+            return blocked
+        try:
+            verified = self._visitor.verify(environment, "identify")
+        except (KeyboardInterrupt, MemberMutationInterrupted):
+            return MemberLifecycleResult(
+                "interrupted",
+                "unreadable",
+                blockers=("MEMBER_OPERATION_INTERRUPTED",),
+            )
+        except Exception:
+            return MemberLifecycleResult(
+                "blocked",
+                "unreadable",
+                blockers=("MEMBER_VISITOR_VERIFICATION_FAILED",),
+            )
+        if verified.environment != environment or verified.operation != "identify":
+            return MemberLifecycleResult(
+                "conflicting",
+                "unreadable",
+                blockers=("MEMBER_VISITOR_BINDING_MISMATCH",),
+            )
+        snapshot = self._read(environment, verified.member_reference)
+        if isinstance(snapshot, MemberLifecycleResult):
+            return snapshot
+        return MemberLifecycleResult(
+            "identified",
+            self._state(snapshot),
+            verified.member_reference,
+            self._lifecycle(snapshot),
+            snapshot.control.mutation_cursor if snapshot.control is not None else None,
         )
 
     def owner_only_baseline(

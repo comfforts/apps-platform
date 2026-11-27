@@ -96,6 +96,24 @@ class MemberBrowserTest(unittest.TestCase):
         self.assertNotIn("accounts.google.com", transcript)
         self.assertNotIn(REFERENCE, transcript)
 
+    def test_identify_uses_the_same_confirmed_least_data_browser_boundary(self) -> None:
+        terminal = Terminal()
+        launcher = Launcher()
+        callback = Callback(VerifiedMemberVisitor("staging", "identify", REFERENCE))
+        verifier = LoopbackMemberVisitorVerifier(
+            launcher,
+            terminal,
+            {"staging": "https://apps-staging.comfforts.com"},
+            challenge_source=lambda: CHALLENGE,
+            callback_factory=lambda challenge, environment, operation: callback,
+        )
+
+        visitor = verifier.verify("staging", "identify")
+
+        self.assertEqual(visitor.member_reference, REFERENCE)
+        self.assertIn("operation%3Didentify", launcher.urls[0])
+        self.assertNotIn(REFERENCE, "\n".join(terminal.messages + launcher.urls))
+
     def test_declined_or_failed_browser_never_waits_for_identity(self) -> None:
         callback = Callback(VerifiedMemberVisitor("staging", "add", REFERENCE))
         verifier = LoopbackMemberVisitorVerifier(

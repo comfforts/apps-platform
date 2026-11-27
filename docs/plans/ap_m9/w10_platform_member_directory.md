@@ -1,8 +1,7 @@
 # AP-M9-W10 · Platform Member Directory and explicit Identity Delivery
 
-Status: Slices 1-6 merged to the integration branch; Slice 7 qualification readiness implemented
-on its named branch without a Live operation; its integration merge and Candidate Source
-qualification remain
+Status: All seven functional slices and candidate-readiness corrections are integrated without a
+Live Version 2 qualification; exact-revision Candidate Source qualification and freeze remain
 
 Requirements: AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
 AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009
@@ -156,14 +155,15 @@ shows a concrete usability or safety defect.
 | --- | --- | --- |
 | `platform-member-bootstrap-owner` | Enroll the first Platform Owner after verifying the remote directory is empty and completing a separately confirmed Google Visitor flow | Creates exactly one initial member after exact review and confirmation; refuses a non-empty directory |
 | `platform-member-status` | Report coarse directory readiness or one opaque member reference and lifecycle state | Read-only; never lists identities or exposes the directory |
+| `platform-member-identify` | Recover the current browser-verified Visitor's opaque reference and exact lifecycle state | Read-only; reads one derived reference and never lists or mutates members |
 | `platform-member-add` | Enroll one additional verified Google Visitor through a separately confirmed browser flow | Creates one member idempotently after exact review and confirmation |
 | `platform-member-suspend` | Make one opaque member reference ineligible for restricted admission | Requires exact predecessor, confirmation, and remote readback |
 | `platform-member-reactivate` | Restore one suspended opaque member reference | Requires exact predecessor, confirmation, and remote readback |
 | `platform-member-remove` | Remove one opaque member reference from active membership | Requires exact predecessor, destructive confirmation, and absence readback |
 
 Every target requires `ENVIRONMENT=<name>`. Suspend, reactivate, remove, and single-member status
-also require `MEMBER_REFERENCE=<opaque-reference>`. Add and bootstrap obtain issuer and subject only
-from the confirmed identity-provider callback; they do not accept an email as identity proof.
+also require `MEMBER_REFERENCE=<opaque-reference>`. Identify, add, and bootstrap obtain issuer and
+subject only from the confirmed identity-provider callback; they do not accept an email as identity proof.
 Ordinary output may show the opaque reference, lifecycle state, timestamps, and coarse outcome but
 never raw identity claims or a member list.
 
@@ -172,6 +172,12 @@ never raw identity claims or a member list.
 `ACCESS_MODE`. `fixture-handoff` consumes the value from the Integration Bundle, and
 `platform-register` consumes it from the reviewed bundle and intent rather than accepting a second
 independent CLI value.
+
+`fixture-handoff` separately requires `CATALOGUE_VISIBILITY=<listed|unlisted>` because catalogue
+policy is application-proposed registration intent, not platform-integration readiness.
+`application-handoff-check` and `platform-outputs` therefore do not accept that parameter. A
+visibility change gets a fresh generation-bound bundle family and intent while reusing the
+unchanged deployed fixture runtime when its source and target remain current.
 
 Existing commands change only where the new responsibility belongs:
 
@@ -269,13 +275,12 @@ authority.
 | 6. Operator handoff reconciliation | `docs/identity-delivery-operator-handoff` | Reconcile README, runbook, design, contracts, plan status, prompt, governance tests, actual limitations, and final qualification procedure without adding behavior | 8-14 | 8k-14k | 4% |
 | 7. Candidate qualification readiness | `evidence/member-admission-candidate-qualification` | Complete qualification support for owner bootstrap, second-member lifecycle, public opt-in, authenticated independence, directory failure, rollback, and least-data evidence; after merge, qualify the exact integration revision | 10-18 | 16k-26k | 12% |
 
-Slices 1 through 6 are merged to the integration branch. Slice 7 is implemented on its named
-branch and is ready for its integration pull request after its verification gate passes. It
-extends the existing qualifier with the source-admitted member service, a reviewed owner-only
+Slices 1 through 7 and their candidate-readiness corrections are integrated. Slice 7 extends the
+existing qualifier with the source-admitted member service, a reviewed owner-only
 baseline, one temporary second-member lifecycle, and a least-data browser callback that reports
 only the current restricted-route admission decision. It performs no provider operation on the
-slice branch. The real Candidate Source journey remains blocked until this pull request merges to
-the latest clean `feat/platform-member-directory`.
+slice branch. The real Candidate Source journey begins only from the exact clean pushed
+`feat/platform-member-directory` revision after its complete repository gate passes.
 
 `platform-qualify` now requires `OWNER_MEMBER_REFERENCE=<opaque-reference>`. The reference is the
 reviewed active owner returned by owner bootstrap and retained privately by the operator. It is

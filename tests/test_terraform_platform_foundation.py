@@ -210,6 +210,17 @@ class TerraformPlatformFoundationTest(unittest.TestCase):
         self.assertNotIn("signing_key_version", foundation)
         self.assertNotIn("registration_generation", foundation)
 
+    def test_member_directory_output_tolerates_refresh_only_predecessor_state(
+        self,
+    ) -> None:
+        outputs = (MODULE_ROOT / "outputs.tf").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "database_name              = "
+            "try(google_firestore_database.member_directory[0].name, null)",
+            outputs,
+        )
+
     def test_plan_test_uses_only_mocked_plan_mode_and_w3_example(self) -> None:
         test_file = (PLATFORM_ROOT / "tests/foundation.tftest.hcl").read_text(
             encoding="utf-8"

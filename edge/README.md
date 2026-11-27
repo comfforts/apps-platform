@@ -9,7 +9,7 @@ The repository runtime can load and enforce both Version 1 and Version 2 compile
 Version 1 remains the deployed compatibility predecessor until the operator deliberately publishes
 and activates a Version 2 generation. Repository implementation alone does not prove that a
 Version 2 runtime is deployed or qualified. The complete Version 2 handoff, activation, and
-qualification-readiness paths are implemented; the future Candidate Source procedure is maintained in the
+qualification-readiness paths are implemented; the remaining Candidate Source procedure is maintained in the
 [environment lifecycle runbook](../docs/runbooks/environment_lifecycle.md#candidate-staging-verification).
 
 ## Component boundary
@@ -71,7 +71,7 @@ Public and authenticated Version 2 routes do not consult the member directory.
 | `/_platform/auth/callback` | Validate the callback and create an opaque server-side Platform Session. |
 | `/_platform/logout` | Delete the current Platform Session and clear its cookie. |
 | `/_platform/status` | Return coarse runtime and adapter health only to the exact configured operator identity. |
-| `/_platform/member/verify` | Project the current verified Visitor to one opaque environment-scoped reference for a challenge-bound local operator callback; never mutate or enumerate membership. |
+| `/_platform/member/verify` | Project the current verified Visitor to one opaque environment-scoped reference for challenge-bound bootstrap, add, or read-only identify callbacks; never mutate or enumerate membership. |
 | `/_platform/member/qualification` | During the reviewed qualifier only, evaluate one named restricted Version 2 route for the current browser session and return only `allowed` or `denied` to a challenge-bound loopback callback. |
 | `/.well-known/jwks.json` | Publish the bounded public keys used to verify platform assertions. |
 
@@ -198,7 +198,7 @@ listener and performs no external operation.
 
 | Module | Responsibility |
 | --- | --- |
-| `edge/__init__.py` | Small public import surface for runtime construction and application verification. |
+| `edge/__init__.py` | Small public import surface that exposes application verification eagerly and loads platform-runtime construction only when requested. |
 | `edge/_runtime.py` | ASGI endpoints, admission sequencing, member lookup, assertion delivery, and forwarding orchestration. |
 | `edge/_generation.py` | Exact immutable Version 1 or Version 2 compiled-generation loading and validation. |
 | `edge/_routing.py` | Catalogue projection, reserved-path handling, route selection, and forwarding-path derivation. |
@@ -215,7 +215,9 @@ deterministic fake, and provider-backed exact lookup used by the runtime. Member
 belongs to the operator component, not to `edge/`.
 
 Modules prefixed with `_` are internal implementation details. Prefer the exports from
-`edge/__init__.py` in repository consumers.
+`edge/__init__.py` in repository consumers. Runtime exports are deliberately lazy: an independent
+application importing `edge.verification` must not load the platform-only runtime or member-
+directory modules into its process or image.
 
 ## Deterministic construction and verification
 

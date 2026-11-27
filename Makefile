@@ -10,6 +10,7 @@ FIXTURES_PROJECT_ID ?= comfforts-fixtures-nonprod
 FIXTURES_PROJECT_NAME ?= Comfforts Fixtures Non-Prod
 ACCESS_MODE ?=
 IDENTITY_DELIVERY ?=
+CATALOGUE_VISIBILITY ?=
 ROUTE_INTENT ?=
 PLATFORM_SOURCE_REVISION ?=
 PLATFORM_GENERATION ?=
@@ -22,7 +23,7 @@ OWNER_MEMBER_REFERENCE ?=
 
 export FIXTURES_PROJECT_ID FIXTURES_PROJECT_NAME
 
-.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-preflight-check platform-prepare platform-cancel platform-deploy platform-deploy-check platform-status fixture-project-bootstrap platform-connect-project application-handoff-check platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy platform-member-status platform-member-bootstrap-owner platform-member-add platform-member-suspend platform-member-reactivate platform-member-remove fixture-handoff fixture-status fixture-destroy
+.PHONY: check governance-check contract-check fixture-check runtime-check terraform-check terraform-setup operator-check platform-preflight platform-preflight-check platform-prepare platform-cancel platform-deploy platform-deploy-check platform-status fixture-project-bootstrap platform-connect-project application-handoff-check platform-outputs platform-register platform-detach platform-retire platform-qualify platform-destroy platform-member-status platform-member-identify platform-member-bootstrap-owner platform-member-add platform-member-suspend platform-member-reactivate platform-member-remove fixture-handoff fixture-status fixture-destroy
 
 ## Install pinned Terraform dependencies into the ignored project-local mirror.
 terraform-setup:
@@ -120,6 +121,10 @@ platform-retire:
 platform-member-status:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-member-status --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" $(if $(MEMBER_REFERENCE),--member-reference "$(MEMBER_REFERENCE)",)
 
+## Recover the browser-verified Visitor's opaque reference and exact member state; never list members.
+platform-member-identify:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-member-identify --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
+
 ## Enroll exactly one initial owner after remote-empty and browser-identity verification.
 platform-member-bootstrap-owner:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator platform-member-bootstrap-owner --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)"
@@ -148,7 +153,7 @@ fixture-project-bootstrap:
 
 ## Deploy one selected fixture from an existing integration bundle and stop before registration.
 fixture-handoff: terraform-setup
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-handoff --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)" --integration-bundle "$(INTEGRATION_BUNDLE)"
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator fixture-handoff --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)" --catalogue-visibility "$(CATALOGUE_VISIBILITY)" --integration-bundle "$(INTEGRATION_BUNDLE)"
 
 ## Reconcile all fixtures, or APPLICATION_ID when supplied, without mutation.
 fixture-status:

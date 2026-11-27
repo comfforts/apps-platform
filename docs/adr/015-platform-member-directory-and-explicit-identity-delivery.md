@@ -1,6 +1,6 @@
 # ADR-015 · Use a platform-owned member directory and explicit identity delivery
 
-Status: Accepted; implementation and qualification pending AP-M9-W10
+Status: Accepted; implementation integrated and Candidate Source qualification pending AP-M9-W10
 
 Requirements: AP-PR-004, AP-PR-005, AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
 AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009

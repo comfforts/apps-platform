@@ -58,11 +58,14 @@ _FIXTURE_BY_ID = {item.application_id: item for item in _FIXTURES}
 
 @dataclass(frozen=True, slots=True)
 class FixtureDeployRequest:
+    """Exact fixture handoff request including application-owned catalogue intent."""
+
     environment: str
     application_id: str
     fixture_source_revision: str
     expected_platform_source_revision: str
     expected_platform_generation: int
+    catalogue_visibility: str
     source_authority: str = "accepted"
     integration_bundle: dict[str, Any] | None = None
     integration_bundle_path: str | None = None
@@ -237,6 +240,8 @@ class FixtureSuiteLifecycle:
     def _definition(
         request: FixtureDeployRequest,
     ) -> tuple[FixtureDefinition | None, str | None]:
+        """Validate one closed fixture profile and explicit catalogue choice."""
+
         if request.environment != "staging":
             return None, "FIXTURE_ENVIRONMENT_UNAVAILABLE"
         definition = _FIXTURE_BY_ID.get(request.application_id)
@@ -245,6 +250,7 @@ class FixtureSuiteLifecycle:
             or _REVISION.fullmatch(request.fixture_source_revision) is None
             or _REVISION.fullmatch(request.expected_platform_source_revision) is None
             or request.expected_platform_generation < 1
+            or request.catalogue_visibility not in {"listed", "unlisted"}
             or request.source_authority not in {"accepted", "candidate"}
         ):
             return None, "FIXTURE_REQUEST_INVALID"

@@ -1,11 +1,11 @@
 # <u>App Platform evaluation strategy</u>
 
-Version 0.27 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.28 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
-without execution; AP-M9-W10 Slices 1-6 supply deterministic Version 2 contract, infrastructure,
-runtime, member-lifecycle, application-handoff, operator-documentation, and Slice 7 deterministic
-qualification-readiness evidence; Slice 7 integration and Candidate Source qualification remain,
-and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
+without execution; all seven AP-M9-W10 slices and candidate-readiness corrections supply
+deterministic Version 2 contract, infrastructure, runtime, member-lifecycle, application-handoff,
+operator-documentation, and qualification-readiness evidence; exact-revision Candidate Source
+qualification remains, and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
@@ -42,7 +42,7 @@ slice supplies deployment, Live, qualification, or Application Adoption evidence
 W10 Slice 4 supplies deterministic AP-EVAL-M9-03 and AP-EVAL-M9-07 evidence for separate Cloud
 Operator and Google Visitor boundaries, one-use browser reference binding, remote-empty owner
 bootstrap, source admission, idempotency, stale-predecessor and conflict handling, atomic monotonic
-member transitions, exact readback, privacy, interruption, and stable diagnostics. Its provider
+member transitions, read-only reference identification, exact readback, privacy, interruption, and stable diagnostics. Its provider
 fakes and loopback/browser seams perform no real member mutation and supply no Live, qualification,
 Version 2 handoff, or activation evidence.
 
@@ -1692,6 +1692,10 @@ platform revision or generation, and an invalid application identity projection.
 Prove it succeeds without publishing a bundle, approving or applying a plan, acquiring a state
 lock, changing provider state, or writing operational lifecycle state.
 
+Prove fixture handoff requires explicit listed or unlisted Catalogue Visibility, binds it into the
+private preparation identity and registration intent, and never adds it to platform readiness or
+integration-bundle inputs.
+
 #### AP-EVAL-M9-04 · State, Terraform, operator session, plans, and ownership
 
 Verify deployable bootstrap/foundation/edge phases preserve independent state ownership, locking,
@@ -1870,9 +1874,9 @@ for revision `2fd045f6f720fe122103d42b3ebb6d25f5fbdac8` and restored active gene
 Private provider payloads, state, plans, browser state, and identity material remain outside Git.
 W10 Slices 1 through 5 establish the deterministic Version 2 contract, infrastructure, runtime,
 lifecycle, and application-handoff evidence. Slice 6 reconciles the operator handoff and
-implemented limitations without a provider operation. Slice 7 implements cleanup-safe
-qualification support without a provider operation and remains to merge to the integration branch;
-the exact clean pushed integration revision must then repeat the
+implemented limitations without a provider operation. Slice 7 and its candidate-readiness
+corrections implement cleanup-safe qualification support without a provider operation. The exact
+clean pushed integration revision must now repeat the
 applicable staging journey from Candidate Source, qualify the Version 2 member directory, restore
 the reviewed member baseline, and remain frozen. After the cumulative W10 pull request merges,
 W11 must repeat the journey from Accepted Source and complete the separately approved platform

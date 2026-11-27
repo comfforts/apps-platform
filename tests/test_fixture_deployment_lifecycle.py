@@ -98,6 +98,7 @@ def _request(bundle: dict[str, object] | None = None) -> FixtureDeployRequest:
         fixture_source_revision=SOURCE,
         expected_platform_source_revision=PLATFORM_SOURCE,
         expected_platform_generation=2,
+        catalogue_visibility="listed",
         source_authority="candidate",
         integration_bundle=bundle,
         integration_bundle_path="/private/platform-integration-bundle.v2.json",
@@ -321,6 +322,7 @@ class LocalFixtureOperatorTest(unittest.TestCase):
         ).handoff(
             "staging",
             "fixture-public",
+            "unlisted",
             _bundle(),
             "/private/platform-integration-bundle.v1.json",
         )
@@ -328,6 +330,7 @@ class LocalFixtureOperatorTest(unittest.TestCase):
         self.assertEqual(result.outcome, "prepared")
         assert lifecycle.request is not None
         self.assertEqual(lifecycle.request.integration_bundle, _bundle())
+        self.assertEqual(lifecycle.request.catalogue_visibility, "unlisted")
 
 
 if __name__ == "__main__":

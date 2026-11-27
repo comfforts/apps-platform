@@ -28,7 +28,10 @@ its state and resources remain Application State.
 `create_environment_app()` is the image entry point. It loads the closed non-secret environment
 configuration, constructs an independent `ApplicationIdentityVerifier` when Identity Delivery is
 enabled, and returns the ASGI application. `create_network_fixture()` is the deterministic
-construction seam used by repository tests.
+construction seam used by repository tests. The fixture image packages only `contracts/`,
+`edge/`, and `fixtures/`; a hermetic startup test constructs the application from that exact
+package set so an accidental dependency on platform-owned `infrastructure/` code fails before a
+provider-backed rollout.
 
 ## Fixture profiles
 
@@ -50,7 +53,8 @@ Fixtures use the same cross-owner sequence expected of an external application:
    requested Admission Mode/Identity Delivery readiness without publishing a bundle.
 2. `platform-outputs` writes one application-scoped Version 2 Platform Integration Bundle.
 3. `fixture-handoff` consumes that bundle, reconciles only the selected fixture's Application
-   State, and writes the bound Version 2 Application Attachment Bundle and registration intent.
+   State, requires the explicit `listed` or `unlisted` catalogue choice, and writes the bound
+   Version 2 Application Attachment Bundle and registration intent.
    The route is still inactive.
 4. The operator inspects the three canonical documents and invokes `platform-register`.
 5. Registration validates the complete Version 2 family, reads back the target, compiles one

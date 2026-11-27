@@ -8,6 +8,10 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 from unittest import mock
 import warnings
@@ -342,6 +346,46 @@ class NetworkedFixtureTest(unittest.TestCase):
             "!infrastructure/images/fixture/cloudbuild.yaml",
         ):
             self.assertIn(required, upload_allowlist)
+
+    def test_fixture_image_package_set_loads_without_platform_infrastructure(self) -> None:
+        """Prove the application image can construct its ASGI app in isolation."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            image_root = Path(directory)
+            for package in ("contracts", "edge", "fixtures"):
+                shutil.copytree(PROJECT_ROOT / package, image_root / package)
+            environment = {
+                "APP_PLATFORM_APPLICATION_ID": "fixture-public",
+                "APP_PLATFORM_ADMISSION_MODE": "public",
+                "APP_PLATFORM_ISSUER": (
+                    "https://apps-staging.comfforts.com/_platform"
+                ),
+                "APP_PLATFORM_PUBLIC_KEY_REFERENCE": (
+                    "https://apps-staging.comfforts.com/.well-known/jwks.json"
+                ),
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
+            result = subprocess.run(
+                (
+                    sys.executable,
+                    "-I",
+                    "-c",
+                    (
+                        "import sys; "
+                        "sys.path.insert(0, '.'); "
+                        "from fixtures.networked import create_environment_app; "
+                        "assert create_environment_app() is not None"
+                    ),
+                ),
+                cwd=image_root,
+                env=environment,
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=10,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

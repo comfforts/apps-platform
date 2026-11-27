@@ -547,6 +547,69 @@ class RegistrationLifecycleTest(unittest.TestCase):
         )
         self.assertNotIn("members", repr(successor.registration_set))
 
+    def test_first_v2_registration_preserves_unchanged_application_revision(self) -> None:
+        """Migrate an unchanged V1 registration without inventing an app revision."""
+
+        bundle = self._bundle("fixture-public", "public")
+        attachment = self._attachment(bundle)
+        intent = self._intent(bundle)
+        migrated_shape = self.lifecycle._application_registration(
+            bundle,
+            attachment,
+            intent,
+            "active",
+            1,
+        )
+        v1_registration = copy.deepcopy(migrated_shape)
+        v1_registration["contract_version"] = 1
+        v1_registration.pop("identity_delivery")
+        for value in v1_registration["attachments"]:
+            value["contract_version"] = 1
+        v1_set = {
+            "contract_version": 1,
+            "generation": 1,
+            "previous_generation_digest": None,
+            "proposal": {
+                "source_revision": SOURCE_REVISION,
+                "change_summary": "Historical public fixture",
+            },
+            "registrations": [v1_registration],
+        }
+        compiled_v1 = compile_registration_set(
+            None,
+            v1_set,
+            {
+                "contract_version": 1,
+                "enabled_attachment_adapter_kinds": ["gcp-cloud-run-v1"],
+            },
+        )
+        self.assertEqual(compiled_v1.violations, ())
+        assert compiled_v1.compiled_configuration is not None
+        assert compiled_v1.ownership_manifest is not None
+        assert compiled_v1.generation_digest is not None
+        self.generations.current_proposal = RegistrationGenerationProposal(
+            environment="staging",
+            registration_set=v1_set,
+            compiled_configuration=compiled_v1.compiled_configuration,
+            ownership_manifest=compiled_v1.ownership_manifest,
+            generation_digest=compiled_v1.generation_digest,
+            content_digest=_canonical_digest(compiled_v1.compiled_configuration),
+        )
+
+        result = self.lifecycle.register(bundle, attachment, intent)
+
+        self.assertEqual(result.outcome, "activated")
+        successor = self.generations.current_proposal
+        assert successor is not None
+        self.assertEqual(successor.registration_set["contract_version"], 2)
+        self.assertEqual(successor.registration_set["generation"], 2)
+        self.assertEqual(
+            successor.registration_set["registrations"][0][
+                "registration_revision"
+            ],
+            1,
+        )
+
     def test_replacement_publishes_one_successor_without_patching_current(self) -> None:
         bundle = self._bundle("fixture-public", "public")
         first_attachment = self._attachment(bundle)

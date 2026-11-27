@@ -185,6 +185,8 @@ class InfrastructureConfigurationTest(unittest.TestCase):
         )
 
     def test_registration_generation_object_paths_are_immutable_and_compatible(self) -> None:
+        """Accept the two supported generation contracts at exact immutable paths."""
+
         platform = _example("platform-shared-edge.synthetic.v2.json")
         shared_edge = platform["shared_edge"]
         assert isinstance(shared_edge, dict)
@@ -200,7 +202,9 @@ class InfrastructureConfigurationTest(unittest.TestCase):
 
         compatible_paths = (
             "generations/" + ("2" * 64) + "/compiled-shared-edge.v1.json",
+            "generations/" + ("2" * 64) + "/compiled-shared-edge.v2.json",
             "environments/staging/generations/2/compiled-shared-edge.v1.json",
+            "environments/staging/generations/2/compiled-shared-edge.v2.json",
         )
         for object_name in compatible_paths:
             with self.subTest(object_name=object_name):
@@ -212,6 +216,17 @@ class InfrastructureConfigurationTest(unittest.TestCase):
 
         generation["object_name"] = (
             "environments/production/generations/2/compiled-shared-edge.v1.json"
+        )
+        self.assertIn(
+            (
+                "CONFIGURATION_POLICY_INVALID",
+                "/shared_edge/registration_generation/object_name",
+            ),
+            _codes(validate_configuration(platform, "platform", allow_synthetic=True)),
+        )
+
+        generation["object_name"] = (
+            "environments/staging/generations/2/compiled-shared-edge.v3.json"
         )
         self.assertIn(
             (

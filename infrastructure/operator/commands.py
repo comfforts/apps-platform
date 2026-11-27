@@ -335,6 +335,8 @@ class TerraformCliAdapter:
     @staticmethod
     def _apply_failure_code(stderr: bytes) -> str:
         normalized = stderr.lower()
+        if b"user-provided container failed to start and listen on the port" in normalized:
+            return "TERRAFORM_APPLY_CONTAINER_STARTUP_FAILED"
         if all(
             marker in normalized
             for marker in (
@@ -438,6 +440,14 @@ class TerraformCliAdapter:
 
     @staticmethod
     def _plan_failure(stderr: bytes) -> str:
+        """Classify Terraform planning stderr into one safe operator blocker.
+
+        Provider text remains private diagnostic material.  This boundary uses
+        only closed markers to distinguish protected-resource, state, backend,
+        authentication, permission, quota, configuration, and plugin failures;
+        an unmatched diagnostic collapses to the stable unknown blocker.
+        """
+
         normalized = stderr.lower()
         if all(
             marker in normalized
@@ -493,6 +503,7 @@ class TerraformCliAdapter:
             for marker in (
                 b"missing required argument",
                 b"unsupported argument",
+                b"invalid index",
                 b"invalid value for input variable",
                 b"reference to undeclared",
                 b"unsupported block type",

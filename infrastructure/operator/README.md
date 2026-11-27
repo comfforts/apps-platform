@@ -72,11 +72,13 @@ make platform-destroy ENVIRONMENT=staging
 make fixture-handoff \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-authenticated \
+  CATALOGUE_VISIBILITY=unlisted \
   INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 make fixture-status ENVIRONMENT=staging
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 make platform-member-status ENVIRONMENT=staging
+make platform-member-identify ENVIRONMENT=staging
 make platform-member-bootstrap-owner ENVIRONMENT=staging
 make platform-member-add ENVIRONMENT=staging
 make platform-member-status ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
@@ -155,6 +157,10 @@ a separately confirmed Google Visitor flow, exact review, one atomic transaction
 remote readback. Status, add, suspend, reactivate, and remove use the same deep service without
 compiling a Registration Generation or deploying an application.
 
+`platform-member-identify` reuses the confirmed Visitor browser boundary to derive one opaque
+reference and read only that exact remote member state. It is reference recovery, not directory
+enumeration, and performs no mutation.
+
 The browser flow clears any prior Platform Session and visits the Shared Edge's reserved
 `/_platform/member/verify` endpoint. The edge derives the opaque environment-scoped reference from
 verified Google identity and returns only that reference, environment, operation, and one-use
@@ -173,12 +179,18 @@ rebootstrap.
 
 `application-handoff-check` and `platform-outputs` require explicit Identity Delivery: `none` or
 `optional` for public admission and `required` for authenticated or restricted admission.
-`fixture-handoff` consumes that decision from the Version 2 Integration Bundle, and
+`fixture-handoff` consumes that decision from the Version 2 Integration Bundle and requires the
+application-owned `CATALOGUE_VISIBILITY=<listed|unlisted>` registration choice. Catalogue
+visibility is not an input to `application-handoff-check` or `platform-outputs`. The handoff
+preparation identity includes the choice so a visibility change cannot reuse an older intent.
 `platform-register` requires the exact Version 2 integration, attachment, and intent relationship;
 it accepts no independent identity-policy argument. Mixed handoff versions fail closed. The first
 successor over a readable Version 1 generation discards registration-scoped members, maps public
 to `none` and protected routes to `required`, and activates one complete immutable Version 2
-generation. This is repository behavior only until the later Candidate operation exercises it.
+generation. An application whose normalized registration is unchanged keeps its existing
+registration revision during that migration; only an actual application-registration change
+increments the revision. This is repository behavior only until the later Candidate operation
+exercises it.
 
 For local code maintenance, `platform-preflight-check` runs the same read-only profile, Git,
 GitHub, GCP, ADC, Terraform-tool, and DNS checks. It skips `SOURCE_NOT_CLEAN`, because the command
@@ -346,7 +358,9 @@ messages remain suppressed. A provider result inconsistent with the reviewed pla
 apply response becomes `TERRAFORM_APPLY_FAILED_UNKNOWN`. A Cloud Run response that rejects changed
 configuration under an existing immutable revision name reports
 `TERRAFORM_APPLY_IMMUTABLE_REVISION_CONFLICT` rather than the generic concurrent/existing-operation
-conflict.
+conflict. A Cloud Run revision that exits or never listens on its configured port reports
+`TERRAFORM_APPLY_CONTAINER_STARTUP_FAILED` and directs the operator to the private revision
+diagnostic rather than collapsing the failure into the unknown classifier.
 
 The CLI reports every returned blocker to stderr with a derived component before serializing the
 result JSON. Its outer exception boundary catches otherwise unhandled adapter or operator errors,

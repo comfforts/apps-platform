@@ -1067,7 +1067,10 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("# AP-M9 · Operator-driven environment lifecycle", m9)
         self.assertIn("### AP-M9-W10", m9)
         self.assertIn("### AP-M9-W12", m9)
-        self.assertIn("AP-M9-W10 Slices 1-6 merged", m9)
+        self.assertIn(
+            "all seven\nAP-M9-W10 slices and candidate-readiness corrections are integrated",
+            m9,
+        )
         self.assertIn("compatibility router", compatibility)
         self.assertIn("plans/README.md", compatibility)
         self.assertIn(
@@ -1100,11 +1103,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         for command in (
             "platform-member-bootstrap-owner",
             "platform-member-status",
+            "platform-member-identify",
             "platform-member-add",
             "platform-member-suspend",
             "platform-member-reactivate",
             "platform-member-remove",
             "IDENTITY_DELIVERY=<none|optional|required>",
+            "CATALOGUE_VISIBILITY=<listed|unlisted>",
         ):
             self.assertIn(command, w10)
         for boundary in (
@@ -1193,7 +1198,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_recovery = " ".join(recovery.split())
 
         self.assertIn(
-            "ADR-015 implementation and Candidate Source qualification remain AP-M9-W10 work",
+            "ADR-015 implementation is integrated, Candidate Source qualification remains AP-M9-W10 work",
             normalized_requirements,
         )
         self.assertIn(
@@ -1205,7 +1210,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             normalized_evaluation,
         )
         self.assertIn(
-            "Slice 7 implements cleanup-safe qualification support without a provider operation and remains to merge to the integration branch",
+            "Slice 7 and its candidate-readiness corrections implement cleanup-safe qualification support without a provider operation",
             normalized_evaluation,
         )
         self.assertIn(
@@ -2069,7 +2074,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("make platform-cancel", runbook)
         self.assertIn("does not run Terraform", normalized_runbook)
         for candidate_handoff in (
-            "Do not run it until Slice 7 has merged",
+            "Run it only after every W10 slice and candidate-readiness correction has merged",
             "make platform-preflight ENVIRONMENT=staging SOURCE_AUTHORITY=candidate",
             "make platform-member-bootstrap-owner ENVIRONMENT=staging SOURCE_AUTHORITY=candidate",
             "APPLICATION_ID=fixture-public ACCESS_MODE=public IDENTITY_DELIVERY=none",
@@ -2077,7 +2082,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "fixture-restricted` | `restricted` | `required`",
             "Use the newly reported active Registration Generation after each successful registration",
             "reviewed owner-only member baseline",
-            "Slice 6 documents this sequence but performs none of its commands",
+            "documented repository work performs none of these provider commands",
         ):
             self.assertIn(candidate_handoff, normalized_runbook)
         self.assertIn("platform-integration-bundle.v2.json", overview)

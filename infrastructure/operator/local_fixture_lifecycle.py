@@ -319,6 +319,7 @@ class LocalFixtureLifecycleCommands:
                     request.application_id,
                     str(preparation.integration_bundle["access_mode"]),
                     str(preparation.integration_bundle["identity_delivery"]),
+                    request.catalogue_visibility,
                 ),
             )
         except (FileExistsError, OSError, ValueError) as error:
@@ -358,6 +359,7 @@ class LocalFixtureLifecycleCommands:
         application_id: str,
         access_mode: str,
         identity_delivery: str,
+        catalogue_visibility: str,
     ) -> RegistrationIntent:
         """Build the fixture's V2 intent from the exact platform bundle policy."""
 
@@ -365,11 +367,7 @@ class LocalFixtureLifecycleCommands:
             application_id=application_id,
             access_mode=access_mode,
             identity_delivery=identity_delivery,
-            catalogue_visibility=(
-                "unlisted"
-                if application_id == "fixture-authenticated"
-                else "listed"
-            ),
+            catalogue_visibility=catalogue_visibility,
             catalogue_title={
                 "fixture-public": "Public fixture",
                 "fixture-authenticated": "Authenticated fixture",
@@ -583,9 +581,12 @@ class LocalFixtureOperator:
         self,
         environment: str,
         application_id: str,
+        catalogue_visibility: str,
         integration_bundle: dict[str, Any],
         integration_bundle_path: str,
     ):  # type: ignore[no-untyped-def]
+        """Bind repository and platform readback to one explicit fixture intent."""
+
         from infrastructure.operator.fixture_lifecycle import (
             FixtureDeployRequest,
             FixtureHandoffResult,
@@ -657,6 +658,7 @@ class LocalFixtureOperator:
                     platform.platform_source_revision
                 ),
                 expected_platform_generation=platform.generation,
+                catalogue_visibility=catalogue_visibility,
                 source_authority=self._source_authority,
                 integration_bundle=integration_bundle,
                 integration_bundle_path=integration_bundle_path,

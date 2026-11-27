@@ -1102,7 +1102,8 @@ intent, publishes the canonical files with mode `0600` in ignored operator state
 an Application State mutation, not read-only preparation. After inspection, the Platform Operator
 runs `register` to activate a complete generation. There is no combined fixture deploy-and-register
 operation. `fixture-status` is read-only and reports all fixtures by default or one optional
-selection. `fixture-destroy` requires the route to have been suspended through `detach`, requires
+selection. Each row reports the active generation's catalogue visibility independently of target
+and route readiness. `fixture-destroy` requires the route to have been suspended through `detach`, requires
 the fixture-specific destructive confirmation, operates only on the selected fixture Application
 State, and never destroys Platform State. These commands are the executable staging-fixture
 boundary; Terraform roots and loopback servers alone are not deployment capability.
@@ -1133,10 +1134,13 @@ the owner-only baseline.
 
 Only after the other checks and cleanup-safe member journey pass can
 the rollback check request an owner-confirmed traffic change. The rollback check temporarily
-activates the retained reviewed predecessor, verifies it, then requires a second exact confirmation
-and readback to restore the original complete generation. A failed prerequisite blocks that check
-without moving traffic. Fixtures are detached and may be destroyed after evaluation without
-retiring their identities.
+activates the retained reviewed predecessor and verifies provider readback. Two separately
+confirmed browser checks then establish a Platform Session and prove that the predecessor's public
+`none` policy withholds identity. The operator must then provide the separate exact restoration
+confirmation, and provider readback must show the original public-`optional` complete generation
+again. A failed predecessor browser proof still proceeds to restoration and fails qualification;
+a failed prerequisite blocks rollback without moving traffic. Fixtures are detached and may be
+destroyed after evaluation without retiring their identities.
 
 Environment destruction creates a separate destructive specification, refuses active attachments,
 requires exact typed confirmation, removes traffic and external DNS safely, respects cache and

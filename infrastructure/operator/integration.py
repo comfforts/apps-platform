@@ -239,8 +239,11 @@ class LifecycleChangeRequest:
 
 @dataclass(frozen=True, slots=True)
 class RegistrationApplicationStatus:
+    """Read-only registration policy and provider target status for one app."""
+
     application_id: str
     lifecycle: str
+    catalogue_visibility: str
     resource_reference: str
     target_exists: bool
     target_ready: bool
@@ -248,6 +251,8 @@ class RegistrationApplicationStatus:
 
 @dataclass(frozen=True, slots=True)
 class RegistrationStatusResult:
+    """Registration-generation status for an exact requested application set."""
+
     outcome: str
     generation: int | None
     generation_digest: str | None
@@ -1115,7 +1120,17 @@ class ApplicationIntegrationLifecycle:
                     ("FIXTURE_REGISTRATION_MISSING",),
                 )
             attachments = registration.get("attachments")
-            if not isinstance(attachments, list) or len(attachments) != 1:
+            catalogue = registration.get("catalogue")
+            catalogue_visibility = (
+                catalogue.get("visibility")
+                if isinstance(catalogue, dict)
+                else None
+            )
+            if (
+                not isinstance(attachments, list)
+                or len(attachments) != 1
+                or catalogue_visibility not in {"listed", "unlisted"}
+            ):
                 return RegistrationStatusResult(
                     "blocked",
                     int(current.registration_set["generation"]),
@@ -1157,6 +1172,7 @@ class ApplicationIntegrationLifecycle:
                 RegistrationApplicationStatus(
                     application_id,
                     str(registration["lifecycle"]),
+                    str(catalogue_visibility),
                     resource_reference,
                     target.exists,
                     target.ready,

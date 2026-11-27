@@ -14,6 +14,10 @@ evaluation gates. Every external mutation still requires the approval named by i
 - [Environment lifecycle](environment_lifecycle.md) is the operator guide for checking readiness,
   preparing, deploying, inspecting, qualifying, recovering, and destroying one isolated staging or
   production environment.
+- [Real application adoption](application_adoption.md) describes the cross-owner handoff, stable
+  application identifier, Cloud Run target posture, verified identity consumption, and
+  application-owned permission boundary. It is a non-authorizing readiness guide until a named
+  application completes its own adoption authority and the documented platform blockers close.
 - [Historical AP-M8 qualification deployment](qualification_deployment.md) preserves the
   superseded manifest-driven procedure. It is excluded from the active reading order and provides
   no current action authority.

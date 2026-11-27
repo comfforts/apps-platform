@@ -177,15 +177,64 @@ class NetworkedFixtureTest(unittest.TestCase):
                 params={"callback_port": "80", "challenge": challenge},
                 follow_redirects=False,
             )
+            unexpected_delivery = client.get(
+                "/qualification/browser",
+                params={"callback_port": "43210", "challenge": challenge},
+                headers={VERIFIED_IDENTITY_HEADER: "unexpected.delivery"},
+                follow_redirects=False,
+            )
 
         self.assertEqual(accepted.status_code, 303)
         self.assertEqual(
             accepted.headers["location"],
             "http://127.0.0.1:43210/?"
-            "application_id=fixture-public&challenge=" + challenge,
+            "application_id=fixture-public&challenge="
+            + challenge
+            + "&identity_present=false",
         )
         self.assertEqual(accepted.headers["cache-control"], "no-store")
         self.assertEqual(invalid.status_code, 400)
+        self.assertTrue(
+            unexpected_delivery.headers["location"].endswith(
+                "&identity_present=true"
+            )
+        )
+        self.assertNotIn("unexpected.delivery", unexpected_delivery.headers["location"])
+
+    def test_browser_qualification_reports_only_verified_identity_presence(self) -> None:
+        """Return a coarse marker without exposing the verified identity context."""
+
+        optional = NetworkFixtureConfiguration(
+            application_id="fixture-public",
+            admission_mode="public",
+            platform_issuer="https://apps-staging.comfforts.com/_platform",
+            public_key_reference=(
+                "https://apps-staging.comfforts.com/.well-known/jwks.json"
+            ),
+            assertion_audience=(
+                "urn:comfforts:app-platform:audience:fixture-public"
+            ),
+        )
+        app = create_network_fixture(optional, verifier=FakeVerifier())
+        challenge = "b" * 64
+
+        with TestClient(app) as client:
+            response = client.get(
+                "/qualification/browser",
+                params={"callback_port": "43210", "challenge": challenge},
+                headers={VERIFIED_IDENTITY_HEADER: "synthetic.assertion.value"},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(
+            response.headers["location"],
+            "http://127.0.0.1:43210/?"
+            "application_id=fixture-public&challenge="
+            + challenge
+            + "&identity_present=true",
+        )
+        self.assertNotIn("synthetic-subject", response.headers["location"])
 
     def test_protected_fixture_requires_one_independently_verified_assertion(self) -> None:
         verifier = FakeVerifier()

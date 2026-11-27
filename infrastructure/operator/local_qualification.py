@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Callable, Protocol
 
 from infrastructure.operator._interfaces import OperatorTerminal, StatusResult
 from infrastructure.operator.integration import RegistrationGenerationProposal
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 from infrastructure.operator.qualification import (
     ComponentRevision,
+    FixtureQualificationPolicy,
     QualificationReadback,
 )
 from infrastructure.operator.rollback import (
@@ -24,6 +25,11 @@ _REQUIRED_FIXTURES = {
     "fixture-authenticated",
     "fixture-public",
     "fixture-restricted",
+}
+_FIXTURE_ADMISSION = {
+    "fixture-authenticated": "authenticated",
+    "fixture-public": "public",
+    "fixture-restricted": "restricted",
 }
 
 
@@ -67,7 +73,69 @@ class LocalQualificationStateReader:
         self._handoffs = handoffs
         self._provider = provider
 
+    @staticmethod
+    def _fixture_policy(
+        registration: dict[str, object],
+    ) -> FixtureQualificationPolicy:
+        """Project one validated active fixture into least-data expectations."""
+
+        application_id = registration.get("application_id")
+        admission = registration.get("admission")
+        identity_delivery = registration.get("identity_delivery")
+        catalogue = registration.get("catalogue")
+        lifecycle = registration.get("lifecycle")
+        route_prefix = registration.get("route_prefix")
+        attachments = registration.get("attachments")
+        if (
+            not isinstance(application_id, str)
+            or application_id not in _REQUIRED_FIXTURES
+            or not isinstance(admission, dict)
+            or admission.get("mode") != _FIXTURE_ADMISSION[application_id]
+            or identity_delivery not in {"none", "optional", "required"}
+            or not isinstance(catalogue, dict)
+            or catalogue.get("visibility") not in {"listed", "unlisted"}
+            or not isinstance(catalogue.get("title"), str)
+            or lifecycle != "active"
+            or route_prefix != f"/{application_id}"
+            or not isinstance(attachments, list)
+            or len(attachments) != 1
+            or not isinstance(attachments[0], dict)
+        ):
+            raise ValueError("active qualification fixture policy is invalid")
+        attachment = attachments[0]
+        audience = attachment.get("audience")
+        if (
+            attachment.get("owner_application_id") != application_id
+            or not isinstance(attachment.get("resource_reference"), str)
+            or (identity_delivery == "none" and audience is not None)
+            or (
+                identity_delivery != "none"
+                and not isinstance(audience, str)
+            )
+            or (
+                application_id == "fixture-public"
+                and identity_delivery not in {"none", "optional"}
+            )
+            or (
+                application_id != "fixture-public"
+                and identity_delivery != "required"
+            )
+        ):
+            raise ValueError("active qualification fixture attachment is invalid")
+        return FixtureQualificationPolicy(
+            application_id=application_id,
+            admission_mode=str(admission["mode"]),
+            identity_delivery=str(identity_delivery),
+            catalogue_visibility=str(catalogue["visibility"]),
+            catalogue_title=str(catalogue["title"]),
+            route_prefix=str(route_prefix),
+            target_reference=str(attachment["resource_reference"]),
+            target_audience=audience if isinstance(audience, str) else None,
+        )
+
     def read_current(self, environment: str) -> QualificationReadback:
+        """Join deployed state, active policy, handoffs, and provider readback."""
+
         status_result = self._status_reader.status(environment)
         if status_result.conflicts:
             raise ValueError("environment status has unresolved conflicts")
@@ -95,6 +163,7 @@ class LocalQualificationStateReader:
         if not isinstance(generation, int) or not isinstance(registrations, list):
             raise ValueError("active registration generation is invalid")
         active_fixtures: set[str] = set()
+        fixture_policies: list[FixtureQualificationPolicy] = []
         for registration in registrations:
             if not isinstance(registration, dict):
                 raise ValueError("active registration generation is invalid")
@@ -106,6 +175,7 @@ class LocalQualificationStateReader:
                 and lifecycle == "active"
             ):
                 active_fixtures.add(application_id)
+                fixture_policies.append(self._fixture_policy(registration))
         if active_fixtures != _REQUIRED_FIXTURES:
             raise ValueError("required qualification fixtures are not active")
 
@@ -140,6 +210,7 @@ class LocalQualificationStateReader:
             component_revisions=tuple(sorted(provider.component_revisions)),
             fixture_revisions=tuple(sorted(fixtures)),
             source_authority=str(status["source_authority"]),
+            fixture_policies=tuple(sorted(fixture_policies)),
         )
 
 
@@ -151,12 +222,16 @@ class LiveGenerationRollbackExercise:
         platform: PlatformIntegrationReader,
         generations: ReviewedGenerationControl,
         terminal: OperatorTerminal,
+        predecessor_public_none: Callable[[], bool],
     ) -> None:
         self._platform = platform
         self._generations = generations
         self._terminal = terminal
+        self._predecessor_public_none = predecessor_public_none
 
     def verify_rollback(self, environment: str, generation_digest: str) -> bool:
+        """Activate, exercise, and restore one reviewed predecessor generation."""
+
         try:
             platform = self._platform.read_platform(environment)
             original = self._generations.current(environment)
@@ -202,6 +277,17 @@ class LiveGenerationRollbackExercise:
         )
         if rollback.outcome != "activated":
             return False
+
+        try:
+            predecessor_verified = self._predecessor_public_none()
+        except Exception:
+            predecessor_verified = False
+        if not predecessor_verified:
+            self._terminal.write(
+                "PREDECESSOR CHECK FAILED: the reviewed predecessor did not "
+                "prove that a platform-authenticated session reaches the public "
+                "fixture without Platform Identity. Restoration will continue."
+            )
 
         expected = f"RESTORE {environment} GENERATION {generation} {generation_digest}"
         self._terminal.write(
@@ -259,7 +345,7 @@ class LiveGenerationRollbackExercise:
                 f"{generation} did not match provider readback. Inspect the "
                 "active generation before continuing qualification."
             )
-        return verified
+        return verified and predecessor_verified
 
 
 __all__ = (

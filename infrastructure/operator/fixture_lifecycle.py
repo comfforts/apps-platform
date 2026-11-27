@@ -128,8 +128,11 @@ class FixtureHandoffResult:
 
 @dataclass(frozen=True, slots=True)
 class FixtureApplicationStatus:
+    """Registration policy, provider posture, and route readiness for one fixture."""
+
     application_id: str
     lifecycle: str
+    catalogue_visibility: str
     target_exists: bool
     target_ready: bool
     route_ready: bool
@@ -137,6 +140,8 @@ class FixtureApplicationStatus:
 
 @dataclass(frozen=True, slots=True)
 class FixtureStatusResult:
+    """Read-only status result for all or one selected qualification fixture."""
+
     outcome: str
     registration_generation: int | None
     registration_generation_digest: str | None

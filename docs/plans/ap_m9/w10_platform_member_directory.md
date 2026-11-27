@@ -239,7 +239,9 @@ terminated; the new state applies to the next request or new connection.
    and activate one complete Version 2 Registration Generation.
 5. Add a second member, prove allow, suspend/deny, reactivate/allow, and remove/deny through
    `fixture-restricted`, then restore the reviewed owner-only baseline.
-6. Prove public `none`, public `optional`, authenticated membership-independent admission,
+6. Activate public `optional` last so the retained complete predecessor carries public `none`, then
+   prove active optional delivery and predecessor withholding through confirmed browser checks;
+   also prove authenticated membership-independent admission,
    application-owned feature denial, directory failure, logout, rollback, isolation, and evidence
    privacy.
 
@@ -278,7 +280,9 @@ authority.
 Slices 1 through 7 and their candidate-readiness corrections are integrated. Slice 7 extends the
 existing qualifier with the source-admitted member service, a reviewed owner-only
 baseline, one temporary second-member lifecycle, and a least-data browser callback that reports
-only the current restricted-route admission decision. It performs no provider operation on the
+only coarse restricted-admission and identity-presence decisions. Active attachment and catalogue
+expectations come from the exact current generation rather than hardcoded fixture posture. The
+reviewed rollback proves predecessor public `none` before restoring active public `optional`. It performs no provider operation on the
 slice branch. The real Candidate Source journey begins only from the exact clean pushed
 `feat/platform-member-directory` revision after its complete repository gate passes.
 

@@ -927,6 +927,7 @@ def _main(
                     {
                         "application_id": item.application_id,
                         "lifecycle": item.lifecycle,
+                        "catalogue_visibility": item.catalogue_visibility,
                         "target_exists": item.target_exists,
                         "target_ready": item.target_ready,
                         "route_ready": item.route_ready,

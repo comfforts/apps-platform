@@ -103,7 +103,16 @@ class Fixture:
             "read",
             3,
             "sha256:" + ("7" * 64),
-            (FixtureApplicationStatus(selected, "active", True, True, True),),
+            (
+                FixtureApplicationStatus(
+                    selected,
+                    "active",
+                    "listed",
+                    True,
+                    True,
+                    True,
+                ),
+            ),
         )
 
 
@@ -256,6 +265,10 @@ class IntegrationCliTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(result["applications"][0]["target_ready"])
         self.assertTrue(result["applications"][0]["route_ready"])
+        self.assertEqual(
+            result["applications"][0]["catalogue_visibility"],
+            "listed",
+        )
 
     def test_project_bootstrap_and_connection_are_explicit_commands(self) -> None:
         for operation, extra, outcome in (

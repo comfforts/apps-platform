@@ -116,6 +116,20 @@ class FixtureRevision:
     attachment_bundle_digest: str
 
 
+@dataclass(frozen=True, slots=True, order=True)
+class FixtureQualificationPolicy:
+    """Non-secret active-generation expectations used by Live qualification."""
+
+    application_id: str
+    admission_mode: str
+    identity_delivery: str
+    catalogue_visibility: str
+    catalogue_title: str
+    route_prefix: str
+    target_reference: str
+    target_audience: str | None
+
+
 @dataclass(frozen=True, slots=True)
 class QualificationRequest:
     environment: str
@@ -143,6 +157,7 @@ class QualificationReadback:
     component_revisions: tuple[ComponentRevision, ...]
     fixture_revisions: tuple[FixtureRevision, ...]
     source_authority: str = "accepted"
+    fixture_policies: tuple[FixtureQualificationPolicy, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -529,6 +544,7 @@ class QualificationLifecycle:
 __all__ = (
     "QUALIFICATION_CHECK_CAPABILITIES",
     "ComponentRevision",
+    "FixtureQualificationPolicy",
     "FixtureRevision",
     "QualificationCheckObservation",
     "QualificationEvaluator",

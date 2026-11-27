@@ -1,64 +1,69 @@
-# App Platform AP-M9-W10 member directory handoff
+# App Platform AP-M9-W10 Candidate Source qualification
 
 Continue the separately governed Comfforts App Platform from its canonical repository root.
 
-Use this handoff only after the governance change accepting ADR-015 has merged and protected
-`main` is current and clean. AP-M9-W10 implements and candidate-qualifies the Platform Member
-Directory and explicit Identity Delivery model. It is not the first Accepted Source operation;
-that operation moves to AP-M9-W11.
+Use this handoff only after all seven AP-M9-W10 functional-slice pull requests have merged to
+`feat/platform-member-directory`, that integration branch contains current protected `main`, the
+exact integration revision is clean and pushed, and its pull-request checks and credential-free
+`make check` gate pass. Slices 1 through 7 implement the Version 2 contracts and migration,
+isolated Platform Member Directory infrastructure, Shared Edge enforcement, bounded member
+lifecycle, complete application handoff, operator documentation, and cleanup-safe qualification
+support. No slice branch performed a Live Version 2 operation.
 
-AP-M9-W9 Candidate Source evidence remains truthful Version 1 predecessor evidence. It must not be
-relabeled as ADR-015 qualification or copied into new evidence. W10 must produce fresh Version 2
-contract, runtime, operator, fixture, and candidate-qualification evidence.
+Version 2 Candidate Source qualification passed at integration revision
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c`. The final documentation reconciliation changes the
+exact source revision, so use this handoff once more against the resulting clean pushed integration
+head. The earlier result remains truthful revision-scoped evidence but does not qualify the new
+head.
 
 Read `AGENTS.md`, follow the complete order in `docs/README.md`, and read
-`docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md` as the milestone plan and
-`docs/plans/ap_m9/w10_platform_member_directory.md` as the current work-package plan. State the
-slice and authority:
-AP-M9-W10; AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, and AP-PR-011; AP-QR-001,
-AP-QR-002, AP-QR-004, and AP-QR-006 through AP-QR-009; ADR-003, ADR-004, ADR-006, ADR-008,
-ADR-012, ADR-014, and ADR-015; AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-004 through
-AP-TM-006, AP-TM-008 through AP-TM-010, AP-TM-013, and AP-TM-014. Inspect the branch, working
-tree, remotes, and relationship to `origin/main`. Do not pull, reset, switch, commit, push, mutate
-an external system, or change repository settings without the applicable owner direction.
+`docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md` as the milestone plan,
+`docs/plans/ap_m9/w10_platform_member_directory.md` as the completed implementation package, and
+`docs/runbooks/environment_lifecycle.md#candidate-staging-verification` as the exact operator
+procedure. State this AP-M9-W10 Candidate Source operation and its authority: AP-PR-004 through
+AP-PR-006, AP-PR-008, AP-PR-010, and AP-PR-011; AP-QR-001, AP-QR-002, AP-QR-004, and AP-QR-006
+through AP-QR-009; ADR-003, ADR-004, ADR-006, ADR-008, ADR-012, ADR-014, and ADR-015;
+AP-EVAL-M9-01 through AP-EVAL-M9-09; and AP-TM-004 through AP-TM-011, AP-TM-013, and AP-TM-014.
 
-Implement the accepted model in a bounded feature branch:
+Before any authenticated or external operation, inspect the branch, working tree, remotes, exact
+relationship to `origin/feat/platform-member-directory`, and whether current `origin/main` is an
+ancestor. Report a mismatch and stop. Do not pull, reset, switch, commit, push, mutate staging, or
+change repository settings without the applicable owner direction. Run the credential-free
+repository gate and report its exact result. A tracked change after qualification invalidates the
+result.
 
-1. Add Version 2 registration, compiled-generation, Platform Integration Bundle, Application
-   Attachment Bundle, and Verified Identity Context contracts. Deterministically migrate public
-   registrations to Identity Delivery `none`, authenticated and restricted registrations to
-   `required`, and remove all per-registration member sets. Permit public `optional` only through
-   an explicit reviewed registration update.
-2. Add one environment-scoped Firestore Platform Member Directory. Platform State owns database
-   configuration, indexes, and least-privilege Shared Edge access. Member records are remote
-   operational data, never Terraform input, Git configuration, generation content, bundle data,
-   catalogue data, ordinary terminal output, or retained public evidence.
-3. Enforce public `none` and `optional`, authenticated `required`, and restricted `required` plus
-   active membership. Key members by verified issuer and immutable subject. Deliver only the
-   current visitor's minimal application-audience-bound context. Fail restricted admission closed
-   when membership is absent, inactive, unreadable, or inconsistent. Preserve application-owned
-   principals, users, roles, Feature Entitlements, separate OAuth clients, and explicit account
-   linking.
-4. Add a separately confirmed `platform-member-bootstrap-owner` operation. It must distinguish the
-   Cloud Operator from the Google Visitor, work only against a remotely empty directory, show one
-   non-sensitive exact action, create idempotently, and perform remote readback. Missing local
-   `.platform-operator` state must never permit bootstrap over a non-empty directory.
-5. Add bounded member status, add, suspend, reactivate, and remove operations. Scope every action to
-   one environment and exact remote predecessor, require confirmation for mutation, make identical
-   retries idempotent, and prove membership changes do not compile a Registration Generation or
-   deploy an application.
-6. Update the compiler, Shared Edge, operator, fixture applications, in-memory fakes, documentation,
-   and focused deterministic tests together. Keep the established top-level Make lifecycle; add
-   only the smallest member-specific and Identity Delivery inputs required by ADR-015.
-7. Run the complete credential-free `make check` gate. With owner direction for Candidate Source
-   staging testing, explicitly bootstrap the owner, add a second member, prove restricted allow,
-   suspend/deny, reactivate/allow, remove/deny, public anonymous and optional identity behavior,
-   authenticated membership-independent admission, directory failure, and application-owned
-   Feature Entitlements. Restore the reviewed member baseline before closing qualification.
+Wait for explicit owner direction before invoking the Candidate Source sequence. When directed,
+follow the runbook without reordering or combining its boundaries:
 
-Keep credentials, OAuth secrets, member identities, signed assertions, browser state, Terraform
-state, saved plans, raw provider responses, and application payloads out of Git and retained public
-evidence. Do not mutate production, `apps.comfforts.com`, Finance Assistant, or any real application.
-Do not claim Accepted Source staging, production readiness, or Application Adoption. AP-M9-W11 owns
-the first Accepted Source staging operation after W10 is merged and candidate-qualified; AP-M9-W12
-owns read-only production readiness.
+1. Run preflight and deployment checking from the exact Candidate Source revision.
+2. Bootstrap or read back the fixture project, deploy Version 2 platform state, and verify the
+   directory is remotely empty for first migration or already at the reviewed owner-only baseline
+   for a rerun.
+3. Bootstrap the owner only when the directory has never been initialized. Retain the returned
+   opaque owner reference privately; do not record identity claims or member data.
+4. Connect the fixture project and complete the Version 2 handoff, inspection, registration, and
+   status sequence for public `none`, authenticated `required`, and restricted `required`.
+5. Run `platform-qualify` with
+   `OWNER_MEMBER_REFERENCE=<reviewed-owner-member-reference>`. Keep the process open through every
+   separately confirmed routing, temporary-member, rollback, and restoration action.
+6. Require the final owner-only member baseline, intended complete Registration Generation, all
+   fixture routes, source binding, and redacted Candidate evidence to read back exactly.
+
+Qualification must reuse the existing member service to add and allow one distinct member,
+suspend and deny, reactivate and allow, remove and deny, then restore the reviewed owner-only
+baseline. Every browser invocation requires operator confirmation. The admission callback returns
+only the application identifier, one-use challenge, and coarse decision. Evidence must exclude
+member references, identities, assertions, cookies, authorization material, browser state, raw
+provider payloads, Terraform state, saved plans, and application payloads. A cleanup or baseline
+restoration blocker stops the operation; do not begin rollback or claim qualification.
+
+On success, report the exact source revision, Registration Generation and digest, evidence digest
+and private path, final member baseline state, commands, warnings, and limitations required by the
+evaluation strategy. Freeze the qualified integration revision before its cumulative pull request
+to `main`. Any defect or tracked correction requires a semantically named fix branch targeting the
+integration branch, a full repository gate, merge, and complete Candidate Source rerun.
+
+Do not treat Candidate Source as Accepted Source, mutate production, adopt Finance Assistant or
+another real application, implement ADR-016 recovery, or broaden the member-directory product.
+AP-M9-W11 owns the first Accepted Source staging operation only after the frozen qualified
+integration branch merges to protected `main`.

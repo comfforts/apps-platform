@@ -75,10 +75,17 @@ later membership changes do not redeploy an application or activate a Registrati
 Only the current visitor's minimal signed context may cross an application boundary; the directory
 and other members never do.
 
-> **Implementation status:** ADR-015 accepts this model, but AP-M9-W10 must still implement and
-> candidate-qualify the Version 2 contracts, member directory, owner enrollment, member lifecycle,
-> and fixture behavior. The deployed W9 candidate and Version 1 contracts remain predecessor
-> evidence and are not Accepted Source qualification for this model.
+> **Implementation status:** ADR-015 accepts this model. AP-M9-W10 Slices 1 through 7 implement
+> the Version 2 contracts and migration, isolated directory infrastructure and IAM, and
+> deterministic dual-version Shared Edge enforcement plus separately confirmed owner enrollment
+> and bounded member lifecycle commands, Version 2 application handoffs, fixture consumption, and
+> atomic complete-generation activation. Qualification readiness reuses those same member
+> operations, verifies current-request restricted decisions, restores the reviewed owner-only
+> baseline, and blocks rollback on any mismatch. All repository slices and candidate-readiness
+> corrections are integrated. Version 2 Candidate Source qualification passed at integration
+> revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`. Because the documentation record changes the
+> exact source revision, the resulting integration head must repeat that qualification and then
+> remain frozen before merge to `main`. Neither Candidate result is Accepted Source qualification.
 
 ### Catalogue visibility
 
@@ -268,7 +275,7 @@ the exact service. No service-account key is created or stored.
 
 | Path | Purpose |
 | --- | --- |
-| `edge/` | Shared Edge runtime, identity, routing, proxy, limits, and provider adapters |
+| [`edge/`](edge/README.md) | Shared Edge runtime, identity, routing, proxy, limits, and provider adapters |
 | `contracts/` | Public registration, identity, ownership, lifecycle, and bundle contracts |
 | `fixtures/` | Deterministic synthetic applications and registration generations |
 | `infrastructure/operator/` | Interactive platform and fixture lifecycle product |
@@ -426,6 +433,7 @@ make application-handoff-check \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-public \
   ACCESS_MODE=public \
+  IDENTITY_DELIVERY=none \
   ROUTE_INTENT=/fixture-public \
   PLATFORM_SOURCE_REVISION=<active-platform-revision> \
   PLATFORM_GENERATION=<active-registration-generation>
@@ -435,6 +443,7 @@ make platform-outputs \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-public \
   ACCESS_MODE=public \
+  IDENTITY_DELIVERY=none \
   ROUTE_INTENT=/fixture-public \
   PLATFORM_SOURCE_REVISION=<active-platform-revision> \
   PLATFORM_GENERATION=<active-registration-generation>
@@ -442,37 +451,66 @@ make platform-outputs \
 make fixture-handoff \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-public \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json
+  CATALOGUE_VISIBILITY=listed \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 
 # Inspect the three paths printed by fixture-handoff without editing them.
 make platform-register \
   ENVIRONMENT=staging \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json \
-  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v1.json \
-  REGISTRATION_INTENT=/private/path/registration-intent.v1.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
 
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-public
 ```
 
-Repeat that application-scoped sequence for `fixture-authenticated` with
-`ACCESS_MODE=authenticated` and for `fixture-restricted` with `ACCESS_MODE=restricted`. After the
-required fixtures are active, run `platform-qualify` and `platform-status`.
+The status result reports the active registration's `catalogue_visibility` (`listed` or
+`unlisted`) beside lifecycle, target, and route readiness; it does not infer visibility from the
+catalogue page.
 
-`platform-qualify` is not wholly read-only. It runs every non-mutating source, provider, DNS/TLS,
-routing, identity, isolation, transport, and redaction check first. Only when all of those checks
-pass does it offer the live rollback exercise. The terminal explains that the exercise temporarily
+Repeat that application-scoped sequence for `fixture-authenticated` with
+`ACCESS_MODE=authenticated IDENTITY_DELIVERY=required` and for `fixture-restricted` with
+`ACCESS_MODE=restricted IDENTITY_DELIVERY=required`. Public applications may instead select
+`IDENTITY_DELIVERY=optional` through the same explicit handoff. No command infers public identity
+delivery from an ambient Platform Session. After the required fixtures are active, run
+`platform-qualify` and `platform-status`.
+
+`platform-qualify` is not wholly read-only and requires
+`OWNER_MEMBER_REFERENCE=<reviewed-opaque-owner-reference>`. It first verifies source, provider,
+DNS/TLS, routing, identity, isolation, transport, and redaction. It then uses the existing member
+service to verify the owner-only baseline; add a separately verified second member; prove
+allow/suspend-and-deny/reactivate-and-allow/remove-and-deny decisions on the next request; and
+verify the owner-only baseline again. A failed step attempts removal reconciliation and reports a
+restoration-required blocker if the final baseline is not exact. The owner reference and temporary
+member reference are not written to qualification evidence.
+
+Only when every prerequisite passes does qualification offer the live rollback exercise. The
+terminal explains that the exercise temporarily
 moves 100 percent of staging traffic to the reviewed predecessor, asks for exact rollback
 confirmation, verifies the change, then asks for exact restoration confirmation and verifies that
-the original generation is again serving all traffic. Keep the command running through both
-confirmations. If any earlier check fails, rollback is recorded as blocked and traffic is not
-changed.
+the original generation is again serving all traffic. While the predecessor is active, one
+separately confirmed browser check establishes a Platform Session and a second proves that the
+predecessor's public `none` policy withholds Platform Identity. If that second callback still
+observes the successor's optional-identity policy, qualification waits briefly and may offer up to
+two more separately confirmed observations for bounded traffic convergence. A final failure keeps
+its exact stable blocker in the qualification result. Restoration is still attempted if that proof
+fails. Keep the command running through every browser and generation confirmation. If
+any earlier check fails, rollback is recorded as blocked and traffic is not changed.
 
-The identity check uses exactly three browser actions, and the command asks `y/N` immediately
-before each one. The first clears any existing Apps Platform session and asks the operator to sign
-in with the exact reviewed staging account. The second reuses that session to verify restricted
-admission. The third logs out, verifies server-side session deletion, and returns through the
-public fixture without starting another login. Declining a browser action stops qualification with
-a blocker naming the unconfirmed step; the command never opens the next tab on its own.
+The active-generation routing identity check uses exactly four browser actions, and the command
+asks `y/N` immediately before each one. The first clears any existing Apps Platform session and
+asks the operator to sign in with the exact reviewed staging account. The second reuses that
+session to prove optional identity delivery to the public fixture. The third verifies restricted
+admission. The fourth logs out, verifies server-side session deletion, and returns through the
+public fixture with identity absent and without starting another login. Declining a browser action
+stops qualification with a blocker naming the unconfirmed step; the command never opens the next
+tab on its own.
+
+The temporary-member exercise has its own separately confirmed browser actions. Member `add`
+performs the normal one-use Visitor verification. Each of the four post-transition checks then
+asks before opening the browser and returns only the coarse current decision for
+`fixture-restricted` to loopback. Cookies, identity claims, directory records, and provider
+payloads remain in their owning boundaries.
 
 A repository revision change alone does not require another `platform-deploy`. Fixture commands
 validate their own current source independently, then consume the provider-verified active
@@ -493,7 +531,9 @@ for fixtures because the fixture flow deliberately demonstrates the same separat
 a real application. Rerunning the handoff reuses the exact prepared pair only while the source,
 project connection, platform generation, image, bundle digests, and live target remain current.
 `fixture-status` is suite-wide by default, or narrowed with an optional `APPLICATION_ID`, so an
-operator can inspect the whole qualification suite or diagnose one fixture without mutation.
+operator can inspect the whole qualification suite or diagnose one fixture without mutation. Each
+application row includes the active registration's `catalogue_visibility` as well as lifecycle,
+target, and route readiness.
 
 `platform-deploy` remains active across OAuth and DNS checkpoints. Ordinary reviewed plans use one
 `y/N` confirmation. Typed confirmation is reserved for destruction, retirement, ownership
@@ -574,7 +614,8 @@ make platform-connect-project ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
 # For each fixture: application-handoff-check, platform-outputs, fixture-handoff,
 # inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
-make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  OWNER_MEMBER_REFERENCE=<reviewed-owner-member-reference>
 ```
 
 Candidate Source is refused for production. Its specifications, bundles, status, and evidence are
@@ -594,6 +635,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-deploy ENVIRONMENT=<name>` | Run platform readiness, stop on an unreadable or invalid check, then reuse or prepare approval and reconcile fresh exact plans, checkpoints, and readback |
 | `make platform-deploy-check ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Classify platform readiness from required services, working-tree state compatibility, provider readback, and lock-free plan policy without mutation |
 | `make platform-status ENVIRONMENT=<name>` | Report checkout, recorded deployment, active runtime, execution, and qualification state without mutation |
+| `make platform-member-identify ENVIRONMENT=<name>` | Confirm a browser login, recover only that Visitor's opaque member reference, and read its exact lifecycle without listing or mutation |
 | `make fixture-project-bootstrap ENVIRONMENT=staging FIXTURES_PROJECT_ID=<project-id> FIXTURES_PROJECT_NAME="<display-name>"` | Idempotently create or repair the selected fixture application project, state bucket, and image repository; read back its provider-assigned project number; create no runtime or route |
 | `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |
 | `make application-handoff-check ...` | Require the platform-ready result, then verify the named application project, its services and Shared VPC grants, bundle inputs, access mode, and application identity projection without mutation |
@@ -601,10 +643,10 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-register ...` | Validate an application attachment and activate a complete immutable generation |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
-| `make platform-qualify ENVIRONMENT=<name>` | Evaluate the exact platform and fixture revisions, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every non-mutating check passes; write redacted evidence |
+| `make platform-qualify ENVIRONMENT=<name> OWNER_MEMBER_REFERENCE=<opaque-reference>` | Evaluate the exact platform and fixture revisions, exercise and clean up one temporary second member, require the reviewed owner-only baseline, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every prerequisite passes; write redacted evidence without member references |
 | `make platform-destroy ENVIRONMENT=<name>` | Compile, confirm, execute, and resume safe platform destruction |
-| `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and registration intent, and stop before registration |
-| `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
+| `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> CATALOGUE_VISIBILITY=<listed\|unlisted> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and explicit catalogue intent, and stop before registration |
+| `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Report active catalogue visibility and reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
 | `make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=<id>` | After `platform-detach`, destroy only one fixture's Application State |
 
 Production uses a separate profile, state, identity, OAuth client, DNS/TLS resources, evidence, and
@@ -642,6 +684,7 @@ make application-handoff-check \
   APPLICATION_PROJECT_ID=<application-project-id> \
   APPLICATION_ID=<application-id> \
   ACCESS_MODE=<public|authenticated|restricted> \
+  IDENTITY_DELIVERY=<none|optional|required> \
   ROUTE_INTENT=/<route> \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   PLATFORM_GENERATION=<positive-integer>
@@ -651,6 +694,7 @@ make platform-outputs \
   APPLICATION_PROJECT_ID=<application-project-id> \
   APPLICATION_ID=<application-id> \
   ACCESS_MODE=<public|authenticated|restricted> \
+  IDENTITY_DELIVERY=<none|optional|required> \
   ROUTE_INTENT=/<route> \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   PLATFORM_GENERATION=<positive-integer>
@@ -661,9 +705,9 @@ make platform-outputs \
 
 make platform-register \
   ENVIRONMENT=staging \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.json \
-  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.json \
-  REGISTRATION_INTENT=/private/path/registration-intent.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
 
 make platform-status ENVIRONMENT=staging
 ```
@@ -676,6 +720,11 @@ that the currently deployed platform and connected project can support the reque
 mode, `platform-outputs` creates the application-specific handoff, and
 `platform-register` validates the returned attachment and activates the new complete Registration
 Generation.
+
+The [real-application adoption runbook](docs/runbooks/application_adoption.md) records the full
+cross-owner sequence, Cloud Run posture, `application_id` bindings, and the separation between
+verified Platform Identity and application-owned permissions. It is a readiness reference, not
+current authority to adopt a real application.
 
 The integration bundle contains only values the named application is allowed to consume. It may
 contain an OAuth client identifier when required, but never the OAuth client secret, a credential,
@@ -721,10 +770,14 @@ environment is deployed or qualified.
 AP-M9-W9 is implemented and candidate-qualified under the predecessor Version 1 membership model.
 Candidate staging proved the dedicated fixture project, Shared VPC attachment, all three admission
 modes, separate registration, and the restricted-fixture detach, destruction, redeployment, and
-reactivation lifecycle. Candidate Source is not Accepted Source qualification. ADR-015 now requires
-AP-M9-W10 to implement and candidate-qualify the Platform Member Directory and explicit Identity
-Delivery before the first Accepted Source staging operation. Production remains blocked on that
-accepted result, explicit ownership transfer, and application adoption.
+reactivation lifecycle. Candidate Source is not Accepted Source qualification. AP-M9-W10 has
+integrated all seven repository slices and its candidate-readiness corrections. Version 2
+Candidate Source staging qualification passed at revision
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c`; this documentation-only reconciliation changes the
+source revision, so the resulting clean pushed integration head must repeat the complete
+qualification and then be frozen before the cumulative pull request to `main`.
+Production remains blocked on that accepted result, explicit ownership transfer, and application
+adoption.
 
 See [the documentation index](docs/README.md) for the current work-package sequence, evidence
 boundary, and historical delivery record.

@@ -1,14 +1,15 @@
-# App Platform product requirements
+# <u>App Platform product requirements</u>
 
-Version 0.6 | Status: requirements authority through the AP-M9 operator lifecycle; W9 Candidate
-Qualification exists, ADR-015 implementation and Candidate Source qualification remain AP-M9-W10
-work, and Accepted Source qualification remains AP-M9-W11 work
+Version 0.8 | Status: requirements authority through the AP-M9 operator lifecycle; W9 Candidate
+Qualification exists; ADR-015 implementation is integrated; Version 2 Candidate Source
+qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c` and must be repeated
+after the final documentation reconciliation; Accepted Source qualification remains AP-M9-W11 work
 
 This document defines what Comfforts App Platform must provide and the ownership boundaries it must
 preserve. It is authoritative for the platform project only. It does not change a consuming
 application, provision infrastructure, modify DNS, or prove that any requirement is operational.
 
-## Product outcome
+## <u>Product outcome</u>
 
 The App Platform provides a configurable shared hostname where people can discover and reach
 independently owned applications through stable route prefixes. It centralizes only the Shared Edge,
@@ -23,7 +24,7 @@ configuration rather than assumptions embedded in reusable platform behavior. Ex
 resources remain under their current owner until an explicit ownership-transfer and adoption
 procedure completes.
 
-## Actors
+## <u>Actors</u>
 
 - **Platform Owner:** approves platform requirements, registrations, admission policy, live
   qualification, and destructive shared-resource changes.
@@ -37,7 +38,7 @@ procedure completes.
 One person may hold more than one role. Roles describe authority boundaries, not a required account
 or identity-provider design.
 
-## Product requirements
+## <u>Product requirements</u>
 
 ### AP-PR-001 · Application catalogue
 
@@ -193,7 +194,7 @@ tombstone and cannot reactivate. Route release, if later required, is an explici
 reviewed operation and never follows automatically from detachment, retirement, application
 destruction, or platform-environment destruction.
 
-## Quality requirements
+## <u>Quality requirements</u>
 
 ### AP-QR-001 · Exclusive resource and state ownership
 
@@ -287,7 +288,7 @@ stops the lifecycle and requires new preparation and approval. Manual provider s
 recorded as operator-attested when no readback exists and must never be described as
 provider-verified.
 
-## Security, privacy, and rights invariants
+## <u>Security, privacy, and rights invariants</u>
 
 - The platform stores no application prompts, portfolios, goals, provider payloads, or other product
   data merely because it routes an application.
@@ -303,7 +304,7 @@ provider-verified.
 - No credential, secret value, Terraform state, saved plan, authenticated browser state, or
   unredacted external payload may be committed.
 
-## Non-goals for the initial platform
+## <u>Non-goals for the initial platform</u>
 
 - General-public production hosting, high availability, or a zero-downtime service-level objective
 - Ownership of application runtimes, databases, vector stores, queues, provider integrations, or
@@ -314,7 +315,7 @@ provider-verified.
 - Infrastructure implementation, live DNS mutation, credential creation, or cloud qualification in
   this documentation slice
 
-## Decisions deferred to subsequent authorities
+## <u>Decisions deferred to subsequent authorities</u>
 
 The accepted architecture decisions, system design, contracts, implementation plan, and evaluation
 strategy will determine the following without weakening these requirements:
@@ -329,7 +330,7 @@ strategy will determine the following without weakening these requirements:
 Discussion history is not authority for those decisions. Until the corresponding documents are
 approved, they remain unresolved and no implementation may infer them.
 
-## Acceptance boundary
+## <u>Acceptance boundary</u>
 
 Each requirement must be traced to future system-design components, implementation-plan work,
 deterministic tests, and evaluation evidence before it may be called qualified. The existence of

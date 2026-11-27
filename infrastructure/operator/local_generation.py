@@ -67,6 +67,12 @@ class GenerationProvider(Protocol):
         environment: str,
     ) -> ProviderGenerationBinding: ...
 
+    def read_revision_binding(
+        self,
+        environment: str,
+        revision_name: str,
+    ) -> ProviderGenerationBinding: ...
+
 
 def _canonical(value: object) -> bytes:
     return json.dumps(
@@ -315,6 +321,47 @@ class LocalRegistrationGenerationControl:
             raise ValueError("active platform source binding mismatch")
         return active.platform_source_revision
 
+    @staticmethod
+    def _binding_matches_proposal(
+        binding: ProviderGenerationBinding,
+        proposal: RegistrationGenerationProposal,
+    ) -> bool:
+        """Match one provider runtime to the immutable generation it claims."""
+
+        generation = proposal.registration_set.get("generation")
+        contract_version = proposal.compiled_configuration.get("contract_version")
+        if (
+            not isinstance(generation, int)
+            or generation < 1
+            or contract_version not in {1, 2}
+        ):
+            return False
+        expected_objects = {
+            (
+                f"environments/{proposal.environment}/generations/{generation}/"
+                f"compiled-shared-edge.v{contract_version}.json"
+            ),
+            (
+                f"generations/{proposal.generation_digest[7:]}/"
+                f"compiled-shared-edge.v{contract_version}.json"
+            ),
+        }
+        if (
+            generation == 1
+            and proposal.registration_set.get("previous_generation_digest") is None
+        ):
+            expected_objects.add("generations/1/compiled.json")
+        return (
+            binding.environment == proposal.environment
+            and binding.generation == generation
+            and binding.generation_digest == proposal.generation_digest
+            and binding.content_digest == proposal.content_digest
+            and binding.object_name in expected_objects
+            and binding.object_generation > 0
+            and bool(binding.revision_name)
+            and bool(binding.image_reference)
+        )
+
     def record_active_runtime(self, binding: ProviderGenerationBinding) -> None:
         """Rebind one unchanged generation to its verified current edge revision."""
 
@@ -329,30 +376,7 @@ class LocalRegistrationGenerationControl:
         proposal = self.read_proposal(binding.environment, binding.generation_digest)
         if proposal is None:
             raise ValueError("active runtime generation proposal is missing")
-        generation = proposal.registration_set.get("generation")
-        expected_objects = {
-            (
-                f"environments/{binding.environment}/generations/"
-                f"{binding.generation}/compiled-shared-edge.v1.json"
-            ),
-            (
-                f"generations/{binding.generation_digest[7:]}/"
-                "compiled-shared-edge.v1.json"
-            ),
-        }
-        if (
-            generation == 1
-            and proposal.registration_set.get("previous_generation_digest") is None
-        ):
-            expected_objects.add("generations/1/compiled.json")
-        if (
-            generation != binding.generation
-            or proposal.content_digest != binding.content_digest
-            or binding.object_name not in expected_objects
-            or binding.object_generation < 1
-            or not binding.revision_name
-            or not binding.image_reference
-        ):
+        if not self._binding_matches_proposal(binding, proposal):
             raise ValueError("active runtime generation binding mismatch")
         self._filesystem.write_state(
             self._provider_path(binding.environment, binding.generation_digest),
@@ -536,10 +560,24 @@ class LocalRegistrationGenerationControl:
         environment: str,
         generation_digest: str,
     ) -> ReviewedGeneration | None:
+        """Read one retained generation and corroborate its provider runtime."""
+
         proposal = self.read_proposal(environment, generation_digest)
         provider = self._provider_record(environment, generation_digest)
         if proposal is None or provider is None:
             return None
+        if self._provider is None:
+            raise RuntimeError("generation provider is unavailable")
+        binding = self._provider.read_revision_binding(
+            environment,
+            provider["revision_name"],
+        )
+        if (
+            binding.revision_name != provider["revision_name"]
+            or binding.object_generation != provider["object_generation"]
+            or not self._binding_matches_proposal(binding, proposal)
+        ):
+            raise ValueError("reviewed provider generation binding mismatch")
         return ReviewedGeneration(
             publication_reference=(
                 "urn:comfforts:app-platform:generation:"
@@ -547,6 +585,7 @@ class LocalRegistrationGenerationControl:
                 f"revision:{provider['revision_name']}"
             ),
             proposal=proposal,
+            platform_source_revision=binding.platform_source_revision,
         )
 
 

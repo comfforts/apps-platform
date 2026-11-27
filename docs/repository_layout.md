@@ -1,7 +1,9 @@
 # App Platform repository layout
 
-Version 2.8 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version 1;
-ADR-015 accepted and AP-M9-W10 implementation is next
+Version 2.15 | Status: canonical dedicated repository; AP-M9-W9 candidate-qualified under Version
+1; ADR-015 accepted; all seven AP-M9-W10 slices and candidate-readiness corrections are integrated;
+Version 2 Candidate Source qualification passed at the named integration revision, with one
+post-reconciliation exact-revision rerun required before freeze
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -18,15 +20,15 @@ permission to create a resource or perform an external action.
 | `docs/plans/` | canonical implementation-plan index, AP-M3 through AP-M8 origin plan, and milestone directories containing `000-` entry points plus substantial work-package plans |
 | `docs/history/` | superseded delivery records with no action authority |
 | `prompts/` | bounded next-task entry points subordinate to current documents |
-| `contracts/` | Version 1 public schemas, compiler, vectors, and bounded loading |
-| `contracts/lifecycle/` | AP-M9 profiles and lifecycle-document schemas, vectors, digests, and cross-document validation |
-| `fixtures/` | deterministic in-process Fixture platform and synthetic applications |
-| `edge/` | network Shared Edge and production-adapter implementation |
+| `contracts/` | readable Version 1 predecessors plus active Version 2 schemas, compilers, migration, vectors, and bounded loading |
+| `contracts/lifecycle/` | AP-M9 profiles plus readable Version 1 and active Version 2 handoff schemas, vectors, digests, and cross-document validation |
+| [`fixtures/`](../fixtures/README.md) | current networked synthetic applications plus the retained deterministic Version 1 reference harness |
+| [`edge/`](../edge/README.md) | network Shared Edge and production-adapter implementation |
 | `integrations/` | inactive application-adoption drafts |
 | `infrastructure/tools/` | credential-free dependency setup and static validation |
 | `infrastructure/config/` | AP-M7 non-secret configuration contracts and deterministic validation |
 | `infrastructure/config/profiles/` | small reviewed staging and disabled-production environment profiles |
-| `infrastructure/operator/` | linear Python preflight, preparation, local-only active-operation cancellation, exact-plan deployment, application integration, atomic progress, status, resume, external-effect adapters, and thin CLI |
+| [`infrastructure/operator/`](../infrastructure/operator/README.md) | linear Python preflight, preparation, local-only active-operation cancellation, exact-plan deployment, application integration, member lifecycle, cleanup-safe member qualification, atomic progress, status, resume, external-effect adapters, and thin CLI |
 | `infrastructure/backend/` | AP-M9-W5 backend rendering, lineage, operation authority, plan policy, and fake command integration |
 | `infrastructure/terraform/bootstrap/` | state-bucket owner root with closed bootstrap phase output |
 | `infrastructure/terraform/platform/` | phased foundation and Shared Edge configuration on one Platform State lineage |

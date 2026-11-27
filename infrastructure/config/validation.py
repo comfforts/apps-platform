@@ -341,6 +341,8 @@ def _backend_violations(value: dict[str, Any]) -> list[Violation]:
 
 
 def _platform_violations(value: dict[str, Any]) -> list[Violation]:
+    """Return closed ownership and immutable-reference violations for one platform input."""
+
     violations: list[Violation] = []
     phase = value.get("phase")
     destruction_mode = value.get("destruction_mode")
@@ -426,24 +428,26 @@ def _platform_violations(value: dict[str, Any]) -> list[Violation]:
         generation_digest = generation.get("generation_digest")
         object_name = generation.get("object_name")
         environment = value.get("environment")
+        compiled_names = (
+            "compiled-shared-edge.v1.json",
+            "compiled-shared-edge.v2.json",
+        )
         legacy_initial = (
             number == 1 and object_name == "generations/1/compiled.json"
         )
         legacy_content_addressed = (
             isinstance(generation_digest, str)
-            and object_name
-            == (
-                f"generations/{generation_digest.removeprefix('sha256:')}/"
-                "compiled-shared-edge.v1.json"
+            and object_name in (
+                f"generations/{generation_digest.removeprefix('sha256:')}/{name}"
+                for name in compiled_names
             )
         )
         environment_scoped = (
             isinstance(environment, str)
             and isinstance(number, int)
-            and object_name
-            == (
-                f"environments/{environment}/generations/{number}/"
-                "compiled-shared-edge.v1.json"
+            and object_name in (
+                f"environments/{environment}/generations/{number}/{name}"
+                for name in compiled_names
             )
         )
         if not (legacy_initial or legacy_content_addressed or environment_scoped):
@@ -471,14 +475,12 @@ def _fixture_violations(value: dict[str, Any]) -> list[Violation]:
             )
         )
     audience = value.get("assertion_audience")
-    if (mode == "public" and audience is not None) or (
-        mode in {"authenticated", "restricted"} and not isinstance(audience, str)
-    ):
+    if mode in {"authenticated", "restricted"} and not isinstance(audience, str):
         violations.append(
             _violation(
                 "CONFIGURATION_POLICY_INVALID",
                 "/assertion_audience",
-                "public fixtures omit an audience and protected fixtures require one",
+                "protected fixtures require an application-bound audience",
             )
         )
     if isinstance(application_id, str) and value.get("service_name") != application_id:

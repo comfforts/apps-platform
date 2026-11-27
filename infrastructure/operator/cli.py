@@ -8,10 +8,11 @@ from pathlib import Path
 import sys
 from typing import Callable, Sequence
 
-from contracts import load_json_document
 from contracts.lifecycle import (
     canonical_lifecycle_bytes,
-    load_lifecycle_document,
+    canonical_versioned_lifecycle_bytes,
+    load_versioned_lifecycle_document,
+    validate_versioned_lifecycle_relationships,
 )
 from infrastructure.operator.application_handoff_check import (
     ApplicationHandoffCheck,
@@ -33,12 +34,14 @@ from infrastructure.operator.local import (
     build_local_fixture_operator,
     build_local_fixture_status_operator,
     build_local_integration,
+    build_local_member_lifecycle,
     build_local_operator,
     build_local_project_lifecycle,
     build_local_qualification,
 )
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
 from infrastructure.operator.output import print_result as _print
+from infrastructure.operator.member_lifecycle import PlatformMemberLifecycle
 from infrastructure.operator.qualification import QualificationLifecycle
 
 
@@ -72,6 +75,8 @@ _HANDOFF_CHECK_GUIDANCE = {
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Define the closed operator command and argument surface."""
+
     parser = argparse.ArgumentParser(prog="apps-platform-operator")
     parser.add_argument(
         "operation",
@@ -94,6 +99,13 @@ def _parser() -> argparse.ArgumentParser:
             "fixture-handoff",
             "fixture-status",
             "fixture-destroy",
+            "platform-member-status",
+            "platform-member-identify",
+            "platform-member-bootstrap-owner",
+            "platform-member-add",
+            "platform-member-suspend",
+            "platform-member-reactivate",
+            "platform-member-remove",
         ),
         help="platform lifecycle operation",
     )
@@ -133,6 +145,14 @@ def _parser() -> argparse.ArgumentParser:
         "--access-mode",
         choices=("authenticated", "public", "restricted"),
     )
+    parser.add_argument(
+        "--identity-delivery",
+        choices=("none", "optional", "required"),
+    )
+    parser.add_argument(
+        "--catalogue-visibility",
+        choices=("listed", "unlisted"),
+    )
     parser.add_argument("--route-intent")
     parser.add_argument("--platform-source-revision")
     parser.add_argument("--platform-generation", type=int)
@@ -140,6 +160,14 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--integration-bundle", type=Path)
     parser.add_argument("--attachment-bundle", type=Path)
     parser.add_argument("--registration-intent", type=Path)
+    parser.add_argument("--member-reference")
+    parser.add_argument(
+        "--owner-member-reference",
+        help=(
+            "reviewed opaque active owner reference used to prove qualification "
+            "restores the owner-only member baseline"
+        ),
+    )
     return parser
 
 
@@ -199,8 +227,14 @@ def _default_application_handoff_check_factory(
 def _default_qualification_factory(
     state_directory: Path,
     source_authority: str,
+    owner_member_reference: str,
 ) -> QualificationLifecycle:
-    return build_local_qualification(PROJECT_ROOT, state_directory, source_authority)
+    return build_local_qualification(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+        owner_member_reference,
+    )
 
 
 def _default_destruction_factory(
@@ -243,6 +277,19 @@ def _default_project_factory(  # type: ignore[no-untyped-def]
     )
 
 
+def _default_member_factory(
+    state_directory: Path,
+    source_authority: str,
+) -> PlatformMemberLifecycle:
+    """Construct the verified local member lifecycle without running an action."""
+
+    return build_local_member_lifecycle(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+    )
+
+
 def _required(arguments: argparse.Namespace, name: str) -> object:
     value = getattr(arguments, name)
     if value is None or (isinstance(value, str) and not value.strip()):
@@ -252,49 +299,54 @@ def _required(arguments: argparse.Namespace, name: str) -> object:
 
 
 def _load_input(path: Path, kind: str) -> dict[str, object]:
-    loaded = load_lifecycle_document(path, kind)
+    """Load one canonical historical-or-current handoff document."""
+
+    loaded = load_versioned_lifecycle_document(path, kind)
     if loaded.violations or loaded.value is None:
         raise ValueError(f"invalid {kind}")
     return loaded.value
 
 
 def _load_registration_intent(path: Path) -> RegistrationIntent:
-    loaded = load_json_document(path, max_bytes=65_536)
-    if loaded.violations or not isinstance(loaded.value, dict):
+    """Load the canonical V2 intent used to confirm bundle policy at registration."""
+
+    loaded = load_versioned_lifecycle_document(
+        path,
+        "registration-intent",
+        max_bytes=65_536,
+    )
+    if loaded.violations or loaded.value is None:
         raise ValueError("invalid registration intent")
     value = loaded.value
-    expected = {
-        "attachment_id",
-        "catalogue_summary",
-        "catalogue_title",
-        "catalogue_visibility",
-        "forwarding_mode",
-        "mount_path",
-        "restricted_members",
-    }
-    if set(value) != expected or not isinstance(value["restricted_members"], list):
-        raise ValueError("invalid registration intent")
-    members: list[tuple[str, str]] = []
-    for member in value["restricted_members"]:
-        if not isinstance(member, dict) or set(member) != {"issuer", "subject"}:
-            raise ValueError("invalid registration intent")
-        issuer = member["issuer"]
-        subject = member["subject"]
-        if not isinstance(issuer, str) or not isinstance(subject, str):
-            raise ValueError("invalid registration intent")
-        members.append((issuer, subject))
-    string_fields = expected - {"restricted_members"}
-    if any(not isinstance(value[field], str) for field in string_fields):
-        raise ValueError("invalid registration intent")
     return RegistrationIntent(
-        catalogue_visibility=value["catalogue_visibility"],
-        catalogue_title=value["catalogue_title"],
-        catalogue_summary=value["catalogue_summary"],
-        attachment_id=value["attachment_id"],
-        mount_path=value["mount_path"],
-        forwarding_mode=value["forwarding_mode"],
-        restricted_members=tuple(members),
+        application_id=str(value["application_id"]),
+        access_mode=str(value["access_mode"]),
+        identity_delivery=str(value["identity_delivery"]),
+        catalogue_visibility=str(value["catalogue_visibility"]),
+        catalogue_title=str(value["catalogue_title"]),
+        catalogue_summary=str(value["catalogue_summary"]),
+        attachment_id=str(value["attachment_id"]),
+        mount_path=str(value["mount_path"]),
+        forwarding_mode=str(value["forwarding_mode"]),
     )
+
+
+def _registration_intent_document(intent: RegistrationIntent) -> dict[str, object]:
+    """Recreate the closed V2 document for cross-document relationship validation."""
+
+    return {
+        "contract_version": 2,
+        "document_kind": "registration-intent",
+        "application_id": intent.application_id,
+        "access_mode": intent.access_mode,
+        "identity_delivery": intent.identity_delivery,
+        "catalogue_visibility": intent.catalogue_visibility,
+        "catalogue_title": intent.catalogue_title,
+        "catalogue_summary": intent.catalogue_summary,
+        "attachment_id": intent.attachment_id,
+        "mount_path": intent.mount_path,
+        "forwarding_mode": intent.forwarding_mode,
+    }
 
 
 def _trace_invocation(
@@ -334,7 +386,7 @@ def _main(
         [Path, str], ApplicationIntegrationLifecycle
     ] = _default_integration_factory,
     qualification_factory: Callable[
-        [Path, str], QualificationLifecycle
+        [Path, str, str], QualificationLifecycle
     ] = _default_qualification_factory,
     destruction_factory: Callable[
         [Path, str], DestructionLifecycle
@@ -342,7 +394,12 @@ def _main(
     fixture_factory: Callable[[Path, str], object] = _default_fixture_factory,
     fixture_status_factory: Callable[[Path, str], object] = _default_fixture_status_factory,
     project_factory: Callable[[Path, str], object] = _default_project_factory,
+    member_factory: Callable[
+        [Path, str], PlatformMemberLifecycle
+    ] = _default_member_factory,
 ) -> int:
+    """Dispatch one parsed operator invocation and emit one JSON result."""
+
     parser = _parser()
     arguments = parser.parse_args(argv)
     if arguments.operation != "preflight" and arguments.preflight_mode != "operational":
@@ -458,6 +515,22 @@ def _main(
             qualification = qualification_factory(
                 arguments.state_directory,
                 arguments.source_authority,
+                str(_required(arguments, "owner_member_reference")),
+            )
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+    elif arguments.operation.startswith("platform-member-"):
+        try:
+            members = member_factory(
+                arguments.state_directory,
+                arguments.source_authority,
             )
         except RuntimeError as error:
             _print(
@@ -483,6 +556,75 @@ def _main(
                 }
             )
             return 2
+
+    if arguments.operation.startswith("platform-member-"):
+        try:
+            if arguments.operation == "platform-member-status":
+                result = members.status(
+                    arguments.environment,
+                    arguments.member_reference,
+                )
+            elif arguments.operation == "platform-member-identify":
+                result = members.identify(arguments.environment)
+            elif arguments.operation == "platform-member-bootstrap-owner":
+                result = members.bootstrap_owner(arguments.environment)
+            elif arguments.operation == "platform-member-add":
+                result = members.add(arguments.environment)
+            else:
+                reference = str(_required(arguments, "member_reference"))
+                if arguments.operation == "platform-member-suspend":
+                    result = members.suspend(arguments.environment, reference)
+                elif arguments.operation == "platform-member-reactivate":
+                    result = members.reactivate(arguments.environment, reference)
+                else:
+                    result = members.remove(arguments.environment, reference)
+        except ValueError:
+            _print(
+                {
+                    "blockers": ["MEMBER_REFERENCE_INVALID"],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                    "source_authority": arguments.source_authority,
+                }
+            )
+            return 2
+        _print(
+            {
+                "blockers": list(result.blockers),
+                "directory_state": result.directory_state,
+                "environment": arguments.environment,
+                "member_lifecycle": result.member_lifecycle,
+                "member_reference": result.member_reference,
+                "mutation_cursor": result.mutation_cursor,
+                "outcome": result.outcome,
+                "source_authority": arguments.source_authority,
+            }
+        )
+        if result.outcome in {
+            "added",
+            "bootstrapped",
+            "identified",
+            "read",
+            "reactivated",
+            "removed",
+            "suspended",
+            "unchanged",
+        }:
+            if result.outcome == "identified":
+                print(
+                    "Platform member reference identified from the verified "
+                    "browser visitor.",
+                    file=sys.stderr,
+                )
+                print(file=sys.stderr)
+            elif result.outcome != "read":
+                print(
+                    "Platform member action completed with exact remote readback.",
+                    file=sys.stderr,
+                )
+                print(file=sys.stderr)
+            return 0
+        return 2
 
     if arguments.operation == "preflight":
         result = operator.preflight(
@@ -571,6 +713,9 @@ def _main(
                     _required(arguments, "application_project_id")
                 ),
                 access_mode=str(_required(arguments, "access_mode")),
+                identity_delivery=str(
+                    _required(arguments, "identity_delivery")
+                ),
                 route_intent=str(_required(arguments, "route_intent")),
                 platform_source_revision=str(
                     _required(arguments, "platform_source_revision")
@@ -583,6 +728,7 @@ def _main(
         _print(
             {
                 "access_mode": arguments.access_mode,
+                "identity_delivery": arguments.identity_delivery,
                 "application_id": arguments.application_id,
                 "application_project_id": arguments.application_project_id,
                 "blockers": list(result.blockers),
@@ -706,6 +852,7 @@ def _main(
         return 0 if result.outcome == "connected" else 2
 
     if arguments.operation == "fixture-handoff":
+        catalogue_visibility = str(_required(arguments, "catalogue_visibility"))
         integration_bundle_path = Path(
             _required(arguments, "integration_bundle")
         )
@@ -726,6 +873,7 @@ def _main(
         result = fixture.handoff(
             arguments.environment,
             selected_fixture,
+            catalogue_visibility,
             integration_bundle,
             str(integration_bundle_path.resolve()),
         )
@@ -779,6 +927,7 @@ def _main(
                     {
                         "application_id": item.application_id,
                         "lifecycle": item.lifecycle,
+                        "catalogue_visibility": item.catalogue_visibility,
                         "target_exists": item.target_exists,
                         "target_ready": item.target_ready,
                         "route_ready": item.route_ready,
@@ -968,6 +1117,9 @@ def _main(
                 environment=arguments.environment,
                 application_id=str(_required(arguments, "application_id")),
                 access_mode=str(_required(arguments, "access_mode")),
+                identity_delivery=str(
+                    _required(arguments, "identity_delivery")
+                ),
                 route_intent=str(_required(arguments, "route_intent")),
                 expected_platform_source_revision=str(
                     _required(arguments, "platform_source_revision")
@@ -985,14 +1137,14 @@ def _main(
             relative_output_path = (
                 f"environments/{arguments.environment}/bundles/"
                 f"{result.bundle['application_id']}/"
-                f"{result.bundle_digest[7:]}.v1.json"
+                f"{result.bundle_digest[7:]}.v2.json"
             )
             filesystem = LocalFilesystem(PROJECT_ROOT, arguments.state_directory)
             output_path = str(filesystem.state_path(relative_output_path))
             try:
                 filesystem.write_state(
                     relative_output_path,
-                    canonical_lifecycle_bytes(
+                    canonical_versioned_lifecycle_bytes(
                         result.bundle,
                         "platform-integration-bundle",
                     )
@@ -1035,6 +1187,12 @@ def _main(
             intent = _load_registration_intent(
                 Path(_required(arguments, "registration_intent"))
             )
+            if validate_versioned_lifecycle_relationships(
+                integration_bundle=integration_bundle,
+                attachment_bundle=attachment_bundle,
+                registration_intent=_registration_intent_document(intent),
+            ):
+                raise ValueError("application handoff relationship mismatch")
         except ValueError:
             _print(
                 {
@@ -1178,6 +1336,9 @@ def main(
     fixture_factory: Callable[[Path, str], object] = _default_fixture_factory,
     fixture_status_factory: Callable[[Path, str], object] = _default_fixture_status_factory,
     project_factory: Callable[[Path, str], object] = _default_project_factory,
+    member_factory: Callable[
+        [Path, str], PlatformMemberLifecycle
+    ] = _default_member_factory,
 ) -> int:
     try:
         return _main(
@@ -1191,6 +1352,7 @@ def main(
             fixture_factory=fixture_factory,
             fixture_status_factory=fixture_status_factory,
             project_factory=project_factory,
+            member_factory=member_factory,
         )
     except Exception as error:
         arguments = list(argv) if argv is not None else sys.argv[1:]

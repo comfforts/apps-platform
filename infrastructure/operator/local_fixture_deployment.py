@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any, Protocol
 
-from contracts.lifecycle import validate_lifecycle_document
+from contracts.lifecycle import validate_versioned_lifecycle_document
 from infrastructure.backend import PhasePlanRequest
 from infrastructure.config import validate_configuration
 from infrastructure.operator._interfaces import StageContext
@@ -97,12 +97,17 @@ class FixtureConfigurationRenderer:
             external_origin = endpoints["external_origin"]
             edge_caller = identity["edge_caller_reference"]
             audience = identity["audience"]
+            identity_delivery = bundle["identity_delivery"]
             project_id = application_project["project_id"]
             project_number = application_project["project_number"]
         except (KeyError, TypeError) as error:
             raise LocalDeploymentInputError("FIXTURE_INPUT_INCOMPLETE") from error
         if (
-            validate_lifecycle_document(bundle, "platform-integration-bundle")
+            bundle.get("contract_version") != 2
+            or validate_versioned_lifecycle_document(
+                bundle,
+                "platform-integration-bundle",
+            )
             or bundle.get("environment") != "staging"
             or bundle.get("application_id") != request.owner_id
             or bundle.get("access_mode") != access_mode
@@ -116,8 +121,18 @@ class FixtureConfigurationRenderer:
             or network.get("host_project_number") != "455651441682"
             or network.get("region") != _REGION
             or network.get("egress_mode") != "all-traffic"
-            or (access_mode == "public" and audience is not None)
-            or (access_mode != "public" and not isinstance(audience, str))
+            or (access_mode, identity_delivery)
+            not in {
+                ("public", "none"),
+                ("public", "optional"),
+                ("authenticated", "required"),
+                ("restricted", "required"),
+            }
+            or (identity_delivery == "none" and audience is not None)
+            or (
+                identity_delivery != "none"
+                and not isinstance(audience, str)
+            )
         ):
             raise LocalDeploymentInputError("INTEGRATION_BUNDLE_MISMATCH")
 

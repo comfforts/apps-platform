@@ -23,7 +23,10 @@ from infrastructure.operator.local_qualification import (
     LocalQualificationStateReader,
     ProviderQualificationSnapshot,
 )
-from infrastructure.operator.qualification import ComponentRevision
+from infrastructure.operator.qualification import (
+    ComponentRevision,
+    QualificationVerificationResult,
+)
 from infrastructure.operator.rollback import ReviewedGeneration
 
 
@@ -69,18 +72,43 @@ class FakeProvider:
 
 
 def _proposal() -> RegistrationGenerationProposal:
-    registrations = [
-        {
-            "application_id": application_id,
-            "lifecycle": "active",
-            "registration_revision": 1,
-        }
-        for application_id in (
-            "fixture-authenticated",
-            "fixture-public",
-            "fixture-restricted",
+    registrations = []
+    for application_id, admission_mode, identity_delivery, visibility in (
+        ("fixture-authenticated", "authenticated", "required", "listed"),
+        ("fixture-public", "public", "optional", "listed"),
+        ("fixture-restricted", "restricted", "required", "listed"),
+    ):
+        audience = (
+            f"urn:comfforts:app-platform:audience:{application_id}"
+            if identity_delivery != "none"
+            else None
         )
-    ]
+        registrations.append(
+            {
+                "admission": {"mode": admission_mode},
+                "application_id": application_id,
+                "attachments": [
+                    {
+                        "attachment_id": "primary",
+                        "audience": audience,
+                        "owner_application_id": application_id,
+                        "resource_reference": (
+                            "urn:comfforts:app-platform:gcp:cloud-run:"
+                            f"123456789012:us-west1:{application_id}"
+                        ),
+                    }
+                ],
+                "catalogue": {
+                    "summary": "Synthetic qualification application",
+                    "title": application_id.replace("-", " ").title(),
+                    "visibility": visibility,
+                },
+                "identity_delivery": identity_delivery,
+                "lifecycle": "active",
+                "registration_revision": 1,
+                "route_prefix": f"/{application_id}",
+            }
+        )
     return RegistrationGenerationProposal(
         environment="staging",
         registration_set={
@@ -154,6 +182,41 @@ class LocalQualificationStateReaderTest(unittest.TestCase):
             ),
         )
         self.assertEqual(current.component_revisions[0].name, "shared-edge")
+        self.assertEqual(
+            tuple(
+                (
+                    item.application_id,
+                    item.admission_mode,
+                    item.identity_delivery,
+                    item.catalogue_visibility,
+                    item.target_audience,
+                )
+                for item in current.fixture_policies
+            ),
+            (
+                (
+                    "fixture-authenticated",
+                    "authenticated",
+                    "required",
+                    "listed",
+                    "urn:comfforts:app-platform:audience:fixture-authenticated",
+                ),
+                (
+                    "fixture-public",
+                    "public",
+                    "optional",
+                    "listed",
+                    "urn:comfforts:app-platform:audience:fixture-public",
+                ),
+                (
+                    "fixture-restricted",
+                    "restricted",
+                    "required",
+                    "listed",
+                    "urn:comfforts:app-platform:audience:fixture-restricted",
+                ),
+            ),
+        )
 
     def test_missing_fixture_or_provider_generation_mismatch_fails_closed(self) -> None:
         missing = _proposal()
@@ -194,7 +257,11 @@ class LiveGenerationRollbackExerciseTest(unittest.TestCase):
                 generation_digest=digest,
                 content_digest="sha256:" + ("5" * 64),
             )
-            return ReviewedGeneration(f"revision:{generation}", proposal)
+            return ReviewedGeneration(
+                f"revision:{generation}",
+                proposal,
+                "a" * 40,
+            )
 
         predecessor = reviewed(1, predecessor_digest, None)
         original = reviewed(2, original_digest, predecessor_digest)
@@ -234,8 +301,9 @@ class LiveGenerationRollbackExerciseTest(unittest.TestCase):
                 return GenerationActivationReadback(True, digest)
 
         class Terminal:
-            confirmations: list[str] = []
-            messages: list[str] = []
+            def __init__(self) -> None:
+                self.confirmations: list[str] = []
+                self.messages: list[str] = []
 
             def write(self, message):  # type: ignore[no-untyped-def]
                 self.messages.append(message)
@@ -249,22 +317,46 @@ class LiveGenerationRollbackExerciseTest(unittest.TestCase):
                 self.confirmations.append(expected)
                 return True
 
-        generations = Generations()
-        terminal = Terminal()
+        for predecessor_valid in (True, False):
+            with self.subTest(predecessor_valid=predecessor_valid):
+                generations = Generations()
+                terminal = Terminal()
+                observed: list[ReviewedGeneration] = []
 
-        verified = LiveGenerationRollbackExercise(
-            Platform(),
-            generations,
-            terminal,
-        ).verify_rollback("staging", original_digest)
+                def verify_predecessor() -> QualificationVerificationResult:
+                    observed.append(generations.selected)
+                    return QualificationVerificationResult(
+                        predecessor_valid,
+                        ()
+                        if predecessor_valid
+                        else ("LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",),
+                    )
 
-        self.assertTrue(verified)
-        self.assertIs(generations.selected, original)
-        self.assertEqual(len(terminal.confirmations), 2)
-        transcript = "\n".join(terminal.messages)
-        self.assertIn("temporarily", transcript)
-        self.assertIn("100 percent", transcript)
-        self.assertIn("restore", transcript.lower())
+                verified = LiveGenerationRollbackExercise(
+                    Platform(),
+                    generations,
+                    terminal,
+                    verify_predecessor,
+                ).verify_rollback("staging", original_digest)
+
+                self.assertEqual(verified.verified, predecessor_valid)
+                self.assertEqual(observed, [predecessor])
+                self.assertIs(generations.selected, original)
+                self.assertEqual(len(terminal.confirmations), 2)
+                transcript = "\n".join(terminal.messages)
+                self.assertIn("temporarily", transcript)
+                self.assertIn("100 percent", transcript)
+                self.assertIn("restore", transcript.lower())
+                if not predecessor_valid:
+                    self.assertIn("Restoration will continue", transcript)
+                    self.assertIn(
+                        "LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",
+                        transcript,
+                    )
+                    self.assertEqual(
+                        verified.blockers,
+                        ("LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",),
+                    )
 
 
 if __name__ == "__main__":

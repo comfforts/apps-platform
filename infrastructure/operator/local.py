@@ -1020,6 +1020,88 @@ def build_local_deployment_check(
     )
 
 
+def build_local_member_lifecycle(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+):
+    """Compose member administration after verifying the human Cloud Operator.
+
+    Construction verifies the active Cloud SDK account and user ADC boundary but
+    performs no member read or mutation.  The returned deep service applies source
+    admission before every provider operation and obtains Visitor identity only
+    through the separate one-use browser verifier.
+    """
+
+    resolved_project = project_root.resolve()
+    terminal = ConsoleTerminal()
+    executable_name = shutil.which("gcloud")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
+    verified = _verified_gcp_session(
+        ProfileGcp(
+            Path(executable_name).resolve() if executable_name else None,
+            configuration,
+        ),
+        state_root,
+        terminal,
+    )
+    return _compose_local_member_lifecycle(
+        resolved_project,
+        source_authority,
+        verified,
+        terminal,
+    )
+
+
+def _compose_local_member_lifecycle(
+    project_root: Path,
+    source_authority: str,
+    verified: _VerifiedGcpSession,
+    terminal: ConsoleTerminal,
+):
+    """Compose the source-admitted member service from one verified session.
+
+    Member commands and platform qualification call this same constructor.  The
+    qualification path therefore cannot bypass Cloud Operator admission,
+    browser Visitor verification, provider transactions, confirmations, or
+    exact readback by inventing a second administration adapter.
+    """
+
+    from infrastructure.operator.member_browser import (
+        LoopbackMemberVisitorVerifier,
+    )
+    from infrastructure.operator.member_lifecycle import PlatformMemberLifecycle
+    from infrastructure.operator.local_members import (
+        FirestoreMemberDirectoryProvider,
+        LocalMemberOperationAuthorizer,
+        SystemMemberBrowserLauncher,
+        UnixMemberClock,
+        member_clients,
+        member_origins,
+    )
+
+    return PlatformMemberLifecycle(
+        FirestoreMemberDirectoryProvider(member_clients()),
+        LoopbackMemberVisitorVerifier(
+            SystemMemberBrowserLauncher(),
+            terminal,
+            member_origins(),
+        ),
+        LocalMemberOperationAuthorizer(
+            LocalGit(project_root),
+            source_authority,
+            bool(verified.facts.operator_subject),
+        ),
+        terminal,
+        UnixMemberClock(),
+    )
+
+
 def _local_generation_provider(
     project_root: Path,
     state_root: Path,
@@ -1240,7 +1322,6 @@ def build_local_fixture_operator(
     gcloud = verified.executable
     configuration = verified.configuration
     resolved_state = verified.state_root
-    session = verified.facts
     fixture_project = fixtures_project_id()
     working_root = _fixture_working_root(resolved_state, fixture_project)
 
@@ -1303,7 +1384,6 @@ def build_local_fixture_operator(
             integration,
             image_provider,
             executor,
-            (session.operator_issuer, session.operator_subject),
             LocalApplicationHandoffs(filesystem),
             terminal,
             LocalFixturePreparations(filesystem),
@@ -1439,14 +1519,19 @@ def build_local_qualification(
     project_root: Path,
     state_root: Path,
     source_authority: str = "accepted",
+    owner_member_reference: str = "",
 ):
-    """Construct exact staging qualification only for a verified human session."""
+    """Construct staging qualification bound to one reviewed active owner."""
 
     from infrastructure.operator.live_qualification import (
         HttpxQualificationClient,
         LoopbackBrowserQualification,
+        LoopbackMemberAdmissionQualification,
         StagingQualificationProbe,
         SystemBrowserLauncher,
+    )
+    from infrastructure.operator.member_qualification import (
+        MemberQualificationExercise,
     )
     from infrastructure.operator.local_generation import (
         LocalRegistrationGenerationControl,
@@ -1510,16 +1595,33 @@ def build_local_qualification(
         fixtures_project_id(),
         fixtures_project_name(),
     ).read_project(fixtures_project_id())
+    member_lifecycle = _compose_local_member_lifecycle(
+        resolved_project,
+        source_authority,
+        verified,
+        terminal,
+    )
+    browser_launcher = SystemBrowserLauncher()
+    browser_qualification = LoopbackBrowserQualification(browser_launcher, terminal)
     probe = StagingQualificationProbe(
         HttpxQualificationClient(),
-        LoopbackBrowserQualification(SystemBrowserLauncher(), terminal),
+        browser_qualification,
         provider,
         LiveGenerationRollbackExercise(
             platform,
             LocalReviewedGenerationControl(generations),
             terminal,
+            browser_qualification.verify_public_none,
         ),
         fixture_project,
+        MemberQualificationExercise(
+            member_lifecycle,
+            LoopbackMemberAdmissionQualification(
+                browser_launcher,
+                terminal,
+            ),
+        ),
+        owner_member_reference,
     )
     return QualificationLifecycle(state_reader, QualificationSuiteEvaluator(probe))
 

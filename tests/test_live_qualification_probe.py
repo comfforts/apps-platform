@@ -12,7 +12,11 @@ from infrastructure.operator.live_qualification import (
     QualificationHttpResponse,
     StagingQualificationProbe,
 )
-from infrastructure.operator.qualification import QualificationProbeRequest
+from infrastructure.operator.qualification import (
+    QualificationProbeRequest,
+    QualificationVerificationResult,
+)
+from infrastructure.operator.member_qualification import MemberQualificationResult
 from infrastructure.operator.project_connections import (
     ApplicationProjectReadback,
     NETWORK_REFERENCE,
@@ -25,7 +29,12 @@ from tests.test_qualification_suite import readback
 
 @dataclass
 class Browser:
-    result: BrowserQualificationResult = BrowserQualificationResult(True, True, True)
+    result: BrowserQualificationResult = BrowserQualificationResult(
+        True,
+        True,
+        True,
+        True,
+    )
     calls: int = 0
 
     def verify(self) -> BrowserQualificationResult:
@@ -65,7 +74,7 @@ class Http:
             return QualificationHttpResponse(
                 200,
                 {},
-                b"Public fixture Restricted fixture",
+                b"Authenticated fixture Public fixture Restricted fixture",
             )
         if path == "/fixture-public/upload":
             return QualificationHttpResponse(204, {}, b"")
@@ -103,11 +112,7 @@ class Targets:
                 "serviceAccount:app-platform-edge-caller@"
                 "comfforts-platform-non-prod.iam.gserviceaccount.com"
             ),
-            (
-                None
-                if application_id == "fixture-public"
-                else f"urn:comfforts:app-platform:audience:{application_id}"
-            ),
+            f"urn:comfforts:app-platform:audience:{application_id}",
             application_project_id=FIXTURES_PROJECT_ID,
             network_reference=NETWORK_REFERENCE,
             subnetwork_reference=SUBNETWORK_REFERENCE,
@@ -118,12 +123,45 @@ class Targets:
 @dataclass
 class Lifecycle:
     verified: bool = True
+    blockers: tuple[str, ...] = ()
 
-    def verify_rollback(self, environment: str, generation_digest: str) -> bool:
-        return environment == "staging" and bool(generation_digest) and self.verified
+    def verify_rollback(
+        self,
+        environment: str,
+        generation_digest: str,
+    ) -> QualificationVerificationResult:
+        verified = (
+            environment == "staging"
+            and bool(generation_digest)
+            and self.verified
+        )
+        return QualificationVerificationResult(verified, self.blockers)
+
+
+@dataclass
+class Members:
+    result: MemberQualificationResult = MemberQualificationResult(
+        True,
+        True,
+        4,
+        4,
+    )
+    calls: list[tuple[str, str]] | None = None
+
+    def verify(
+        self,
+        environment: str,
+        owner_member_reference: str,
+    ) -> MemberQualificationResult:
+        if self.calls is None:
+            self.calls = []
+        self.calls.append((environment, owner_member_reference))
+        return self.result
 
 
 class LiveQualificationProbeTest(unittest.TestCase):
+    owner_reference = "pmr1_" + "1" * 64
+
     @staticmethod
     def _fixture_project() -> ApplicationProjectReadback:
         return ApplicationProjectReadback(
@@ -156,6 +194,7 @@ class LiveQualificationProbeTest(unittest.TestCase):
 
     def test_all_closed_checks_pass_through_exact_live_adapters(self) -> None:
         browser = Browser()
+        members = Members()
         current = self._current()
         probe = StagingQualificationProbe(
             Http(),
@@ -163,6 +202,8 @@ class LiveQualificationProbeTest(unittest.TestCase):
             Targets(),
             Lifecycle(),
             self._fixture_project(),
+            members,
+            self.owner_reference,
         )  # type: ignore[arg-type]
         checks = (
             "admission-identity",
@@ -184,16 +225,141 @@ class LiveQualificationProbeTest(unittest.TestCase):
 
         self.assertTrue(all(item.outcome == "pass" for item in results))
         self.assertEqual(browser.calls, 1)
+        self.assertEqual(members.calls, [("staging", self.owner_reference)])
         self.assertTrue(all(not item.blockers for item in results))
+
+    def test_rollback_failure_preserves_the_exact_predecessor_blocker(self) -> None:
+        probe = StagingQualificationProbe(
+            Http(),
+            Browser(),
+            Targets(),
+            Lifecycle(
+                False,
+                ("LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",),
+            ),
+            self._fixture_project(),
+            Members(),
+            self.owner_reference,
+        )
+
+        result = probe.evaluate(
+            QualificationProbeRequest("lifecycle-rollback", (), self._current())
+        )
+
+        self.assertEqual(result.outcome, "fail")
+        self.assertEqual(
+            result.blockers,
+            (
+                "LIVE_LIFECYCLE_ROLLBACK_MISMATCH",
+                "LIVE_PREDECESSOR_PUBLIC_NONE_IDENTITY_MISMATCH",
+            ),
+        )
+
+    def test_live_posture_and_catalogue_follow_the_active_generation_policy(
+        self,
+    ) -> None:
+        """Accept reviewed public-optional and all-listed fixture configuration."""
+
+        class ActiveTargets(Targets):
+            def read_target(self, environment, resource_reference):  # type: ignore[no-untyped-def]
+                observed = super().read_target(environment, resource_reference)
+                if observed.owner_application_id == "fixture-public":
+                    return replace(
+                        observed,
+                        audience=(
+                            "urn:comfforts:app-platform:audience:fixture-public"
+                        ),
+                    )
+                return observed
+
+        class ActiveCatalogue(Http):
+            def request(self, method, path, **kwargs):  # type: ignore[no-untyped-def]
+                observed = super().request(method, path, **kwargs)
+                if path == "/" and not kwargs.get("insecure_http"):
+                    return replace(
+                        observed,
+                        body=(
+                            b"Public fixture Authenticated fixture Restricted fixture"
+                        ),
+                    )
+                return observed
+
+        current = self._current()
+        probe = StagingQualificationProbe(
+            ActiveCatalogue(),
+            Browser(),
+            ActiveTargets(),
+            Lifecycle(),
+            self._fixture_project(),
+            Members(),
+            self.owner_reference,
+        )
+
+        results = {
+            check: probe.evaluate(QualificationProbeRequest(check, (), current))
+            for check in (
+                "attachment-posture",
+                "catalogue-routing",
+                "direct-origin-denial",
+            )
+        }
+
+        self.assertEqual(
+            {check: result.blockers for check, result in results.items()},
+            {
+                "attachment-posture": (),
+                "catalogue-routing": (),
+                "direct-origin-denial": (),
+            },
+        )
+
+    def test_admission_requires_active_public_optional_identity_policy(self) -> None:
+        """Reject a generation that does not expose the W10 optional path."""
+
+        current = self._current()
+        current = replace(
+            current,
+            fixture_policies=tuple(
+                replace(
+                    policy,
+                    identity_delivery="none",
+                    target_audience=None,
+                )
+                if policy.application_id == "fixture-public"
+                else policy
+                for policy in current.fixture_policies
+            ),
+        )
+        probe = StagingQualificationProbe(
+            Http(),
+            Browser(),
+            Targets(),
+            Lifecycle(),
+            self._fixture_project(),
+            Members(),
+            self.owner_reference,
+        )
+
+        result = probe.evaluate(
+            QualificationProbeRequest("admission-identity", (), current)
+        )
+
+        self.assertEqual(result.outcome, "fail")
+        self.assertEqual(
+            result.blockers,
+            ("LIVE_PUBLIC_OPTIONAL_POLICY_MISMATCH",),
+        )
 
     def test_browser_failure_preserves_the_exact_step_blocker(self) -> None:
         current = self._current()
         probe = StagingQualificationProbe(
             Http(),
-            Browser(BrowserQualificationResult(False, False, False)),
+            Browser(BrowserQualificationResult(False, False, False, False)),
             Targets(),
             Lifecycle(),
             self._fixture_project(),
+            Members(),
+            self.owner_reference,
         )  # type: ignore[arg-type]
 
         result = probe.evaluate(
@@ -213,12 +379,15 @@ class LiveQualificationProbeTest(unittest.TestCase):
                     True,
                     False,
                     False,
+                    False,
                     "LIVE_RESTRICTED_BROWSER_CHECK_NOT_CONFIRMED",
                 )
             ),
             Targets(),
             Lifecycle(),
             self._fixture_project(),
+            Members(),
+            self.owner_reference,
         )  # type: ignore[arg-type]
 
         result = probe.evaluate(
@@ -253,6 +422,8 @@ class LiveQualificationProbeTest(unittest.TestCase):
             Targets(),
             Lifecycle(),
             self._fixture_project(),
+            Members(),
+            self.owner_reference,
         ).evaluate(
             QualificationProbeRequest(
                 "admission-identity",
@@ -281,6 +452,8 @@ class LiveQualificationProbeTest(unittest.TestCase):
             Targets(),
             Lifecycle(),
             self._fixture_project(),
+            Members(),
+            self.owner_reference,
         ).evaluate(
             QualificationProbeRequest("dns-tls", (), self._current())
         )
@@ -295,6 +468,8 @@ class LiveQualificationProbeTest(unittest.TestCase):
             Targets(),
             Lifecycle(),
             replace(self._fixture_project(), subnet_user_granted=False),
+            Members(),
+            self.owner_reference,
         )  # type: ignore[arg-type]
 
         result = probe.evaluate(
@@ -307,6 +482,47 @@ class LiveQualificationProbeTest(unittest.TestCase):
 
         self.assertEqual(result.outcome, "fail")
         self.assertEqual(result.blockers, ("LIVE_ATTACHMENT_POSTURE_MISMATCH",))
+
+    def test_member_lifecycle_failure_preserves_cleanup_blockers(self) -> None:
+        members = Members(
+            MemberQualificationResult(
+                False,
+                False,
+                2,
+                2,
+                (
+                    "LIVE_MEMBER_SUSPEND_ADMISSION_MISMATCH",
+                    "QUALIFICATION_MEMBER_BASELINE_RESTORATION_REQUIRED",
+                ),
+            )
+        )
+        probe = StagingQualificationProbe(
+            Http(),
+            Browser(),
+            Targets(),
+            Lifecycle(),
+            self._fixture_project(),
+            members,
+            self.owner_reference,
+        )  # type: ignore[arg-type]
+
+        result = probe.evaluate(
+            QualificationProbeRequest(
+                "admission-identity",
+                (),
+                self._current(),
+            )
+        )
+
+        self.assertEqual(result.outcome, "fail")
+        self.assertEqual(
+            result.blockers,
+            (
+                "LIVE_MEMBER_SUSPEND_ADMISSION_MISMATCH",
+                "QUALIFICATION_MEMBER_BASELINE_RESTORATION_REQUIRED",
+            ),
+        )
+        self.assertNotIn("pmr1_", repr(result.observation))
 
 
 if __name__ == "__main__":

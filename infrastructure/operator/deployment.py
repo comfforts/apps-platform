@@ -287,6 +287,10 @@ _TERRAFORM_APPLY_GUIDANCE = {
     "TERRAFORM_APPLY_CONFLICT": (
         "the provider reported a conflicting concurrent or existing operation"
     ),
+    "TERRAFORM_APPLY_CONTAINER_STARTUP_FAILED": (
+        "the deployed container exited or did not listen on its configured port; "
+        "inspect the private revision diagnostic before retrying"
+    ),
     "TERRAFORM_APPLY_DEPENDENCY_PROPAGATION_PENDING": (
         "a newly created provider dependency is not readable yet; wait briefly and replan"
     ),

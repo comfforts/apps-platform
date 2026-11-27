@@ -4,12 +4,14 @@ Use this runbook to deploy, inspect, qualify, and remove one App Platform enviro
 environment is one isolated staging or production deployment with its own hostname, cloud project,
 state, identity, OAuth client, DNS and TLS resources, application registrations, and evidence.
 
-> **Identity-model transition:** The commands below currently implement the predecessor model in
-> which restricted members are registration inputs. The accepted target instead uses one
-> environment-wide platform member directory and an explicit identity-delivery choice. That target
-> is not operational yet. Until the implementation lands, use this runbook only to understand or
-> diagnose the current deployment; do not treat a new run as acceptance of the target identity
-> model.
+> **Identity-model transition:** The repository implements the Version 2 contracts, directory
+> infrastructure, Shared Edge enforcement, member lifecycle, application handoff, and complete
+> generation activation. All repository slices and candidate-readiness corrections are integrated.
+> Version 2 Candidate Source qualification passed at revision
+> `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; W9 qualification remains separate Version 1
+> predecessor evidence. Because this documentation reconciliation changes the source revision, use
+> the Candidate Source procedure below once more from the resulting exact clean pushed integration
+> head after its repository gate passes and the owner deliberately starts that operation.
 
 | Environment | Intended hostname | Current operating boundary |
 | --- | --- | --- |
@@ -58,7 +60,7 @@ or otherwise rewrite that record.
 
 ## Normal staging lifecycle
 
-The currently implemented predecessor staging journey is:
+The implemented staging command journey is:
 
 ```bash
 make fixture-project-bootstrap ENVIRONMENT=staging \
@@ -70,7 +72,8 @@ make platform-connect-project ENVIRONMENT=staging \
 # For each fixture: application-handoff-check, platform-outputs, fixture-handoff,
 # inspect, then platform-register.
 make fixture-status ENVIRONMENT=staging
-make platform-qualify ENVIRONMENT=staging
+make platform-qualify ENVIRONMENT=staging \
+  OWNER_MEMBER_REFERENCE=<reviewed-owner-member-reference>
 make platform-status ENVIRONMENT=staging
 ```
 
@@ -251,6 +254,67 @@ status reports their alignment as diagnostics rather than treating every differe
 read. An unreadable or internally inconsistent record remains a blocker. A deployed resource is
 not necessarily qualified; status reports those states separately.
 
+## Administer platform members
+
+Platform deployment leaves the remote member directory empty and never enrolls an owner. After a
+revision containing the member lifecycle and Shared Edge verification endpoint is deployed, read
+the coarse remote state and deliberately bootstrap the first owner:
+
+```bash
+make platform-member-status ENVIRONMENT=staging
+make platform-member-bootstrap-owner ENVIRONMENT=staging
+make platform-member-identify ENVIRONMENT=staging
+make platform-member-status ENVIRONMENT=staging \
+  MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+```
+
+Each mutating command first verifies Accepted or Candidate Source plus the active human Cloud
+Operator session. Bootstrap and add then ask separately before opening the browser. The browser
+clears any ambient Platform Session and asks for the exact Google Visitor identity being enrolled.
+These are different authorities: the active gcloud account never becomes the enrolled Visitor
+implicitly. The edge returns only the opaque environment-scoped member reference to one
+challenge-bound loopback callback. Never enter an email, issuer, subject, cookie, authorization
+code, or token in the terminal.
+
+`platform-member-identify` is the read-only reference-recovery path. It asks before opening the
+same one-use browser flow, returns only the verified Visitor's environment-scoped opaque reference,
+then reads that exact member's current lifecycle. It never creates, changes, removes, or enumerates
+a member. Use the returned reference with member status or a later reviewed lifecycle operation.
+
+Bootstrap succeeds only when remote control proves the directory was never initialized and a
+boolean provider probe proves no member document exists. A previously initialized directory whose
+members were removed is not bootstrapable. An exact initial-owner retry is unchanged only when the
+control document and sole member still match the first successful state.
+
+Routine administration uses:
+
+```bash
+make platform-member-add ENVIRONMENT=staging
+make platform-member-suspend ENVIRONMENT=staging \
+  MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+make platform-member-reactivate ENVIRONMENT=staging \
+  MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+make platform-member-remove ENVIRONMENT=staging \
+  MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+```
+
+Add uses the browser-derived reference as the new member. Suspend, reactivate, and remove use the
+explicit opaque target reference created during enrollment; the affected Visitor does not need to
+sign in again. Every change shows the environment, operation, target, remote predecessor cursor,
+current state, and requested state before confirmation. Removal additionally requires an exact
+typed phrase. The provider compares
+the reviewed predecessor, advances the directory cursor and updates or removes the selected member
+in one transaction, then performs exact readback. A stale, conflicting, interrupted, malformed, or
+provider-unavailable result is not success; inspect the named safe blocker and rerun only after its
+cause is understood.
+
+Member administration does not run Terraform, deploy the platform or an application, publish a
+bundle, or compile or activate a Registration Generation. Ordinary status reads either coarse
+directory state or one explicitly requested opaque reference and never lists members. Member
+administration alone does not make Version 2 active in an environment. The application handoff and
+registration commands below create and activate only one complete Version 2 family after their
+exact inputs and target readback pass.
+
 ## Connect an application
 
 Applications remain responsible for their own runtime, data, state, secrets, and feature
@@ -309,6 +373,7 @@ make application-handoff-check \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-public \
   ACCESS_MODE=public \
+  IDENTITY_DELIVERY=none \
   ROUTE_INTENT=/fixture-public \
   PLATFORM_SOURCE_REVISION=<active-platform-revision> \
   PLATFORM_GENERATION=<active-registration-generation>
@@ -318,6 +383,7 @@ make platform-outputs \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-public \
   ACCESS_MODE=public \
+  IDENTITY_DELIVERY=none \
   ROUTE_INTENT=/fixture-public \
   PLATFORM_SOURCE_REVISION=<active-platform-revision> \
   PLATFORM_GENERATION=<active-registration-generation>
@@ -325,14 +391,15 @@ make platform-outputs \
 make fixture-handoff \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-public \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json
+  CATALOGUE_VISIBILITY=listed \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 
 # Inspect all three printed files without editing them.
 make platform-register \
   ENVIRONMENT=staging \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json \
-  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v1.json \
-  REGISTRATION_INTENT=/private/path/registration-intent.v1.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
 
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-public
 ```
@@ -346,7 +413,15 @@ exact platform endpoints, OAuth client identifier, and application audience. It
 publishes no bundle and writes no operational lifecycle state. `PLATFORM_RECONCILIATION_REQUIRED`
 means run and review `platform-deploy` before attempting the application handoff.
 
-Repeat for the authenticated and restricted fixture with the matching admission mode and route.
+Repeat for the authenticated and restricted fixture with the matching admission mode and route,
+using `IDENTITY_DELIVERY=required`. Public handoffs may use `none` or explicit `optional`; no
+public opt-in is inferred from a Platform Session.
+Each fixture handoff also requires the application-owned
+`CATALOGUE_VISIBILITY=<listed|unlisted>` choice. Catalogue visibility is absent from
+`application-handoff-check` and `platform-outputs` because it belongs to the reviewed registration
+intent rather than platform readiness or the integration bundle. Changing visibility requires a
+fresh current-generation bundle family and registration intent, while an unchanged live fixture
+runtime and image may be reused.
 Each fixture root uses an independent prefix in the fixture-project state bucket and creates only
 that fixture's Application State. `platform-register` reads back the target before activating a
 complete Registration Generation that preserves the other registrations.
@@ -440,7 +515,8 @@ mutate foundation resources.
 
 `fixture-status` reconciles all three fixture registrations and provider targets by default. During
 an individual rollout or investigation, add `APPLICATION_ID=<fixture-application-id>` to narrow the
-read-only result to one fixture. `target_ready` is Cloud Run/provider posture;
+read-only result to one fixture. Each result includes the active Registration Generation's
+`catalogue_visibility` (`listed` or `unlisted`). `target_ready` is Cloud Run/provider posture;
 `route_ready` is a separate HTTPS read of the platform route and becomes true only for a successful
 response or a real authentication redirect. An active registration and ready target do not by
 themselves make `route_ready` true.
@@ -450,7 +526,8 @@ themselves make `route_ready` true.
 After platform and fixture deployment, run:
 
 ```bash
-make platform-qualify ENVIRONMENT=staging
+make platform-qualify ENVIRONMENT=staging \
+  OWNER_MEMBER_REFERENCE=<reviewed-owner-member-reference>
 ```
 
 Qualification checks the exact source, specification, final deployment progress, registration generation, provider
@@ -458,14 +535,25 @@ resources, DNS and TLS behavior, catalogue and routing, admission and identity, 
 verification, direct-origin denial, isolation, streaming behavior, rollback readiness, and
 redaction. It records only approved, redacted evidence.
 
-The admission check presents three browser steps. Read each step and answer its separate `y/N`
+The owner reference is the opaque value returned by the separately confirmed owner-bootstrap
+operation and retained privately by the operator. Qualification first verifies that it identifies
+the only active member. It then uses the same member service as the standalone member commands to
+add one separately verified Visitor, suspend, reactivate, and remove that temporary member. After
+each transition, a separately confirmed browser invocation asks Shared Edge for the current
+`fixture-restricted` admission decision. Only `allowed` or `denied` returns to loopback; identity,
+cookies, directory records, and provider payloads do not. Every exit attempts temporary-member
+cleanup and rereads the owner-only baseline. A restoration-required blocker is a stop condition.
+
+The active-generation admission check presents four browser steps. Read each step and answer its separate `y/N`
 prompt before the command opens a tab:
 
 1. Clear any prior Apps Platform session and sign in with the exact reviewed staging operator
    account.
-2. Reuse that platform session to verify restricted-fixture admission; another Google sign-in is
+2. Reuse that platform session to prove that public `optional` delivers independently verified
+   Platform Identity without requiring it for anonymous access.
+3. Reuse that platform session to verify restricted-fixture admission; another Google sign-in is
    not expected.
-3. Log out of Apps Platform and return through the public fixture. Shared Edge verifies that the
+4. Log out of Apps Platform and return through the public fixture. Shared Edge verifies that the
    server-side session is absent before this step succeeds. This does not log the account out of
    Google and does not start a later sign-in test.
 
@@ -473,14 +561,30 @@ The terminal names the exact step when a browser cannot be opened, a callback do
 the operator declines confirmation. Do not reuse unexplained callback tabs from an earlier run;
 only the tab opened after the current prompt belongs to the current step.
 
-The command completes all non-mutating checks before offering a rollback. If any of them fails,
+The command completes all source/readback checks and the cleanup-safe temporary-member exercise
+before offering a rollback. If any prerequisite fails,
 `lifecycle-rollback` is recorded as blocked with
 `QUALIFICATION_ROLLBACK_PREREQUISITE_FAILED`; the command does not prompt for rollback and does not
-move traffic. When they all pass, the command explains the traffic effect before asking for the
-exact rollback phrase. Confirmation temporarily moves 100 percent of staging traffic from the
-current Registration Generation to its reviewed predecessor. Keep the command running: after
-provider readback it asks for a second exact phrase to restore the original generation and verifies
-that restoration. Declining or interrupting restoration leaves the predecessor active; follow the
+move traffic. Qualification also reads the retained predecessor runtime source before prompting.
+If it reports `ROLLBACK_PREDECESSOR_SOURCE_MISMATCH`, the predecessor belongs to an older platform
+build. Repeat the public fixture check, outputs, handoff, and registration sequence first with
+`IDENTITY_DELIVERY=none`, then again with `IDENTITY_DELIVERY=optional`, using the latest active
+source and generation each time. No traffic was changed by the rejected qualification attempt.
+
+When all prerequisites pass, the command explains the traffic effect before asking for the exact
+rollback phrase. Confirmation temporarily moves 100 percent of staging traffic from the current
+Registration Generation to its reviewed predecessor. Keep the command running: after
+provider readback, one separately confirmed browser check establishes an authenticated session and
+a second proves that the predecessor's public `none` policy withholds Platform Identity. If that
+second callback still observes the successor's optional-identity policy, the command waits five
+seconds and may offer up to two more separately confirmed observations. It does not retry a browser
+launch, timeout, callback, or confirmation failure. A terminal failure prints and records the exact
+stable predecessor-step blocker. The public-`none` predecessor remains anonymous when the current
+application target advertises the same application's optional-identity capability. Once the
+same-source predecessor/successor pair exists, the rollback check itself does not redeploy the
+fixture. The command then asks for a second exact phrase to restore the original generation and
+verifies that restoration,
+even when the predecessor browser proof fails. Declining or interrupting restoration leaves the predecessor active; follow the
 printed `RESTORATION REQUIRED` guidance and inspect the active generation before attempting
 qualification again.
 
@@ -585,25 +689,134 @@ inspection, not as permission to bypass the failed boundary.
 
 ## Candidate staging verification
 
-A clean pushed branch containing current `origin/main` may exercise staging before merge:
+A clean pushed `feat/platform-member-directory` integration revision containing current
+`origin/main` may exercise staging before the cumulative pull request to `main`. The procedure
+passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; this is the required final rerun
+for the post-reconciliation W10 integration head. **Run it only after every W10 slice and
+candidate-readiness correction has merged, the exact integration revision is pushed, `make check`
+passes, and the owner deliberately begins the staging operation.** The documented repository work
+performs none of these provider commands.
+
+Run the repository and read-only readiness gates first:
 
 ```bash
-git push -u origin HEAD
+make check
+make platform-preflight ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make platform-deploy-check ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+```
+
+Resolve every blocker before continuing. The deploy check is diagnostic and does not replace the
+reviewed deployment. Bootstrap or read back the dedicated fixture project, then deploy the shared
+platform and its Version 2 directory/runtime support:
+
+```bash
 make fixture-project-bootstrap ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
   FIXTURES_PROJECT_ID=comfforts-fixtures-nonprod \
   FIXTURES_PROJECT_NAME="Comfforts Fixtures Non-Prod"
 make platform-deploy ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
-make platform-connect-project ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
-  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
-# For each fixture: application-handoff-check, platform-outputs, fixture-handoff,
-# inspect, then platform-register.
-make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
-make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make platform-member-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
 ```
 
+For the first Version 2 migration, the remote directory must be `empty`. Deliberately enroll the
+reviewed owner and retain the returned opaque reference privately:
+
+```bash
+make platform-member-bootstrap-owner ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make platform-member-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  MEMBER_REFERENCE=<owner-member-reference>
+```
+
+On a qualification rerun, do not bootstrap again. Continue only when the existing remote directory
+is readable and the reviewed owner-only baseline has been restored. A non-empty unexpected member
+set, unreadable directory, or unknown owner reference is a stop condition.
+
+Connect the fixture application project, then read the active platform source revision and
+Registration Generation from status:
+
+```bash
+make platform-connect-project ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod
+make platform-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+```
+
+For each fixture, replace the placeholders with those exact status values and with the paths
+printed by the preceding command. Start with the public fixture:
+
+```bash
+make application-handoff-check ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
+  APPLICATION_ID=fixture-public ACCESS_MODE=public IDENTITY_DELIVERY=none \
+  ROUTE_INTENT=/fixture-public \
+  PLATFORM_SOURCE_REVISION=<active-platform-revision> \
+  PLATFORM_GENERATION=<active-registration-generation>
+make platform-outputs ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
+  APPLICATION_ID=fixture-public ACCESS_MODE=public IDENTITY_DELIVERY=none \
+  ROUTE_INTENT=/fixture-public \
+  PLATFORM_SOURCE_REVISION=<active-platform-revision> \
+  PLATFORM_GENERATION=<active-registration-generation>
+make fixture-handoff ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  APPLICATION_ID=fixture-public \
+  CATALOGUE_VISIBILITY=listed \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
+# Inspect the integration bundle, attachment bundle, and registration intent without editing them.
+make platform-register ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
+make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  APPLICATION_ID=fixture-public
+make platform-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+```
+
+Repeat that exact check, output, fixture handoff, inspection, registration, fixture status, and
+platform status sequence for:
+
+| Fixture | `ACCESS_MODE` | `IDENTITY_DELIVERY` | `ROUTE_INTENT` |
+| --- | --- | --- | --- |
+| `fixture-authenticated` | `authenticated` | `required` | `/fixture-authenticated` |
+| `fixture-restricted` | `restricted` | `required` | `/fixture-restricted` |
+
+Use the newly reported active Registration Generation after each successful registration; do not
+reuse the generation number from the preceding fixture. The first reviewed Version 2 registration
+migrates the readable Version 1 predecessor without copying its member list and activates one
+complete Version 2 successor. Later registrations preserve every unaffected Version 2 route. A
+mixed-version bundle family, stale generation, edited artifact, or failed target readback is a stop
+condition.
+
+After all three fixtures are active under public `none`, perform the public sequence one more time
+with the latest platform generation and `IDENTITY_DELIVERY=optional`. Generate and inspect a fresh
+integration bundle, attachment bundle, and registration intent; keep
+`CATALOGUE_VISIBILITY=listed`; then register and verify `fixture-public` again. The unchanged
+runtime may be reused, but the new complete Registration Generation must become active. This final
+registration makes public `optional` the active policy and retains the immediately preceding
+complete public-`none` generation for the qualification rollback exercise.
+
+After all three routes pass `fixture-status`, run the Slice 7 qualification command and keep it
+open through every separately confirmed browser, member-lifecycle, generation, rollback, and
+restoration checkpoint:
+
+```bash
+make platform-qualify ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  OWNER_MEMBER_REFERENCE=<owner-member-reference>
+make platform-member-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
+  MEMBER_REFERENCE=<owner-member-reference>
+make fixture-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+make platform-status ENVIRONMENT=staging SOURCE_AUTHORITY=candidate
+```
+
+Qualification must prove active public `optional` identity delivery and, during reviewed rollback,
+public `none` identity withholding after an authenticated session. It also proves authenticated admission independent
+of membership, restricted active/suspended/reactivated/removed behavior for a reviewed second
+member, directory failure, logout, assertion minimization, cross-application isolation, exact
+rollback, and restoration. It must finish with the reviewed owner-only member baseline and the
+intended Version 2 Registration Generation active. A successful command records only redacted,
+revision-bound evidence; it never turns Candidate Source into Accepted Source.
+
 Candidate mode is staging-only. Candidate specifications, progress, bundles, status, and evidence
-remain separate from accepted results and cannot qualify production. After merge, repeat deployment
-and qualification from clean current `main` using the default accepted source.
+remain separate from accepted results and cannot qualify production. Freeze the exact qualified
+integration revision before opening its cumulative pull request to `main`. W11 repeats deployment
+and qualification from clean current `main` using the default Accepted Source after that merge.
 
 Only one staging operation may run at a time because candidate and accepted operations target the
 same staging environment.

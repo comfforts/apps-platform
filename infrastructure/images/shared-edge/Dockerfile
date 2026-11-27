@@ -24,6 +24,8 @@ WORKDIR /srv/app
 COPY --from=build /srv/app/.venv /srv/app/.venv
 COPY contracts ./contracts
 COPY edge ./edge
+COPY infrastructure/__init__.py ./infrastructure/__init__.py
+COPY infrastructure/member_directory.py ./infrastructure/member_directory.py
 USER 65532:65532
 EXPOSE 8080
 CMD ["python", "-m", "uvicorn", "edge.live:create_live_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]

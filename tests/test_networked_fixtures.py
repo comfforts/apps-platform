@@ -8,6 +8,10 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 from unittest import mock
 import warnings
@@ -52,7 +56,7 @@ class FakeVerifier:
             True,
             "identity_verified",
             VerifiedIdentityContext(
-                contract_version=1,
+                contract_version=2,
                 issuer="https://apps-staging.comfforts.com/_platform",
                 subject="synthetic-subject",
                 audience=(
@@ -61,6 +65,7 @@ class FakeVerifier:
                 issued_at=1_800_000_000,
                 expires_at=1_800_000_060,
                 correlation_id="synthetic-correlation",
+                platform_member=True,
             ),
         )
 
@@ -131,6 +136,32 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
         self.assertNotIn("synthetic", repr(root.headers).lower())
 
+    def test_public_optional_accepts_anonymous_or_verified_platform_identity(self) -> None:
+        optional = NetworkFixtureConfiguration(
+            application_id="fixture-public",
+            admission_mode="public",
+            platform_issuer="https://apps-staging.comfforts.com/_platform",
+            public_key_reference=(
+                "https://apps-staging.comfforts.com/.well-known/jwks.json"
+            ),
+            assertion_audience=(
+                "urn:comfforts:app-platform:audience:fixture-public"
+            ),
+        )
+        verifier = FakeVerifier()
+        app = create_network_fixture(optional, verifier=verifier)
+
+        with TestClient(app) as client:
+            anonymous = client.get("/")
+            verified = client.get(
+                "/",
+                headers={VERIFIED_IDENTITY_HEADER: "synthetic.assertion.value"},
+            )
+
+        self.assertEqual(anonymous.status_code, 200)
+        self.assertEqual(verified.status_code, 200)
+        self.assertEqual(verifier.assertions, ["synthetic.assertion.value"])
+
     def test_browser_qualification_returns_only_a_loopback_challenge(self) -> None:
         app = create_network_fixture(configuration("public"))
         challenge = "a" * 64
@@ -146,15 +177,64 @@ class NetworkedFixtureTest(unittest.TestCase):
                 params={"callback_port": "80", "challenge": challenge},
                 follow_redirects=False,
             )
+            unexpected_delivery = client.get(
+                "/qualification/browser",
+                params={"callback_port": "43210", "challenge": challenge},
+                headers={VERIFIED_IDENTITY_HEADER: "unexpected.delivery"},
+                follow_redirects=False,
+            )
 
         self.assertEqual(accepted.status_code, 303)
         self.assertEqual(
             accepted.headers["location"],
             "http://127.0.0.1:43210/?"
-            "application_id=fixture-public&challenge=" + challenge,
+            "application_id=fixture-public&challenge="
+            + challenge
+            + "&identity_present=false",
         )
         self.assertEqual(accepted.headers["cache-control"], "no-store")
         self.assertEqual(invalid.status_code, 400)
+        self.assertTrue(
+            unexpected_delivery.headers["location"].endswith(
+                "&identity_present=true"
+            )
+        )
+        self.assertNotIn("unexpected.delivery", unexpected_delivery.headers["location"])
+
+    def test_browser_qualification_reports_only_verified_identity_presence(self) -> None:
+        """Return a coarse marker without exposing the verified identity context."""
+
+        optional = NetworkFixtureConfiguration(
+            application_id="fixture-public",
+            admission_mode="public",
+            platform_issuer="https://apps-staging.comfforts.com/_platform",
+            public_key_reference=(
+                "https://apps-staging.comfforts.com/.well-known/jwks.json"
+            ),
+            assertion_audience=(
+                "urn:comfforts:app-platform:audience:fixture-public"
+            ),
+        )
+        app = create_network_fixture(optional, verifier=FakeVerifier())
+        challenge = "b" * 64
+
+        with TestClient(app) as client:
+            response = client.get(
+                "/qualification/browser",
+                params={"callback_port": "43210", "challenge": challenge},
+                headers={VERIFIED_IDENTITY_HEADER: "synthetic.assertion.value"},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(
+            response.headers["location"],
+            "http://127.0.0.1:43210/?"
+            "application_id=fixture-public&challenge="
+            + challenge
+            + "&identity_present=true",
+        )
+        self.assertNotIn("synthetic-subject", response.headers["location"])
 
     def test_protected_fixture_requires_one_independently_verified_assertion(self) -> None:
         verifier = FakeVerifier()
@@ -315,6 +395,46 @@ class NetworkedFixtureTest(unittest.TestCase):
             "!infrastructure/images/fixture/cloudbuild.yaml",
         ):
             self.assertIn(required, upload_allowlist)
+
+    def test_fixture_image_package_set_loads_without_platform_infrastructure(self) -> None:
+        """Prove the application image can construct its ASGI app in isolation."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            image_root = Path(directory)
+            for package in ("contracts", "edge", "fixtures"):
+                shutil.copytree(PROJECT_ROOT / package, image_root / package)
+            environment = {
+                "APP_PLATFORM_APPLICATION_ID": "fixture-public",
+                "APP_PLATFORM_ADMISSION_MODE": "public",
+                "APP_PLATFORM_ISSUER": (
+                    "https://apps-staging.comfforts.com/_platform"
+                ),
+                "APP_PLATFORM_PUBLIC_KEY_REFERENCE": (
+                    "https://apps-staging.comfforts.com/.well-known/jwks.json"
+                ),
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
+            result = subprocess.run(
+                (
+                    sys.executable,
+                    "-I",
+                    "-c",
+                    (
+                        "import sys; "
+                        "sys.path.insert(0, '.'); "
+                        "from fixtures.networked import create_environment_app; "
+                        "assert create_environment_app() is not None"
+                    ),
+                ),
+                cwd=image_root,
+                env=environment,
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=10,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

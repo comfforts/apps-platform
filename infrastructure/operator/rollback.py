@@ -16,8 +16,23 @@ from infrastructure.operator.integration import (
 
 @dataclass(frozen=True, slots=True)
 class ReviewedGeneration:
+    """One immutable generation and the platform source of its provider runtime."""
+
     publication_reference: str
     proposal: RegistrationGenerationProposal
+    platform_source_revision: str
+
+    def __post_init__(self) -> None:
+        """Reject a reviewed generation without one exact provider source binding."""
+
+        if (
+            len(self.platform_source_revision) != 40
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.platform_source_revision
+            )
+        ):
+            raise ValueError("reviewed generation platform source is invalid")
 
 
 class ReviewedGenerationControl(Protocol):
@@ -135,6 +150,26 @@ class GenerationRollbackLifecycle:
             != target.proposal.generation_digest
         ):
             return self._result("blocked", "ROLLBACK_TARGET_NOT_PREDECESSOR")
+        if (
+            target.platform_source_revision
+            != request.expected_platform_source_revision
+        ):
+            self._terminal.write(
+                "ROLLBACK PREDECESSOR SOURCE MISMATCH\n"
+                f"Reviewed predecessor generation {target_generation} is bound "
+                f"to platform source {target.platform_source_revision}, while "
+                "the active candidate uses "
+                f"{request.expected_platform_source_revision}.\n"
+                "No traffic was changed. Recreate fixture-public as public `none` "
+                "under the active candidate, then create its public `optional` "
+                "successor and retry qualification."
+            )
+            return self._result(
+                "blocked",
+                "ROLLBACK_PREDECESSOR_SOURCE_MISMATCH",
+                generation=target_generation,
+                generation_digest=target.proposal.generation_digest,
+            )
 
         expected = (
             f"ROLLBACK {request.environment} GENERATION {target_generation} "

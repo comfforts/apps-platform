@@ -330,7 +330,9 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertNotIn("id-token: write", check_workflow)
         self.assertNotIn("terraform apply", check_workflow)
 
-    def test_status_preserves_history_and_routes_next_work_to_ap_m9_w10(self) -> None:
+    def test_status_preserves_history_and_routes_next_work_to_candidate_readiness(
+        self,
+    ) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(
@@ -353,13 +355,20 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("AP-M9-W5 — deployable Terraform (implemented)", index)
         self.assertIn("AP-M9-W6 — interactive platform deployment (implemented)", index)
         self.assertIn("AP-M9-W7 — platform-side application lifecycle (implemented)", index)
-        self.assertIn("governance change accepting ADR-015 has merged", prompt)
         self.assertIn(
-            "AP-M9-W10 implements and candidate-qualifies",
-            prompt,
+            "all seven AP-M9-W10 functional-slice pull requests have merged",
+            normalized_prompt,
         )
-        self.assertIn("first Accepted Source staging operation", normalized_prompt)
-        self.assertIn("Run the complete credential-free `make check` gate", prompt)
+        self.assertIn(
+            "AP-M9-W10 Candidate Source qualification",
+            normalized_prompt,
+        )
+        self.assertIn("cleanup-safe qualification support", normalized_prompt)
+        self.assertIn(
+            "AP-M9-W11 owns the first Accepted Source staging operation",
+            normalized_prompt,
+        )
+        self.assertIn("credential-free `make check` gate pass", normalized_prompt)
         self.assertIn(
             "Candidate Source is not Accepted Source qualification",
             normalized_combined,

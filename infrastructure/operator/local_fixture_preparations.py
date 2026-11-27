@@ -10,9 +10,9 @@ from dataclasses import replace
 from typing import Any
 
 from contracts.lifecycle import (
-    canonical_lifecycle_bytes,
-    lifecycle_digest,
-    validate_lifecycle_relationships,
+    canonical_versioned_lifecycle_bytes,
+    validate_versioned_lifecycle_relationships,
+    versioned_lifecycle_digest,
 )
 from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationDeployment,
@@ -51,8 +51,11 @@ class LocalFixturePreparations:
 
     @staticmethod
     def _request_value(request: FixtureDeployRequest) -> dict[str, object]:
+        """Project every input that distinguishes a reusable preparation."""
+
         return {
             "application_id": request.application_id,
+            "catalogue_visibility": request.catalogue_visibility,
             "environment": request.environment,
             "expected_platform_generation": request.expected_platform_generation,
             "expected_platform_source_revision": (
@@ -100,9 +103,18 @@ class LocalFixturePreparations:
         cls,
         value: object,
     ) -> dict[str, object]:
+        """Validate current metadata while recognizing legacy records as stale.
+
+        Preparations written before catalogue visibility became an explicit
+        input remain valid private history. They cannot be reused because the
+        new request projection will not match them, but they must remain
+        readable so the operator can safely generate a successor preparation.
+        """
+
         expected = {
             "application_id",
             "attachment_bundle_digest",
+            "catalogue_visibility",
             "environment",
             "expected_platform_generation",
             "expected_platform_source_revision",
@@ -113,13 +125,22 @@ class LocalFixturePreparations:
             "preparation_digest",
             "source_authority",
         }
-        if not isinstance(value, dict) or set(value) != expected:
+        legacy_expected = expected - {"catalogue_visibility"}
+        if (
+            not isinstance(value, dict)
+            or frozenset(value)
+            not in {frozenset(expected), frozenset(legacy_expected)}
+        ):
             raise ValueError("stored fixture preparation is invalid")
         if (
             value["format_version"] != 1
             or value["environment"] != "staging"
             or not isinstance(value["application_id"], str)
             or _APPLICATION_ID.fullmatch(value["application_id"]) is None
+            or (
+                "catalogue_visibility" in value
+                and value["catalogue_visibility"] not in {"listed", "unlisted"}
+            )
             or not isinstance(value["expected_platform_generation"], int)
             or value["expected_platform_generation"] < 1
             or value["source_authority"] not in {"accepted", "candidate"}
@@ -155,7 +176,7 @@ class LocalFixturePreparations:
         if not isinstance(value, dict):
             raise ValueError("stored fixture preparation document is invalid")
         try:
-            canonical = canonical_lifecycle_bytes(value, kind) + b"\n"
+            canonical = canonical_versioned_lifecycle_bytes(value, kind) + b"\n"
         except ValueError as error:
             raise ValueError(
                 "stored fixture preparation document is invalid"
@@ -203,9 +224,9 @@ class LocalFixturePreparations:
         manifest_payload = self._read_private(f"{base}/preparation.v1.json")
         if manifest_payload != payload:
             raise ValueError("stored fixture preparation manifest mismatch")
-        integration_relative = f"{base}/platform-integration-bundle.v1.json"
-        attachment_relative = f"{base}/application-attachment-bundle.v1.json"
-        intent_relative = f"{base}/registration-intent.v1.json"
+        integration_relative = f"{base}/platform-integration-bundle.v2.json"
+        attachment_relative = f"{base}/application-attachment-bundle.v2.json"
+        intent_relative = f"{base}/registration-intent.v2.json"
         integration = self._document(
             self._read_private(integration_relative),
             "platform-integration-bundle",
@@ -217,20 +238,19 @@ class LocalFixturePreparations:
         intent_payload = self._read_private(intent_relative)
         if intent_payload is None:
             return None
-        try:
-            intent_value = json.loads(intent_payload)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ValueError("stored registration intent is invalid") from error
-        if intent_payload != _canonical(intent_value) + b"\n":
-            raise ValueError("stored registration intent is not canonical")
+        intent_value = self._document(intent_payload, "registration-intent")
         if (
-            lifecycle_digest(integration, "platform-integration-bundle")
+            versioned_lifecycle_digest(integration, "platform-integration-bundle")
             != metadata["integration_bundle_digest"]
-            or lifecycle_digest(attachment, "application-attachment-bundle")
+            or versioned_lifecycle_digest(
+                attachment,
+                "application-attachment-bundle",
+            )
             != metadata["attachment_bundle_digest"]
-            or validate_lifecycle_relationships(
+            or validate_versioned_lifecycle_relationships(
                 integration_bundle=integration,
                 attachment_bundle=attachment,
+                registration_intent=intent_value,
             )
             or integration.get("environment") != request.environment
             or integration.get("application_id") != request.application_id
@@ -293,15 +313,15 @@ class LocalFixturePreparations:
             != request.fixture_source_revision
         ):
             raise ValueError("fixture preparation request binding mismatch")
-        integration_digest = lifecycle_digest(
+        integration_digest = versioned_lifecycle_digest(
             integration_bundle,
             "platform-integration-bundle",
         )
-        attachment_digest = lifecycle_digest(
+        attachment_digest = versioned_lifecycle_digest(
             deployment.attachment_bundle,
             "application-attachment-bundle",
         )
-        if validate_lifecycle_relationships(
+        if validate_versioned_lifecycle_relationships(
             integration_bundle=integration_bundle,
             attachment_bundle=deployment.attachment_bundle,
         ):
@@ -314,11 +334,11 @@ class LocalFixturePreparations:
         )
         preparation_digest = str(metadata["preparation_digest"])
         base = self._base_path(request, preparation_digest)
-        integration_relative = f"{base}/platform-integration-bundle.v1.json"
-        attachment_relative = f"{base}/application-attachment-bundle.v1.json"
+        integration_relative = f"{base}/platform-integration-bundle.v2.json"
+        attachment_relative = f"{base}/application-attachment-bundle.v2.json"
         self._filesystem.write_state(
             integration_relative,
-            canonical_lifecycle_bytes(
+            canonical_versioned_lifecycle_bytes(
                 integration_bundle,
                 "platform-integration-bundle",
             )
@@ -327,7 +347,7 @@ class LocalFixturePreparations:
         )
         self._filesystem.write_state(
             attachment_relative,
-            canonical_lifecycle_bytes(
+            canonical_versioned_lifecycle_bytes(
                 deployment.attachment_bundle,
                 "application-attachment-bundle",
             )
@@ -369,22 +389,30 @@ class LocalFixturePreparations:
             raise ValueError("fixture preparation is unavailable")
         metadata = self._validate_metadata(json.loads(current))
         base = self._base_path(request, str(metadata["preparation_digest"]))
-        relative = f"{base}/registration-intent.v1.json"
+        relative = f"{base}/registration-intent.v2.json"
         document = {
+            "contract_version": 2,
+            "document_kind": "registration-intent",
+            "application_id": intent.application_id,
+            "access_mode": intent.access_mode,
+            "identity_delivery": intent.identity_delivery,
             "attachment_id": intent.attachment_id,
             "catalogue_summary": intent.catalogue_summary,
             "catalogue_title": intent.catalogue_title,
             "catalogue_visibility": intent.catalogue_visibility,
             "forwarding_mode": intent.forwarding_mode,
             "mount_path": intent.mount_path,
-            "restricted_members": [
-                {"issuer": issuer, "subject": subject}
-                for issuer, subject in intent.restricted_members
-            ],
         }
+        if validate_versioned_lifecycle_relationships(
+            integration_bundle=preparation.integration_bundle,
+            attachment_bundle=preparation.deployment.attachment_bundle,
+            registration_intent=document,
+        ):
+            raise ValueError("fixture registration intent binding is invalid")
         self._filesystem.write_state(
             relative,
-            _canonical(document) + b"\n",
+            canonical_versioned_lifecycle_bytes(document, "registration-intent")
+            + b"\n",
             replace=False,
         )
         return replace(

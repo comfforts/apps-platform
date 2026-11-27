@@ -1,7 +1,11 @@
 # Operator lifecycle and handoff contracts
 
-Version 1 | Scope: closed, non-secret environment lifecycle, application handoff, and
+Versions 1 and 2 | Scope: closed, non-secret environment lifecycle, application handoff, and
 qualification-evidence documents; validation never authorizes mutation
+
+Version 1 handoff documents remain readable historical predecessors. Version 2 integration,
+attachment, and registration-intent documents are the active application-handoff interface; no
+Live Version 2 operation or qualification is implied.
 
 This package defines the documents that connect environment preparation, deployment, status,
 application handoff, and qualification. It is separate from the platform/application registry in
@@ -30,6 +34,11 @@ A single final LF is accepted as a repository text-file terminator and is exclud
 bytes and the digest. The digest is lowercase SHA-256 over App Platform Canonical JSON Version 1,
 prefixed with `sha256:`.
 
+`load_versioned_lifecycle_document(path, expected_kind)` is the explicit compatibility entry point
+for a reviewed Version 1 or Version 2 handoff kind. Version-aware relationship validation rejects
+a mixed-version activation set. The original Version 1 loader and relationship validator remain
+available only for explicit historical Version 1 consumers.
+
 ## Contract inventory
 
 | Schema | Stable identifier | Interface |
@@ -39,6 +48,9 @@ prefixed with `sha256:`.
 | `schemas/platform-integration-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1` | application-scoped non-secret platform endpoints, identity values, caller, attachment contract, and qualification status |
 | `schemas/application-attachment-bundle.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1` | application-owned target posture bound to an exact integration bundle digest |
 | `schemas/qualification-evidence.v1.schema.json` | `urn:comfforts:app-platform:lifecycle:qualification-evidence:v1` | redacted, revision-bound platform and fixture qualification results |
+| `schemas/platform-integration-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2` | active application-scoped handoff with explicit Identity Delivery |
+| `schemas/application-attachment-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v2` | Version 2 target posture bound to the exact Version 2 integration bundle |
+| `schemas/registration-intent.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:registration-intent:v2` | explicit Admission Mode and Identity Delivery intent without member material |
 
 Destructive-specification validation requires unique ordered steps, explicit action and resource
 allow-lists, declared prior outputs, stop-on-failure behavior, and an exact deletion boundary.
@@ -47,20 +59,28 @@ Normal deployment preparation, read-only status, and atomic resume progress are 
 state because they do not cross an ownership boundary.
 
 An integration bundle identifies Accepted Source or Candidate Source and contains an OAuth client
-identifier and application audience only for an authenticated access mode. A public bundle omits
-those identity values. No bundle admits an OAuth client secret, application provider key,
+identifier and application audience only when Identity Delivery is `optional` or `required`.
+Public `none` omits those identity values. No bundle admits an OAuth client secret, application provider key,
 credential payload, Terraform state, saved plan, raw provider response, or platform secret
 reference. Attachment validation preserves application ownership and matches the integration
 bundle's application, environment, adapter, ingress, edge caller, audience, and digest; it does not
 transfer target ownership to Platform State.
+
+Version 2 accepts exactly four Admission Mode/Identity Delivery pairs: public `none`, public
+`optional`, authenticated `required`, and restricted `required`. The integration bundle,
+attachment bundle, and registration intent must all be Version 2 and describe the same pair; a
+mixed family or conflicting value fails closed. A readable Version 1 predecessor may be migrated
+only by the operator's complete-generation transition: public becomes `none`, authenticated and
+restricted become `required`, and every registration-scoped member is discarded. The contracts do
+not enumerate or carry the environment member directory.
 
 Qualification Evidence binds observations to an exact environment, source authority and revision,
 profile, specification, final deployment progress, registration generation, and component and fixture
 revisions. It contains only redacted results permitted by its schema. A valid evidence document
 records what was evaluated; it does not make an unevaluated environment qualified.
 
-`test-vectors/valid/` contains canonical synthetic examples for the integration bundle, attachment
-bundle, and qualification evidence. The vectors are deterministic
+`test-vectors/valid/` contains canonical synthetic examples for Version 1 and Version 2 integration
+and attachment bundles, Version 2 registration intent, and Version 1 qualification evidence. The vectors are deterministic
 contract examples only; their source revisions, addresses, OAuth identifier, and target reference
 do not describe deployed resources or accepted operator input.
 

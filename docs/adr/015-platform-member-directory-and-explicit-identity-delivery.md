@@ -1,6 +1,7 @@
 # ADR-015 · Use a platform-owned member directory and explicit identity delivery
 
-Status: Accepted; implementation and qualification pending AP-M9-W10
+Status: Accepted; implementation integrated; Candidate Source qualification passed at revision
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c`; final post-reconciliation rerun and freeze remain
 
 Requirements: AP-PR-004, AP-PR-005, AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
 AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009
@@ -110,9 +111,12 @@ registration update.
 
 The platform must not activate the new admission model until the directory infrastructure, runtime
 IAM, Version 2 compiler and consumers, owner lifecycle, deterministic migration, and rollback
-behavior are complete. Existing Candidate Source staging evidence remains truthful evidence of the
-Version 1 model and cannot qualify ADR-015. The AP-M9-W11 accepted staging operation follows
-AP-M9-W10 implementation and candidate qualification.
+behavior are complete. Existing W9 Candidate Source staging evidence remains truthful evidence of
+the Version 1 model and cannot qualify ADR-015. Separate Version 2 Candidate Source qualification
+passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`. Because the documentation
+reconciliation changes the exact source revision, the resulting integration head must repeat that
+qualification before freeze. The AP-M9-W11 accepted staging operation follows completed AP-M9-W10
+implementation and final candidate qualification.
 
 ## Considered alternatives
 

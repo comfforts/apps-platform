@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:comfforts:app-platform:schema:registration-set:v2",
+  "title": "Registration Set Version 2",
+  "description": "The complete Version 2 registration input with explicit Identity Delivery and no member data. registrations are sorted by application_id in canonical form.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "generation",
+    "previous_generation_digest",
+    "proposal",
+    "registrations"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": 2
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "previous_generation_digest": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/digest"
+        }
+      ]
+    },
+    "proposal": {
+      "$ref": "#/$defs/proposal"
+    },
+    "registrations": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/registration"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "minLength": 71,
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "applicationId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9-]{1,61}[a-z0-9]$"
+    },
+    "routePrefix": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "pattern": "^/[a-z0-9][a-z0-9_-]{0,62}$"
+    },
+    "plainTitle": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[^<>\\u0000-\\u001F\\u007F]+$"
+    },
+    "plainSummary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "^[^<>\\u0000-\\u001F\\u007F]+$"
+    },
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_revision",
+        "change_summary"
+      ],
+      "properties": {
+        "source_revision": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{7,64}$"
+        },
+        "change_summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^<>\\u0000-\\u001F\\u007F]+$"
+        }
+      }
+    },
+    "platformConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "enabled_attachment_adapter_kinds"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": 2
+        },
+        "enabled_attachment_adapter_kinds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "description": "Adapter kinds are sorted ascending in canonical form.",
+          "items": {
+            "$ref": "urn:comfforts:app-platform:schema:application-attachment:v2#/$defs/adapterKind"
+          }
+        }
+      }
+    },
+    "catalogue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "visibility",
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "visibility": {
+          "enum": [
+            "listed",
+            "unlisted"
+          ]
+        },
+        "title": {
+          "$ref": "#/$defs/plainTitle"
+        },
+        "summary": {
+          "$ref": "#/$defs/plainSummary"
+        }
+      }
+    },
+    "publicAdmission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "const": "public"
+        }
+      }
+    },
+    "authenticatedAdmission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "const": "authenticated"
+        }
+      }
+    },
+    "restrictedAdmission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "const": "restricted"
+        }
+      }
+    },
+    "admission": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/publicAdmission"
+        },
+        {
+          "$ref": "#/$defs/authenticatedAdmission"
+        },
+        {
+          "$ref": "#/$defs/restrictedAdmission"
+        }
+      ]
+    },
+    "identityDelivery": {
+      "enum": [
+        "none",
+        "optional",
+        "required"
+      ]
+    },
+    "registration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "application_id",
+        "registration_revision",
+        "route_prefix",
+        "catalogue",
+        "admission",
+        "identity_delivery",
+        "lifecycle",
+        "attachments"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": 2
+        },
+        "application_id": {
+          "$ref": "#/$defs/applicationId"
+        },
+        "registration_revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "route_prefix": {
+          "$ref": "#/$defs/routePrefix"
+        },
+        "catalogue": {
+          "$ref": "#/$defs/catalogue"
+        },
+        "admission": {
+          "$ref": "#/$defs/admission"
+        },
+        "identity_delivery": {
+          "$ref": "#/$defs/identityDelivery"
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "suspended",
+            "retired"
+          ]
+        },
+        "attachments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "description": "Attachments are sorted by attachment_id in canonical form.",
+          "items": {
+            "$ref": "urn:comfforts:app-platform:schema:application-attachment:v2"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["admission", "identity_delivery"],
+          "properties": {
+            "admission": {"$ref": "#/$defs/publicAdmission"},
+            "identity_delivery": {"const": "none"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["admission", "identity_delivery"],
+          "properties": {
+            "admission": {"$ref": "#/$defs/publicAdmission"},
+            "identity_delivery": {"const": "optional"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["admission", "identity_delivery"],
+          "properties": {
+            "admission": {"$ref": "#/$defs/authenticatedAdmission"},
+            "identity_delivery": {"const": "required"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["admission", "identity_delivery"],
+          "properties": {
+            "admission": {"$ref": "#/$defs/restrictedAdmission"},
+            "identity_delivery": {"const": "required"}
+          }
+        }
+      ]
+    }
+  }
+}

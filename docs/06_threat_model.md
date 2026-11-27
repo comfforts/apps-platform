@@ -1,8 +1,13 @@
-# App Platform threat model
+# <u>App Platform threat model</u>
 
-Version 1.14 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
+Version 1.22 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
 the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
-controls are accepted but remain unimplemented and unqualified until AP-M9-W10
+contract, infrastructure, deterministic runtime, and member-lifecycle controls are integrated by
+all seven AP-M9-W10 slices and candidate-readiness corrections, including Version 2 handoff
+activation, reconciled operator guidance, cleanup-safe temporary membership, and least-data
+admission readback; Version 2 Candidate Source qualification passed at revision
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c`, with one post-reconciliation exact-revision rerun
+required before freeze
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -16,7 +21,7 @@ Decisions: ADR-001 through ADR-015
 
 System design: [App Platform system design](03_system_design.md)
 
-## Scope and status
+## <u>Scope and status</u>
 
 The threat boundary includes:
 
@@ -37,7 +42,7 @@ No runtime control is operational merely because it is specified here. Determini
 evidence, Fixture Application evidence, live provider readback, and application-adoption evidence
 are different gates and are never substitutes for one another.
 
-## Security objectives
+## <u>Security objectives</u>
 
 The platform must preserve these objectives:
 
@@ -59,7 +64,7 @@ The platform must preserve these objectives:
 8. **Truthful evidence:** deterministic, fixture, live, and adoption results state their exact
    revision, environment, limitations, failures, and skipped gates.
 
-## Assets and data classes
+## <u>Assets and data classes</u>
 
 | Asset or data | Classification | Protection objective |
 | --- | --- | --- |
@@ -77,7 +82,7 @@ The platform must preserve these objectives:
 Catalogue output is public only after safe projection. Registration input is not public catalogue
 content and must not be rendered, logged, or published wholesale.
 
-## Actors and trust assumptions
+## <u>Actors and trust assumptions</u>
 
 - An **anonymous Visitor** is untrusted and may send malformed paths, spoofed headers, oversized
   inputs, or abusive traffic.
@@ -104,7 +109,7 @@ content and must not be rendered, logged, or published wholesale.
 No real application is a trusted platform test harness. External application migration material
 grants no platform authority and remains under the consuming application's authority.
 
-## Trust zones and flows
+## <u>Trust zones and flows</u>
 
 ```text
   [Public Visitor]
@@ -143,7 +148,7 @@ The major trust-boundary crossings are:
    access.
 8. Logs and evidence crossing from restricted operational systems into retained artifacts.
 
-## Control ownership
+## <u>Control ownership</u>
 
 ### Platform-owned controls
 
@@ -153,6 +158,8 @@ The major trust-boundary crossings are:
 - attachment-adapter allow-listing and registration-derived edge configuration;
 - Admission Mode, explicit Identity Delivery, Platform Session, and environment-wide member
   admission enforcement plus removal of visitor-supplied identity headers;
+- registration-authorized assertion delivery that cannot be enabled merely by a target advertising
+  the same application's identity capability;
 - Platform Member Directory infrastructure and bounded owner/member lifecycle without
   application-specific roles or entitlements;
 - whole-generation activation, drift detection, rollback, and Platform State access control; and
@@ -176,7 +183,7 @@ The major trust-boundary crossings are:
 Joint coordination does not create joint state ownership. Each resource and control still has one
 named owner.
 
-## Evidence classes
+## <u>Evidence classes</u>
 
 | Class | Earliest delivery item | What it can prove | What it cannot prove |
 | --- | --- | --- | --- |
@@ -220,7 +227,7 @@ The detailed topology and evidence exclusions are owned by the [system design](0
 Until the separate item 4 plan, implementation, and evaluation record are accepted, this profile
 is design authority and produces no Fixture (`F`) evidence.
 
-## Threat register
+## <u>Threat register</u>
 
 ### AP-TM-001 · Registration injection and unsafe catalogue content
 
@@ -318,7 +325,8 @@ denial must never be reported as origin isolation.
 
 **Scenario:** An unsigned, expired, replayed, wrong-issuer, wrong-audience, or visitor-controlled
 assertion is treated as Verified Identity Context. An assertion for one application is reused
-against another, or mutable email is treated as an ownership key.
+against another, mutable email is treated as an ownership key, or an enrollment callback is bound
+to a different visitor or member action than the one the operator reviewed.
 
 **Required controls:** Admission and the application validate signature, configured issuer,
 immutable subject, application-specific audience, issued and expiry times, and contract version.
@@ -328,6 +336,10 @@ identity delivery is explicit and cannot be inferred from an ambient Platform Se
 Applications derive their own principals and never use email as an ownership or account-linking
 key.
 
+Owner bootstrap and member addition bind a one-use browser callback, exact environment, reviewed
+action, verified issuer and immutable subject before mutation. The Cloud Operator is never treated
+as the enrolling Visitor merely because the identities share a browser or workstation.
+
 **Evidence:** `C` covers claim shape and rejection semantics, not cryptographic validity. `F` covers
 missing, forged, expired, wrong-issuer, wrong-audience, and cross-application assertions. `L` covers
 signer, key discovery, algorithms, audience issuance, and clock behavior.
@@ -336,8 +348,14 @@ signer, key discovery, algorithms, audience issuance, and clock behavior.
 the Version 1 predecessor matches per-registration restricted identities by exact issuer and
 subject. AP-M6-W6 locally issues and independently
 verifies minimized ES256 assertions with exact audiences, 60-second lifetimes, 30-second skew,
-versioned keys, and bounded public-key overlap/cache behavior. ADR-015 directory lookup, explicit
-public identity delivery, and Version 2 projection remain unimplemented and unqualified until W10.
+versioned keys, and bounded public-key overlap/cache behavior. AP-M9-W10 Slice 3 deterministically
+implements exact current-member lookup, explicit public identity delivery, and minimized Version 2
+projection without activating that path in staging. Slice 4 deterministically implements one-use
+browser-derived opaque references, remote-empty bootstrap, exact predecessor mutation, atomic
+control/member updates, and least-data readback. Slice 5 deterministically implements the complete
+Version 2 handoff, application-side Version 1/Version 2 assertion verification, mixed-version
+rejection, and atomic predecessor-bound activation. Later W10 work realized and Candidate-qualified
+the provider path; that evidence remains bound to its named integration revision.
 The demo accepts residual cross-instance replay risk because it makes
 no distributed replay-prevention claim.
 
@@ -363,7 +381,8 @@ provider rights.
 
 **Scenario:** Two proposals race, a stale generation overwrites a reviewed one, catalogue and route
 updates diverge, a suspension leaves a route active, or a failed attachment replacement destroys
-the rollback target.
+the rollback target. Concurrent or stale member add, suspend, reactivate, or remove operations may
+also overwrite a newer directory state or report success without the reviewed transition.
 
 **Required controls:** Each complete Registration Set carries a monotonic generation and preceding
 digest. The compiler enforces lifecycle transitions and produces one canonical generation. Future
@@ -371,9 +390,14 @@ activation is atomic across catalogue, routes, admission, attachments, and owner
 attachment and Last Reviewed Working Configuration remain available through the declared rollback
 window.
 
+Every member mutation binds the exact remote predecessor, uses an atomic provider operation or
+transaction, is idempotent for its reviewed outcome, and succeeds only after exact remote
+readback. A conflict or unreadable predecessor fails closed without synthesizing local success.
+
 **Evidence:** `C` covers stale digests, invalid transitions, deterministic generations, and
-all-or-no-output failure. `F` covers register, update, suspend, retire, attachment replacement, and
-rollback journeys. `L` covers provider partial-failure recovery and drift.
+all-or-no-output failure. `F` covers register, update, suspend, retire, attachment replacement,
+rollback journeys, and deterministic member-operation conflicts. `L` covers provider
+partial-failure recovery, member concurrency and readback, and drift.
 
 **Residual risk:** GCS locking, protected-main concurrency, immutable edge revisions, and one
 traffic pointer are selected but not implemented. Terraform cannot make several provider control
@@ -429,6 +453,14 @@ logs, plans, test vectors, evidence, or Git.
 **Required controls:** Contracts accept only non-secret references and bounded identity policy;
 they never contain member records or lists. The Shared Edge may project only the current visitor's
 minimal signed context after a positive lookup.
+
+Opaque member references are scoped to one environment and must not enable identity recovery,
+cross-environment correlation, directory enumeration, or probing through status, errors, logs, or
+evidence. Ordinary status is either coarse directory state or one explicitly requested opaque
+reference; it never lists members. Read-only identify may derive only the current browser-verified
+Visitor's own opaque reference and read that exact member state; it cannot reverse a reference,
+accept an email, or enumerate another member.
+
 Synthetic values are used in tests. Logs and evidence allow only contract versions, generation
 digests, application and route identifiers, coarse outcomes, violation codes, and correlation
 identifiers. Secret payloads and application data are prohibited and externally stored.
@@ -449,12 +481,20 @@ behavior.
 
 **Scenario:** A repository, dependency, workflow, operator credential, or provider-console change
 alters routing or admission outside the reviewed Registration Generation. Validation tooling or
-contract schemas are substituted between review and apply.
+contract schemas are substituted between review and apply. An unauthorized operator, application,
+edge request, stale bootstrap session, or drifted IAM grant mutates or enumerates the Platform
+Member Directory outside the reviewed member lifecycle.
 
 **Required controls:** Canonical output is bound to input and compiler versions by digest. Protected
 review covers schemas, registrations, validation code, and provider plans. Default checks are
 deterministic and credential-free. Live mutation uses separate explicit operator actions. Manual
 provider changes are drift and never become configuration authority.
+
+Member bootstrap and mutation require the verified operator boundary, separately verified Visitor
+identity where enrollment is involved, exact confirmation, remote predecessor, and readback.
+Remote directory state is authoritative for the empty-directory bootstrap guard. Terraform owns
+the database and runtime-access posture but never member documents; provider readback must reject
+unexpected member writers, readers, or enumeration capability.
 
 **Evidence:** `C` covers deterministic output, schema identifiers, test-vector expectations, and
 extraction-safe checks. `L` covers revision binding, workload identity, least privilege, drift
@@ -517,7 +557,13 @@ unavailable verification keys closed; public routes may remain anonymous. AP-M6-
 unavailable or mismatched attachment closed without selecting another target. AP-M6-W8 maps local
 transport failure, timeout, malformed response, disconnect, and cancellation to closed outcomes
 without another target. AP-M9-W9 Terraform grants only the edge runtime the project-level
-Firestore data role required for login-flow and session entities. Runtime failure diagnostics use
+Firestore data role required for login-flow and session entities. AP-M9-W10 Slice 2 replaces that
+repository posture with a conditioned default-database session grant and a separate named member
+database whose runtime custom role contains only exact-document read permission. Deterministic
+provider readback rejects an unconditioned, additional, enumeration-capable, or mutation-capable
+runtime grant. Slice 3 adds an exact-document provider adapter and deterministic restricted
+admission tests; later W10 work reconciled and Candidate-qualified the provider member lookup.
+Runtime failure diagnostics use
 constant allowlisted boundary codes carried only by the minimized completion event routed to the
 dedicated seven-day regional log bucket. The isolated JSON-line logger prevents `INFO` completion
 events from being suppressed or misclassified as unselected text logs. Diagnostics never include
@@ -525,9 +571,9 @@ provider exceptions, visitor identity, OAuth material, query parameters, or sess
 application handoff check detects missing Terraform-managed identity prerequisites before bundle
 publication, including the platform-owned application-subnet NAT. The networked fixture emits only
 an allowlisted verification result code and its application identifier when assertion verification
-fails; it never logs the assertion, identity, token, provider exception, or request value. Live
-Google login remains unqualified until the corrected platform revision is
-deployed and AP-EVAL-M9-07 passes. Provider availability and disaster recovery beyond the 15-minute
+fails; it never logs the assertion, identity, token, provider exception, or request value. The
+named Candidate Source revision qualified Live Google login under AP-EVAL-M9-07; Accepted Source
+qualification still requires W11. Provider availability and disaster recovery beyond the 15-minute
 post-approval rollback objective remain outside the demo commitment.
 
 ### AP-TM-014 · External migration proposal or fixture mistaken for Application Adoption
@@ -548,7 +594,7 @@ behavior. `A` is mandatory for every real application and retains its prior hist
 **Residual risk:** Human process can still misstate adoption; truthful status checks, review, and
 release ownership are required at every handoff.
 
-## AP-M7 infrastructure-configuration controls
+## <u>AP-M7 infrastructure-configuration controls</u>
 
 AP-EVAL-M7 covers the static infrastructure profile without treating configuration as an
 operational control. The following controls refine the existing threats:
@@ -563,8 +609,9 @@ operational control. The following controls refine the existing threats:
   audience remains distinct; and no IAM or infrastructure value grants a Feature Entitlement.
   These are static intents until AP-EVAL-M9 proves provider enforcement.
 - **AP-TM-007:** Immutable source, image, generation, object, and plan digests, explicit predecessor
-  inputs, root-scoped concurrency templates, backend-lock intent, and one 100-percent candidate
-  traffic value prevent a configuration from describing a partial registration activation.
+  inputs, provider-verified source equality between the active and predecessor runtimes,
+  root-scoped concurrency templates, backend-lock intent, and one 100-percent candidate traffic
+  value prevent a configuration from describing a partial or stale-source registration activation.
   Workflow templates stop on failure and never auto-retry, unlock, roll back, change DNS, or destroy.
 - **AP-TM-008 and AP-TM-009:** The bootstrap, platform, and three Fixture Application roots have
   disjoint resource allow-lists. Cross-state values conform to typed non-secret reference contracts;
@@ -593,7 +640,7 @@ performs no backend initialization, credential lookup, provider or metadata requ
 repository mutation, apply, or destroy. A static pass cannot qualify key custody, ingress, IAM,
 logging, budget delivery, rollback, recovery, or any other provider behavior.
 
-## Historical AP-M8 protected-source and federated-identity controls — superseded
+## <u>Historical AP-M8 protected-source and federated-identity controls — superseded</u>
 
 This and the following three AP-M8 sections record the accepted but unexecuted manifest-driven
 control proposal at revision `7b6678a7f0b3036d427517dad6bc3bec876d1a44`. ADR-010 through ADR-013
@@ -648,7 +695,7 @@ the subordinate [qualification-deployment runbook](runbooks/qualification_deploy
 is owner-accepted and merged; until the exact W2 manifest and the AP-M8-W3/AP-M8-W4 checkpoints are
 separately approved and executed, these controls produce no provider or Live evidence.
 
-## Historical AP-M8 backend-bootstrap and state-lineage controls — superseded
+## <u>Historical AP-M8 backend-bootstrap and state-lineage controls — superseded</u>
 
 AP-M8-W1 defines these AP-M8-W5 controls without creating a backend or state:
 
@@ -695,7 +742,7 @@ the required AP-M8-W5 repository preparation is merged and the later operator ch
 explicitly approved, these controls supply no backend, state, provider, deployment, or Live
 evidence.
 
-## Historical AP-M8 deployment-sequencing and activation controls — superseded
+## <u>Historical AP-M8 deployment-sequencing and activation controls — superseded</u>
 
 AP-M8-W1 defines these AP-M8-W6 through AP-M8-W10 controls without creating a workflow, image,
 generation, resource, record, or DNS entry:
@@ -757,7 +804,7 @@ partial-failure table are in the subordinate
 each later checkpoint is separately approved, this profile supplies no executable or provider
 authority.
 
-## Historical AP-M8 deployment-evidence controls — superseded
+## <u>Historical AP-M8 deployment-evidence controls — superseded</u>
 
 AP-M8-W1 defines these AP-M8-W11/W12 and AP-EVAL-M8 controls without reading a provider or
 creating evidence:
@@ -807,7 +854,7 @@ not Live-qualified. The exact schema, verifier, gates, and allowed fields are in
 [the historical evaluation definition](05_evaluation_strategy.md); its collection and failure
 handling were recorded in the superseded qualification-deployment runbook.
 
-## AP-M9 interactive lifecycle controls
+## <u>AP-M9 interactive lifecycle controls</u>
 
 AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control refinements:
 
@@ -820,7 +867,7 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   signing or OAuth authority. Application targets retain direct-origin denial, independent assertion
   verification, principals, data isolation, and Feature Entitlements. ADR-015 requires explicit
   Identity Delivery, environment-wide restricted membership, and current-visitor-only projection;
-  those refinements remain W10 work.
+  W10 implements and Candidate-qualifies those refinements at the named integration revision.
 - **AP-TM-007:** One canonical operation fingerprint, exact-source check, fixed reviewed stage
   order, exact plan digest, state lock, provider readback, and one atomically replaced progress
   cursor reject stale, concurrent, repeated, or partial lifecycle changes. Progress records no
@@ -904,13 +951,26 @@ deployment adapters are wired behind pinned-tool, exact-project, active-account,
 digest-bound plan, confirmation, source-upload allow-list, and readback gates. W9 adds and exercises
 the Fixture Application deployment lifecycle, browser qualification, and closed fixture
 destruction/recovery transition under Candidate Source. ADR-015 supersedes its Version 1
-per-registration membership and implicit public-identity boundary. W10 must implement and
-candidate-qualify the directory, explicit Identity Delivery, owner bootstrap, second-member
-lifecycle, and Version 2 contracts before the Accepted Source operation in W11. Candidate evidence
-proves only the named W9 predecessor bindings. No current result proves ADR-015 realization,
-Accepted Source staging, platform destruction/redeployment, production, or Application Adoption.
+per-registration membership and implicit public-identity boundary. W10 Slices 1 through 5
+implement the Version 2 contract family, deterministic member-discarding migration, directory and
+IAM boundary, runtime Identity Delivery, owner/member lifecycle, complete application handoff, and
+  rejection of mixed or member-bearing Version 2 documents. Slice 6 reconciles the operator handoff
+  without changing controls. Slice 7 reuses the source-admitted member service, refuses to start
+  without the reviewed owner-only baseline, reports only coarse route decisions through a
+  challenge-bound loopback callback, derives target and catalogue expectations from the active
+  generation, reports only coarse identity presence during browser qualification, attempts
+  temporary-member cleanup on every failure, and blocks rollback unless the final owner-only
+  baseline is exact. A predecessor callback that still observes successor identity policy gets
+  only bounded, separately confirmed traffic-convergence retries; other failures do not retry, and
+  the exact stable blocker remains in least-data evidence. Predecessor public-identity failure
+  cannot suppress restoration. Its branch invokes no provider. After it merged, integration
+  revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c` Candidate-qualified the complete Version 2 model
+  and restored the owner-only baseline. That evidence is exact-revision Candidate evidence, not
+  Accepted Source evidence; the final documentation revision must repeat the qualification before
+  freeze. No current result proves Accepted Source staging, platform destruction/redeployment,
+  production, or Application Adoption.
 
-## Unresolved security decisions
+## <u>Remaining implementation and security decisions</u>
 
 The following decisions must be approved by their owning later slice before the named evidence can
 pass:
@@ -924,7 +984,7 @@ pass:
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
 | Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
-| Platform Member Directory realization, explicit Identity Delivery, Version 2 migration, owner bootstrap, and member lifecycle | AP-M9-W10 implementation and Candidate Source qualification |
+| Live member admission, rollback, least-data, and baseline-restoration evidence | AP-M9-W10 final integration qualification after Slice 7 |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
 | Application-specific principals, data isolation, providers, and entitlements | Each Application Adoption |
@@ -932,7 +992,7 @@ pass:
 An unresolved decision causes its dependent gate to remain unavailable; it is not an accepted risk
 by silence.
 
-## Threat-model acceptance boundary
+## <u>Threat-model acceptance boundary</u>
 
 This document is accepted when every in-scope trust crossing has an owner, every threat has required
 controls and an evidence class, deferred decisions are explicit, and no deterministic claim is used
@@ -943,7 +1003,7 @@ identifiers. Versioned schemas and deterministic validation must cover every `C`
 fixture, infrastructure, and adoption plans must carry forward the applicable `F`, `L`, and `A`
 requirements without weakening them.
 
-## Threat trace
+## <u>Threat trace</u>
 
 | Threats | Requirements | Decisions |
 | --- | --- | --- |

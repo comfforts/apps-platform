@@ -7,8 +7,8 @@ from dataclasses import replace
 import unittest
 
 from contracts.lifecycle import (
-    lifecycle_digest,
-    validate_lifecycle_document,
+    validate_versioned_lifecycle_document,
+    versioned_lifecycle_digest,
 )
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
@@ -93,11 +93,20 @@ def _state() -> PlatformIntegrationState:
     )
 
 
-def _request(access_mode: str) -> IntegrationBundleRequest:
+def _request(
+    access_mode: str,
+    identity_delivery: str | None = None,
+) -> IntegrationBundleRequest:
+    selected_delivery = identity_delivery or {
+        "public": "none",
+        "authenticated": "required",
+        "restricted": "required",
+    }.get(access_mode, "required")
     return IntegrationBundleRequest(
         environment="staging",
         application_id=f"fixture-{access_mode}",
         access_mode=access_mode,
+        identity_delivery=selected_delivery,
         route_intent=f"/fixture-{access_mode}",
         expected_platform_source_revision=SOURCE_REVISION,
         expected_generation=7,
@@ -106,12 +115,12 @@ def _request(access_mode: str) -> IntegrationBundleRequest:
 
 def _attachment(bundle: dict[str, object]) -> dict[str, object]:
     return {
-        "contract_version": 1,
+        "contract_version": 2,
         "document_kind": "application-attachment-bundle",
         "environment": bundle["environment"],
         "application_id": bundle["application_id"],
         "attachment_revision": 1,
-        "platform_integration_bundle_digest": lifecycle_digest(
+        "platform_integration_bundle_digest": versioned_lifecycle_digest(
             bundle,
             "platform-integration-bundle",
         ),
@@ -165,7 +174,7 @@ class PlatformOutputsTest(unittest.TestCase):
         self.assertIsNotNone(result.bundle)
         assert result.bundle is not None
         self.assertEqual(
-            validate_lifecycle_document(
+            validate_versioned_lifecycle_document(
                 result.bundle,
                 "platform-integration-bundle",
             ),
@@ -173,7 +182,10 @@ class PlatformOutputsTest(unittest.TestCase):
         )
         self.assertEqual(
             result.bundle_digest,
-            lifecycle_digest(result.bundle, "platform-integration-bundle"),
+            versioned_lifecycle_digest(
+                result.bundle,
+                "platform-integration-bundle",
+            ),
         )
         self.assertEqual(reader.requests, ["staging"])
         self.assertEqual(
@@ -237,6 +249,23 @@ class PlatformOutputsTest(unittest.TestCase):
                     },
                 )
 
+    def test_public_optional_bundle_explicitly_enables_platform_identity(self) -> None:
+        lifecycle = ApplicationIntegrationLifecycle(FakePlatformReader(_state()))
+
+        result = lifecycle.outputs(_request("public", "optional"))
+
+        self.assertEqual(result.outcome, "generated")
+        assert result.bundle is not None
+        self.assertEqual(result.bundle["identity_delivery"], "optional")
+        self.assertEqual(
+            result.bundle["identity"]["audience"],
+            "urn:comfforts:app-platform:audience:fixture-public",
+        )
+        self.assertEqual(
+            result.bundle["endpoints"]["issuer"],
+            "https://apps-staging.comfforts.com/_platform",
+        )
+
     def test_bundle_is_bound_to_exact_current_platform_state(self) -> None:
         cases = {
             "wrong environment": (
@@ -280,6 +309,7 @@ class PlatformOutputsTest(unittest.TestCase):
             environment=invalid.environment,
             application_id="Invalid Application",
             access_mode=invalid.access_mode,
+            identity_delivery=invalid.identity_delivery,
             route_intent=invalid.route_intent,
             expected_platform_source_revision=invalid.expected_platform_source_revision,
             expected_generation=invalid.expected_generation,
@@ -293,6 +323,25 @@ class PlatformOutputsTest(unittest.TestCase):
         self.assertIsNone(malformed.bundle)
         self.assertEqual(owner_only.outcome, "blocked")
         self.assertEqual(owner_only.blockers, ("ACCESS_MODE_UNSUPPORTED",))
+
+        for access_mode, identity_delivery in (
+            ("public", "required"),
+            ("authenticated", "none"),
+            ("authenticated", "optional"),
+            ("restricted", "none"),
+            ("restricted", "optional"),
+        ):
+            with self.subTest(
+                access_mode=access_mode,
+                identity_delivery=identity_delivery,
+            ):
+                invalid_pair = lifecycle.outputs(
+                    _request(access_mode, identity_delivery)
+                )
+                self.assertEqual(
+                    invalid_pair.blockers,
+                    ("IDENTITY_DELIVERY_UNSUPPORTED",),
+                )
 
 
 class AttachmentValidationTest(unittest.TestCase):

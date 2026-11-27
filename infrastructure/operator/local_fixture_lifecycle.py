@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from typing import Any, Callable, Protocol
 
-from contracts.lifecycle import validate_lifecycle_document
+from contracts.lifecycle import (
+    validate_versioned_lifecycle_document,
+    versioned_lifecycle_digest,
+)
 from infrastructure.operator._interfaces import StageContext, StageExecution
 from infrastructure.operator._interfaces import GitAdapter
 from infrastructure.operator._interfaces import OperatorInterrupted, OperatorTerminal
@@ -40,9 +42,6 @@ from infrastructure.operator.local_fixture_preparations import (
     LocalFixturePreparations,
 )
 from infrastructure.operator.local_integration import PlatformIntegrationReadbackError
-
-
-_GOOGLE_SUBJECT = re.compile(r"[1-9][0-9]{5,63}")
 
 
 class FixtureImageProvider(Protocol):
@@ -96,6 +95,7 @@ def _status(
             FixtureApplicationStatus(
                 item.application_id,
                 item.lifecycle,
+                item.catalogue_visibility,
                 item.target_exists,
                 item.target_ready,
                 (
@@ -120,20 +120,13 @@ class LocalFixtureLifecycleCommands:
         integration: ApplicationIntegrationLifecycle,
         image_provider: FixtureImageProvider,
         terraform_executor: FixtureTerraformExecutor,
-        restricted_member: tuple[str, str],
         handoffs: LocalApplicationHandoffs | None = None,
         terminal: OperatorTerminal | None = None,
         preparations: LocalFixturePreparations | None = None,
     ) -> None:
-        if (
-            restricted_member[0] != "https://accounts.google.com"
-            or _GOOGLE_SUBJECT.fullmatch(restricted_member[1]) is None
-        ):
-            raise ValueError("restricted fixture member must be the verified operator")
         self._integration = integration
         self._image_provider = image_provider
         self._terraform_executor = terraform_executor
-        self._restricted_member = restricted_member
         self._handoffs = handoffs
         self._terminal = terminal
         self._preparations = preparations
@@ -230,7 +223,7 @@ class LocalFixtureLifecycleCommands:
             ):
                 raise TypeError
             attachment = {
-                "contract_version": 1,
+                "contract_version": 2,
                 "document_kind": "application-attachment-bundle",
                 "environment": request.environment,
                 "application_id": request.application_id,
@@ -238,8 +231,9 @@ class LocalFixtureLifecycleCommands:
                     request.integration_bundle,
                     request.source_revision,
                 ),
-                "platform_integration_bundle_digest": _digest(
-                    request.integration_bundle
+                "platform_integration_bundle_digest": versioned_lifecycle_digest(
+                    request.integration_bundle,
+                    "platform-integration-bundle",
                 ),
                 "application_source_revision": request.source_revision,
                 "target": {
@@ -257,7 +251,10 @@ class LocalFixtureLifecycleCommands:
             }
         except (IndexError, KeyError, TypeError, json.JSONDecodeError) as error:
             raise FixtureCommandError("FIXTURE_READBACK_INVALID") from error
-        if validate_lifecycle_document(attachment, "application-attachment-bundle"):
+        if validate_versioned_lifecycle_document(
+            attachment,
+            "application-attachment-bundle",
+        ):
             raise FixtureCommandError("ATTACHMENT_BUNDLE_INVALID")
         validated = self._integration.validate_attachment(
             request.integration_bundle,
@@ -319,7 +316,12 @@ class LocalFixtureLifecycleCommands:
             return self._preparations.publish_registration_intent(
                 request,
                 published,
-                self._intent(request.application_id),
+                self._intent(
+                    request.application_id,
+                    str(preparation.integration_bundle["access_mode"]),
+                    str(preparation.integration_bundle["identity_delivery"]),
+                    request.catalogue_visibility,
+                ),
             )
         except (FileExistsError, OSError, ValueError) as error:
             raise FixtureCommandError(
@@ -347,18 +349,26 @@ class LocalFixtureLifecycleCommands:
             return 1
         if (
             previous.application_source_revision == source_revision
-            and previous.integration_bundle_digest == _digest(bundle)
+            and previous.integration_bundle_digest
+            == versioned_lifecycle_digest(bundle, "platform-integration-bundle")
         ):
             return previous.attachment_revision
         return previous.attachment_revision + 1
 
-    def _intent(self, application_id: str) -> RegistrationIntent:
+    def _intent(
+        self,
+        application_id: str,
+        access_mode: str,
+        identity_delivery: str,
+        catalogue_visibility: str,
+    ) -> RegistrationIntent:
+        """Build the fixture's V2 intent from the exact platform bundle policy."""
+
         return RegistrationIntent(
-            catalogue_visibility=(
-                "unlisted"
-                if application_id == "fixture-authenticated"
-                else "listed"
-            ),
+            application_id=application_id,
+            access_mode=access_mode,
+            identity_delivery=identity_delivery,
+            catalogue_visibility=catalogue_visibility,
             catalogue_title={
                 "fixture-public": "Public fixture",
                 "fixture-authenticated": "Authenticated fixture",
@@ -368,11 +378,6 @@ class LocalFixtureLifecycleCommands:
             attachment_id="primary",
             mount_path="/",
             forwarding_mode="strip_application_prefix",
-            restricted_members=(
-                (self._restricted_member,)
-                if application_id == "fixture-restricted"
-                else ()
-            ),
         )
 
     def status(
@@ -448,19 +453,25 @@ class LocalFixtureLifecycleCommands:
             raise FixtureCommandError("FIXTURE_DESTRUCTION_REREAD_MISMATCH")
 
         definition = {
-            "fixture-public": ("public", "/fixture-public"),
+            "fixture-public": ("public", "none", "/fixture-public"),
             "fixture-authenticated": (
                 "authenticated",
+                "required",
                 "/fixture-authenticated",
             ),
-            "fixture-restricted": ("restricted", "/fixture-restricted"),
+            "fixture-restricted": (
+                "restricted",
+                "required",
+                "/fixture-restricted",
+            ),
         }[request.application_id]
         bundle_result = self._integration.outputs(
             IntegrationBundleRequest(
                 environment=request.environment,
                 application_id=request.application_id,
                 access_mode=definition[0],
-                route_intent=definition[1],
+                identity_delivery=definition[1],
+                route_intent=definition[2],
                 expected_platform_source_revision=(
                     request.expected_platform_source_revision
                 ),
@@ -571,9 +582,12 @@ class LocalFixtureOperator:
         self,
         environment: str,
         application_id: str,
+        catalogue_visibility: str,
         integration_bundle: dict[str, Any],
         integration_bundle_path: str,
     ):  # type: ignore[no-untyped-def]
+        """Bind repository and platform readback to one explicit fixture intent."""
+
         from infrastructure.operator.fixture_lifecycle import (
             FixtureDeployRequest,
             FixtureHandoffResult,
@@ -645,6 +659,7 @@ class LocalFixtureOperator:
                     platform.platform_source_revision
                 ),
                 expected_platform_generation=platform.generation,
+                catalogue_visibility=catalogue_visibility,
                 source_authority=self._source_authority,
                 integration_bundle=integration_bundle,
                 integration_bundle_path=integration_bundle_path,

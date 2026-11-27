@@ -23,6 +23,14 @@ from google.cloud import run_v2
 from google.iam.v1 import policy_pb2
 from starlette.responses import PlainTextResponse
 
+from infrastructure.member_directory import (
+    CANONICAL_GOOGLE_ISSUER,
+    InMemoryMemberDirectory,
+    MemberRecord,
+    PlatformMemberIdentity,
+    member_reference,
+)
+
 from edge import (
     ApplicationIdentityVerifier,
     RuntimeAdapters,
@@ -57,6 +65,7 @@ from edge._identity import (
     PlatformSession,
 )
 from edge._observability import CompletionEvent
+from edge._proxy import IDENTITY_HEADER, application_request_headers
 from edge.verification import HttpJwksFetcher, InMemoryJwksFetcher
 
 
@@ -177,10 +186,12 @@ def generation_configuration(
     content_digest: str = GENERATION_CONTENT_DIGEST,
     generation_digest: str = GENERATION_DIGEST,
     external_origin: str | None = None,
+    environment: str | None = None,
 ) -> RuntimeConfiguration:
     return RuntimeConfiguration(
         profile="qualification-v1",
         source_revision=SOURCE_REVISION,
+        environment=environment,
         generation_bucket=GENERATION_BUCKET,
         generation_object=GENERATION_OBJECT,
         generation_object_generation=GENERATION_OBJECT_GENERATION,
@@ -194,10 +205,55 @@ def compiled_generation() -> dict[str, Any]:
     return json.loads(valid_generation_payload())
 
 
+def compiled_generation_v2() -> dict[str, Any]:
+    """Load the reviewed member-free Version 2 compiled-generation vector."""
+
+    return json.loads(
+        (
+            PROJECT_ROOT
+            / "contracts/test-vectors/valid/compiled-migrated-multi-active.v2.json"
+        ).read_text(encoding="utf-8")
+    )
+
+
+def optional_public_generation_v2() -> dict[str, Any]:
+    """Derive a valid public-optional generation from the reviewed vector."""
+
+    document = compiled_generation_v2()
+    policy = next(
+        item
+        for item in document["admission_policies"]
+        if item["application_id"] == "alpha-app"
+    )
+    policy["identity_delivery"] = "optional"
+    route = next(
+        item
+        for item in document["routes"]
+        if item["application_id"] == "alpha-app"
+    )
+    for attachment in route["attachments"]:
+        attachment["identity_requirement"] = "optional"
+        attachment["audience"] = (
+            "urn:comfforts:app-platform:audience:alpha-app"
+        )
+    return document
+
+
+def assertion_payload(assertion: str) -> dict[str, Any]:
+    """Decode a deterministic test assertion payload without treating it as verified."""
+
+    encoded = assertion.split(".")[1]
+    padding = "=" * (-len(encoded) % 4)
+    value = json.loads(base64.urlsafe_b64decode(encoded + padding))
+    assert isinstance(value, dict)
+    return value
+
+
 def configured_generation(
     document: dict[str, Any],
     *,
     external_origin: str | None = None,
+    environment: str | None = None,
 ) -> tuple[RuntimeConfiguration, StaticGenerationSource]:
     payload = json.dumps(
         document,
@@ -209,6 +265,7 @@ def configured_generation(
         content_digest="sha256:" + hashlib.sha256(payload).hexdigest(),
         generation_digest=document["generation_digest"],
         external_origin=external_origin,
+        environment=environment,
     )
     return configuration, StaticGenerationSource(
         bucket=GENERATION_BUCKET,
@@ -532,6 +589,32 @@ class RecordingRouteHandoff:
 
     async def dispatch(self, request: Any) -> None:
         self.requests.append(request)
+
+
+class RecordingMemberLookup:
+    """Return one configured current-member result while recording exact reads."""
+
+    def __init__(
+        self,
+        record: MemberRecord | None = None,
+        *,
+        error: Exception | None = None,
+    ) -> None:
+        self.record = record
+        self.error = error
+        self.requests: list[tuple[str, PlatformMemberIdentity]] = []
+
+    async def lookup_current_member(
+        self,
+        environment: str,
+        identity: PlatformMemberIdentity,
+    ) -> MemberRecord | None:
+        """Record one exact current-visitor lookup and return the configured result."""
+
+        self.requests.append((environment, identity))
+        if self.error is not None:
+            raise self.error
+        return self.record
 
 
 class RecordingApplicationProxy:
@@ -1081,7 +1164,7 @@ class ApplicationVerificationTest(unittest.TestCase):
                 ("A" if signature[0] != "A" else "B") + signature[1:],
             )
         )
-        wrong_version = dict(self.payload, contract_version=2)
+        wrong_version = dict(self.payload, contract_version=3)
         wrong_issuer = dict(self.payload, issuer="https://issuer.example")
         wrong_audience = dict(
             self.payload,
@@ -1141,6 +1224,25 @@ class ApplicationVerificationTest(unittest.TestCase):
                 self.assertFalse(result.accepted)
                 self.assertEqual(result.code, code)
                 self.assertIsNone(result.identity)
+
+    def test_application_verifier_accepts_version_two_membership_projection(
+        self,
+    ) -> None:
+        payload = dict(
+            self.payload,
+            contract_version=2,
+            platform_member=True,
+        )
+
+        result = asyncio.run(
+            self.verifier().verify(signed_test_assertion(self.keys, payload))
+        )
+
+        self.assertTrue(result.accepted)
+        self.assertEqual(result.code, "identity_verified")
+        assert result.identity is not None
+        self.assertEqual(result.identity.contract_version, 2)
+        self.assertIs(result.identity.platform_member, True)
 
     def test_unknown_key_refreshes_once_and_rotation_overlap_verifies(self) -> None:
         valid = signed_test_assertion(self.keys, self.payload)
@@ -1345,6 +1447,41 @@ class CloudRunAttachmentTest(unittest.TestCase):
         self.assertEqual(resolved.resource, self.resource())
         self.assertEqual(resolved.target_uri, self.target_uri)
         self.assertEqual(resolved.audience, self.audience)
+
+    def test_public_none_accepts_same_application_identity_capability(self) -> None:
+        """Keep anonymous rollback viable when the target can accept identity."""
+
+        provider = InMemoryCloudRunMetadataProvider(
+            {self.resource(): self.metadata()}
+        )
+        resolver = CloudRunAttachmentResolver(provider, self.edge_caller)
+
+        resolved = asyncio.run(
+            resolver.resolve(replace(self.request(), audience=None))
+        )
+
+        self.assertEqual(provider.requests, [self.resource()])
+        self.assertEqual(resolved.resource, self.resource())
+        self.assertEqual(resolved.target_uri, self.target_uri)
+        self.assertIsNone(resolved.audience)
+
+        wrong_target = InMemoryCloudRunMetadataProvider(
+            {
+                self.resource(): replace(
+                    self.metadata(),
+                    audience=(
+                        "urn:comfforts:app-platform:audience:other-app"
+                    ),
+                )
+            }
+        )
+        with self.assertRaises(AttachmentUnavailable):
+            asyncio.run(
+                CloudRunAttachmentResolver(
+                    wrong_target,
+                    self.edge_caller,
+                ).resolve(replace(self.request(), audience=None))
+            )
 
     def test_resolver_rejects_every_mismatched_or_unavailable_fact(self) -> None:
         other_resource = CloudRunResource(
@@ -1764,6 +1901,103 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertEqual(routed.query_string, b"view=summary")
         self.assertIsNotNone(routed.resolved_attachment)
 
+    def test_public_none_routes_anonymously_to_optional_capable_target(self) -> None:
+        """Exercise the complete predecessor route used by Live rollback."""
+
+        resource_reference = (
+            "urn:comfforts:app-platform:gcp:cloud-run:455651441682:"
+            "us-west1:alpha-app"
+        )
+        resource = parse_cloud_run_reference(resource_reference)
+        edge_caller = (
+            "serviceAccount:apps-platform-edge@comfforts-platform-non-prod."
+            "iam.gserviceaccount.com"
+        )
+        audience = "urn:comfforts:app-platform:audience:alpha-app"
+        document = compiled_generation_v2()
+        route = next(
+            item
+            for item in document["routes"]
+            if item["application_id"] == "alpha-app"
+        )
+        attachment = next(
+            item
+            for item in route["attachments"]
+            if item["attachment_id"] == "web"
+        )
+        attachment.update(
+            adapter_kind="gcp-cloud-run-v1",
+            resource_reference=resource_reference,
+        )
+        configuration, source = configured_generation(
+            document,
+            environment="staging",
+        )
+        provider = InMemoryCloudRunMetadataProvider(
+            {
+                resource: CloudRunServiceMetadata(
+                    resource=resource,
+                    target_uri=(
+                        "https://alpha-app-455651441682.us-west1.run.app"
+                    ),
+                    ready=True,
+                    owner_application_id="alpha-app",
+                    audience=audience,
+                    invoker_principals=frozenset({edge_caller}),
+                )
+            }
+        )
+        handoff = RecordingRouteHandoff()
+        proxy = RecordingApplicationProxy()
+        store = InMemoryIdentityStore()
+        session_id = "rollback-session-0123456789012"
+        store.sessions[session_id] = PlatformSession(
+            identity=PlatformIdentity(
+                "https://accounts.google.com",
+                "rollback-visitor",
+            ),
+            expires_at=10_000,
+        )
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                attachment_resolver=CloudRunAttachmentResolver(
+                    provider,
+                    edge_caller,
+                ),
+                route_handoff=handoff,
+                application_proxy=proxy,
+                identity_store=store,
+                clock=FixedClock(1_000),
+            ),
+        )
+
+        _, (status, _, body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/alpha",
+                headers=(
+                    (
+                        b"cookie",
+                        (
+                            b"__Host-comfforts-session="
+                            + session_id.encode("ascii")
+                        ),
+                    ),
+                ),
+            )
+        )
+
+        self.assertEqual(status, 202)
+        self.assertEqual(body, b"proxied\n")
+        self.assertEqual(len(handoff.requests), 1)
+        routed = handoff.requests[0]
+        self.assertIsNone(routed.identity_audience)
+        self.assertIsNone(routed.verified_identity_assertion)
+        self.assertIsNotNone(routed.resolved_attachment)
+        self.assertIsNone(routed.resolved_attachment.audience)
+
     def test_resolved_websocket_route_is_delivered_through_application_proxy(
         self,
     ) -> None:
@@ -2088,6 +2322,325 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
             "IDENTITY_STORE_LOGIN_FLOW_WRITE_FAILED",
         )
         self.assertEqual(oidc.authorization_requests, [])
+
+    def test_member_verification_returns_only_environment_scoped_reference(self) -> None:
+        configuration, source = configured_generation(
+            protected_generation("authenticated"),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        identity = PlatformIdentity(
+            "https://accounts.google.com",
+            "verified-member-subject",
+            "private@example.com",
+        )
+        store = InMemoryIdentityStore()
+        session_id = "member-session-012345678901234"
+        store.sessions[session_id] = PlatformSession(identity, expires_at=20_000)
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                identity_store=store,
+                clock=FixedClock(10_000),
+                google_oidc=FakeGoogleOidc(identity),
+                token_source=FixedTokenSource([]),
+            ),
+        )
+        query = urlencode(
+            {
+                "callback_port": "43123",
+                "challenge": "a" * 64,
+                "operation": "add",
+            }
+        ).encode("ascii")
+        _, (status, headers, body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/member/verify",
+                query_string=query,
+                headers=((b"cookie", f"__Host-comfforts-session={session_id}".encode()),),
+            )
+        )
+        location = headers[b"location"].decode("ascii")
+        callback = urlsplit(location)
+        values = parse_qs(callback.query)
+        expected = member_reference(
+            "staging",
+            PlatformMemberIdentity(identity.issuer, identity.subject),
+        )
+        self.assertEqual((status, body), (303, b""))
+        self.assertEqual((callback.scheme, callback.hostname, callback.port), ("http", "127.0.0.1", 43123))
+        self.assertEqual(values["member_reference"], [expected])
+        self.assertEqual(values["environment"], ["staging"])
+        self.assertEqual(values["operation"], ["add"])
+        self.assertEqual(values["challenge"], ["a" * 64])
+        self.assertNotIn(identity.subject, location)
+        self.assertNotIn(identity.email or "", location)
+
+    def test_member_verification_requires_login_and_rejects_unbounded_input(self) -> None:
+        configuration, source = configured_generation(
+            protected_generation("authenticated"),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                identity_store=InMemoryIdentityStore(),
+                clock=FixedClock(10_000),
+                google_oidc=FakeGoogleOidc(
+                    PlatformIdentity("https://accounts.google.com", "visitor")
+                ),
+                token_source=FixedTokenSource([]),
+            ),
+        )
+        query = urlencode(
+            {
+                "callback_port": "43123",
+                "challenge": "b" * 64,
+                "operation": "add",
+            }
+        ).encode("ascii")
+        _, (status, headers, _) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/member/verify",
+                query_string=query,
+            )
+        )
+        self.assertEqual(status, 303)
+        self.assertTrue(headers[b"location"].startswith(b"/_platform/login?"))
+
+        _, (lifecycle_status, _, lifecycle_body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/member/verify",
+                query_string=(
+                    b"callback_port=43123&challenge=" + b"b" * 64
+                    + b"&operation=suspend"
+                ),
+            )
+        )
+        self.assertEqual(
+            (lifecycle_status, lifecycle_body),
+            (400, b"invalid member verification\n"),
+        )
+
+        _, (invalid_status, _, invalid_body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/member/verify",
+                query_string=b"callback_port=80&challenge=short&operation=list",
+            )
+        )
+        self.assertEqual((invalid_status, invalid_body), (400, b"invalid member verification\n"))
+
+    def test_member_identification_uses_the_bounded_verification_callback(self) -> None:
+        identity = PlatformIdentity(
+            "https://accounts.google.com",
+            "identified-member-subject",
+            "private@example.com",
+        )
+        configuration, source = configured_generation(
+            protected_generation("authenticated"),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        store = InMemoryIdentityStore()
+        session_id = "member-identify-session-01234567"
+        store.sessions[session_id] = PlatformSession(identity, expires_at=20_000)
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                identity_store=store,
+                clock=FixedClock(10_000),
+                google_oidc=FakeGoogleOidc(identity),
+                token_source=FixedTokenSource([]),
+            ),
+        )
+        query = urlencode(
+            {
+                "callback_port": "43123",
+                "challenge": "d" * 64,
+                "operation": "identify",
+            }
+        ).encode("ascii")
+
+        _, (status, headers, body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/member/verify",
+                query_string=query,
+                headers=((b"cookie", f"__Host-comfforts-session={session_id}".encode()),),
+            )
+        )
+
+        values = parse_qs(urlsplit(headers[b"location"].decode("ascii")).query)
+        self.assertEqual((status, body), (303, b""))
+        self.assertEqual(values["operation"], ["identify"])
+        self.assertEqual(
+            values["member_reference"],
+            [
+                member_reference(
+                    "staging",
+                    PlatformMemberIdentity(identity.issuer, identity.subject),
+                )
+            ],
+        )
+
+    def test_member_admission_qualification_reports_only_the_route_decision(self) -> None:
+        identity = PlatformIdentity(
+            CANONICAL_GOOGLE_ISSUER,
+            "qualification-member-subject",
+            "private@example.com",
+        )
+        member_identity = PlatformMemberIdentity(identity.issuer, identity.subject)
+        reference = member_reference("staging", member_identity)
+        configuration, source = configured_generation(
+            compiled_generation_v2(),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        store = InMemoryIdentityStore()
+        session_id = "qualification-session-0123456789"
+        store.sessions[session_id] = PlatformSession(identity, expires_at=20_000)
+        query = urlencode(
+            {
+                "application_id": "gamma-app",
+                "callback_port": "43123",
+                "challenge": "d" * 64,
+            }
+        ).encode("ascii")
+
+        for lifecycle, admitted in (("active", "true"), ("suspended", "false")):
+            with self.subTest(lifecycle=lifecycle):
+                lookup = RecordingMemberLookup(
+                    MemberRecord(reference, lifecycle, 2, 100, 200)
+                )
+                app = create_app(
+                    configuration,
+                    RuntimeAdapters(
+                        generation_source=source,
+                        identity_store=store,
+                        member_lookup=lookup,
+                        clock=FixedClock(10_000),
+                        correlation_ids=FixedCorrelationIds(
+                            [f"member-qualification-{lifecycle}"]
+                        ),
+                    ),
+                )
+
+                _, (status, headers, body) = asyncio.run(
+                    request_during_lifespan(
+                        app,
+                        "/_platform/member/qualification",
+                        query_string=query,
+                        headers=(
+                            (
+                                b"cookie",
+                                f"__Host-comfforts-session={session_id}".encode(),
+                            ),
+                        ),
+                    )
+                )
+
+                location = headers[b"location"].decode("ascii")
+                callback = urlsplit(location)
+                values = parse_qs(callback.query)
+                self.assertEqual((status, body), (303, b""))
+                self.assertEqual(
+                    (callback.scheme, callback.hostname, callback.port),
+                    ("http", "127.0.0.1", 43123),
+                )
+                self.assertEqual(values["application_id"], ["gamma-app"])
+                self.assertEqual(values["admitted"], [admitted])
+                self.assertEqual(values["challenge"], ["d" * 64])
+                self.assertNotIn(reference, location)
+                self.assertNotIn(identity.subject, location)
+                self.assertNotIn(identity.email or "", location)
+                self.assertEqual(lookup.requests, [("staging", member_identity)])
+
+        unavailable = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                identity_store=store,
+                member_lookup=RecordingMemberLookup(
+                    error=PermissionError("private provider detail")
+                ),
+                clock=FixedClock(10_000),
+                correlation_ids=FixedCorrelationIds(
+                    ["member-qualification-unavailable"]
+                ),
+            ),
+        )
+        _, (status, headers, body) = asyncio.run(
+            request_during_lifespan(
+                unavailable,
+                "/_platform/member/qualification",
+                query_string=query,
+                headers=(
+                    (
+                        b"cookie",
+                        f"__Host-comfforts-session={session_id}".encode(),
+                    ),
+                ),
+            )
+        )
+        self.assertEqual((status, body), (503, b"member directory unavailable\n"))
+        self.assertNotIn(b"location", headers)
+        self.assertNotIn("private provider detail", body.decode())
+
+    def test_identity_callback_can_return_to_member_verification(self) -> None:
+        configuration, source = configured_generation(
+            protected_generation("authenticated"),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        return_to = (
+            "/_platform/member/verify?callback_port=43123&challenge="
+            + "c" * 64
+            + "&operation=bootstrap-owner"
+        )
+        flow_id = "member-flow-01234567890123456"
+        store = InMemoryIdentityStore()
+        store.flows[flow_id] = LoginFlow(
+            state="member-state-012345678901234",
+            nonce="member-nonce-012345678901234",
+            code_verifier="member-verifier-012345678901234567890123456789",
+            return_to=return_to,
+            expires_at=2_000,
+        )
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                google_oidc=FakeGoogleOidc(
+                    PlatformIdentity("https://accounts.google.com", "member-owner")
+                ),
+                identity_store=store,
+                clock=FixedClock(1_000),
+                token_source=FixedTokenSource(
+                    ["member-session-012345678901234"]
+                ),
+            ),
+        )
+
+        _, (status, headers, _) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/auth/callback",
+                query_string=b"state=member-state-012345678901234&code=provider-code",
+                headers=((b"cookie", f"__Host-comfforts-oidc={flow_id}".encode()),),
+            )
+        )
+
+        self.assertEqual(status, 303)
+        self.assertEqual(headers[b"location"].decode("ascii"), return_to)
+        self.assertIsNotNone(cookie_value(headers, "__Host-comfforts-session"))
 
     def test_callback_creates_absolute_session_and_authenticated_handoff(self) -> None:
         configuration, source = configured_generation(
@@ -3045,6 +3598,378 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertEqual(headers[b"cache-control"], b"no-store")
         self.assertEqual(headers[b"content-type"], b"text/plain; charset=utf-8")
         self.assertEqual(body, b"platform unavailable\n")
+
+
+class VersionTwoIdentityDeliveryRuntimeTest(unittest.TestCase):
+    """Exercise explicit Identity Delivery and current-member enforcement."""
+
+    def setUp(self) -> None:
+        self.identity = PlatformIdentity(
+            CANONICAL_GOOGLE_ISSUER,
+            "member-subject-0123456789",
+            "display-only@example.com",
+        )
+        self.session_id = "member-session-012345678901234"
+        self.clock = FixedClock(1_000)
+        self.store = InMemoryIdentityStore()
+        self.store.sessions[self.session_id] = PlatformSession(
+            identity=self.identity,
+            expires_at=10_000,
+        )
+
+    @property
+    def session_header(self) -> tuple[tuple[bytes, bytes], ...]:
+        """Return the opaque host-session cookie used by one synthetic visitor."""
+
+        return (
+            (
+                b"cookie",
+                f"__Host-comfforts-session={self.session_id}".encode("ascii"),
+            ),
+        )
+
+    def _adapters(
+        self,
+        source: StaticGenerationSource,
+        handoff: RecordingRouteHandoff,
+        *,
+        member_lookup: RecordingMemberLookup | None = None,
+        events: RecordingCompletionSink | None = None,
+    ) -> RuntimeAdapters:
+        """Compose deterministic identity adapters without provider or network I/O."""
+
+        assertion_issuer, verification_keys = assertion_components(self.clock)
+        return RuntimeAdapters(
+            generation_source=source,
+            route_handoff=handoff,
+            google_oidc=FakeGoogleOidc(self.identity),
+            identity_store=self.store,
+            member_lookup=member_lookup,
+            clock=self.clock,
+            token_source=FixedTokenSource([]),
+            assertion_issuer=assertion_issuer,
+            verification_key_source=verification_keys,
+            correlation_ids=FixedCorrelationIds(
+                ["request-correlation-v2-identity"]
+            ),
+            completion_events=events,
+        )
+
+    def test_public_none_stays_anonymous_even_with_a_platform_session(self) -> None:
+        configuration, source = configured_generation(
+            compiled_generation_v2(),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        handoff = RecordingRouteHandoff()
+        member_lookup = RecordingMemberLookup(
+            error=RuntimeError("must not be called")
+        )
+        self.store.available = False
+        app = create_app(
+            configuration,
+            self._adapters(source, handoff, member_lookup=member_lookup),
+        )
+
+        _, (status, _, _) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/alpha",
+                headers=self.session_header,
+            )
+        )
+
+        self.assertEqual(status, 503)
+        self.assertEqual(len(handoff.requests), 1)
+        self.assertIsNone(handoff.requests[0].verified_identity_assertion)
+        self.assertEqual(member_lookup.requests, [])
+
+    def test_public_optional_allows_anonymous_and_delivers_only_after_login(self) -> None:
+        configuration, source = configured_generation(
+            optional_public_generation_v2(),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        handoff = RecordingRouteHandoff()
+        member_lookup = RecordingMemberLookup(
+            error=RuntimeError("must not be called")
+        )
+        app = create_app(
+            configuration,
+            self._adapters(source, handoff, member_lookup=member_lookup),
+        )
+
+        asyncio.run(request_during_lifespan(app, "/alpha"))
+        asyncio.run(
+            request_during_lifespan(
+                app,
+                "/alpha",
+                headers=self.session_header,
+            )
+        )
+
+        self.assertIsNone(handoff.requests[0].verified_identity_assertion)
+        assertion = handoff.requests[1].verified_identity_assertion
+        self.assertIsNotNone(assertion)
+        payload = assertion_payload(cast(str, assertion))
+        self.assertEqual(
+            set(payload),
+            {
+                "audience",
+                "contract_version",
+                "correlation_id",
+                "expires_at",
+                "issued_at",
+                "issuer",
+                "subject",
+            },
+        )
+        self.assertEqual(payload["contract_version"], 2)
+        self.assertEqual(
+            payload["audience"],
+            "urn:comfforts:app-platform:audience:alpha-app",
+        )
+        self.assertNotIn("email", payload)
+        self.assertNotIn("platform_member", payload)
+        self.assertEqual(member_lookup.requests, [])
+
+    def test_authenticated_requires_identity_but_not_platform_membership(self) -> None:
+        configuration, source = configured_generation(
+            compiled_generation_v2(),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        handoff = RecordingRouteHandoff()
+        member_lookup = RecordingMemberLookup(
+            error=RuntimeError("must not be called")
+        )
+        app = create_app(
+            configuration,
+            self._adapters(source, handoff, member_lookup=member_lookup),
+        )
+
+        _, (anonymous_status, anonymous_headers, _) = asyncio.run(
+            request_during_lifespan(app, "/beta")
+        )
+        _, (session_status, _, _) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/beta",
+                headers=self.session_header,
+            )
+        )
+
+        self.assertEqual(anonymous_status, 303)
+        self.assertEqual(
+            anonymous_headers[b"location"],
+            b"/_platform/login?return_to=%2Fbeta",
+        )
+        self.assertEqual(session_status, 503)
+        self.assertEqual(len(handoff.requests), 1)
+        payload = assertion_payload(
+            cast(str, handoff.requests[0].verified_identity_assertion)
+        )
+        self.assertEqual(
+            payload["audience"],
+            "urn:comfforts:app-platform:audience:beta-app",
+        )
+        self.assertNotIn("platform_member", payload)
+        self.assertEqual(member_lookup.requests, [])
+
+    def test_restricted_requires_active_current_member_and_projects_only_true(self) -> None:
+        member_identity = PlatformMemberIdentity(
+            self.identity.issuer,
+            self.identity.subject,
+        )
+        record = MemberRecord(
+            member_reference("staging", member_identity),
+            "active",
+            1,
+            100,
+            100,
+        )
+        configuration, source = configured_generation(
+            compiled_generation_v2(),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        handoff = RecordingRouteHandoff()
+        member_lookup = RecordingMemberLookup(record)
+        app = create_app(
+            configuration,
+            self._adapters(source, handoff, member_lookup=member_lookup),
+        )
+
+        _, (status, _, _) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/gamma",
+                headers=self.session_header,
+            )
+        )
+
+        self.assertEqual(status, 503)
+        self.assertEqual(member_lookup.requests, [("staging", member_identity)])
+        payload = assertion_payload(
+            cast(str, handoff.requests[0].verified_identity_assertion)
+        )
+        self.assertEqual(payload["platform_member"], True)
+        self.assertEqual(
+            payload["audience"],
+            "urn:comfforts:app-platform:audience:gamma-app",
+        )
+        for prohibited in (
+            "email",
+            "members",
+            "member_reference",
+            "roles",
+            "entitlements",
+        ):
+            self.assertNotIn(prohibited, payload)
+
+    def test_restricted_denial_hides_absent_suspended_and_unavailable_details(self) -> None:
+        member_identity = PlatformMemberIdentity(
+            self.identity.issuer,
+            self.identity.subject,
+        )
+        suspended = MemberRecord(
+            member_reference("staging", member_identity),
+            "suspended",
+            2,
+            100,
+            200,
+        )
+        inconsistent = MemberRecord(
+            member_reference(
+                "staging",
+                PlatformMemberIdentity(
+                    self.identity.issuer,
+                    "different-subject-0123456789",
+                ),
+            ),
+            "active",
+            2,
+            100,
+            200,
+        )
+        cases = (
+            ("absent", RecordingMemberLookup(), None),
+            ("suspended", RecordingMemberLookup(suspended), None),
+            (
+                "inconsistent",
+                RecordingMemberLookup(inconsistent),
+                "MEMBER_DIRECTORY_LOOKUP_FAILED",
+            ),
+            (
+                "unavailable",
+                RecordingMemberLookup(error=PermissionError("private provider detail")),
+                "MEMBER_DIRECTORY_LOOKUP_FAILED",
+            ),
+        )
+
+        for label, member_lookup, diagnostic in cases:
+            with self.subTest(label=label):
+                configuration, source = configured_generation(
+                    compiled_generation_v2(),
+                    external_origin="https://apps-staging.comfforts.com",
+                    environment="staging",
+                )
+                handoff = RecordingRouteHandoff()
+                events = RecordingCompletionSink()
+                app = create_app(
+                    configuration,
+                    self._adapters(
+                        source,
+                        handoff,
+                        member_lookup=member_lookup,
+                        events=events,
+                    ),
+                )
+
+                _, (status, _, body) = asyncio.run(
+                    request_during_lifespan(
+                        app,
+                        "/gamma",
+                        headers=self.session_header,
+                    )
+                )
+
+                self.assertEqual((status, body), (403, b"forbidden\n"))
+                self.assertEqual(handoff.requests, [])
+                self.assertEqual(events.events[0].diagnostic_code, diagnostic)
+                self.assertNotIn("private provider detail", repr(events.events[0]))
+
+    def test_restricted_websocket_rechecks_membership_before_handoff(self) -> None:
+        member_identity = PlatformMemberIdentity(
+            self.identity.issuer,
+            self.identity.subject,
+        )
+        record = MemberRecord(
+            member_reference("staging", member_identity),
+            "active",
+            1,
+            100,
+            100,
+        )
+        cases = (
+            ("active", RecordingMemberLookup(record), 1013),
+            ("absent", RecordingMemberLookup(), 4403),
+        )
+
+        for label, member_lookup, close_code in cases:
+            with self.subTest(label=label):
+                configuration, source = configured_generation(
+                    compiled_generation_v2(),
+                    external_origin="https://apps-staging.comfforts.com",
+                    environment="staging",
+                )
+                handoff = RecordingRouteHandoff()
+                adapters = self._adapters(
+                    source,
+                    handoff,
+                    member_lookup=member_lookup,
+                )
+                app = create_app(configuration, adapters)
+
+                _, outgoing = asyncio.run(
+                    websocket_during_lifespan(
+                        app,
+                        "/gamma",
+                        headers=self.session_header,
+                    )
+                )
+
+                self.assertEqual(outgoing[0]["type"], "websocket.close")
+                self.assertEqual(outgoing[0]["code"], close_code)
+                if label == "active":
+                    self.assertEqual(len(handoff.requests), 1)
+                    payload = assertion_payload(
+                        cast(
+                            str,
+                            handoff.requests[0].verified_identity_assertion,
+                        )
+                    )
+                    self.assertEqual(payload["platform_member"], True)
+                else:
+                    self.assertEqual(handoff.requests, [])
+
+    def test_visitor_identity_header_is_removed_or_replaced_for_every_delivery(self) -> None:
+        visitor_headers = (
+            (IDENTITY_HEADER, b"visitor-controlled-assertion"),
+            (b"x-application-header", b"retained"),
+        )
+
+        anonymous = application_request_headers(visitor_headers, None)
+        asserted = application_request_headers(visitor_headers, "platform-assertion")
+
+        self.assertEqual(anonymous, ((b"x-application-header", b"retained"),))
+        self.assertEqual(
+            asserted,
+            (
+                (b"x-application-header", b"retained"),
+                (IDENTITY_HEADER, b"platform-assertion"),
+            ),
+        )
 
 
 if __name__ == "__main__":

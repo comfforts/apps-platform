@@ -1,6 +1,6 @@
 # App Platform infrastructure configuration contracts
 
-Version 1.6 | Status: AP-M9-W5 phased Platform State contract implemented; no external operation
+Version 1.7 | Status: AP-M9-W10 Version 2 generation compatibility implemented; no external operation
 
 This directory contains closed, non-secret repository configuration contracts. It is subordinate
 to the platform requirements, accepted ADRs, system design, implementation plan, and evaluation
@@ -44,6 +44,11 @@ Semantic policy enforces state-owner separation, exact environment bindings, imm
 secret-version references, restricted cross-state exchange, source-bound workflow inputs, and
 rejection of credential, secret, state, saved-plan, provider-response, private-key, token,
 `.tfstate`, `.tfplan`, and `terraform_remote_state` material.
+
+Shared Edge generation references accept the retained Version 1 and current Version 2 compiled
+contracts only. Content-addressed references must bind the exact generation digest; environment-
+scoped references must bind the exact environment and generation number. Unsupported compiled
+versions and mismatched paths fail before Terraform planning.
 
 ## Terraform boundary
 

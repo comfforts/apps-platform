@@ -1,11 +1,11 @@
-# App Platform backlog
+# <u>App Platform backlog</u>
 
 This backlog records useful product and maintenance work that is not part of the active delivery
 sequence. A backlog item is a proposal, not implementation authority. Before work begins, the item
 must be reconciled with the product requirements, accepted architecture decisions, threat model,
 evaluation strategy, implementation plan, and an owner-approved delivery slice.
 
-## Feature-rich catalogue experience
+## <u>Feature-rich catalogue experience</u>
 
 ### Problem
 
@@ -65,7 +65,54 @@ and rollback. Live staging evidence must show that the richer catalogue does not
 routing authority and that its failure leaves application routes and protected admission
 fail-closed.
 
-## Platform observability review and operational diagnostics
+## <u>Catalogue deployment context indicator</u>
+
+### Problem
+
+The catalogue at `apps-staging.comfforts.com` does not tell a visitor or operator whether it is
+serving a testing deployment from Candidate Source or a staging release candidate deployed from
+Accepted Source on `main`. Both use the same staging hostname, while `apps.comfforts.com` is
+reserved for production. Without an explicit indicator, screenshots, manual checks, and browser
+sessions can be attributed to the wrong release context.
+
+### Proposed behavior
+
+Display one compact, accessible deployment-context label on the catalogue page:
+
+- **Staging — Testing Candidate** for Candidate Source on `apps-staging.comfforts.com`;
+- **Staging — Release Candidate** for Accepted Source from `main` on
+  `apps-staging.comfforts.com`; and
+- **Production** for Accepted Source from `main` on `apps.comfforts.com`.
+
+Derive the label from immutable, deployment-bound Platform Environment and Source Authority
+configuration. Do not infer authority from the hostname, Git checkout, browser state, or an
+operator-supplied display string. Production must fail closed rather than render or serve a
+Candidate Source or non-production context.
+
+### Product and safety boundaries
+
+- The label is informational and grants no source admission, deployment, qualification,
+  registration, routing, or promotion authority.
+- Keep the deployment-context vocabulary closed and validated. Do not display branch names,
+  repository URLs, operator identities, private journal paths, credentials, provider payloads, or
+  other mutable diagnostic data.
+- Render the indicator through the minimal Shared Edge catalogue without changing application
+  routes, admission behavior, catalogue membership, or Registration Generation authority.
+- Preserve the context in accessible text rather than communicating it through color alone.
+- A later feature-rich catalogue may reuse the same deployment-context contract but must not
+  create a second source of truth.
+- Implement this as a separately governed platform-runtime change. It requires a platform
+  redeployment after merge; fixture redeployment is not required solely for the indicator.
+
+### Completion evidence
+
+Deterministic tests must cover all three valid environment/authority combinations, reject every
+invalid production or unknown combination, verify safe escaping and accessible rendering, and
+prove that the label cannot affect routing or admission. Live staging evidence must distinguish a
+Candidate Source testing deployment from an Accepted Source release candidate. Production
+evidence remains subject to its separately approved deployment and cutover authority.
+
+## <u>Platform observability review and operational diagnostics</u>
 
 ### Problem
 
@@ -120,7 +167,7 @@ query one event for each approved failure class, confirm bucket/view access and 
 and prove the default exclusion and no-export posture. The review must leave a concise operator
 troubleshooting map and explicitly record signals that remain unavailable or intentionally absent.
 
-## Fixture project disconnect and clean lifecycle
+## <u>Fixture project disconnect and clean lifecycle</u>
 
 ### Problem
 
@@ -215,7 +262,7 @@ inventory scoping, and redacted readback. A later live staging rehearsal must pr
 recorded fixture project remains active, disconnected, free of the approved removable inventory,
 and able to be bootstrapped and connected again without changing its project identity.
 
-## Environment-derived platform project identity and hostname
+## <u>Environment-derived platform project identity and hostname</u>
 
 ### Problem
 
@@ -290,7 +337,7 @@ names and URLs, and unchanged historical-record compatibility. A later authentic
 readback must confirm that the resolved identity and hostname still point to the existing platform
 environment and do not propose resource replacement, DNS/TLS replacement, or state migration.
 
-## Legacy same-project fixture state-bucket disposition
+## <u>Legacy same-project fixture state-bucket disposition</u>
 
 ### Problem
 

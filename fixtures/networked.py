@@ -101,14 +101,16 @@ class NetworkFixtureConfiguration:
         if self.public_key_reference != expected_keys:
             raise ValueError("public key reference must match the platform issuer")
         expected_audience = (
-            None
-            if self.admission_mode == "public"
-            else (
-                "urn:comfforts:app-platform:audience:"
-                f"{self.application_id}"
-            )
+            "urn:comfforts:app-platform:audience:"
+            f"{self.application_id}"
         )
-        if self.assertion_audience != expected_audience:
+        if (
+            self.admission_mode == "public"
+            and self.assertion_audience not in {None, expected_audience}
+        ) or (
+            self.admission_mode != "public"
+            and self.assertion_audience != expected_audience
+        ):
             raise ValueError("assertion audience must match the fixture profile")
 
     @classmethod
@@ -178,35 +180,43 @@ def create_network_fixture(
 ) -> Starlette:
     """Create one networked fixture without provider or Platform State access."""
 
-    protected = configuration.admission_mode != "public"
-    if protected and verifier is None:
-        raise ValueError("protected fixture requires an identity verifier")
-    if not protected and verifier is not None:
-        raise ValueError("public fixture cannot receive an identity verifier")
+    identity_required = configuration.admission_mode != "public"
+    identity_enabled = configuration.assertion_audience is not None
+    if identity_enabled and verifier is None:
+        raise ValueError("identity-enabled fixture requires an identity verifier")
+    if not identity_enabled and verifier is not None:
+        raise ValueError("identity-disabled fixture cannot receive an identity verifier")
 
-    async def admitted(headers: object) -> bool:
-        if not protected:
-            return True
+    async def admitted(headers: object) -> tuple[bool, bool]:
+        """Return admission plus coarse identity-delivery presence for qualification."""
+
         getlist = getattr(headers, "getlist", None)
         if not callable(getlist):
-            return False
+            return False, False
         assertions = getlist(VERIFIED_IDENTITY_HEADER)
+        if not identity_enabled:
+            return True, bool(assertions)
         if len(assertions) > 1:
-            return False
+            return False, False
         assertion = assertions[0] if assertions else None
+        if assertion is None and not identity_required:
+            return True, False
         assert verifier is not None
         result = await verifier.verify(assertion)
         if not result.accepted or result.identity is None:
             _write_identity_rejection(configuration.application_id, result.code)
-            return False
-        return True
+            return False, False
+        return True, True
 
     async def health(request: Request) -> Response:
         del request
         return _fixed_response(configuration.application_id, "healthy", 200)
 
     async def http_probe(request: Request) -> Response:
-        if not await admitted(request.headers):
+        """Enforce identity and serve the fixture's bounded HTTP test surfaces."""
+
+        accepted, identity_present = await admitted(request.headers)
+        if not accepted:
             return _fixed_response(
                 configuration.application_id,
                 "identity-denied",
@@ -240,6 +250,9 @@ def create_network_fixture(
                 {
                     "application_id": configuration.application_id,
                     "challenge": challenge_values[0],
+                    "identity_present": (
+                        "true" if identity_present else "false"
+                    ),
                 }
             )
             return RedirectResponse(
@@ -272,7 +285,10 @@ def create_network_fixture(
         return _fixed_response(configuration.application_id, "not-found", 404)
 
     async def websocket_probe(websocket: WebSocket) -> None:
-        if not await admitted(websocket.headers):
+        """Enforce identity before accepting the bounded echo socket."""
+
+        accepted, _identity_present = await admitted(websocket.headers)
+        if not accepted:
             await websocket.close(code=4401, reason="identity denied")
             return
         await websocket.accept()

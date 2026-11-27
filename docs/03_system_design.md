@@ -1,7 +1,9 @@
-# App Platform system design
+# <u>App Platform system design</u>
 
-Version 1.11 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence and AP-M9-W10 member-directory implementation is next
+Version 1.21 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence; all seven AP-M9-W10 slices and candidate-readiness corrections are integrated; Version 2
+Candidate Source qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`, with
+one post-reconciliation exact-revision rerun required before freeze
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -12,7 +14,7 @@ Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
 Decisions: ADR-001 through ADR-015
 
-## Design outcome
+## <u>Design outcome</u>
 
 The platform has one configuration seam: a complete, versioned Registration Set is validated and
 compiled into one immutable Shared Edge configuration. The compiler has no deployment side effects.
@@ -36,7 +38,7 @@ in-process form of the second and third kinds. This revision selects the initial
 for infrastructure planning. It does not implement a provider adapter, Terraform configuration,
 cloud resource, DNS change, deployment, or Live qualification.
 
-## Logical topology
+## <u>Logical topology</u>
 
 ```text
                          reviewed Registration Set
@@ -106,7 +108,7 @@ explicit, separately approved operator action. A Google-managed certificate cove
 not application prefixes. No application attachment needs a separate client-facing DNS name or
 certificate, and this planning decision does not create either the record or certificate.
 
-## Modules and seams
+## <u>Modules and seams</u>
 
 ### Registration Compiler
 
@@ -201,7 +203,7 @@ Protected services require both provider-level direct-invocation denial and appl
 assertion verification. The load balancer-to-edge and edge-to-application trust details are refined
 by the later identity profile; topology selection alone is not evidence that either control works.
 
-## Application Registration and Registration Set
+## <u>Application Registration and Registration Set</u>
 
 An Application Registration is versioned data within a complete Registration Set. The logical
 fields are:
@@ -267,7 +269,7 @@ Failure after activation rolls the Shared Edge back as a whole generation withou
 deleting either attachment. Exact acceptance windows and live procedures belong to later
 implementation and evaluation authorities.
 
-## Route model
+## <u>Route model</u>
 
 ### Application prefix
 
@@ -302,14 +304,14 @@ The root catalogue, reserved platform paths, and application routes are disjoint
 malformed, suspended, or retired paths fail closed and never fall through to another
 application or expose an attachment reference.
 
-## Catalogue
+## <u>Catalogue</u>
 
 The catalogue is a read-only projection derived from the same compiled generation as routing. It is
 not maintained separately. Only an `active` registration whose Catalogue Visibility is `listed`
-appears. `unlisted` is the only other Version 1 visibility value and does not change Admission Mode.
+appears. `unlisted` is the only other visibility value and does not change Admission Mode.
 
 Each entry contains only the immutable application identifier, bounded plain-text title and
-summary, canonical route prefix, and an admission label suitable for display. Version 1 catalogue
+summary, canonical route prefix, and an admission label suitable for display. Catalogue
 metadata contains no HTML, scripts, images, arbitrary links, attachment references, allow-list
 members, operator metadata, provider data, or secrets. A renderer must escape all text for its
 output context and must not interpret catalogue text as markup.
@@ -317,7 +319,7 @@ output context and must not interpret catalogue text as markup.
 Being listed does not grant admission. Being unlisted does not create a secret route. Catalogue
 visibility and admission are validated independently.
 
-## Admission and verified identity
+## <u>Admission and verified identity</u>
 
 The Version 2 Registration Compiler accepts the Admission Modes and Identity Delivery combinations
 defined by ADR-003 and ADR-015:
@@ -334,6 +336,16 @@ a member set in a registration. An environment with only its explicitly bootstra
 owner-only for every restricted route. Email is not an admission or membership key. Feature
 Entitlements are prohibited from registration and membership contracts and remain an application
 concern after admission.
+
+The repository validates, canonicalizes, migrates, and compiles this Version 2 shape through
+explicit compatibility interfaces. The Shared Edge loads either complete compiled version,
+enforces explicit Version 2 admission and Identity Delivery, and queries one exact current-member
+document. The operator publishes one complete Version 2 bundle/intent family, validates the
+application attachment, migrates a readable Version 1 predecessor without its member list, and
+atomically activates one complete Version 2 Registration Generation. Separate member commands
+mutate the directory without republishing bundles or generations. Candidate Source qualification
+exercised these paths at the named integration revision; the result remains revision-scoped and is
+not Accepted Source evidence.
 
 When Identity Delivery permits it and identity is present, the Shared Edge supplies a compact signed assertion in the versioned
 `X-Comfforts-Verified-Identity` header. The edge must remove any visitor-supplied value before
@@ -413,16 +425,60 @@ identity.
 
 ### Platform Member Directory and member lifecycle
 
-Each environment uses a dedicated Firestore collection or equivalent isolated namespace in its
-platform-owned database. Terraform owns database configuration and least-privilege Shared Edge IAM;
-it never owns member documents. The directory adapter exposes only current-visitor lookup and
-bounded operator lifecycle operations. A request path cannot enumerate members, search by email,
-or read another identity.
+Each environment uses the platform-owned named Firestore database `app-platform-members`, separate
+from the `(default)` database used for Platform Sessions. Terraform owns both database
+configurations and the Shared Edge IAM posture; it never owns a directory-control document or
+member document. The default-database `roles/datastore.user` grant is conditioned to
+`projects/<project-id>/databases/(default)`. The named member database uses the custom
+`appPlatformMemberReader` role, containing only `datastore.entities.get`, with an exact
+per-database condition. The runtime therefore cannot enumerate, create, update, or delete member
+documents. Exact document lookup requires no composite query index, and the foundation output
+records the required composite-index set as empty.
 
-The canonical member key derives from normalized verified Google issuer and immutable subject. A
-member has a lifecycle sufficient to distinguish active admission from suspension, reactivation,
-and removal. Exact Version 1 directory-document fields are an AP-M9-W10 implementation contract;
-they must not grow into application profiles, feature roles, or arbitrary user metadata.
+The outputs of the member-directory infrastructure slice expose only closed database, namespace,
+index, runtime-principal, custom-role, permission, and IAM-condition references. They do not expose
+member identities, member records, session records, provider policy payloads, or a mutation
+interface.
+
+The private member-document format is independently versioned. Its namespace is Version 1 even
+though the public Identity Delivery contracts are Version 2. Directory state uses
+`platform-member-directory-v1/state`; members use
+`platform-members-v1/<member-reference>`. Platform Sessions remain under their existing
+`platform-login-flows` and `platform-sessions` collections in the default database. Provider
+readback verifies the custom-role permissions and both exact conditioned runtime grants from the
+live project IAM policy. An absent, changed, unconditioned, additional project-level runtime grant,
+or broader custom-role permission fails closed without retaining the raw policy.
+
+Platform Sessions and Platform Member records occupy disjoint namespaces and have different
+lifecycles. The Shared Edge may look up only the current visitor's member state while serving a
+request. Member creation and lifecycle mutation are available only through the verified operator
+boundary; neither a request nor an application receives a member-write or directory-enumeration
+capability. The infrastructure slice must prove that its database and IAM realization preserves
+that separation. If the provider's available role model would grant the runtime broader member
+mutation or enumeration than this design permits, implementation must stop and re-scope the data
+or identity boundary instead of describing the broader grant as least privilege.
+
+The canonical member reference is `pmr1_` plus lowercase SHA-256 over the NUL-delimited reference
+scheme, environment, canonical Google issuer, and immutable subject. It is stable within one
+environment and different across environments. Issuer and subject are used transiently to derive
+the key and are not stored in the member document. Email and display name never enter either
+namespace.
+
+The `platform-member-directory-v1/state` control document contains exactly `contract_version`,
+`initialized`, `mutation_cursor`, `created_at`, and `updated_at`. A
+`platform-members-v1/<member-reference>` member document contains exactly `contract_version`,
+`lifecycle`, `mutation_cursor`, `created_at`, and `updated_at`; lifecycle is `active` or
+`suspended`. Removal is represented by absence of the member document after the directory control
+cursor advances. This retained control document distinguishes a never-initialized empty directory
+from a previously initialized directory whose members were removed, preventing owner rebootstrap
+from an empty local cache. Later lifecycle mutations must update the control document and selected
+member document in one Firestore transaction and then perform exact document readback. The runtime
+adapter performs only an exact provider document get for the derived current-visitor reference.
+Missing documents return no member; malformed documents and provider failures collapse to one
+unavailable result. The runtime adapter has no query, enumeration, or mutation interface. The
+separate operator mutation adapter can read the control document, one selected member, and a
+boolean bootstrap-emptiness projection; it cannot return a member listing. Neither model may grow
+into application profiles, feature roles, or arbitrary user metadata.
 
 Restricted admission performs a current positive lookup. Absent, suspended, removed, malformed, or
 unreadable state denies the request without revealing which condition occurred. Public and
@@ -437,15 +493,61 @@ shows and confirms one bounded action, creates the first owner member idempotent
 back. A non-empty remote directory makes bootstrap fail closed even when private local operator
 state is absent.
 
-AP-M9-W10 adds shallow `platform-member-status`, `platform-member-add`,
+AP-M9-W10 adds shallow `platform-member-status`, `platform-member-identify`, `platform-member-add`,
 `platform-member-suspend`, `platform-member-reactivate`, and `platform-member-remove` targets over
 the same deep operator module. Every mutation binds one environment, verified operator session,
-remote predecessor, confirmed verified member identity, and exact readback. Member mutation does
-not compile a Registration Generation, deploy an application, or change Application State.
+remote predecessor, explicit confirmation, and exact readback. Bootstrap and add obtain their
+target only through verified Visitor identity. Suspend, reactivate, and remove act on an explicit
+opaque reference whose identity was established during enrollment; they do not require the target
+Visitor to authenticate again. Member mutation does not compile a Registration Generation, deploy
+an application, or change Application State.
 
-## Lifecycle and atomic change
+Identify is a read-only recovery journey over the same verified Visitor boundary. It derives one
+opaque reference, reads only that exact member document, and returns its coarse lifecycle. It
+cannot enumerate the directory or mutate membership.
 
-Version 1 defines three lifecycle states:
+Browser verification uses the reserved `/_platform/member/verify` endpoint. It first clears any
+ambient Platform Session, completes the existing Google OIDC flow, derives the member reference at
+the Shared Edge, and redirects only the reference plus the exact environment, operation, and
+one-use challenge to a loopback callback. Raw issuer, subject, email, OAuth values, cookies, and
+browser state never enter the operator process. Bootstrap and add use that reference as the
+prospective member. Later lifecycle changes use the retained opaque reference and never ask the
+affected Visitor to supply their own credentials to the Platform Operator.
+
+### Version 2 application handoff and generation transition
+
+Every new application handoff declares Admission Mode and Identity Delivery together. The only
+valid pairs are public with `none` or `optional`, authenticated with `required`, and restricted
+with `required`. `application-handoff-check` validates the requested pair and the platform,
+application-project, Shared VPC, service, and identity projection without publishing a document.
+`platform-outputs` then writes one application-project-scoped Version 2 Platform Integration
+Bundle. The application or fixture deploy consumes that exact bundle and returns one Version 2
+Application Attachment Bundle plus a Version 2 registration intent. The intent repeats the bundle's
+application, Admission Mode, and Identity Delivery; it cannot define a second identity policy.
+The application-owned intent separately declares Catalogue Visibility. Fixture handoff requires
+that choice explicitly; platform readiness and bundle generation do not accept or infer it.
+
+`platform-register` accepts only a matching, same-version three-document family. It validates the
+target readback and compiles one complete immutable Version 2 Registration Generation that
+preserves every unaffected registration. Mixed Version 1/Version 2 handoffs and member data fail
+closed. When the current active generation is Version 1, the compiler creates a comparison-only
+Version 2 representation: public maps to `none`, authenticated and restricted map to `required`,
+and registration-scoped members are discarded. That representation never changes the historical
+predecessor or its digest. Activation publishes one complete Version 2 successor whose
+`previous_generation_digest` names the exact Version 1 generation. Even an otherwise unchanged
+Version 1 registration must cross this atomic successor boundary before it is treated as Version
+2.
+
+Generation objects use
+`environments/<environment>/generations/<number>/compiled-shared-edge.v<contract-version>.json`.
+The provider and private generation history retain readable Version 1 predecessors, stage Version
+2 objects under the Version 2 name, and may roll back traffic to an exact retained reviewed
+Version 1 or Version 2 generation. Repository implementation and deterministic tests do not imply
+that this transition has been invoked against staging.
+
+## <u>Lifecycle and atomic change</u>
+
+The registration contracts define three lifecycle states:
 
 - `active`: eligible for the declared catalogue visibility, routing, and admission behavior;
 - `suspended`: retained for review but absent from catalogue and routing;
@@ -472,7 +574,8 @@ deletes or mutates its Application State.
 
 The reviewed Registration Set remains in Git and compiles before planning into an immutable,
 create-only GCS configuration object. New objects use the environment-and-generation path
-`environments/<environment>/generations/<number>/compiled-shared-edge.v1.json`; the generation
+`environments/<environment>/generations/<number>/compiled-shared-edge.v<contract-version>.json`;
+the generation
 digest, content digest, and GCS object generation bind its exact content. Historical initial and
 digest-addressed names remain readable and immutable. One candidate Cloud Run edge revision binds
 the exact source commit, compiler, generation digest, object name and generation, container image
@@ -514,7 +617,7 @@ remaining possible through the TTL. DNS action never changes a Registration Gene
 touches `apps.comfforts.com` or any Finance Assistant hostname, record, certificate, load balancer,
 or state.
 
-## Exclusive state ownership
+## <u>Exclusive state ownership</u>
 
 Every managed resource has exactly one owner recorded in the versioned State Ownership Manifest.
 Logical ownership is fixed as follows:
@@ -1001,7 +1104,8 @@ intent, publishes the canonical files with mode `0600` in ignored operator state
 an Application State mutation, not read-only preparation. After inspection, the Platform Operator
 runs `register` to activate a complete generation. There is no combined fixture deploy-and-register
 operation. `fixture-status` is read-only and reports all fixtures by default or one optional
-selection. `fixture-destroy` requires the route to have been suspended through `detach`, requires
+selection. Each row reports the active generation's catalogue visibility independently of target
+and route readiness. `fixture-destroy` requires the route to have been suspended through `detach`, requires
 the fixture-specific destructive confirmation, operates only on the selected fixture Application
 State, and never destroys Platform State. These commands are the executable staging-fixture
 boundary; Terraform roots and loopback servers alone are not deployment capability.
@@ -1021,11 +1125,32 @@ lifecycle, redaction, and rollback. It records revision-scoped evidence without 
 application the test harness. Restricted qualification additionally requires explicit owner
 bootstrap plus a second member's add, suspension or removal, reactivation, and reviewed-baseline
 restoration. Every non-mutating qualification check completes successfully before
-the rollback check can request an owner-confirmed traffic change. The rollback check temporarily
-activates the retained reviewed predecessor, verifies it, then requires a second exact confirmation
-and readback to restore the original complete generation. A failed prerequisite blocks that check
-without moving traffic. Fixtures are detached and may be destroyed after evaluation without
-retiring their identities.
+the temporary member journey begins. That journey receives the privately retained reviewed owner
+reference, proves the remote owner-only baseline, and invokes the existing source-admitted member
+service for add, suspend, reactivate, and remove. Each transition is followed by a separately
+confirmed browser request to `/_platform/member/qualification`. The endpoint validates one named
+restricted Version 2 route, applies the same current-member lookup as ordinary route admission,
+and returns only a boolean decision to a challenge-bound loopback listener. It exposes neither the
+Visitor identity nor a member reference. Every exit attempts temporary-member removal and rereads
+the owner-only baseline.
+
+Only after the other checks and cleanup-safe member journey pass can
+the rollback check request an owner-confirmed traffic change. The rollback check temporarily
+activates the retained reviewed predecessor and verifies provider readback. Before prompting or
+moving traffic, it requires the predecessor provider revision to be bound to the same platform
+source revision as the active candidate. A stale historical runtime cannot qualify current-source
+rollback compatibility; it fails with explicit guidance to create a fresh public-`none` generation
+and its public-`optional` successor under the active candidate. One separately confirmed browser
+check establishes a Platform Session and a second proves that the predecessor's public `none`
+policy withholds identity. When that second callback instead observes the successor's
+optional-identity policy, the qualifier performs a bounded traffic-convergence wait and may offer
+up to two additional separately confirmed observations. Other browser failures do not retry. The
+operator must then provide the separate exact restoration
+confirmation, and provider readback must show the original public-`optional` complete generation
+again. A failed predecessor browser proof retains its exact stable blocker, still proceeds to
+restoration, and fails qualification;
+a failed prerequisite blocks rollback without moving traffic. Fixtures are detached and may be
+destroyed after evaluation without retiring their identities.
 
 Environment destruction creates a separate destructive specification, refuses active attachments,
 requires exact typed confirmation, removes traffic and external DNS safely, respects cache and
@@ -1210,7 +1335,7 @@ references, billing-account reference, notification destination, and the initial
 Set remain unresolved operator inputs. AP-M7 supplies their typed interfaces and synthetic test
 values only.
 
-## Failure and rollback behavior
+## <u>Failure and rollback behavior</u>
 
 - Schema, semantic, transition, or ownership failure produces ordered violations and no compiled
   output.
@@ -1226,7 +1351,7 @@ values only.
 Runtime status, provider health, and live rollback require measured evidence from later evaluation
 gates. Static configuration or a successful compiler run is not runtime qualification.
 
-## Threat and data boundary
+## <u>Threat and data boundary</u>
 
 Registrations, catalogue text, attachment references, identity headers, request paths, provider
 payloads, and operator-supplied configuration are untrusted inputs. Every interface is bounded,
@@ -1283,11 +1408,14 @@ at concurrency 10. Streams last at most 55 minutes and hold concurrency while op
 profile has one non-production edge and load balancer and no CDN, WAF, HSM, production replica,
 always-on instance, Firestore backup, or Firestore point-in-time recovery.
 
-Firestore holds only expiring Platform Sessions. KMS keeps only active and required overlapping
-verification versions. Artifact Registry retains active, rollback, and current-candidate images;
-cleanup begins in dry-run and deletion remains owner-approved. Terraform checks reject unbounded or
-larger runtimes, extra environments or edges, unapproved billable services, longer retention, and
-missing `environment`, `managed_by`, `state_owner`, or applicable `application_id` labels.
+Firestore holds expiring Platform Sessions and the minimum environment-scoped Platform Member
+records required by ADR-015, in disjoint namespaces. Session expiry does not remove or alter a
+member; member retention changes only through the explicit member lifecycle. KMS keeps only active
+and required overlapping verification versions. Artifact Registry retains active, rollback, and
+current-candidate images; cleanup begins in dry-run and deletion remains owner-approved. Terraform
+checks reject unbounded or larger runtimes, extra environments or edges, unapproved billable
+services, longer retention, and missing `environment`, `managed_by`, `state_owner`, or applicable
+`application_id` labels.
 
 The platform project pays for Shared Edge and Shared VPC host resources. The dedicated fixture
 project pays for fixture runtimes, images, and state. Other application projects pay for their
@@ -1317,8 +1445,9 @@ assemble the request pipeline or depend on those internal interfaces.
 
 The application-side verifier is a separate deep module with one interface that accepts an
 assertion, expected issuer, expected application audience, verification material, and time, then
-returns either Version 1 Verified Identity Context or an ordered verification violation. It does
-not perform admission, create an Application Principal, or grant a Feature Entitlement.
+returns a validated Version 1 or Version 2 Verified Identity Context or an ordered verification
+violation. Version 2 may include only the positive `platform_member: true` projection. The verifier
+does not perform admission, create an Application Principal, or grant a Feature Entitlement.
 
 Direct dependencies are declared in `pyproject.toml`; complete transitive resolution is committed
 in `uv.lock`. Runtime work adds a dependency only with its first production use. The selected
@@ -1375,9 +1504,10 @@ algorithm, and returned resource identity before accepting a result. The reserve
 only bounded P-256 public verification material for the active and overlap keys with a 15-minute
 cache limit. The application verifier accepts an assertion, exact issuer, exact application
 audience, key fetcher, and time; it refreshes once for an unknown key and rejects unavailable or
-stale material. It returns Version 1 Verified Identity Context only after contract, signature,
-issuer, audience, lifetime, and clock validation. It creates no Application Principal, grants no
-Feature Entitlement, and makes no distributed replay-prevention claim.
+stale material. It returns Version 1 or Version 2 Verified Identity Context only after selecting
+the declared local schema and validating contract, signature, issuer, audience, lifetime, and
+clock. It creates no Application Principal, grants no Feature Entitlement, and makes no distributed
+replay-prevention claim.
 
 AP-M6-W7 accepts only the exact `gcp-cloud-run-v1` URN grammar and turns its project number, region,
 and service name into one exact Cloud Run v2 service read and one exact IAM-policy read. The
@@ -1388,14 +1518,20 @@ completed successfully at the observed generation, a serving revision and provid
 `https://*.run.app` origin exist, and the Invoker IAM check remains enabled.
 
 The Application Owner marks the service with `state_owner=application` and an `application_id`
-label matching the attachment owner. Protected targets also carry the exact application assertion
-audience in the `comfforts.com/identity-audience` annotation; public attachments omit it. An
-unconditional `roles/run.invoker` binding must contain the configured platform edge service-account
-principal. Conditional grants are not interpreted by the runtime. Any URL or state address in the
-registration, unsupported adapter, malformed URN, provider failure, missing service, mismatched
-scope, unready service, owner reuse, caller mismatch, audience mismatch, disabled Invoker check, or
-invalid provider target closes before application delivery. Local fake readback is not evidence
-that IAM, ingress, a target service, or an edge caller exists in GCP.
+label matching the attachment owner. Protected and public-`optional` targets carry the exact
+application assertion audience in the `comfforts.com/identity-audience` annotation. A target used
+only for public-`none` delivery may omit it. A public-`none` registration may also address the same
+application's canonical identity-capable target so an immutable predecessor remains routable after
+the target gains optional identity support. That target annotation is a capability, not delivery
+authority: the active registration retains a null audience and the Shared Edge emits no assertion.
+An unrelated or otherwise mismatched audience remains invalid.
+
+An unconditional `roles/run.invoker` binding must contain the configured platform edge
+service-account principal. Conditional grants are not interpreted by the runtime. Any URL or state
+address in the registration, unsupported adapter, malformed URN, provider failure, missing service,
+mismatched scope, unready service, owner reuse, caller mismatch, prohibited audience mismatch,
+disabled Invoker check, or invalid provider target closes before application delivery. Local fake
+readback is not evidence that IAM, ingress, a target service, or an edge caller exists in GCP.
 
 The Shared Edge runtime identity receives no direct invocation grant on application services. It
 may create short-lived credentials for only the dedicated edge-caller service account. That caller
@@ -1484,12 +1620,14 @@ Provider log routing, the dedicated bucket, seven-day retention, owner-only acce
 external export remain AP-M7 static configuration plus AP-M9 deployment and qualification
 evidence, not AP-M6 behavior.
 
-## Fixture boundary
+## <u>Fixture boundary</u>
 
 Fixture Applications are contract consumers, not internal compiler branches or privileged platform
-runtimes. Each fixture registers and attaches through the same Version 1 contracts as any other
-application. Its runtime, synthetic data, Application Principals, Feature Entitlements, and Fixture
-Application State remain outside Platform State.
+runtimes. Each networked fixture registers and attaches through the same active Version 2 handoff
+contracts as any other application. Its runtime, synthetic data, Application Principals, Feature
+Entitlements, and Fixture Application State remain outside Platform State. The in-process
+reference fixture and committed Version 1 registration sequence remain historical deterministic
+regression evidence; they are not the current deployed handoff path.
 
 Contract test vectors may use synthetic application names and identities to validate schemas and
 compiler behavior. They are not Fixture Applications and cannot qualify routing, identity delivery,
@@ -1638,7 +1776,7 @@ This section is design authority only. No Fixture (`F`) evidence exists until a 
 Real-application code, data, infrastructure, identity, state, and migration are never fixture
 dependencies. Application migration remains under the consuming application's authority.
 
-## Configurability and extraction
+## <u>Configurability and extraction</u>
 
 Canonical documents, schemas, validation code, test vectors, and tests use project-relative paths
 inside the App Platform root. Contract identifiers do not encode the containing repository, a cloud
@@ -1648,7 +1786,7 @@ credential access and no cloud, DNS, identity, or application mutation.
 Extraction to a dedicated repository changes the project root but not contract identifiers,
 compiler behavior, paths relative to that root, or ownership boundaries.
 
-## Historical pre-implementation boundary — superseded
+## <u>Historical pre-implementation boundary — superseded</u>
 
 The original contract-and-fixture design stopped before the following work. This list is preserved
 only as historical scope evidence; the active AP-M9 sections above and the implementation plan
@@ -1673,7 +1811,7 @@ The versioned schemas and deterministic validation from that delivery remain par
 design where later authority did not replace them. This historical boundary does not override the
 active status and claim discipline in `docs/README.md`.
 
-## Design acceptance boundary
+## <u>Design acceptance boundary</u>
 
 This system design remains documentation authority rather than operational evidence. AP-M3 provides
 revision-scoped Contract evidence that the Version 1 schemas and deterministic reference compiler
@@ -1696,7 +1834,7 @@ environment, bundle, application-handoff, qualification, and destruction design.
 provider, network, identity, deployment, or Live evidence. Adoption qualification remains a later
 application-owned gate.
 
-## Design trace
+## <u>Design trace</u>
 
 | Design area | Requirements | Decisions |
 | --- | --- | --- |

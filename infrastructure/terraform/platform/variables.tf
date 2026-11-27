@@ -143,7 +143,9 @@ variable "platform_configuration" {
       contains([
         var.platform_configuration.shared_edge.registration_generation.generation == 1 ? "generations/1/compiled.json" : "",
         "generations/${trimprefix(var.platform_configuration.shared_edge.registration_generation.generation_digest, "sha256:")}/compiled-shared-edge.v1.json",
+        "generations/${trimprefix(var.platform_configuration.shared_edge.registration_generation.generation_digest, "sha256:")}/compiled-shared-edge.v2.json",
         "environments/${var.platform_configuration.environment}/generations/${var.platform_configuration.shared_edge.registration_generation.generation}/compiled-shared-edge.v1.json",
+        "environments/${var.platform_configuration.environment}/generations/${var.platform_configuration.shared_edge.registration_generation.generation}/compiled-shared-edge.v2.json",
       ], var.platform_configuration.shared_edge.registration_generation.object_name) &&
       var.platform_configuration.shared_edge.registration_generation.object_generation >= 1 &&
       var.platform_configuration.shared_edge.registration_generation.object_generation <= 9223372036854775807,

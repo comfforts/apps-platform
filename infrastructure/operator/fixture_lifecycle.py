@@ -7,9 +7,9 @@ import re
 from typing import Any, Protocol
 
 from contracts.lifecycle import (
-    lifecycle_digest,
-    validate_lifecycle_document,
-    validate_lifecycle_relationships,
+    validate_versioned_lifecycle_document,
+    validate_versioned_lifecycle_relationships,
+    versioned_lifecycle_digest,
 )
 from infrastructure.operator._interfaces import OperatorTerminal
 
@@ -25,30 +25,47 @@ _IMAGE_REFERENCE = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class FixtureDefinition:
+    """Stable fixture admission posture and permitted explicit identity behavior."""
+
     application_id: str
     access_mode: str
     route_intent: str
+    identity_deliveries: tuple[str, ...]
 
 
 _FIXTURES = (
-    FixtureDefinition("fixture-public", "public", "/fixture-public"),
+    FixtureDefinition(
+        "fixture-public",
+        "public",
+        "/fixture-public",
+        ("none", "optional"),
+    ),
     FixtureDefinition(
         "fixture-authenticated",
         "authenticated",
         "/fixture-authenticated",
+        ("required",),
     ),
-    FixtureDefinition("fixture-restricted", "restricted", "/fixture-restricted"),
+    FixtureDefinition(
+        "fixture-restricted",
+        "restricted",
+        "/fixture-restricted",
+        ("required",),
+    ),
 )
 _FIXTURE_BY_ID = {item.application_id: item for item in _FIXTURES}
 
 
 @dataclass(frozen=True, slots=True)
 class FixtureDeployRequest:
+    """Exact fixture handoff request including application-owned catalogue intent."""
+
     environment: str
     application_id: str
     fixture_source_revision: str
     expected_platform_source_revision: str
     expected_platform_generation: int
+    catalogue_visibility: str
     source_authority: str = "accepted"
     integration_bundle: dict[str, Any] | None = None
     integration_bundle_path: str | None = None
@@ -111,8 +128,11 @@ class FixtureHandoffResult:
 
 @dataclass(frozen=True, slots=True)
 class FixtureApplicationStatus:
+    """Registration policy, provider posture, and route readiness for one fixture."""
+
     application_id: str
     lifecycle: str
+    catalogue_visibility: str
     target_exists: bool
     target_ready: bool
     route_ready: bool
@@ -120,6 +140,8 @@ class FixtureApplicationStatus:
 
 @dataclass(frozen=True, slots=True)
 class FixtureStatusResult:
+    """Read-only status result for all or one selected qualification fixture."""
+
     outcome: str
     registration_generation: int | None
     registration_generation_digest: str | None
@@ -223,6 +245,8 @@ class FixtureSuiteLifecycle:
     def _definition(
         request: FixtureDeployRequest,
     ) -> tuple[FixtureDefinition | None, str | None]:
+        """Validate one closed fixture profile and explicit catalogue choice."""
+
         if request.environment != "staging":
             return None, "FIXTURE_ENVIRONMENT_UNAVAILABLE"
         definition = _FIXTURE_BY_ID.get(request.application_id)
@@ -231,6 +255,7 @@ class FixtureSuiteLifecycle:
             or _REVISION.fullmatch(request.fixture_source_revision) is None
             or _REVISION.fullmatch(request.expected_platform_source_revision) is None
             or request.expected_platform_generation < 1
+            or request.catalogue_visibility not in {"listed", "unlisted"}
             or request.source_authority not in {"accepted", "candidate"}
         ):
             return None, "FIXTURE_REQUEST_INVALID"
@@ -243,10 +268,15 @@ class FixtureSuiteLifecycle:
         request: FixtureDeployRequest,
     ) -> bool:
         return (
-            not validate_lifecycle_document(bundle, "platform-integration-bundle")
+            bundle.get("contract_version") == 2
+            and not validate_versioned_lifecycle_document(
+                bundle,
+                "platform-integration-bundle",
+            )
             and bundle.get("environment") == request.environment
             and bundle.get("application_id") == definition.application_id
             and bundle.get("access_mode") == definition.access_mode
+            and bundle.get("identity_delivery") in definition.identity_deliveries
             and bundle.get("route_intent") == definition.route_intent
             and bundle.get("platform_source_revision")
             == request.expected_platform_source_revision
@@ -264,9 +294,14 @@ class FixtureSuiteLifecycle:
         request: FixtureDeployRequest,
     ) -> tuple[bool, str]:
         attachment = deployment.attachment_bundle
-        if validate_lifecycle_document(attachment, "application-attachment-bundle"):
+        if attachment.get("contract_version") != 2:
+            return False, "ATTACHMENT_BUNDLE_VERSION_UNSUPPORTED"
+        if validate_versioned_lifecycle_document(
+            attachment,
+            "application-attachment-bundle",
+        ):
             return False, "ATTACHMENT_BUNDLE_INVALID"
-        if validate_lifecycle_relationships(
+        if validate_versioned_lifecycle_relationships(
             integration_bundle=bundle,
             attachment_bundle=attachment,
         ):
@@ -314,12 +349,12 @@ class FixtureSuiteLifecycle:
             return False, blocker
         if (
             preparation.integration_bundle_digest
-            != lifecycle_digest(
+            != versioned_lifecycle_digest(
                 preparation.integration_bundle,
                 "platform-integration-bundle",
             )
             or preparation.attachment_bundle_digest
-            != lifecycle_digest(
+            != versioned_lifecycle_digest(
                 preparation.deployment.attachment_bundle,
                 "application-attachment-bundle",
             )
@@ -400,11 +435,11 @@ class FixtureSuiteLifecycle:
                 image=image,
                 integration_bundle=bundle,
                 deployment=deployment,
-                integration_bundle_digest=lifecycle_digest(
+                integration_bundle_digest=versioned_lifecycle_digest(
                     bundle,
                     "platform-integration-bundle",
                 ),
-                attachment_bundle_digest=lifecycle_digest(
+                attachment_bundle_digest=versioned_lifecycle_digest(
                     deployment.attachment_bundle,
                     "application-attachment-bundle",
                 ),

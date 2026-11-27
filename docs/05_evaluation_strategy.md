@@ -1,9 +1,12 @@
-# App Platform evaluation strategy
+# <u>App Platform evaluation strategy</u>
 
-Version 0.20 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.29 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
-without execution; ADR-015 implementation and Candidate Source qualification are AP-M9-W10 work,
-and the Accepted Source AP-EVAL-M9 result remains AP-M9-W11 work
+without execution; all seven AP-M9-W10 slices and candidate-readiness corrections supply
+deterministic Version 2 contract, infrastructure, runtime, member-lifecycle, application-handoff,
+operator-documentation, and qualification-readiness evidence; Version 2 Candidate Source
+qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; one complete
+post-reconciliation rerun and freeze remain; Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
@@ -25,6 +28,49 @@ Version 1 restricted-fixture destruction and recovery, and the then-declared qua
 It remains truthful predecessor evidence but cannot qualify ADR-015. It does not qualify Accepted
 Source, production, a consuming application's adoption, or product authorization.
 
+W10 Slice 1 supplies AP-EVAL-M9-02 Contract evidence for the complete inert Version 2 schema
+family, deterministic Version 1 migration, compatibility loading, exact canonical vectors, and
+mixed/member-bearing rejection. It supplies no directory, IAM, runtime, operator, Fixture, Live,
+qualification, or Application Adoption evidence.
+
+W10 Slice 2 supplies deterministic and mocked-plan infrastructure evidence for the isolated named
+member database, conditioned session and member IAM, closed readback, and exact-key model. W10
+Slice 3 supplies deterministic AP-EVAL-M9-07 runtime evidence for dual-version generation loading,
+explicit public, authenticated, and restricted admission, exact current-member lookup, minimized
+Version 2 assertions, visitor-header replacement, and fail-closed directory handling. Neither
+slice supplies deployment, Live, qualification, or Application Adoption evidence.
+
+W10 Slice 4 supplies deterministic AP-EVAL-M9-03 and AP-EVAL-M9-07 evidence for separate Cloud
+Operator and Google Visitor boundaries, one-use browser reference binding, remote-empty owner
+bootstrap, source admission, idempotency, stale-predecessor and conflict handling, atomic monotonic
+member transitions, read-only reference identification, exact readback, privacy, interruption, and stable diagnostics. Its provider
+fakes and loopback/browser seams perform no real member mutation and supply no Live, qualification,
+Version 2 handoff, or activation evidence.
+
+W10 Slice 5 supplies deterministic AP-EVAL-M9-06 and AP-EVAL-M9-07 evidence for explicit
+Admission Mode/Identity Delivery validation, complete Version 2 integration/attachment/intent
+relationships, fixture consumption, application verification, provider object naming, atomic
+Version 1 predecessor migration, complete-generation activation, and rollback compatibility. Its
+operator and provider fakes perform no real publication, application deployment, activation, or
+qualification.
+
+W10 Slice 6 supplies governance evidence that the public overview, operator runbook, design,
+contract indexes, component guides, layout, plan, threat model, evaluation strategy, and next-task
+prompt agree with the implemented Version 2 boundary and its limitations. It records the future
+Candidate Source procedure but invokes no command against a provider and supplies no Live,
+qualification, or Application Adoption evidence.
+
+W10 Slice 7 supplies deterministic qualification-support evidence that the existing
+source-admitted member service verifies the reviewed owner-only baseline, performs one temporary
+second-member add/suspend/reactivate/remove journey, checks the current restricted-route decision
+after every transition, reconciles cleanup on failure, blocks rollback without exact baseline
+restoration, and emits no member reference or identity material in qualification evidence. Its
+loopback, in-memory, and provider fakes perform no Live member mutation, browser login, generation
+transition, or provider operation. Candidate Source Live evidence became available only after the
+slice merged to the exact clean pushed integration revision and the owner invoked the runbook; the
+successful result is bound to revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c` and does not
+transfer to a later documentation or implementation revision.
+
 Plan: [App Platform implementation plan index](plans/README.md) and
 [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) and
 [AP-M9-W10 delivery plan](plans/ap_m9/w10_platform_member_directory.md)
@@ -33,7 +79,7 @@ Design: [App Platform system design](03_system_design.md)
 
 Threats: [App Platform threat model](06_threat_model.md)
 
-## AP-EVAL-M3 · System-design-and-contracts gate
+## <u>AP-EVAL-M3 · System-design-and-contracts gate</u>
 
 ### Evaluation claim
 
@@ -64,7 +110,7 @@ behavior. It must:
 
 Ordinary ignored interpreter caches are not evidence and must not be required for success.
 
-## Gate structure
+## <u>Gate structure</u>
 
 ### AP-EVAL-M3-01 · Authority and trace integrity
 
@@ -220,7 +266,7 @@ Verify that the AP-M3 change:
 - directs the next task to propose delivery item 4 planning after AP-M3 merges, without treating the
   current branch or pull request as that merge.
 
-## Test-vector manifest
+## <u>Test-vector manifest</u>
 
 `contracts/test-vectors/manifest.v1.json` is the reviewed index of deterministic cases. Each entry
 must declare:
@@ -237,7 +283,7 @@ must declare:
 The manifest contains no executable command, absolute path, environment-specific identifier, or
 expected live result. A vector not indexed by the manifest is test support, not acceptance evidence.
 
-## Determinism and mutation checks
+## <u>Determinism and mutation checks</u>
 
 Tests must isolate nondeterminism by:
 
@@ -253,7 +299,7 @@ The AP-M3 reference compiler may read caller-supplied contract files but exposes
 interface. It returns in-memory values, and tests do not write generated artifacts into the
 repository.
 
-## Threat coverage boundary
+## <u>Threat coverage boundary</u>
 
 | Threats | AP-EVAL-M3 claim |
 | --- | --- |
@@ -270,7 +316,7 @@ repository.
 | AP-TM-013 | Fail-closed declarations only; dependency failure remains unqualified |
 | AP-TM-014 | Authority labels and absence of fixture or adoption behavior |
 
-## Pass, fail, and skip semantics
+## <u>Pass, fail, and skip semantics</u>
 
 AP-EVAL-M3 passes only when:
 
@@ -285,7 +331,7 @@ dependency, unreviewed generated file, secret-like payload, missing trace, or fa
 fails AP-EVAL-M3. A known limitation is recorded as unavailable; it is not converted into a skip or
 passing assertion.
 
-## Required evaluation evidence
+## <u>Required evaluation evidence</u>
 
 The AP-M3 pull-request handoff records:
 
@@ -303,7 +349,7 @@ The AP-M3 pull-request handoff records:
 Evidence reports actual output. It must not pre-fill a success result, omit a failed command, or
 claim runtime qualification from documentation, schemas, or static configuration.
 
-## Limitations
+## <u>Limitations</u>
 
 AP-EVAL-M3 does not perform load, browser, accessibility, cryptographic, network, cloud, DNS, TLS,
 IAM, OAuth, Terraform, provider, runtime, direct-origin, or application-product testing. It does not
@@ -312,7 +358,7 @@ qualify availability, cost controls, logging, incident response, migration, or r
 Those gates require separately approved plans after AP-M3 merges. Finance Application Adoption
 requires Finance-owned authority and evidence in addition to qualified platform behavior.
 
-## AP-EVAL-M4 · Deterministic-fixtures gate
+## <u>AP-EVAL-M4 · Deterministic-fixtures gate</u>
 
 ### Evaluation claim
 
@@ -566,7 +612,7 @@ real application can or should adopt the platform.
 Infrastructure and Live qualification require a separate owner-approved slice after AP-M4 merges.
 Every Application Adoption remains an application-owned later slice with its own evidence.
 
-## AP-EVAL-M5 · Infrastructure-planning gate
+## <u>AP-EVAL-M5 · Infrastructure-planning gate</u>
 
 ### Evaluation claim
 
@@ -802,7 +848,7 @@ load, concurrency, network, DNS, TLS, IAM, OAuth, KMS, Firestore, provider, budg
 deployment, rollback, recovery, incident, migration, or application-product test. It cannot qualify
 any selected control as implemented or operational.
 
-## AP-EVAL-M6 · Networked-provider-runtime gate
+## <u>AP-EVAL-M6 · Networked-provider-runtime gate</u>
 
 ### Evaluation claim
 
@@ -979,7 +1025,7 @@ IAM, deployment, load, availability, cost, direct-origin network, multi-instance
 recovery, incident, migration, or application-product test. Its production adapters are locally
 tested implementations, not evidence that their required provider resources or permissions exist.
 
-## AP-EVAL-M7 · Terraform-and-workflow gate
+## <u>AP-EVAL-M7 · Terraform-and-workflow gate</u>
 
 ### Evaluation claim
 
@@ -1170,7 +1216,7 @@ multi-instance, rollback, recovery, incident, migration, or application-product 
 configuration and mocked plans are implementation evidence only and cannot satisfy AP-EVAL-M8 or
 AP-EVAL-M9.
 
-## Historical unexecuted evaluation proposals
+## <u>Historical unexecuted evaluation proposals</u>
 
 The following two sections preserve the accepted but unexecuted AP-M8 deployment/readback proposal
 and the withdrawn standalone Live-qualification proposal as they stood at source revision
@@ -1520,7 +1566,7 @@ for the exact revision with zero mandatory skips. Report every failure, limitati
 unavailable cross-project claim, and unimplemented alert. Record Live evidence only; leave Finance
 Assistant and every Application Adoption unchanged and unavailable.
 
-## AP-EVAL-M9 · Operator-driven environment lifecycle gate
+## <u>AP-EVAL-M9 · Operator-driven environment lifecycle gate</u>
 
 ### Evaluation claim
 
@@ -1548,15 +1594,19 @@ It performs no credential lookup, provider request, DNS lookup, Terraform backen
 mutation, or browser action. It uses synthetic profiles, command fakes, temporary mode-`0700`
 directories, mocked Terraform providers, process-local loopback, and deterministic clocks.
 
-Accepted staging Live gates begin only after AP-M9-W1 through W10 are merged and the exact
-protected-main revision passes the complete gate. During W10, a clean pushed pull-request revision
-containing current `origin/main` may run the Version 2 staging journey with
-`SOURCE_AUTHORITY=candidate` to test provider behavior. Candidate specifications, bundles, and
-evidence remain digest-bound and separate, cannot satisfy AP-EVAL-M9, cannot overwrite accepted
-qualification, and cannot authorize production. After W10 merges, AP-M9-W11 repeats deployment and
-qualification from Accepted Source. The owner starts an ordinary reversible staging creation or
-update by deliberately invoking its named command; that process completes specification approval,
-exact plan or bounded-action confirmation, and readback without a duplicate out-of-band approval.
+Accepted staging Live gates begin only after the complete W10 integration branch merges and the
+exact protected-main revision passes the complete gate. W10 Slices 1 through 7 produce only
+deterministic, mocked, local, or documentation evidence and authorize no external operation. Slice
+7 first merges its qualification support to `feat/platform-member-directory`; the exact clean
+pushed integration revision may then run the Version 2 staging journey with
+`SOURCE_AUTHORITY=candidate`. Its specifications, bundles, and evidence remain digest-bound to that
+exact integration revision, cannot satisfy the Accepted Source AP-EVAL-M9 result, and cannot
+authorize production. Any later tracked change invalidates that qualification and requires a
+complete rerun before the cumulative pull request to `main`. After that pull request merges,
+AP-M9-W11 repeats deployment and qualification from Accepted Source. The owner starts an ordinary
+reversible staging creation or update by deliberately invoking its named command; that process
+completes specification approval, exact plan or bounded-action confirmation, and readback without
+a duplicate out-of-band approval.
 Destruction, purge, ownership transfer, production cutover, scope expansion, rollback, or recovery
 retains its separately named approval where required by its boundary. The local wizard uses only the
 verified short-lived human operator session and creates no operation-identity fleet or stored key.
@@ -1645,6 +1695,10 @@ platform revision or generation, and an invalid application identity projection.
 Prove it succeeds without publishing a bundle, approving or applying a plan, acquiring a state
 lock, changing provider state, or writing operational lifecycle state.
 
+Prove fixture handoff requires explicit listed or unlisted Catalogue Visibility, binds it into the
+private preparation identity and registration intent, and never adds it to platform readiness or
+integration-bundle inputs.
+
 #### AP-EVAL-M9-04 · State, Terraform, operator session, plans, and ownership
 
 Verify deployable bootstrap/foundation/edge phases preserve independent state ownership, locking,
@@ -1661,6 +1715,12 @@ Verify Platform State owns the Firestore database configuration, required indexe
 least-privilege Shared Edge access, while member documents remain remote operational data outside
 Terraform, Git, and Registration Generations. Prove an empty local operator directory cannot
 bootstrap an owner over a non-empty remote directory.
+For the member-directory infrastructure slice, mocked plans must prove the default session database
+and named `app-platform-members` database remain distinct, no composite member index is required,
+the session role is conditioned to the default database, and the member custom role contains only
+`datastore.entities.get` with a named-database condition. Deterministic provider readback must
+reject missing, unconditioned, additional, list-capable, or mutation-capable Shared Edge grants
+without exposing the IAM policy or any member record.
 Verify the lifecycle creates no operation-identity or impersonation fleet.
 Verify deployment checking rejects the same destructive, replacement, ownership, provider, and
 scope violations as deployment while never invoking apply or acquiring the remote state lock.
@@ -1692,6 +1752,13 @@ rejection, detach, redeploy/reactivate,
 terminal retirement, route reservation, `503` detached behavior, `410` retired behavior, closed
 unknown routes, and proof that no platform action destroys Application State.
 
+Require one same-version Version 2 integration, attachment, and registration-intent family and
+reject every mixed-version relationship or independent registration-time Identity Delivery value.
+Starting from a readable Version 1 predecessor, prove public maps to `none`, authenticated and
+restricted map to `required`, member sets are discarded, the predecessor remains unchanged, and
+exactly one complete Version 2 successor binds its digest. Prove a retained reviewed Version 1
+generation remains an eligible exact rollback target after Version 2 activation.
+
 For one selected fixture, stop after attachment generation and verify the operator receives exact
 mode-`0600` canonical integration-bundle, attachment-bundle, and registration-intent paths and
 digests without a registration transition. Inspect them, then run `platform-register` and prove it
@@ -1721,10 +1788,11 @@ connected service project can retrieve the public platform JWKS through the plat
 application-subnet NAT, then deny or remove that egress and verify the application fails closed
 with only `verification_keys_unavailable` in its diagnostic event.
 
-The routing-qualification browser portion has exactly three separately confirmed invocations:
-clear any prior Platform
-Session and authenticate with the reviewed account, reuse that session for restricted admission,
-then delete and read back the server-side session before returning through the public fixture.
+The active-generation routing-qualification browser portion has exactly four separately confirmed
+invocations: clear any prior Platform Session and authenticate with the reviewed account, reuse
+that session to prove public optional identity delivery, reuse it for restricted admission, then
+delete and read back the server-side session before returning through the public fixture with
+identity absent.
 Declined confirmation, browser-launch failure, missing callback, deletion failure, or deletion
 readback mismatch produces a step-specific blocker. Reauthentication after logout is not used as
 logout evidence because an existing Google session may complete it immediately.
@@ -1733,6 +1801,15 @@ Owner bootstrap and later member enrollment use their own separately confirmed i
 exact member action. They must distinguish the Cloud Operator from the Google Visitor, use verified
 issuer and immutable subject rather than operator-entered email, and expose no identity claim in
 ordinary output or evidence.
+
+Qualification receives the reviewed owner's opaque reference as private operator input. Before
+adding another member and after every terminal path, require one active matching owner and no other
+member record through a bounded non-enumerating provider projection. After add, suspend,
+reactivate, and remove, require a separately confirmed browser request to evaluate the exact
+restricted fixture through the Shared Edge's ordinary current-member function. The loopback result
+contains only the application identifier, one-use challenge, and boolean decision. A failed
+transition or admission check must attempt removal reconciliation; failed cleanup or a non-exact
+final baseline emits `QUALIFICATION_MEMBER_BASELINE_RESTORATION_REQUIRED` and blocks rollback.
 
 The Version 2 identity projection contains only the current visitor's minimal application-bound
 context. Prove a public application receives no Platform Identity under `none`, receives identity
@@ -1745,10 +1822,21 @@ tests must continue to deny a synthetic feature independently of platform admiss
 
 Only after every non-mutating qualification check passes, explain the traffic effect and obtain
 explicit confirmation before temporarily activating the reviewed predecessor complete generation.
-Verify the predecessor readback, obtain separate explicit restoration confirmation, restore the
-original generation, and verify it owns 100 percent of traffic, all while preserving Application
-State. A failed prerequisite must block the rollback exercise without prompting or changing
-traffic. Detach and destroy fixture-owned assets under fixture authority. Verify platform
+Verify the predecessor readback and require its provider-bound platform source revision to equal
+the active candidate source before prompting or changing traffic. A stale predecessor must return
+`ROLLBACK_PREDECESSOR_SOURCE_MISMATCH` with no confirmation or activation. Through one separately
+confirmed browser invocation, establish a Platform Session, then use a second separately confirmed
+invocation to prove that the predecessor's public `none` policy remains routable and withholds
+Platform Identity even when the same current application target advertises its canonical
+optional-identity capability. The registration remains the delivery authority, and a different
+target audience still fails closed. If the second callback instead observes the successor's
+optional-identity policy, allow no more than two additional separately confirmed observations
+separated by a bounded traffic-convergence wait; do not retry another failure class.
+Retain the exact stable predecessor-step blocker in a failed qualification result. Regardless of
+that browser result, obtain separate explicit restoration
+confirmation, restore the original public-`optional` generation, and verify it owns 100 percent of
+traffic, all while preserving Application State. A failed prerequisite must block the rollback
+exercise without prompting or changing traffic. Detach and destroy fixture-owned assets under fixture authority. Verify platform
 destruction refuses an active attachment, names the exact environment and inventory, requires
 typed confirmation, handles DNS/cache and OAuth checkpoints, touches no application resource,
 stops on partial failure, and retains backends/evidence and the connected Shared VPC foundation
@@ -1799,7 +1887,14 @@ cross-project fixture topology and recorded candidate evidence digest
 for revision `2fd045f6f720fe122103d42b3ebb6d25f5fbdac8` and restored active generation 8 digest
 `sha256:07880efea15027c1209c43e93bd91af2c6655c77582a70233c6cb22117462acf`.
 Private provider payloads, state, plans, browser state, and identity material remain outside Git.
-W10 must repeat the applicable staging journey from Candidate Source, qualify the Version 2 member
-directory, and restore the reviewed member baseline. After W10 merges, W11 must repeat the journey
-from Accepted Source and complete the separately approved platform destruction/redeployment
-rehearsal before an accepted AP-EVAL-M9 result exists.
+W10 Slices 1 through 5 establish the deterministic Version 2 contract, infrastructure, runtime,
+lifecycle, and application-handoff evidence. Slice 6 reconciles the operator handoff and
+implemented limitations without a provider operation. Slice 7 and its candidate-readiness
+corrections implement cleanup-safe qualification support without a provider operation. Revision
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c` subsequently completed the applicable Candidate Source
+staging journey, qualified the Version 2 member directory, and restored the reviewed member
+baseline. This documentation reconciliation changes the exact revision, so the resulting clean
+pushed integration head must repeat the complete qualification and then remain frozen. After the
+cumulative W10 pull request merges,
+W11 must repeat the journey from Accepted Source and complete the separately approved platform
+destruction/redeployment rehearsal before an accepted AP-EVAL-M9 result exists.

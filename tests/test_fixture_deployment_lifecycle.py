@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 import unittest
 
-from contracts.lifecycle import lifecycle_digest
+from contracts.lifecycle import versioned_lifecycle_digest
 from infrastructure.operator._interfaces import GitSnapshot
 from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationDeployRequest,
@@ -47,11 +47,12 @@ SUBNET = (
 
 def _bundle(application_id: str = "fixture-public") -> dict[str, object]:
     return {
-        "contract_version": 1,
+        "contract_version": 2,
         "document_kind": "platform-integration-bundle",
         "environment": "staging",
         "application_id": application_id,
         "access_mode": "public",
+        "identity_delivery": "none",
         "route_intent": f"/{application_id}",
         "generation": 2,
         "profile_digest": "sha256:" + ("1" * 64),
@@ -97,9 +98,10 @@ def _request(bundle: dict[str, object] | None = None) -> FixtureDeployRequest:
         fixture_source_revision=SOURCE,
         expected_platform_source_revision=PLATFORM_SOURCE,
         expected_platform_generation=2,
+        catalogue_visibility="listed",
         source_authority="candidate",
         integration_bundle=bundle,
-        integration_bundle_path="/private/platform-integration-bundle.v1.json",
+        integration_bundle_path="/private/platform-integration-bundle.v2.json",
     )
 
 
@@ -132,12 +134,12 @@ class Commands:
         self.deployments += 1
         bundle = request.integration_bundle
         attachment = {
-            "contract_version": 1,
+            "contract_version": 2,
             "document_kind": "application-attachment-bundle",
             "environment": "staging",
             "application_id": request.application_id,
             "attachment_revision": 1,
-            "platform_integration_bundle_digest": lifecycle_digest(
+            "platform_integration_bundle_digest": versioned_lifecycle_digest(
                 bundle, "platform-integration-bundle"
             ),
             "application_source_revision": request.source_revision,
@@ -171,8 +173,8 @@ class Commands:
         return replace(
             preparation,
             integration_bundle_path=request.integration_bundle_path,
-            attachment_bundle_path="/private/application-attachment-bundle.v1.json",
-            registration_intent_path="/private/registration-intent.v1.json",
+            attachment_bundle_path="/private/application-attachment-bundle.v2.json",
+            registration_intent_path="/private/registration-intent.v2.json",
         )
 
     def status(
@@ -185,7 +187,16 @@ class Commands:
             "read",
             2,
             "sha256:" + ("5" * 64),
-            (FixtureApplicationStatus(selected, "active", True, True, True),),
+            (
+                FixtureApplicationStatus(
+                    selected,
+                    "active",
+                    "listed",
+                    True,
+                    True,
+                    True,
+                ),
+            ),
         )
 
     def destroy_application(self, request):  # type: ignore[no-untyped-def]
@@ -210,7 +221,7 @@ class FixtureHandoffLifecycleTest(unittest.TestCase):
         self.assertEqual(commands.deployments, 1)
         self.assertEqual(
             result.registration_intent_path,
-            "/private/registration-intent.v1.json",
+            "/private/registration-intent.v2.json",
         )
         self.assertFalse(hasattr(lifecycle, "deploy"))
         self.assertEqual(
@@ -245,6 +256,7 @@ class FixtureHandoffLifecycleTest(unittest.TestCase):
                         RegistrationApplicationStatus(
                             application_id,
                             "active",
+                            "listed",
                             "urn:fixture",
                             True,
                             True,
@@ -320,6 +332,7 @@ class LocalFixtureOperatorTest(unittest.TestCase):
         ).handoff(
             "staging",
             "fixture-public",
+            "unlisted",
             _bundle(),
             "/private/platform-integration-bundle.v1.json",
         )
@@ -327,6 +340,7 @@ class LocalFixtureOperatorTest(unittest.TestCase):
         self.assertEqual(result.outcome, "prepared")
         assert lifecycle.request is not None
         self.assertEqual(lifecycle.request.integration_bundle, _bundle())
+        self.assertEqual(lifecycle.request.catalogue_visibility, "unlisted")
 
 
 if __name__ == "__main__":

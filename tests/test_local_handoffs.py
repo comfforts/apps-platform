@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import json
 from pathlib import Path
 import stat
@@ -32,13 +33,13 @@ class LocalApplicationHandoffsTest(unittest.TestCase):
         integration = json.loads(
             (
                 VECTORS
-                / "platform-integration-bundle.staging.synthetic.v1.json"
+                / "platform-integration-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         attachment = json.loads(
             (
                 VECTORS
-                / "application-attachment-bundle.staging.synthetic.v1.json"
+                / "application-attachment-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         with tempfile.TemporaryDirectory() as directory:
@@ -72,13 +73,13 @@ class LocalApplicationHandoffsTest(unittest.TestCase):
         integration = json.loads(
             (
                 VECTORS
-                / "platform-integration-bundle.staging.synthetic.v1.json"
+                / "platform-integration-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         attachment = json.loads(
             (
                 VECTORS
-                / "application-attachment-bundle.staging.synthetic.v1.json"
+                / "application-attachment-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         attachment["platform_integration_bundle_digest"] = (
@@ -98,13 +99,13 @@ class LocalApplicationHandoffsTest(unittest.TestCase):
         integration = json.loads(
             (
                 VECTORS
-                / "platform-integration-bundle.staging.synthetic.v1.json"
+                / "platform-integration-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         attachment = json.loads(
             (
                 VECTORS
-                / "application-attachment-bundle.staging.synthetic.v1.json"
+                / "application-attachment-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         successor_attachment = dict(attachment)
@@ -159,13 +160,13 @@ class LocalFixturePreparationsTest(unittest.TestCase):
         integration = json.loads(
             (
                 VECTORS
-                / "platform-integration-bundle.staging.synthetic.v1.json"
+                / "platform-integration-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         attachment = json.loads(
             (
                 VECTORS
-                / "application-attachment-bundle.staging.synthetic.v1.json"
+                / "application-attachment-bundle.staging.synthetic.v2.json"
             ).read_text(encoding="utf-8")
         )
         request = FixtureDeployRequest(
@@ -174,6 +175,7 @@ class LocalFixturePreparationsTest(unittest.TestCase):
             fixture_source_revision="b" * 40,
             expected_platform_source_revision="a" * 40,
             expected_platform_generation=1,
+            catalogue_visibility="listed",
         )
         image = FixtureImageReadback(
             "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
@@ -186,9 +188,11 @@ class LocalFixturePreparationsTest(unittest.TestCase):
             attachment,
         )
         with tempfile.TemporaryDirectory() as directory:
-            store = LocalFixturePreparations(
-                LocalFilesystem(PROJECT_ROOT, Path(directory) / "operator")
+            filesystem = LocalFilesystem(
+                PROJECT_ROOT,
+                Path(directory) / "operator",
             )
+            store = LocalFixturePreparations(filesystem)
 
             published = store.publish(
                 request,
@@ -200,6 +204,9 @@ class LocalFixturePreparationsTest(unittest.TestCase):
                 request,
                 published,
                 RegistrationIntent(
+                    application_id="fixture-authenticated",
+                    access_mode="authenticated",
+                    identity_delivery="required",
                     catalogue_visibility="listed",
                     catalogue_title="Fixture authenticated",
                     catalogue_summary="Synthetic authenticated fixture",
@@ -216,6 +223,7 @@ class LocalFixturePreparationsTest(unittest.TestCase):
                 replace(request, expected_platform_source_revision="d" * 40),
                 replace(request, expected_platform_generation=2),
                 replace(request, source_authority="candidate"),
+                replace(request, catalogue_visibility="unlisted"),
             )
 
             self.assertIsNotNone(observed)
@@ -223,6 +231,7 @@ class LocalFixturePreparationsTest(unittest.TestCase):
             for stale_request in stale_requests:
                 with self.subTest(stale_request=stale_request):
                     self.assertIsNone(store.read(stale_request))
+
             self.assertEqual(
                 json.loads(Path(published.integration_bundle_path).read_bytes()),
                 integration,
@@ -248,6 +257,36 @@ class LocalFixturePreparationsTest(unittest.TestCase):
                 "stored fixture preparation document is invalid",
             ):
                 store.read(request)
+
+            current_path = filesystem.state_path(
+                "environments/staging/fixtures/fixture-authenticated/"
+                "preparations/current.v1.json"
+            )
+            legacy = json.loads(current_path.read_bytes())
+            legacy.pop("catalogue_visibility")
+            legacy.pop("preparation_digest")
+            legacy_payload = json.dumps(
+                legacy,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+            legacy["preparation_digest"] = (
+                "sha256:" + hashlib.sha256(legacy_payload).hexdigest()
+            )
+            current_path.write_text(
+                json.dumps(
+                    legacy,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            self.assertIsNone(store.read(request))
 
 
 if __name__ == "__main__":

@@ -36,12 +36,23 @@ _VERIFICATIONS = {
 QUALIFICATION_CHECK_CAPABILITIES: Mapping[str, tuple[str, ...]] = MappingProxyType(
     {
         "admission-identity": (
-            "public-admission",
-            "authenticated-admission",
-            "restricted-admission",
+            "application-feature-denial",
+            "authenticated-membership-independence",
+            "directory-unavailability",
+            "expired-session",
+            "member-add",
+            "member-reactivate",
+            "member-remove",
+            "member-suspend",
             "oauth",
+            "owner-only-member-baseline",
+            "public-identity-none",
+            "public-identity-optional",
+            "restricted-member-admission",
             "session",
+            "stale-member-cache-bound",
             "logout",
+            "visitor-header-replacement",
         ),
         "assertion-jwks": ("signed-assertion", "jwks"),
         "attachment-posture": ("attachment-iam",),
@@ -91,6 +102,23 @@ _CHECK_VERIFICATIONS = {
 _BLOCKER = re.compile(r"[A-Z][A-Z0-9_]{2,63}")
 
 
+@dataclass(frozen=True, slots=True)
+class QualificationVerificationResult:
+    """Carry one least-data live proof and its stable failure reasons."""
+
+    verified: bool
+    blockers: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        normalized = tuple(sorted(set(self.blockers)))
+        if normalized != self.blockers:
+            raise ValueError("qualification verification blockers are not canonical")
+        if any(_BLOCKER.fullmatch(blocker) is None for blocker in normalized):
+            raise ValueError("qualification verification blocker is invalid")
+        if self.verified == bool(normalized):
+            raise ValueError("qualification verification result is inconsistent")
+
+
 @dataclass(frozen=True, slots=True, order=True)
 class ComponentRevision:
     name: str
@@ -103,6 +131,20 @@ class FixtureRevision:
     application_source_revision: str
     integration_bundle_digest: str
     attachment_bundle_digest: str
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class FixtureQualificationPolicy:
+    """Non-secret active-generation expectations used by Live qualification."""
+
+    application_id: str
+    admission_mode: str
+    identity_delivery: str
+    catalogue_visibility: str
+    catalogue_title: str
+    route_prefix: str
+    target_reference: str
+    target_audience: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +174,7 @@ class QualificationReadback:
     component_revisions: tuple[ComponentRevision, ...]
     fixture_revisions: tuple[FixtureRevision, ...]
     source_authority: str = "accepted"
+    fixture_policies: tuple[FixtureQualificationPolicy, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -518,6 +561,7 @@ class QualificationLifecycle:
 __all__ = (
     "QUALIFICATION_CHECK_CAPABILITIES",
     "ComponentRevision",
+    "FixtureQualificationPolicy",
     "FixtureRevision",
     "QualificationCheckObservation",
     "QualificationEvaluator",
@@ -531,4 +575,5 @@ __all__ = (
     "QualificationResult",
     "QualificationStateReader",
     "QualificationSuiteEvaluator",
+    "QualificationVerificationResult",
 )

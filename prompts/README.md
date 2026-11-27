@@ -4,14 +4,15 @@ Prompts are bounded task entry points, not architecture authority. Each prompt m
 platform documentation required for its task instead of copying requirements, decisions, or
 acceptance criteria.
 
-- [AP-M9-W10 member directory handoff](starting_prompt.md) starts a new chat from updated, clean
-  `main` only after the ADR-015 governance change merges. It implements and candidate-qualifies the
-  Platform Member Directory, explicit Identity Delivery, Version 2 contracts, owner bootstrap, and
-  member lifecycle before the first Accepted Source staging operation. The handoff is subordinate
-  to the [current W10 delivery plan](../docs/plans/ap_m9/w10_platform_member_directory.md).
+- [AP-M9-W10 Candidate Source qualification](starting_prompt.md) starts a new chat from the exact
+  clean pushed `feat/platform-member-directory` only after all seven functional slices merge and
+  their repository gates pass. It also guides the required final rerun after the qualification
+  record is reconciled, because evidence from the earlier exact revision does not transfer to the
+  new integration head. It guides the separately owner-invoked staging operation and revision
+  freeze without authorizing Accepted Source or production. The handoff is subordinate to the
+  [current W10 delivery plan](../docs/plans/ap_m9/w10_platform_member_directory.md).
 
-The handoff authorizes the bounded W10 repository implementation. Candidate Source staging
-qualification still requires the existing operator entry points and owner direction; it cannot be
-promoted to Accepted Source evidence. The pull request must not mutate production or a real
-application, change Finance Assistant, claim Application Adoption, or perform the W11 Accepted
-Source operation.
+The handoff does not itself authorize the external operation; the owner must deliberately begin it
+after the prompt's prerequisites pass. It excludes Accepted Source staging, production,
+operator-state recovery, and real-application changes. A defect found during the operation returns
+to a reviewed fix slice instead of changing the frozen integration revision in place.

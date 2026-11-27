@@ -32,6 +32,8 @@ class RouteHandoff(Protocol):
 
 
 def _active_application_routes(configuration: dict[str, Any]) -> dict[str, str]:
+    """Return only uniquely identified active application route prefixes."""
+
     routes: dict[str, str] = {}
     duplicates: set[str] = set()
     for item in configuration["application_states"]:
@@ -195,21 +197,44 @@ def route_admission_mode(
     configuration: dict[str, Any],
     application_id: str,
 ) -> str | None:
-    """Return the compiled admission mode for one routed application."""
+    """Return one Version 1 or Version 2 compiled admission mode."""
 
     modes = [
-        item["policy"]["mode"]
+        (
+            item["policy"]["mode"]
+            if configuration["contract_version"] == 1
+            else item["admission_mode"]
+        )
         for item in configuration["admission_policies"]
         if item["application_id"] == application_id
     ]
     return modes[0] if len(modes) == 1 else None
 
 
+def route_identity_delivery(
+    configuration: dict[str, Any],
+    application_id: str,
+) -> str | None:
+    """Return explicit Version 2 delivery or ``None`` for Version 1."""
+
+    if configuration["contract_version"] != 2:
+        return None
+    deliveries = [
+        item["identity_delivery"]
+        for item in configuration["admission_policies"]
+        if item["application_id"] == application_id
+    ]
+    return deliveries[0] if len(deliveries) == 1 else None
+
+
 def route_admission_policy(
     configuration: dict[str, Any],
     application_id: str,
 ) -> dict[str, Any] | None:
-    """Return the one compiled admission policy for an application."""
+    """Return one Version 1 policy; Version 2 has no embedded member policy."""
+
+    if configuration["contract_version"] != 1:
+        return None
 
     policies = [
         item["policy"]

@@ -1,7 +1,9 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W9 Version 1 lifecycle implemented and candidate-qualified; AP-M9-W10 Platform Member
-Directory and explicit Identity Delivery implementation is next
+Status: AP-M9-W9 Version 1 lifecycle candidate-qualified; AP-M9-W10 Slices 1 through 7 implement
+the Version 2 contracts, directory infrastructure, Shared Edge enforcement, member lifecycle,
+application handoff/activation, and qualification; Candidate Source qualification passed at the
+named integration revision and requires one post-reconciliation exact-revision rerun before freeze
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -10,8 +12,10 @@ fakes and the non-fake command boundary exercise the same orchestration interfac
 
 ## Implemented commands
 
-These commands implement the Version 1 predecessor identity model. Their candidate evidence is
-truthful for that model but cannot qualify the accepted Platform Member Directory decision.
+The W9 deployed evidence describes the Version 1 predecessor operation. Repository consumers emit
+and validate the complete Version 2 application-handoff family, and the W10 integration revision
+performed Candidate Source qualification. That result remains revision-scoped and does not prove
+the post-reconciliation integration head or Accepted Source.
 
 The deploy target populates or verifies the checksum-bound local toolchain automatically. The
 operator must already have an active `gcloud` login, user Application Default Credentials, and the
@@ -36,6 +40,7 @@ make application-handoff-check \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-authenticated \
   ACCESS_MODE=authenticated \
+  IDENTITY_DELIVERY=required \
   ROUTE_INTENT=/fixture-authenticated \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   PLATFORM_GENERATION=1
@@ -44,14 +49,15 @@ make platform-outputs \
   APPLICATION_PROJECT_ID=comfforts-fixtures-nonprod \
   APPLICATION_ID=fixture-authenticated \
   ACCESS_MODE=authenticated \
+  IDENTITY_DELIVERY=required \
   ROUTE_INTENT=/fixture-authenticated \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   PLATFORM_GENERATION=1
 make platform-register \
   ENVIRONMENT=staging \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.json \
-  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.json \
-  REGISTRATION_INTENT=/private/path/registration-intent.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
 make platform-detach \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-authenticated \
@@ -62,16 +68,29 @@ make platform-retire \
   APPLICATION_ID=fixture-authenticated \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   GENERATION_DIGEST=sha256:<64-lowercase-hex>
-make platform-qualify ENVIRONMENT=staging
+make platform-qualify ENVIRONMENT=staging \
+  OWNER_MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
 make platform-destroy ENVIRONMENT=staging
 make fixture-handoff \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-authenticated \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v1.json
+  CATALOGUE_VISIBILITY=unlisted \
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 make fixture-status ENVIRONMENT=staging
 make fixture-status ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
 make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=fixture-authenticated
+make platform-member-status ENVIRONMENT=staging
+make platform-member-identify ENVIRONMENT=staging
+make platform-member-bootstrap-owner ENVIRONMENT=staging
+make platform-member-add ENVIRONMENT=staging
+make platform-member-status ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+make platform-member-suspend ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+make platform-member-reactivate ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
+make platform-member-remove ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
 ```
+
+Fixture status is read-only. Each returned application includes its active Registration
+Generation `catalogue_visibility` together with lifecycle, provider-target, and route readiness.
 
 Fixture handoff and destroy always require one fixture application identifier and operate only that
 fixture's Application State. Destruction additionally requires a prior platform detachment.
@@ -83,10 +102,17 @@ the last deployment operation, and the source serving the active Shared Edge sep
 differences are source diagnostics, not command failures; unreadable or inconsistent lifecycle
 state remains a blocker.
 
-`platform-qualify` asks for separate `y/N` approval before each of its three browser invocations.
+`platform-qualify` requires the privately retained opaque reference for the reviewed active owner.
+It asks for separate `y/N` approval before each of its three routing-identity browser invocations.
 Those invocations clear any stale Platform Session and authenticate, reuse the session for the
 restricted fixture, then verify platform logout through server-side deletion readback and a public
-fixture callback. A declined or failed step is reported by name and no later browser tab is opened.
+fixture callback. It then calls the same `PlatformMemberLifecycle` used by the member commands to
+verify the owner-only baseline and perform one temporary add/suspend/reactivate/remove journey.
+Add has its normal one-use Visitor browser verification; each transition is followed by a
+separately confirmed browser call that returns only the current `fixture-restricted` allow/deny
+decision to loopback. Any failure attempts cleanup, rereads the baseline, and blocks generation
+rollback unless the owner-only state is exact. A declined or failed browser step is reported and
+no later tab is opened silently.
 
 `fixture-handoff` is the application-owned deployment step. It consumes an existing project-scoped
 Platform Integration Bundle, deploys or reconciles the selected fixture in the dedicated fixture
@@ -118,20 +144,59 @@ plans.
 
 The default `PREFLIGHT_MODE=operational` enforces the selected Accepted or Candidate Source policy.
 
-## Planned member lifecycle transition
+## Platform member lifecycle
 
-The next implementation slice adds Version 2 contracts and the smallest member-specific operator
-surface. `platform-deploy` will reconcile the empty Firestore directory infrastructure but will not
-enroll a member. A separate `platform-member-bootstrap-owner` command will enroll the first owner
-only after remote-empty readback, a separately confirmed Google Visitor flow, exact review, and
-idempotent remote readback. Bounded status, add, suspend, reactivate, and remove commands will then
-change environment-wide membership without compiling a Registration Generation or deploying an
-application.
+W10 now contains the Version 2 contracts and repository implementation for the isolated
+member-directory database, exact-read runtime IAM, Shared Edge enforcement, member lifecycle, and
+application handoff/activation path.
+Provider readback accepts only the
+conditioned default-database session grant and the named-database custom member role containing
+`datastore.entities.get`; a broader project-level runtime grant fails closed. The named W10
+integration revision reconciled and Candidate-qualified these additions. Version 1 generation
+documents remain readable predecessors; a reviewed application handoff creates one complete
+Version 2 successor rather than a mixed generation.
 
-Application handoff inputs will add explicit Identity Delivery: `none` or `optional` for public
-admission and `required` for authenticated or restricted admission. Until that slice implements and
-tests these commands and inputs, they are design authority rather than executable operator
-interfaces; do not infer them from the current Make targets.
+`platform-deploy` reconciles the empty Firestore directory infrastructure but never enrolls a
+member. `platform-member-bootstrap-owner` enrolls the first owner only after remote-empty readback,
+a separately confirmed Google Visitor flow, exact review, one atomic transaction, and idempotent
+remote readback. Status, add, suspend, reactivate, and remove use the same deep service without
+compiling a Registration Generation or deploying an application.
+
+`platform-member-identify` reuses the confirmed Visitor browser boundary to derive one opaque
+reference and read only that exact remote member state. It is reference recovery, not directory
+enumeration, and performs no mutation.
+
+The browser flow clears any prior Platform Session and visits the Shared Edge's reserved
+`/_platform/member/verify` endpoint. The edge derives the opaque environment-scoped reference from
+verified Google identity and returns only that reference, environment, operation, and one-use
+challenge to local loopback. The operator never accepts email as membership input and never
+receives raw issuer, subject, provider tokens, cookies, or browser state. Suspend, reactivate, and
+remove use the explicit `MEMBER_REFERENCE` established during enrollment and do not ask the
+affected Visitor to authenticate again.
+
+The provider adapter reads directory control plus at most one selected member. Bootstrap may also
+read a boolean remote-emptiness projection; ordinary status never lists members. A mutation
+transaction compares the reviewed control/member predecessor, advances the control cursor, updates
+or removes the selected member, and then requires exact readback. Stale, conflicting, interrupted,
+malformed, and provider-unavailable results remain distinct safe blocker classes. Removal uses an
+exact typed phrase and retains initialized control so an empty private journal cannot enable owner
+rebootstrap.
+
+`application-handoff-check` and `platform-outputs` require explicit Identity Delivery: `none` or
+`optional` for public admission and `required` for authenticated or restricted admission.
+`fixture-handoff` consumes that decision from the Version 2 Integration Bundle and requires the
+application-owned `CATALOGUE_VISIBILITY=<listed|unlisted>` registration choice. Catalogue
+visibility is not an input to `application-handoff-check` or `platform-outputs`. The handoff
+preparation identity includes the choice so a visibility change cannot reuse an older intent.
+`platform-register` requires the exact Version 2 integration, attachment, and intent relationship;
+it accepts no independent identity-policy argument. Mixed handoff versions fail closed. The first
+successor over a readable Version 1 generation discards registration-scoped members, maps public
+to `none` and protected routes to `required`, and activates one complete immutable Version 2
+generation. An application whose normalized registration is unchanged keeps its existing
+registration revision during that migration; only an actual application-registration change
+increments the revision. The named W10 integration revision exercised this behavior under
+Candidate Source; W11 must repeat it from Accepted Source.
+
 For local code maintenance, `platform-preflight-check` runs the same read-only profile, Git,
 GitHub, GCP, ADC, Terraform-tool, and DNS checks. It skips `SOURCE_NOT_CLEAN`, because the command
 exists to inspect uncommitted changes, and reports other source-admission findings separately
@@ -207,7 +272,21 @@ first-run or recovered backend bootstrap, immutable source-bound image publicati
 generation publication, OAuth metadata, DNS propagation, and TLS readiness. The Cloud Build upload
 uses a repository-root allow-list and cannot include private operator state. The qualification
 and destruction live defaults retain explicit W9 authority gates; no partial external work occurs.
-Repository tests use deterministic fakes and process-local loopback only. Non-fake command adapters
+W10 Slice 7 expands that profile through `member_qualification.py`, the existing member service,
+generation-derived fixture policy, a coarse Shared Edge member-admission callback, and a coarse
+identity-presence callback. The active generation must prove public `optional`; the reviewed
+predecessor must prove public `none` before the active generation is restored. A callback that
+still observes successor optional identity receives at most two additional separately confirmed
+observations after five-second traffic-convergence waits; other browser failures do not retry.
+Before offering the rollback confirmation, the generation reader corroborates the predecessor
+revision through provider readback and requires its platform source revision to equal the active
+candidate source. A stale predecessor returns `ROLLBACK_PREDECESSOR_SOURCE_MISMATCH`, changes no
+traffic, and directs the operator to create a fresh public-`none` generation followed by its
+public-`optional` successor under the active candidate.
+Predecessor failure retains its exact stable blocker while restoration remains unconditional.
+Qualification output retains counts, booleans,
+stable blockers, and digests only; owner and temporary references, directory records, identity,
+cookies, and raw provider responses never enter evidence. Repository tests use deterministic fakes and process-local loopback only. Non-fake command adapters
 are not invoked by `make check` and reject path escape, ambient credential variables, shell
 interpolation, mutable scope, and raw-output persistence outside the private diagnostic boundary.
 
@@ -295,7 +374,9 @@ messages remain suppressed. A provider result inconsistent with the reviewed pla
 apply response becomes `TERRAFORM_APPLY_FAILED_UNKNOWN`. A Cloud Run response that rejects changed
 configuration under an existing immutable revision name reports
 `TERRAFORM_APPLY_IMMUTABLE_REVISION_CONFLICT` rather than the generic concurrent/existing-operation
-conflict.
+conflict. A Cloud Run revision that exits or never listens on its configured port reports
+`TERRAFORM_APPLY_CONTAINER_STARTUP_FAILED` and directs the operator to the private revision
+diagnostic rather than collapsing the failure into the unknown classifier.
 
 The CLI reports every returned blocker to stderr with a derived component before serializing the
 result JSON. Its outer exception boundary catches otherwise unhandled adapter or operator errors,
@@ -319,3 +400,19 @@ readback-closed resume checkpoints. Related internal actions share one human sta
 creation and TLS planning/readiness as `Stage 6/7 · Configure DNS and TLS`. A new process announces
 the stage containing its first pending checkpoint, making resume position visible without
 replaying a completed mutation.
+
+## Member lifecycle module map
+
+| Module | Responsibility |
+| --- | --- |
+| `member_lifecycle.py` | Deep provider-neutral status, authorization, transition, confirmation, idempotency, atomic-mutation, and exact-readback service. |
+| `member_browser.py` | One-use browser launch and loopback callback that receive only an opaque environment/operation-bound member reference. |
+| `member_qualification.py` | Cleanup-safe composition of the existing member service for the temporary second-member journey; returns only counts, booleans, and blocker codes. |
+| `live_qualification.py` | Bounded staging HTTP/browser probes, including the coarse restricted-admission loopback callback and the complete closed qualification profile. |
+| `local_members.py` | Verified local Cloud Operator composition, named Firestore transaction adapter, strict platform URL launcher, and source-authority binding. |
+| `cli.py` | Shallow operation dispatch and least-data human/machine result formatting. |
+| `local.py` | Composition root for the existing lifecycle and the separate member service. |
+
+The Shared Edge runtime's member-verification endpoint is documented in
+[`edge/README.md`](../../edge/README.md). The edge derives a reference but never mutates membership;
+the operator adapter mutates membership but never receives raw Visitor identity.

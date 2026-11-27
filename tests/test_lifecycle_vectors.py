@@ -8,6 +8,7 @@ import unittest
 from contracts.lifecycle import (
     PROFILE_DIRECTORY,
     load_lifecycle_document,
+    load_versioned_lifecycle_document,
     validate_lifecycle_relationships,
 )
 
@@ -19,13 +20,25 @@ VECTORS = {
         "application-attachment-bundle",
         "sha256:443fd2dddd7b6bc91533c1e616671eab7fe32f58e2ffc598ed7bb246175d2755",
     ),
+    "application-attachment-bundle.staging.synthetic.v2.json": (
+        "application-attachment-bundle",
+        "sha256:d4f64aa2b2a13736f74fd8e86cd9bb6e4fdba5df27540b0375eca2bfffa7780d",
+    ),
     "platform-integration-bundle.staging.synthetic.v1.json": (
         "platform-integration-bundle",
         "sha256:7108636efee7842b364f2d4605dbfe89f4da1bed5e56d872c9e09733bc0494c1",
     ),
+    "platform-integration-bundle.staging.synthetic.v2.json": (
+        "platform-integration-bundle",
+        "sha256:36ea2480010791dcf7a37aeeb493e17a4e7af91131f1f7f4219ffb87203c3d9e",
+    ),
     "qualification-evidence.staging.synthetic.v1.json": (
         "qualification-evidence",
         "sha256:96dbf65339fc57d97049f1daa5632834c9bd194b2ba5193ad8a42028948eef1f",
+    ),
+    "registration-intent.staging.synthetic.v2.json": (
+        "registration-intent",
+        "sha256:21ca9faf32aa6554aefa0ee1448a5469e02f66bd495f4ff7c54a7bf774934d8e",
     ),
 }
 
@@ -38,7 +51,12 @@ class LifecycleVectorTest(unittest.TestCase):
         )
         for filename, (kind, expected_digest) in VECTORS.items():
             with self.subTest(filename=filename):
-                loaded = load_lifecycle_document(VECTOR_DIRECTORY / filename, kind)
+                loader = (
+                    load_versioned_lifecycle_document
+                    if ".v2." in filename
+                    else load_lifecycle_document
+                )
+                loaded = loader(VECTOR_DIRECTORY / filename, kind)
 
                 self.assertEqual(loaded.violations, ())
                 self.assertIsNotNone(loaded.value)

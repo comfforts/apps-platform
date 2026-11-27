@@ -8,6 +8,7 @@ import unittest
 from infrastructure.operator.qualification import (
     QUALIFICATION_CHECK_CAPABILITIES,
     ComponentRevision,
+    FixtureQualificationPolicy,
     FixtureRevision,
     QualificationFailureInjection,
     QualificationProbeOutcome,
@@ -47,6 +48,24 @@ def readback() -> QualificationReadback:
                 ("restricted", "c"),
             )
         ),
+        fixture_policies=tuple(
+            FixtureQualificationPolicy(
+                application_id=f"fixture-{mode}",
+                admission_mode=mode,
+                identity_delivery=("optional" if mode == "public" else "required"),
+                catalogue_visibility="listed",
+                catalogue_title=f"{mode.title()} fixture",
+                route_prefix=f"/fixture-{mode}",
+                target_reference=(
+                    "urn:comfforts:app-platform:gcp:cloud-run:"
+                    f"123456789012:us-west1:fixture-{mode}"
+                ),
+                target_audience=(
+                    f"urn:comfforts:app-platform:audience:fixture-{mode}"
+                ),
+            )
+            for mode in ("authenticated", "public", "restricted")
+        ),
     )
 
 
@@ -76,8 +95,9 @@ class QualificationSuiteTest(unittest.TestCase):
     def test_profile_covers_every_required_live_behavior_once(self) -> None:
         expected = {
             "active-generation",
+            "application-feature-denial",
             "attachment-iam",
-            "authenticated-admission",
+            "authenticated-membership-independence",
             "cache-window",
             "catalogue",
             "component-revisions",
@@ -85,19 +105,27 @@ class QualificationSuiteTest(unittest.TestCase):
             "cross-application-isolation",
             "detachment",
             "direct-origin-denial",
+            "directory-unavailability",
             "dns",
             "download",
+            "expired-session",
             "failure-isolation",
             "fixture-revisions",
             "http",
             "jwks",
             "logout",
+            "member-add",
+            "member-reactivate",
+            "member-remove",
+            "member-suspend",
             "mount-rewrite",
             "oauth",
-            "public-admission",
+            "owner-only-member-baseline",
+            "public-identity-none",
+            "public-identity-optional",
             "reactivation",
             "redaction",
-            "restricted-admission",
+            "restricted-member-admission",
             "retirement",
             "rollback",
             "route-selection",
@@ -105,10 +133,12 @@ class QualificationSuiteTest(unittest.TestCase):
             "signed-assertion",
             "source-revision",
             "sse",
+            "stale-member-cache-bound",
             "stream-limits",
             "timeout",
             "tls",
             "upload",
+            "visitor-header-replacement",
             "websocket",
         }
         flattened = [

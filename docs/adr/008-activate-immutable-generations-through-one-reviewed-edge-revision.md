@@ -1,6 +1,6 @@
 # ADR-008 · Activate immutable generations through one reviewed edge revision
 
-Status: Accepted; restricted-membership placement amended by ADR-015
+Status: Accepted; restricted-membership placement and compiled contract version amended by ADR-015
 
 Requirements: AP-PR-001, AP-PR-002, AP-PR-003, AP-PR-004, AP-PR-005, AP-PR-007,
 AP-PR-008, AP-PR-009, AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006
@@ -28,10 +28,11 @@ Complete Registration Sets remain reviewed Git inputs. The deterministic compile
 declared predecessor and produces one canonical generation digest before Terraform planning. An
 immutable compiled configuration object is published as an inactive candidate in a platform-owned
 GCS configuration bucket. New objects use the readable environment-and-generation path
-`environments/<environment>/generations/<number>/compiled-shared-edge.v1.json`; create-only
-publication, the generation digest, content digest, and exact GCS object generation provide the
-immutable binding. Existing initial and digest-addressed object names remain valid historical
-bindings and are never renamed or overwritten. The object is restricted platform configuration. It
+`environments/<environment>/generations/<number>/compiled-shared-edge.v<contract-version>.json`;
+create-only publication, the generation digest, content digest, and exact GCS object generation
+provide the immutable binding. Version 1 and Version 2 are the supported compiled contracts.
+Existing initial and digest-addressed object names remain valid historical bindings and are never
+renamed or overwritten. The object is restricted platform configuration. It
 contains each application's Admission Mode and Identity Delivery policy but never contains a
 Platform Member Directory entry, member list, secret, credential, signed assertion, request
 payload, or application data and is never a public catalogue or evidence artifact.

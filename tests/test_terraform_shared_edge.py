@@ -259,11 +259,13 @@ class TerraformSharedEdgeTest(unittest.TestCase):
             self.assertNotIn(prohibited, module)
 
     def test_plan_test_uses_only_mocked_plan_mode(self) -> None:
+        """Keep every Shared Edge Terraform test credential-free and plan-only."""
+
         test_file = (PLATFORM_ROOT / "tests/shared_edge.tftest.hcl").read_text(
             encoding="utf-8"
         )
         self.assertIn('mock_provider "google"', test_file)
-        self.assertEqual(test_file.count("command = plan"), 3)
+        self.assertEqual(test_file.count("command = plan"), 4)
         self.assertNotIn("command = apply", test_file)
         self.assertIn("platform-shared-edge.synthetic.v2.json", test_file)
         for required_policy in (

@@ -2305,6 +2305,60 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         )
         self.assertEqual((invalid_status, invalid_body), (400, b"invalid member verification\n"))
 
+    def test_member_identification_uses_the_bounded_verification_callback(self) -> None:
+        identity = PlatformIdentity(
+            "https://accounts.google.com",
+            "identified-member-subject",
+            "private@example.com",
+        )
+        configuration, source = configured_generation(
+            protected_generation("authenticated"),
+            external_origin="https://apps-staging.comfforts.com",
+            environment="staging",
+        )
+        store = InMemoryIdentityStore()
+        session_id = "member-identify-session-01234567"
+        store.sessions[session_id] = PlatformSession(identity, expires_at=20_000)
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                identity_store=store,
+                clock=FixedClock(10_000),
+                google_oidc=FakeGoogleOidc(identity),
+                token_source=FixedTokenSource([]),
+            ),
+        )
+        query = urlencode(
+            {
+                "callback_port": "43123",
+                "challenge": "d" * 64,
+                "operation": "identify",
+            }
+        ).encode("ascii")
+
+        _, (status, headers, body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/_platform/member/verify",
+                query_string=query,
+                headers=((b"cookie", f"__Host-comfforts-session={session_id}".encode()),),
+            )
+        )
+
+        values = parse_qs(urlsplit(headers[b"location"].decode("ascii")).query)
+        self.assertEqual((status, body), (303, b""))
+        self.assertEqual(values["operation"], ["identify"])
+        self.assertEqual(
+            values["member_reference"],
+            [
+                member_reference(
+                    "staging",
+                    PlatformMemberIdentity(identity.issuer, identity.subject),
+                )
+            ],
+        )
+
     def test_member_admission_qualification_reports_only_the_route_decision(self) -> None:
         identity = PlatformIdentity(
             CANONICAL_GOOGLE_ISSUER,

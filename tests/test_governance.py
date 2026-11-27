@@ -1100,11 +1100,13 @@ class ProjectAuthorityTest(unittest.TestCase):
         for command in (
             "platform-member-bootstrap-owner",
             "platform-member-status",
+            "platform-member-identify",
             "platform-member-add",
             "platform-member-suspend",
             "platform-member-reactivate",
             "platform-member-remove",
             "IDENTITY_DELIVERY=<none|optional|required>",
+            "CATALOGUE_VISIBILITY=<listed|unlisted>",
         ):
             self.assertIn(command, w10)
         for boundary in (

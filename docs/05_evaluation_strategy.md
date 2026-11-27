@@ -42,7 +42,7 @@ slice supplies deployment, Live, qualification, or Application Adoption evidence
 W10 Slice 4 supplies deterministic AP-EVAL-M9-03 and AP-EVAL-M9-07 evidence for separate Cloud
 Operator and Google Visitor boundaries, one-use browser reference binding, remote-empty owner
 bootstrap, source admission, idempotency, stale-predecessor and conflict handling, atomic monotonic
-member transitions, exact readback, privacy, interruption, and stable diagnostics. Its provider
+member transitions, read-only reference identification, exact readback, privacy, interruption, and stable diagnostics. Its provider
 fakes and loopback/browser seams perform no real member mutation and supply no Live, qualification,
 Version 2 handoff, or activation evidence.
 
@@ -1691,6 +1691,10 @@ missing application services, stale or absent application-project Shared VPC gra
 platform revision or generation, and an invalid application identity projection.
 Prove it succeeds without publishing a bundle, approving or applying a plan, acquiring a state
 lock, changing provider state, or writing operational lifecycle state.
+
+Prove fixture handoff requires explicit listed or unlisted Catalogue Visibility, binds it into the
+private preparation identity and registration intent, and never adds it to platform readiness or
+integration-bundle inputs.
 
 #### AP-EVAL-M9-04 · State, Terraform, operator session, plans, and ownership
 

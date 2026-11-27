@@ -115,7 +115,7 @@ FLOW_LIFETIME_SECONDS = 10 * 60
 MAX_QUERY_BYTES = 2_048
 ENVIRONMENT_PATTERN = re.compile(r"[a-z][a-z0-9-]{1,31}")
 MEMBER_OPERATION_PATTERN = re.compile(
-    r"(?:bootstrap-owner|add)"
+    r"(?:bootstrap-owner|add|identify)"
 )
 APPLICATION_ID_PATTERN = re.compile(r"[a-z][a-z0-9-]{1,61}[a-z0-9]")
 

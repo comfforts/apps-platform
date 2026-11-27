@@ -450,6 +450,7 @@ make platform-outputs \
 make fixture-handoff \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-public \
+  CATALOGUE_VISIBILITY=listed \
   INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 
 # Inspect the three paths printed by fixture-handoff without editing them.
@@ -620,6 +621,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-deploy ENVIRONMENT=<name>` | Run platform readiness, stop on an unreadable or invalid check, then reuse or prepare approval and reconcile fresh exact plans, checkpoints, and readback |
 | `make platform-deploy-check ENVIRONMENT=<name> SOURCE_AUTHORITY=<authority>` | Classify platform readiness from required services, working-tree state compatibility, provider readback, and lock-free plan policy without mutation |
 | `make platform-status ENVIRONMENT=<name>` | Report checkout, recorded deployment, active runtime, execution, and qualification state without mutation |
+| `make platform-member-identify ENVIRONMENT=<name>` | Confirm a browser login, recover only that Visitor's opaque member reference, and read its exact lifecycle without listing or mutation |
 | `make fixture-project-bootstrap ENVIRONMENT=staging FIXTURES_PROJECT_ID=<project-id> FIXTURES_PROJECT_NAME="<display-name>"` | Idempotently create or repair the selected fixture application project, state bucket, and image repository; read back its provider-assigned project number; create no runtime or route |
 | `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |
 | `make application-handoff-check ...` | Require the platform-ready result, then verify the named application project, its services and Shared VPC grants, bundle inputs, access mode, and application identity projection without mutation |
@@ -629,7 +631,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
 | `make platform-qualify ENVIRONMENT=<name> OWNER_MEMBER_REFERENCE=<opaque-reference>` | Evaluate the exact platform and fixture revisions, exercise and clean up one temporary second member, require the reviewed owner-only baseline, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every prerequisite passes; write redacted evidence without member references |
 | `make platform-destroy ENVIRONMENT=<name>` | Compile, confirm, execute, and resume safe platform destruction |
-| `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and registration intent, and stop before registration |
+| `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> CATALOGUE_VISIBILITY=<listed\|unlisted> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and explicit catalogue intent, and stop before registration |
 | `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
 | `make fixture-destroy ENVIRONMENT=staging APPLICATION_ID=<id>` | After `platform-detach`, destroy only one fixture's Application State |
 

@@ -53,7 +53,8 @@ Fixtures use the same cross-owner sequence expected of an external application:
    requested Admission Mode/Identity Delivery readiness without publishing a bundle.
 2. `platform-outputs` writes one application-scoped Version 2 Platform Integration Bundle.
 3. `fixture-handoff` consumes that bundle, reconciles only the selected fixture's Application
-   State, and writes the bound Version 2 Application Attachment Bundle and registration intent.
+   State, requires the explicit `listed` or `unlisted` catalogue choice, and writes the bound
+   Version 2 Application Attachment Bundle and registration intent.
    The route is still inactive.
 4. The operator inspects the three canonical documents and invokes `platform-register`.
 5. Registration validates the complete Version 2 family, reads back the target, compiles one

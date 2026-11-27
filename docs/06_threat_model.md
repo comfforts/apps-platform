@@ -453,7 +453,9 @@ minimal signed context after a positive lookup.
 Opaque member references are scoped to one environment and must not enable identity recovery,
 cross-environment correlation, directory enumeration, or probing through status, errors, logs, or
 evidence. Ordinary status is either coarse directory state or one explicitly requested opaque
-reference; it never lists members.
+reference; it never lists members. Read-only identify may derive only the current browser-verified
+Visitor's own opaque reference and read that exact member state; it cannot reverse a reference,
+accept an email, or enumerate another member.
 
 Synthetic values are used in tests. Logs and evidence allow only contract versions, generation
 digests, application and route identifiers, coarse outcomes, violation codes, and correlation

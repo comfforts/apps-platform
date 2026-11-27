@@ -70,12 +70,14 @@ class Fixture:
         self,
         environment: str,
         application_id: str,
+        catalogue_visibility: str,
         integration_bundle: dict[str, object],
         integration_bundle_path: str,
     ) -> FixtureHandoffResult:
         self.handoff_arguments = (
             environment,
             application_id,
+            catalogue_visibility,
             integration_bundle,
             integration_bundle_path,
         )
@@ -164,6 +166,7 @@ class IntegrationCliTest(unittest.TestCase):
                     "fixture-handoff",
                     "--environment", "staging",
                     "--application-id", "fixture-authenticated",
+                    "--catalogue-visibility", "listed",
                     "--integration-bundle", str(bundle_path),
                 ],
                 fixture_factory=lambda _path, _authority: fixture,
@@ -177,6 +180,7 @@ class IntegrationCliTest(unittest.TestCase):
         self.assertIn("route is inactive", diagnostics.getvalue())
         assert fixture.handoff_arguments is not None
         self.assertEqual(fixture.handoff_arguments[1], "fixture-authenticated")
+        self.assertEqual(fixture.handoff_arguments[2], "listed")
 
     def test_platform_register_is_the_only_route_activation_command(self) -> None:
         integration = Integration()

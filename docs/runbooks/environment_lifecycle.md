@@ -261,6 +261,7 @@ the coarse remote state and deliberately bootstrap the first owner:
 ```bash
 make platform-member-status ENVIRONMENT=staging
 make platform-member-bootstrap-owner ENVIRONMENT=staging
+make platform-member-identify ENVIRONMENT=staging
 make platform-member-status ENVIRONMENT=staging \
   MEMBER_REFERENCE=pmr1_<64-lowercase-hex>
 ```
@@ -272,6 +273,11 @@ These are different authorities: the active gcloud account never becomes the enr
 implicitly. The edge returns only the opaque environment-scoped member reference to one
 challenge-bound loopback callback. Never enter an email, issuer, subject, cookie, authorization
 code, or token in the terminal.
+
+`platform-member-identify` is the read-only reference-recovery path. It asks before opening the
+same one-use browser flow, returns only the verified Visitor's environment-scoped opaque reference,
+then reads that exact member's current lifecycle. It never creates, changes, removes, or enumerates
+a member. Use the returned reference with member status or a later reviewed lifecycle operation.
 
 Bootstrap succeeds only when remote control proves the directory was never initialized and a
 boolean provider probe proves no member document exists. A previously initialized directory whose
@@ -383,6 +389,7 @@ make platform-outputs \
 make fixture-handoff \
   ENVIRONMENT=staging \
   APPLICATION_ID=fixture-public \
+  CATALOGUE_VISIBILITY=listed \
   INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 
 # Inspect all three printed files without editing them.
@@ -407,6 +414,12 @@ means run and review `platform-deploy` before attempting the application handoff
 Repeat for the authenticated and restricted fixture with the matching admission mode and route,
 using `IDENTITY_DELIVERY=required`. Public handoffs may use `none` or explicit `optional`; no
 public opt-in is inferred from a Platform Session.
+Each fixture handoff also requires the application-owned
+`CATALOGUE_VISIBILITY=<listed|unlisted>` choice. Catalogue visibility is absent from
+`application-handoff-check` and `platform-outputs` because it belongs to the reviewed registration
+intent rather than platform readiness or the integration bundle. Changing visibility requires a
+fresh current-generation bundle family and registration intent, while an unchanged live fixture
+runtime and image may be reused.
 Each fixture root uses an independent prefix in the fixture-project state bucket and creates only
 that fixture's Application State. `platform-register` reads back the target before activating a
 complete Registration Generation that preserves the other registrations.
@@ -722,6 +735,7 @@ make platform-outputs ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
   PLATFORM_GENERATION=<active-registration-generation>
 make fixture-handoff ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \
   APPLICATION_ID=fixture-public \
+  CATALOGUE_VISIBILITY=listed \
   INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json
 # Inspect the integration bundle, attachment bundle, and registration intent without editing them.
 make platform-register ENVIRONMENT=staging SOURCE_AUTHORITY=candidate \

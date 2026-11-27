@@ -71,7 +71,7 @@ Public and authenticated Version 2 routes do not consult the member directory.
 | `/_platform/auth/callback` | Validate the callback and create an opaque server-side Platform Session. |
 | `/_platform/logout` | Delete the current Platform Session and clear its cookie. |
 | `/_platform/status` | Return coarse runtime and adapter health only to the exact configured operator identity. |
-| `/_platform/member/verify` | Project the current verified Visitor to one opaque environment-scoped reference for a challenge-bound local operator callback; never mutate or enumerate membership. |
+| `/_platform/member/verify` | Project the current verified Visitor to one opaque environment-scoped reference for challenge-bound bootstrap, add, or read-only identify callbacks; never mutate or enumerate membership. |
 | `/_platform/member/qualification` | During the reviewed qualifier only, evaluate one named restricted Version 2 route for the current browser session and return only `allowed` or `denied` to a challenge-bound loopback callback. |
 | `/.well-known/jwks.json` | Publish the bounded public keys used to verify platform assertions. |
 

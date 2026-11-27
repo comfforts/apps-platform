@@ -491,7 +491,7 @@ shows and confirms one bounded action, creates the first owner member idempotent
 back. A non-empty remote directory makes bootstrap fail closed even when private local operator
 state is absent.
 
-AP-M9-W10 adds shallow `platform-member-status`, `platform-member-add`,
+AP-M9-W10 adds shallow `platform-member-status`, `platform-member-identify`, `platform-member-add`,
 `platform-member-suspend`, `platform-member-reactivate`, and `platform-member-remove` targets over
 the same deep operator module. Every mutation binds one environment, verified operator session,
 remote predecessor, explicit confirmation, and exact readback. Bootstrap and add obtain their
@@ -499,6 +499,10 @@ target only through verified Visitor identity. Suspend, reactivate, and remove a
 opaque reference whose identity was established during enrollment; they do not require the target
 Visitor to authenticate again. Member mutation does not compile a Registration Generation, deploy
 an application, or change Application State.
+
+Identify is a read-only recovery journey over the same verified Visitor boundary. It derives one
+opaque reference, reads only that exact member document, and returns its coarse lifecycle. It
+cannot enumerate the directory or mutate membership.
 
 Browser verification uses the reserved `/_platform/member/verify` endpoint. It first clears any
 ambient Platform Session, completes the existing Google OIDC flow, derives the member reference at
@@ -518,6 +522,8 @@ application-project, Shared VPC, service, and identity projection without publis
 Bundle. The application or fixture deploy consumes that exact bundle and returns one Version 2
 Application Attachment Bundle plus a Version 2 registration intent. The intent repeats the bundle's
 application, Admission Mode, and Identity Delivery; it cannot define a second identity policy.
+The application-owned intent separately declares Catalogue Visibility. Fixture handoff requires
+that choice explicitly; platform readiness and bundle generation do not accept or infer it.
 
 `platform-register` accepts only a matching, same-version three-document family. It validates the
 target readback and compiles one complete immutable Version 2 Registration Generation that

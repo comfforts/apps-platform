@@ -156,14 +156,15 @@ shows a concrete usability or safety defect.
 | --- | --- | --- |
 | `platform-member-bootstrap-owner` | Enroll the first Platform Owner after verifying the remote directory is empty and completing a separately confirmed Google Visitor flow | Creates exactly one initial member after exact review and confirmation; refuses a non-empty directory |
 | `platform-member-status` | Report coarse directory readiness or one opaque member reference and lifecycle state | Read-only; never lists identities or exposes the directory |
+| `platform-member-identify` | Recover the current browser-verified Visitor's opaque reference and exact lifecycle state | Read-only; reads one derived reference and never lists or mutates members |
 | `platform-member-add` | Enroll one additional verified Google Visitor through a separately confirmed browser flow | Creates one member idempotently after exact review and confirmation |
 | `platform-member-suspend` | Make one opaque member reference ineligible for restricted admission | Requires exact predecessor, confirmation, and remote readback |
 | `platform-member-reactivate` | Restore one suspended opaque member reference | Requires exact predecessor, confirmation, and remote readback |
 | `platform-member-remove` | Remove one opaque member reference from active membership | Requires exact predecessor, destructive confirmation, and absence readback |
 
 Every target requires `ENVIRONMENT=<name>`. Suspend, reactivate, remove, and single-member status
-also require `MEMBER_REFERENCE=<opaque-reference>`. Add and bootstrap obtain issuer and subject only
-from the confirmed identity-provider callback; they do not accept an email as identity proof.
+also require `MEMBER_REFERENCE=<opaque-reference>`. Identify, add, and bootstrap obtain issuer and
+subject only from the confirmed identity-provider callback; they do not accept an email as identity proof.
 Ordinary output may show the opaque reference, lifecycle state, timestamps, and coarse outcome but
 never raw identity claims or a member list.
 
@@ -172,6 +173,12 @@ never raw identity claims or a member list.
 `ACCESS_MODE`. `fixture-handoff` consumes the value from the Integration Bundle, and
 `platform-register` consumes it from the reviewed bundle and intent rather than accepting a second
 independent CLI value.
+
+`fixture-handoff` separately requires `CATALOGUE_VISIBILITY=<listed|unlisted>` because catalogue
+policy is application-proposed registration intent, not platform-integration readiness.
+`application-handoff-check` and `platform-outputs` therefore do not accept that parameter. A
+visibility change gets a fresh generation-bound bundle family and intent while reusing the
+unchanged deployed fixture runtime when its source and target remain current.
 
 Existing commands change only where the new responsibility belongs:
 

@@ -211,6 +211,23 @@ class PlatformMemberLifecycleTest(unittest.TestCase):
         self.assertEqual(exact.member_reference, SECOND)
         self.assertNotIn(OWNER, repr(exact))
 
+    def test_identify_recovers_only_the_verified_visitors_reference_and_state(
+        self,
+    ) -> None:
+        provider = Provider()
+        provider.control = DirectoryControl(2, 100, 200)
+        provider.members[SECOND] = MemberRecord(SECOND, "suspended", 2, 150, 200)
+        service, browser, _ = lifecycle(provider, [SECOND])
+
+        result = service.identify("staging")
+
+        self.assertEqual(browser.calls, [("staging", "identify")])
+        self.assertEqual(result.outcome, "identified")
+        self.assertEqual(result.member_reference, SECOND)
+        self.assertEqual(result.member_lifecycle, "suspended")
+        self.assertEqual(provider.mutations, [])
+        self.assertNotIn(OWNER, repr(result))
+
     def test_owner_only_baseline_requires_one_active_reviewed_owner(self) -> None:
         provider = Provider()
         provider.control = DirectoryControl(1, 100, 100)

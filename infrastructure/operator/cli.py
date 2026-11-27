@@ -75,6 +75,8 @@ _HANDOFF_CHECK_GUIDANCE = {
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Define the closed operator command and argument surface."""
+
     parser = argparse.ArgumentParser(prog="apps-platform-operator")
     parser.add_argument(
         "operation",
@@ -98,6 +100,7 @@ def _parser() -> argparse.ArgumentParser:
             "fixture-status",
             "fixture-destroy",
             "platform-member-status",
+            "platform-member-identify",
             "platform-member-bootstrap-owner",
             "platform-member-add",
             "platform-member-suspend",
@@ -145,6 +148,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--identity-delivery",
         choices=("none", "optional", "required"),
+    )
+    parser.add_argument(
+        "--catalogue-visibility",
+        choices=("listed", "unlisted"),
     )
     parser.add_argument("--route-intent")
     parser.add_argument("--platform-source-revision")
@@ -391,6 +398,8 @@ def _main(
         [Path, str], PlatformMemberLifecycle
     ] = _default_member_factory,
 ) -> int:
+    """Dispatch one parsed operator invocation and emit one JSON result."""
+
     parser = _parser()
     arguments = parser.parse_args(argv)
     if arguments.operation != "preflight" and arguments.preflight_mode != "operational":
@@ -555,6 +564,8 @@ def _main(
                     arguments.environment,
                     arguments.member_reference,
                 )
+            elif arguments.operation == "platform-member-identify":
+                result = members.identify(arguments.environment)
             elif arguments.operation == "platform-member-bootstrap-owner":
                 result = members.bootstrap_owner(arguments.environment)
             elif arguments.operation == "platform-member-add":
@@ -592,13 +603,21 @@ def _main(
         if result.outcome in {
             "added",
             "bootstrapped",
+            "identified",
             "read",
             "reactivated",
             "removed",
             "suspended",
             "unchanged",
         }:
-            if result.outcome != "read":
+            if result.outcome == "identified":
+                print(
+                    "Platform member reference identified from the verified "
+                    "browser visitor.",
+                    file=sys.stderr,
+                )
+                print(file=sys.stderr)
+            elif result.outcome != "read":
                 print(
                     "Platform member action completed with exact remote readback.",
                     file=sys.stderr,
@@ -833,6 +852,7 @@ def _main(
         return 0 if result.outcome == "connected" else 2
 
     if arguments.operation == "fixture-handoff":
+        catalogue_visibility = str(_required(arguments, "catalogue_visibility"))
         integration_bundle_path = Path(
             _required(arguments, "integration_bundle")
         )
@@ -853,6 +873,7 @@ def _main(
         result = fixture.handoff(
             arguments.environment,
             selected_fixture,
+            catalogue_visibility,
             integration_bundle,
             str(integration_bundle_path.resolve()),
         )

@@ -213,6 +213,7 @@ class ContractSchemaTest(unittest.TestCase):
             "platform-detach:",
             "platform-retire:",
             "platform-member-status:",
+            "platform-member-identify:",
             "platform-member-bootstrap-owner:",
             "platform-member-add:",
             "platform-member-suspend:",
@@ -224,8 +225,13 @@ class ContractSchemaTest(unittest.TestCase):
             'FIXTURES_PROJECT_NAME="$(FIXTURES_PROJECT_NAME)"',
             makefile,
         )
+        self.assertIn("CATALOGUE_VISIBILITY ?=", makefile)
+        self.assertIn(
+            '--catalogue-visibility "$(CATALOGUE_VISIBILITY)"',
+            makefile,
+        )
         self.assertNotIn("fixture-deploy:", makefile)
-        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 32)
+        self.assertEqual(makefile.count("PYTHONDONTWRITEBYTECODE=1"), 33)
 
     def test_contract_layer_runs_from_an_extracted_project_copy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

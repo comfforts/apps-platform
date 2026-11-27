@@ -30,6 +30,10 @@ class Members:
             7,
         )
 
+    def identify(self, environment: str) -> MemberLifecycleResult:
+        self.calls.append(("identify", environment, None))
+        return MemberLifecycleResult("identified", "ready", REFERENCE, "active", 7)
+
     def bootstrap_owner(self, environment: str) -> MemberLifecycleResult:
         self.calls.append(("bootstrap-owner", environment, None))
         return MemberLifecycleResult("bootstrapped", "ready", REFERENCE, "active", 1)
@@ -76,9 +80,10 @@ class MemberCliTest(unittest.TestCase):
             )
         return code, json.loads(stdout.getvalue()), members, stderr.getvalue()
 
-    def test_all_six_commands_dispatch_without_identity_input(self) -> None:
+    def test_all_seven_commands_dispatch_without_identity_input(self) -> None:
         expected = {
             "platform-member-status": ("status", False),
+            "platform-member-identify": ("identify", False),
             "platform-member-bootstrap-owner": ("bootstrap-owner", False),
             "platform-member-add": ("add", False),
             "platform-member-suspend": ("suspend", True),

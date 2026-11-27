@@ -75,10 +75,18 @@ class FakeReviewedControl:
     def __init__(self) -> None:
         current = proposal(2, CURRENT_DIGEST, PREVIOUS_DIGEST)
         previous = proposal(1, PREVIOUS_DIGEST, None)
-        self.current_value = ReviewedGeneration("publication-current", current)
+        self.current_value = ReviewedGeneration(
+            "publication-current",
+            current,
+            SOURCE_REVISION,
+        )
         self.reviewed = {
             CURRENT_DIGEST: self.current_value,
-            PREVIOUS_DIGEST: ReviewedGeneration("publication-previous", previous),
+            PREVIOUS_DIGEST: ReviewedGeneration(
+                "publication-previous",
+                previous,
+                SOURCE_REVISION,
+            ),
         }
         self.activations: list[tuple[str, str, str]] = []
         self.activation_matches = True
@@ -207,6 +215,7 @@ class GenerationRollbackTest(unittest.TestCase):
         control.reviewed[unrelated_digest] = ReviewedGeneration(
             "publication-unrelated",
             proposal(1, unrelated_digest, None),
+            SOURCE_REVISION,
         )
         unrelated = replace(
             rollback_request(),
@@ -224,6 +233,32 @@ class GenerationRollbackTest(unittest.TestCase):
             ("ROLLBACK_TARGET_NOT_PREDECESSOR",),
         )
         self.assertEqual(control.activations, [])
+
+    def test_stale_predecessor_source_fails_before_confirmation(self) -> None:
+        control = FakeReviewedControl()
+        predecessor = control.reviewed[PREVIOUS_DIGEST]
+        control.reviewed[PREVIOUS_DIGEST] = replace(
+            predecessor,
+            platform_source_revision="b" * 40,
+        )
+        terminal = FakeTerminal()
+
+        result = GenerationRollbackLifecycle(
+            FakePlatformReader(),
+            control,
+            terminal,
+        ).rollback(rollback_request())
+
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(
+            result.blockers,
+            ("ROLLBACK_PREDECESSOR_SOURCE_MISMATCH",),
+        )
+        self.assertEqual(control.activations, [])
+        self.assertEqual(terminal.prompts, [])
+        self.assertIn("No traffic was changed", "\n".join(terminal.messages))
+        self.assertIn("public `none`", "\n".join(terminal.messages))
+        self.assertIn("public `optional`", "\n".join(terminal.messages))
 
     def test_cancellation_interruption_and_readback_mismatch_are_truthful(self) -> None:
         cancelled = GenerationRollbackLifecycle(

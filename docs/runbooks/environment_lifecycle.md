@@ -564,18 +564,25 @@ The command completes all source/readback checks and the cleanup-safe temporary-
 before offering a rollback. If any prerequisite fails,
 `lifecycle-rollback` is recorded as blocked with
 `QUALIFICATION_ROLLBACK_PREREQUISITE_FAILED`; the command does not prompt for rollback and does not
-move traffic. When they all pass, the command explains the traffic effect before asking for the
-exact rollback phrase. Confirmation temporarily moves 100 percent of staging traffic from the
-current Registration Generation to its reviewed predecessor. Keep the command running: after
+move traffic. Qualification also reads the retained predecessor runtime source before prompting.
+If it reports `ROLLBACK_PREDECESSOR_SOURCE_MISMATCH`, the predecessor belongs to an older platform
+build. Repeat the public fixture check, outputs, handoff, and registration sequence first with
+`IDENTITY_DELIVERY=none`, then again with `IDENTITY_DELIVERY=optional`, using the latest active
+source and generation each time. No traffic was changed by the rejected qualification attempt.
+
+When all prerequisites pass, the command explains the traffic effect before asking for the exact
+rollback phrase. Confirmation temporarily moves 100 percent of staging traffic from the current
+Registration Generation to its reviewed predecessor. Keep the command running: after
 provider readback, one separately confirmed browser check establishes an authenticated session and
 a second proves that the predecessor's public `none` policy withholds Platform Identity. If that
 second callback still observes the successor's optional-identity policy, the command waits five
 seconds and may offer up to two more separately confirmed observations. It does not retry a browser
 launch, timeout, callback, or confirmation failure. A terminal failure prints and records the exact
 stable predecessor-step blocker. The public-`none` predecessor remains anonymous when the current
-application target advertises the same application's optional-identity capability, so this check
-does not require fixture redeployment. The command then asks for a second exact phrase to restore
-the original generation and verifies that restoration,
+application target advertises the same application's optional-identity capability. Once the
+same-source predecessor/successor pair exists, the rollback check itself does not redeploy the
+fixture. The command then asks for a second exact phrase to restore the original generation and
+verifies that restoration,
 even when the predecessor browser proof fails. Declining or interrupting restoration leaves the predecessor active; follow the
 printed `RESTORATION REQUIRED` guidance and inspect the active generation before attempting
 qualification again.

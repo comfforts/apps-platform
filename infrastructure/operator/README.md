@@ -276,6 +276,11 @@ identity-presence callback. The active generation must prove public `optional`; 
 predecessor must prove public `none` before the active generation is restored. A callback that
 still observes successor optional identity receives at most two additional separately confirmed
 observations after five-second traffic-convergence waits; other browser failures do not retry.
+Before offering the rollback confirmation, the generation reader corroborates the predecessor
+revision through provider readback and requires its platform source revision to equal the active
+candidate source. A stale predecessor returns `ROLLBACK_PREDECESSOR_SOURCE_MISMATCH`, changes no
+traffic, and directs the operator to create a fresh public-`none` generation followed by its
+public-`optional` successor under the active candidate.
 Predecessor failure retains its exact stable blocker while restoration remains unconditional.
 Qualification output retains counts, booleans,
 stable blockers, and digests only; owner and temporary references, directory records, identity,

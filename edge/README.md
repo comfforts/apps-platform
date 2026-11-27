@@ -145,8 +145,16 @@ target URL. Before forwarding, the attachment resolver reads current provider me
 - the exact project number, region, and service name;
 - service readiness and a canonical `run.app` URI;
 - the application-owner and state-owner labels;
-- the configured identity audience; and
+- registration-authorized identity delivery against the target's identity capability; and
 - an unconditional `roles/run.invoker` grant to the dedicated edge-caller principal.
+
+A protected or public-`optional` registration requires the target's exact canonical application
+audience. A public-`none` registration accepts either an anonymous-only target or the same
+application's canonical identity-capable target. The latter is only a target capability: the
+resolver preserves the registration's null audience, so the edge emits no assertion. This bounded
+compatibility keeps an immutable public-`none` predecessor routable after the same application
+target gains optional identity support. A different application audience remains an attachment
+mismatch and fails closed.
 
 The proxy obtains a short-lived identity token through the dedicated edge-caller service account.
 It removes hop-by-hop headers, authorization, host and forwarding headers, platform cookies,

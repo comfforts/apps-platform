@@ -572,8 +572,10 @@ a second proves that the predecessor's public `none` policy withholds Platform I
 second callback still observes the successor's optional-identity policy, the command waits five
 seconds and may offer up to two more separately confirmed observations. It does not retry a browser
 launch, timeout, callback, or confirmation failure. A terminal failure prints and records the exact
-stable predecessor-step blocker. The command then asks for a second exact phrase to restore the
-original generation and verifies that restoration,
+stable predecessor-step blocker. The public-`none` predecessor remains anonymous when the current
+application target advertises the same application's optional-identity capability, so this check
+does not require fixture redeployment. The command then asks for a second exact phrase to restore
+the original generation and verifies that restoration,
 even when the predecessor browser proof fails. Declining or interrupting restoration leaves the predecessor active; follow the
 printed `RESTORATION REQUIRED` guidance and inspect the active generation before attempting
 qualification again.

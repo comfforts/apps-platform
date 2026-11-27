@@ -1512,14 +1512,20 @@ completed successfully at the observed generation, a serving revision and provid
 `https://*.run.app` origin exist, and the Invoker IAM check remains enabled.
 
 The Application Owner marks the service with `state_owner=application` and an `application_id`
-label matching the attachment owner. Protected targets also carry the exact application assertion
-audience in the `comfforts.com/identity-audience` annotation; public attachments omit it. An
-unconditional `roles/run.invoker` binding must contain the configured platform edge service-account
-principal. Conditional grants are not interpreted by the runtime. Any URL or state address in the
-registration, unsupported adapter, malformed URN, provider failure, missing service, mismatched
-scope, unready service, owner reuse, caller mismatch, audience mismatch, disabled Invoker check, or
-invalid provider target closes before application delivery. Local fake readback is not evidence
-that IAM, ingress, a target service, or an edge caller exists in GCP.
+label matching the attachment owner. Protected and public-`optional` targets carry the exact
+application assertion audience in the `comfforts.com/identity-audience` annotation. A target used
+only for public-`none` delivery may omit it. A public-`none` registration may also address the same
+application's canonical identity-capable target so an immutable predecessor remains routable after
+the target gains optional identity support. That target annotation is a capability, not delivery
+authority: the active registration retains a null audience and the Shared Edge emits no assertion.
+An unrelated or otherwise mismatched audience remains invalid.
+
+An unconditional `roles/run.invoker` binding must contain the configured platform edge
+service-account principal. Conditional grants are not interpreted by the runtime. Any URL or state
+address in the registration, unsupported adapter, malformed URN, provider failure, missing service,
+mismatched scope, unready service, owner reuse, caller mismatch, prohibited audience mismatch,
+disabled Invoker check, or invalid provider target closes before application delivery. Local fake
+readback is not evidence that IAM, ingress, a target service, or an edge caller exists in GCP.
 
 The Shared Edge runtime identity receives no direct invocation grant on application services. It
 may create short-lived credentials for only the dedicated edge-caller service account. That caller

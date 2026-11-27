@@ -240,8 +240,10 @@ terminated; the new state applies to the next request or new connection.
 5. Add a second member, prove allow, suspend/deny, reactivate/allow, and remove/deny through
    `fixture-restricted`, then restore the reviewed owner-only baseline.
 6. Activate public `optional` last so the retained complete predecessor carries public `none`, then
-   prove active optional delivery and predecessor withholding through confirmed browser checks;
-   also prove authenticated membership-independent admission,
+   prove active optional delivery and predecessor withholding through confirmed browser checks.
+   The predecessor must remain routable through the same current application target when that
+   target advertises the canonical optional-identity capability; registration policy still forbids
+   predecessor assertion delivery. Also prove authenticated membership-independent admission,
    application-owned feature denial, directory failure, logout, rollback, isolation, and evidence
    privacy.
 

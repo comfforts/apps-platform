@@ -330,7 +330,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertNotIn("id-token: write", check_workflow)
         self.assertNotIn("terraform apply", check_workflow)
 
-    def test_status_preserves_history_and_routes_next_work_to_candidate_readiness(
+    def test_status_preserves_history_and_routes_next_work_to_real_application_adoption(
         self,
     ) -> None:
         overview = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
@@ -356,21 +356,21 @@ class TerraformQualificationGateTest(unittest.TestCase):
         self.assertIn("AP-M9-W6 — interactive platform deployment (implemented)", index)
         self.assertIn("AP-M9-W7 — platform-side application lifecycle (implemented)", index)
         self.assertIn(
-            "all seven AP-M9-W10 functional-slice pull requests have merged",
+            "AP-M9-W12 real-application staging adoption",
             normalized_prompt,
         )
         self.assertIn(
-            "AP-M9-W10 Candidate Source qualification",
+            "matching adoption authority",
             normalized_prompt,
         )
-        self.assertIn("cleanup-safe qualification support", normalized_prompt)
+        self.assertIn("environment=qualification", normalized_prompt)
         self.assertIn(
-            "AP-M9-W11 owns the first Accepted Source staging operation",
+            "Leave the selected real application active for AP-M9-W13",
             normalized_prompt,
         )
-        self.assertIn("credential-free `make check` gate pass", normalized_prompt)
+        self.assertIn("passes `make check`", normalized_prompt)
         self.assertIn(
-            "Candidate Source is not Accepted Source qualification",
+            "AP-M9-W11 Accepted Source staging platform and fixture qualification completed",
             normalized_combined,
         )
         for false_claim in (

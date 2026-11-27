@@ -4,15 +4,14 @@ Prompts are bounded task entry points, not architecture authority. Each prompt m
 platform documentation required for its task instead of copying requirements, decisions, or
 acceptance criteria.
 
-- [AP-M9-W10 Candidate Source qualification](starting_prompt.md) starts a new chat from the exact
-  clean pushed `feat/platform-member-directory` only after all seven functional slices merge and
-  their repository gates pass. It also guides the required final rerun after the qualification
-  record is reconciled, because evidence from the earlier exact revision does not transfer to the
-  new integration head. It guides the separately owner-invoked staging operation and revision
-  freeze without authorizing Accepted Source or production. The handoff is subordinate to the
-  [current W10 delivery plan](../docs/plans/ap_m9/w10_platform_member_directory.md).
+- [AP-M9-W12 real-application staging adoption](starting_prompt.md) starts a new chat from updated
+  clean `main` after the W11 Accepted Source platform/fixture result and this documentation
+  sequence merge. It keeps the platform work application-neutral until both owners establish
+  matching authority, then guides the platform correction and cross-owner staging handoff without
+  authorizing platform destruction or production. The handoff is subordinate to the
+  [current W12 delivery plan](../docs/plans/ap_m9/w12_real_application_staging_adoption.md).
 
 The handoff does not itself authorize the external operation; the owner must deliberately begin it
-after the prompt's prerequisites pass. It excludes Accepted Source staging, production,
-operator-state recovery, and real-application changes. A defect found during the operation returns
-to a reviewed fix slice instead of changing the frozen integration revision in place.
+after the prompt's prerequisites pass. It excludes platform destruction/recovery, production,
+operator-state recovery, and every application not selected through matching authority. A defect
+found during the operation returns to a reviewed fix slice rather than broadening W12 in place.

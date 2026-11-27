@@ -4,14 +4,11 @@ Use this runbook to deploy, inspect, qualify, and remove one App Platform enviro
 environment is one isolated staging or production deployment with its own hostname, cloud project,
 state, identity, OAuth client, DNS and TLS resources, application registrations, and evidence.
 
-> **Identity-model transition:** The repository implements the Version 2 contracts, directory
-> infrastructure, Shared Edge enforcement, member lifecycle, application handoff, and complete
-> generation activation. All repository slices and candidate-readiness corrections are integrated.
-> Version 2 Candidate Source qualification passed at revision
-> `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; W9 qualification remains separate Version 1
-> predecessor evidence. Because this documentation reconciliation changes the source revision, use
-> the Candidate Source procedure below once more from the resulting exact clean pushed integration
-> head after its repository gate passes and the owner deliberately starts that operation.
+> **Current staging boundary:** The Version 2 staging platform and all three cross-project fixtures
+> are qualified from Accepted Source at
+> `b43333756b509d0f35cb82938a13f6abc459f7c4`. The next delivery adopts one separately governed
+> real application. Platform destruction/recovery and read-only production readiness remain later,
+> separate work.
 
 | Environment | Intended hostname | Current operating boundary |
 | --- | --- | --- |
@@ -689,13 +686,12 @@ inspection, not as permission to bypass the failed boundary.
 
 ## Candidate staging verification
 
-A clean pushed `feat/platform-member-directory` integration revision containing current
-`origin/main` may exercise staging before the cumulative pull request to `main`. The procedure
-passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; this is the required final rerun
-for the post-reconciliation W10 integration head. **Run it only after every W10 slice and
-candidate-readiness correction has merged, the exact integration revision is pushed, `make check`
-passes, and the owner deliberately begins the staging operation.** The documented repository work
-performs none of these provider commands.
+A clean pushed feature or fix branch containing current `origin/main` may exercise staging before
+merge when its active delivery authority permits Candidate Source. Candidate evidence is bound to
+that exact branch revision and never substitutes for Accepted Source qualification. Run a
+Candidate operation only after the exact revision is pushed, its repository checks pass, and the
+owner deliberately begins the staging operation. Documentation work performs none of these
+provider commands.
 
 Run the repository and read-only readiness gates first:
 

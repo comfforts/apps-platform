@@ -1,9 +1,8 @@
 # AP-M9 lifecycle operator
 
-Status: AP-M9-W9 Version 1 lifecycle candidate-qualified; AP-M9-W10 Slices 1 through 7 implement
-the Version 2 contracts, directory infrastructure, Shared Edge enforcement, member lifecycle,
-application handoff/activation, and qualification; Candidate Source qualification passed at the
-named integration revision and requires one post-reconciliation exact-revision rerun before freeze
+Status: AP-M9-W10 implements and Candidate-qualifies the Version 2 lifecycle; AP-M9-W11 qualified
+the staging platform and cross-project fixtures from Accepted Source at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 real-application adoption is next
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -13,9 +12,9 @@ fakes and the non-fake command boundary exercise the same orchestration interfac
 ## Implemented commands
 
 The W9 deployed evidence describes the Version 1 predecessor operation. Repository consumers emit
-and validate the complete Version 2 application-handoff family, and the W10 integration revision
-performed Candidate Source qualification. That result remains revision-scoped and does not prove
-the post-reconciliation integration head or Accepted Source.
+and validate the complete Version 2 application-handoff family; W10 Candidate-qualified it and W11
+qualified the platform/fixture boundary from Accepted Source. Neither result proves a real
+Application Adoption, destructive platform recovery, or production.
 
 The deploy target populates or verifies the checksum-bound local toolchain automatically. The
 operator must already have an active `gcloud` login, user Application Default Credentials, and the
@@ -194,8 +193,8 @@ successor over a readable Version 1 generation discards registration-scoped memb
 to `none` and protected routes to `required`, and activates one complete immutable Version 2
 generation. An application whose normalized registration is unchanged keeps its existing
 registration revision during that migration; only an actual application-registration change
-increments the revision. The named W10 integration revision exercised this behavior under
-Candidate Source; W11 must repeat it from Accepted Source.
+increments the revision. W10 exercised this behavior under Candidate Source; W11 repeated it from
+Accepted Source at the named protected-main revision.
 
 For local code maintenance, `platform-preflight-check` runs the same read-only profile, Git,
 GitHub, GCP, ADC, Terraform-tool, and DNS checks. It skips `SOURCE_NOT_CLEAN`, because the command

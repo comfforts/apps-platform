@@ -1,17 +1,16 @@
 # App Platform documentation
 
-Version 1.45 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted; all seven
-AP-M9-W10 slices and their candidate-readiness corrections are integrated; Version 2 Candidate
-Source qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; final
-post-reconciliation Candidate qualification and freeze remain; ADR-016 proposed
+Version 1.46 | Status: AP-M9-W10 complete; AP-M9-W11 Accepted Source staging platform and fixture
+qualification completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 first
+real-application staging adoption is next; ADR-016 proposed
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. W9
 also produced Candidate Source Live (`L`) evidence for the named W9 staging revision and bindings.
-W10 produced separate Candidate Source Live evidence for the named Version 2 integration revision;
-because this documentation reconciliation changes that revision, W10 still requires one complete
-rerun against the resulting integration head before it is frozen. Accepted Source Live evidence
-and Application Adoption (`A`) evidence do not yet exist. Repository
+W10 produced Candidate Source Live evidence for the complete Version 2 integration branch. W11
+then produced Accepted Source Live evidence for the staging platform and cross-project fixture
+suite at the named protected-main revision. Application Adoption (`A`) evidence does not yet
+exist. Repository
 implementation alone does not imply a credential, backend, provider, DNS, deployment, or
 application-adoption action.
 
@@ -31,19 +30,21 @@ Read these documents completely, in order, before modifying the platform:
    canonical milestone or work-package plan and preserves the AP-M3 through AP-M8 origin record.
 8. [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) — milestone outcome,
    boundaries, ordered work packages, acceptance criteria, and trace.
-9. [AP-M9-W10 delivery plan](plans/ap_m9/w10_platform_member_directory.md) — current baseline,
-   scope controls, operator interface, functional-slice map, effort signals, and completion gate.
-10. [Evaluation strategy](05_evaluation_strategy.md) — AP-EVAL-M9 gates and claim boundaries.
-11. [Contract index](../contracts/README.md) — public machine interfaces.
-12. [Repository layout](repository_layout.md) — capability placement and transition rules.
-13. [Runbook index](runbooks/README.md) — subordinate operator procedures.
-14. [Environment lifecycle runbook](runbooks/environment_lifecycle.md) — operator procedure for
+9. [AP-M9-W12 delivery plan](plans/ap_m9/w12_real_application_staging_adoption.md) — current
+   application-neutral adoption boundary, cross-owner sequence, and completion gate.
+10. [Real-application adoption runbook](runbooks/application_adoption.md) — cross-owner handoff,
+   application identifier, target posture, identity consumption, and ownership procedure.
+11. [Evaluation strategy](05_evaluation_strategy.md) — AP-EVAL-M9 gates and claim boundaries.
+12. [Contract index](../contracts/README.md) — public machine interfaces.
+13. [Repository layout](repository_layout.md) — capability placement and transition rules.
+14. [Runbook index](runbooks/README.md) — subordinate operator procedures.
+15. [Environment lifecycle runbook](runbooks/environment_lifecycle.md) — operator procedure for
     staging and production preparation, deployment, inspection, qualification, recovery, and
     destruction.
-15. [Repository extraction runbook](runbooks/repository_extraction.md) and
+16. [Repository extraction runbook](runbooks/repository_extraction.md) and
     [handoff](repository_extraction_handoff.md) — completed canonical repository transition
     procedure and evidence.
-16. [Prompt index](../prompts/README.md) — bounded next-task entry points.
+17. [Prompt index](../prompts/README.md) — bounded next-task entry points.
 
 The material under [`docs/history/`](history/README.md) preserves superseded delivery evidence. It
 is not part of the active instruction path and cannot authorize an operation.
@@ -65,7 +66,7 @@ delivery authorities before beginning it.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W9 candidate-qualified; W10 Version 2 Candidate qualification passed at `d8fdb8a…`; one final post-reconciliation exact-revision rerun and freeze remain before W11 | operator-driven environment and application lifecycle |
+| AP-M9 | W1-W10 complete; W11 Accepted Source staging platform/fixture qualification complete at `b433337…`; W12 real-application staging adoption next | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
@@ -115,7 +116,7 @@ completed.
    destruction; provider readback; deterministic fake coverage; and staging-only Candidate Source
    admission. The combined `fixture-deploy` shortcut is removed so fixtures exercise the same
    platform/application handoff as an external application.
-10. **AP-M9-W10 — Platform Member Directory and explicit Identity Delivery:** implement the
+10. **AP-M9-W10 — Platform Member Directory and explicit Identity Delivery (complete):** implement the
     ADR-015 Version 2 contracts, environment-wide Firestore membership, explicit owner enrollment,
     bounded member lifecycle, public identity opt-in, Shared Edge enforcement, migration, fixtures,
     and Candidate Source qualification through seven ordered functional-slice pull requests into
@@ -137,26 +138,31 @@ completed.
     the existing qualifier with the source-admitted member service, reviewed owner-only baseline,
     second-member add/suspend/reactivate/remove exercise, least-data current-request admission
     callbacks, cleanup on failure, and rollback prerequisite enforcement. It invokes no provider
-    from the slice branch. Candidate Source qualification subsequently passed at
-    `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; this documentation reconciliation changes the
-    integration revision, so the resulting head must repeat the complete qualification and then be
-    frozen before the cumulative pull request to `main`.
-11. **AP-M9-W11 — accepted staging operation:** from merged W10 code, deploy and qualify
-    `apps-staging.comfforts.com` with the three synthetic applications and the reviewed member
-    baseline. The deliberate command invocation and same-process confirmations authorize ordinary
-    staging creation and update; destructive and irreversible boundaries retain separate approval.
-12. **AP-M9-W12 — production readiness:** prove the production handoff and stop with
-    `OWNERSHIP_TRANSFER_REQUIRED` while Finance Assistant or `apps.comfforts.com` remains
-    Finance-owned.
+    from the slice branch. The complete integration revision was Candidate-qualified, frozen, and
+    merged atomically to `main`.
+11. **AP-M9-W11 — accepted staging operation (complete):** deployed and qualified
+    `apps-staging.comfforts.com`, the three cross-project fixtures, and the reviewed member
+    baseline from Accepted Source at `b43333756b509d0f35cb82938a13f6abc459f7c4`. It did not
+    perform the destructive rehearsal.
+12. **AP-M9-W12 — first real-application staging adoption (next):** select one independently
+    governed application through matching platform/application authority, close the fixture-only
+    target-readback assumption, perform the Version 2 cross-owner handoff, and qualify the active
+    staging route without transferring Application State ownership.
+13. **AP-M9-W13 — platform destruction and recovery:** after W12, detach applications, retain the
+    real application's resources, destroy and recover the platform under separate authority,
+    reattach, and requalify staging.
+14. **AP-M9-W14 — production readiness:** perform only the read-only production ownership check,
+    prove environment isolation, and stop with `OWNERSHIP_TRANSFER_REQUIRED` while the requested
+    production hostname or resources remain externally owned.
 
 AP-M9-W9 began only after AP-M9-W8 merged. Candidate staging operations exposed and corrected the
 same-project fixture gap. The three cross-project fixtures, restricted-fixture detach, destruction,
 redeployment, and reactivation, and the complete Candidate Qualification passed at W9 revision
 `2fd045f6f720fe122103d42b3ebb6d25f5fbdac8`. That evidence is diagnostic pre-merge evidence, not
 Accepted Source qualification. ADR-015 supersedes the per-registration membership assumption, so
-AP-M9-W10 implements and candidate-qualifies that accepted boundary before AP-M9-W11 can own the
-first Accepted Source staging operation. Production migration and Application Adoption remain
-separate owner-controlled work after AP-M9-W12.
+AP-M9-W10 implemented and candidate-qualified that accepted boundary; AP-M9-W11 then qualified it
+from Accepted Source. Real-application adoption, destructive rehearsal, and production readiness
+remain separate owner-controlled W12, W13, and W14 work.
 
 ## Authority and claim discipline
 

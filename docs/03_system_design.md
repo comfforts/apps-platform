@@ -1,9 +1,8 @@
 # <u>App Platform system design</u>
 
-Version 1.21 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence; all seven AP-M9-W10 slices and candidate-readiness corrections are integrated; Version 2
-Candidate Source qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`, with
-one post-reconciliation exact-revision rerun required before freeze
+Version 1.22 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
+Accepted Source staging platform and fixture qualification completed at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 real-application adoption is next
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -1178,8 +1177,9 @@ pushed pull-request revision can exercise provider behavior before merge without
 qualification. W9 Candidate Source exercised those boundaries with all three cross-project
 fixtures and completed restricted-fixture detach, destruction, redeployment, reactivation, and
 qualification under the predecessor Version 1 model. That operation does not promote its evidence
-to Accepted Source or qualify ADR-015. AP-M9-W10 implements and candidate-qualifies the Version 2
-member-directory boundary before AP-M9-W11 performs the first accepted staging operation. The live
+to Accepted Source or qualify ADR-015. AP-M9-W10 implemented and Candidate-qualified the Version 2
+member-directory boundary; AP-M9-W11 then qualified the staging platform and fixtures from
+Accepted Source. AP-M9-W12 now owns the first separately governed real-application adoption. The live
 process accepts exact generated revision, generation, provider,
 OAuth-secret-version, KMS-key-version, edge-caller, and operator-subject bindings. It reads the
 OAuth payload directly from the selected Secret Manager version and never puts that payload in an

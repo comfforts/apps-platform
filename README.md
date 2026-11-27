@@ -82,10 +82,10 @@ and other members never do.
 > atomic complete-generation activation. Qualification readiness reuses those same member
 > operations, verifies current-request restricted decisions, restores the reviewed owner-only
 > baseline, and blocks rollback on any mismatch. All repository slices and candidate-readiness
-> corrections are integrated. Version 2 Candidate Source qualification passed at integration
-> revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`. Because the documentation record changes the
-> exact source revision, the resulting integration head must repeat that qualification and then
-> remain frozen before merge to `main`. Neither Candidate result is Accepted Source qualification.
+> corrections are integrated and Candidate-qualified. AP-M9-W11 subsequently qualified the
+> Version 2 staging platform, fixture suite, and member baseline from Accepted Source at
+> `b43333756b509d0f35cb82938a13f6abc459f7c4`. The next work is one separately governed real-
+> application staging adoption; that adoption has not yet been selected or qualified.
 
 ### Catalogue visibility
 
@@ -751,7 +751,7 @@ Useful deeper references are:
 
 - [system design](docs/03_system_design.md) for architecture and ownership;
 - [implementation plan index](docs/plans/README.md) for delivery status, the AP-M9 milestone plan,
-  and the current W10 work-package plan;
+  and the current W12 work-package plan;
 - [contract index](contracts/README.md) for public machine interfaces and compatibility;
 - [threat model](docs/06_threat_model.md) for trust boundaries and required evidence;
 - [repository layout](docs/repository_layout.md) for capability placement;
@@ -767,17 +767,13 @@ environment is deployed or qualified.
 
 ## Operational readiness
 
-AP-M9-W9 is implemented and candidate-qualified under the predecessor Version 1 membership model.
-Candidate staging proved the dedicated fixture project, Shared VPC attachment, all three admission
-modes, separate registration, and the restricted-fixture detach, destruction, redeployment, and
-reactivation lifecycle. Candidate Source is not Accepted Source qualification. AP-M9-W10 has
-integrated all seven repository slices and its candidate-readiness corrections. Version 2
-Candidate Source staging qualification passed at revision
-`d8fdb8afb2048e87b591ae400d7807a38784fd5c`; this documentation-only reconciliation changes the
-source revision, so the resulting clean pushed integration head must repeat the complete
-qualification and then be frozen before the cumulative pull request to `main`.
-Production remains blocked on that accepted result, explicit ownership transfer, and application
-adoption.
+AP-M9-W10 completed and Candidate-qualified the Version 2 Platform Member Directory and explicit
+Identity Delivery transition. AP-M9-W11 then deployed and qualified the staging platform and all
+three cross-project fixtures from Accepted Source at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`. This does not qualify a real application,
+platform destruction/recovery, or production. AP-M9-W12 next adopts one separately governed real
+application on staging; W13 owns destructive rehearsal and recovery; W14 owns the read-only
+production readiness and ownership check.
 
 See [the documentation index](docs/README.md) for the current work-package sequence, evidence
 boundary, and historical delivery record.

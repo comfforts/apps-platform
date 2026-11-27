@@ -1,8 +1,8 @@
 # AP-M9-W10 · Platform Member Directory and explicit Identity Delivery
 
-Status: All seven functional slices and candidate-readiness corrections are integrated; Version 2
-Candidate Source qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`;
-this documentation reconciliation requires one final exact-revision rerun before freeze
+Status: Complete; all seven functional slices and candidate-readiness corrections merged, the
+complete integration branch was Candidate-qualified and frozen, and AP-M9-W11 subsequently
+qualified the Version 2 staging platform and fixtures from Accepted Source
 
 Requirements: AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
 AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009
@@ -21,10 +21,9 @@ existing platform/application ownership boundary and top-level lifecycle while m
 admission platform-wide, public identity delivery deliberate, and member administration independent
 of Registration Generations and application deployment.
 
-The work package ends with deterministic repository evidence and Candidate Source staging
-qualification for the new model. It does not perform the first Accepted Source staging operation;
-AP-M9-W11 owns that operation after the complete, candidate-qualified W10 integration branch merges
-to `main`.
+The work package ended with deterministic repository evidence and Candidate Source staging
+qualification for the new model. It did not perform the first Accepted Source staging operation;
+AP-M9-W11 later completed that operation after the atomic W10 merge to `main`.
 
 ## Current platform baseline
 
@@ -94,8 +93,8 @@ explicit application-owned process.
 - a generic identity-directory framework or support for a second real membership backend;
 - ADR-016 operator-state recovery, fabricated local history, or recovery from an empty private
   journal;
-- the W11 Accepted Source staging operation, W12 production readiness, production mutation,
-  Finance Assistant changes, or any real Application Adoption; and
+- the W11 Accepted Source staging operation, any real Application Adoption, platform destructive
+  recovery, production readiness or mutation, and consuming-application changes; and
 - automatic owner enrollment during `platform-deploy` or enrollment from an operator-entered email
   address.
 
@@ -372,13 +371,12 @@ later-slice behavior has entered the branch. W10 is ready to advance to W11 only
 - the owner-only member baseline is restored after qualification;
 - `make check` passes with exact results reported; and
 - documentation truthfully distinguishes implementation, Candidate Source qualification, the W11
-  Accepted Source operation, W12 production readiness, and later Application Adoption.
+  Accepted Source operation, W12 Application Adoption, W13 destructive recovery, and W14
+  production readiness.
 
-Revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c` satisfied the Candidate Source qualification and
-owner-only baseline-restoration conditions. This documentation-only reconciliation creates a new
-exact revision, so it does not inherit that evidence: after merge, repeat the complete Candidate
-qualification against the resulting clean pushed integration head. After all conditions pass for
-that final head, freeze the integration revision and open one cumulative pull request
-from `feat/platform-member-directory` to `main`. A merge records completed W10 repository work but
-does not transfer Candidate Source evidence to the resulting Accepted Source revision; W11 still
-owns that deployment and qualification.
+Revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c` satisfied an exact Candidate Source qualification
+and owner-only baseline-restoration result. Later corrections and documentation were requalified
+before the complete integration branch was frozen and merged atomically to `main`. AP-M9-W11 then
+completed Accepted Source staging platform and fixture qualification at
+`b43333756b509d0f35cb82938a13f6abc459f7c4`. This completed plan does not authorize W12 adoption,
+W13 destruction/recovery, or W14 production work.

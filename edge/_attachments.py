@@ -321,6 +321,17 @@ class CloudRunAttachmentResolver:
         self,
         request: AttachmentResolutionRequest,
     ) -> ResolvedAttachment:
+        """Corroborate one registration against exact current provider metadata.
+
+        A registration without identity delivery may use either an anonymous-only
+        target or the same application's identity-capable target.  That bounded
+        compatibility keeps an immutable public-``none`` generation usable after
+        the application target gains optional identity support.  The registration
+        remains the delivery authority: the resolved attachment retains its
+        requested ``None`` audience, and every non-null registration or unrelated
+        target audience still requires an exact canonical match.
+        """
+
         if request.adapter_kind != ADAPTER_KIND:
             raise AttachmentUnavailable("unsupported attachment adapter")
         try:
@@ -329,15 +340,11 @@ class CloudRunAttachmentResolver:
             raise AttachmentUnavailable("invalid Cloud Run resource reference") from error
         if _APPLICATION_ID_PATTERN.fullmatch(request.owner_application_id) is None:
             raise AttachmentUnavailable("invalid application owner")
-        expected_audience = (
-            None
-            if request.audience is None
-            else (
-                "urn:comfforts:app-platform:audience:"
-                f"{request.owner_application_id}"
-            )
+        canonical_audience = (
+            "urn:comfforts:app-platform:audience:"
+            f"{request.owner_application_id}"
         )
-        if request.audience != expected_audience:
+        if request.audience not in {None, canonical_audience}:
             raise AttachmentUnavailable("invalid application audience")
         try:
             metadata = await self._provider.describe(resource)
@@ -348,7 +355,13 @@ class CloudRunAttachmentResolver:
             or metadata.resource != resource
             or metadata.ready is not True
             or metadata.owner_application_id != request.owner_application_id
-            or metadata.audience != request.audience
+            or (
+                metadata.audience != request.audience
+                and not (
+                    request.audience is None
+                    and metadata.audience == canonical_audience
+                )
+            )
             or not isinstance(metadata.invoker_principals, frozenset)
             or self._edge_caller_principal not in metadata.invoker_principals
             or not _valid_target_uri(metadata.target_uri)
@@ -358,5 +371,5 @@ class CloudRunAttachmentResolver:
             adapter_kind=ADAPTER_KIND,
             resource=resource,
             target_uri=metadata.target_uri,
-            audience=metadata.audience,
+            audience=request.audience,
         )

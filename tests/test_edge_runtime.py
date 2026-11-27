@@ -1448,6 +1448,41 @@ class CloudRunAttachmentTest(unittest.TestCase):
         self.assertEqual(resolved.target_uri, self.target_uri)
         self.assertEqual(resolved.audience, self.audience)
 
+    def test_public_none_accepts_same_application_identity_capability(self) -> None:
+        """Keep anonymous rollback viable when the target can accept identity."""
+
+        provider = InMemoryCloudRunMetadataProvider(
+            {self.resource(): self.metadata()}
+        )
+        resolver = CloudRunAttachmentResolver(provider, self.edge_caller)
+
+        resolved = asyncio.run(
+            resolver.resolve(replace(self.request(), audience=None))
+        )
+
+        self.assertEqual(provider.requests, [self.resource()])
+        self.assertEqual(resolved.resource, self.resource())
+        self.assertEqual(resolved.target_uri, self.target_uri)
+        self.assertIsNone(resolved.audience)
+
+        wrong_target = InMemoryCloudRunMetadataProvider(
+            {
+                self.resource(): replace(
+                    self.metadata(),
+                    audience=(
+                        "urn:comfforts:app-platform:audience:other-app"
+                    ),
+                )
+            }
+        )
+        with self.assertRaises(AttachmentUnavailable):
+            asyncio.run(
+                CloudRunAttachmentResolver(
+                    wrong_target,
+                    self.edge_caller,
+                ).resolve(replace(self.request(), audience=None))
+            )
+
     def test_resolver_rejects_every_mismatched_or_unavailable_fact(self) -> None:
         other_resource = CloudRunResource(
             project_number="455651441683",
@@ -1865,6 +1900,103 @@ class SharedEdgeInterfaceTest(unittest.TestCase):
         self.assertEqual(routed.path, "/report")
         self.assertEqual(routed.query_string, b"view=summary")
         self.assertIsNotNone(routed.resolved_attachment)
+
+    def test_public_none_routes_anonymously_to_optional_capable_target(self) -> None:
+        """Exercise the complete predecessor route used by Live rollback."""
+
+        resource_reference = (
+            "urn:comfforts:app-platform:gcp:cloud-run:455651441682:"
+            "us-west1:alpha-app"
+        )
+        resource = parse_cloud_run_reference(resource_reference)
+        edge_caller = (
+            "serviceAccount:apps-platform-edge@comfforts-platform-non-prod."
+            "iam.gserviceaccount.com"
+        )
+        audience = "urn:comfforts:app-platform:audience:alpha-app"
+        document = compiled_generation_v2()
+        route = next(
+            item
+            for item in document["routes"]
+            if item["application_id"] == "alpha-app"
+        )
+        attachment = next(
+            item
+            for item in route["attachments"]
+            if item["attachment_id"] == "web"
+        )
+        attachment.update(
+            adapter_kind="gcp-cloud-run-v1",
+            resource_reference=resource_reference,
+        )
+        configuration, source = configured_generation(
+            document,
+            environment="staging",
+        )
+        provider = InMemoryCloudRunMetadataProvider(
+            {
+                resource: CloudRunServiceMetadata(
+                    resource=resource,
+                    target_uri=(
+                        "https://alpha-app-455651441682.us-west1.run.app"
+                    ),
+                    ready=True,
+                    owner_application_id="alpha-app",
+                    audience=audience,
+                    invoker_principals=frozenset({edge_caller}),
+                )
+            }
+        )
+        handoff = RecordingRouteHandoff()
+        proxy = RecordingApplicationProxy()
+        store = InMemoryIdentityStore()
+        session_id = "rollback-session-0123456789012"
+        store.sessions[session_id] = PlatformSession(
+            identity=PlatformIdentity(
+                "https://accounts.google.com",
+                "rollback-visitor",
+            ),
+            expires_at=10_000,
+        )
+        app = create_app(
+            configuration,
+            RuntimeAdapters(
+                generation_source=source,
+                attachment_resolver=CloudRunAttachmentResolver(
+                    provider,
+                    edge_caller,
+                ),
+                route_handoff=handoff,
+                application_proxy=proxy,
+                identity_store=store,
+                clock=FixedClock(1_000),
+            ),
+        )
+
+        _, (status, _, body) = asyncio.run(
+            request_during_lifespan(
+                app,
+                "/alpha",
+                headers=(
+                    (
+                        b"cookie",
+                        (
+                            b"__Host-comfforts-session="
+                            + session_id.encode("ascii")
+                        ),
+                    ),
+                ),
+            )
+        )
+
+        self.assertEqual(status, 202)
+        self.assertEqual(body, b"proxied\n")
+        self.assertEqual(len(handoff.requests), 1)
+        routed = handoff.requests[0]
+        self.assertIsNone(routed.identity_audience)
+        self.assertIsNone(routed.verified_identity_assertion)
+        self.assertIsNotNone(routed.resolved_attachment)
+        self.assertIsNone(routed.resolved_attachment.audience)
 
     def test_resolved_websocket_route_is_delivered_through_application_proxy(
         self,

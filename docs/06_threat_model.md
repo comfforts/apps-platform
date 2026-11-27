@@ -156,6 +156,8 @@ The major trust-boundary crossings are:
 - attachment-adapter allow-listing and registration-derived edge configuration;
 - Admission Mode, explicit Identity Delivery, Platform Session, and environment-wide member
   admission enforcement plus removal of visitor-supplied identity headers;
+- registration-authorized assertion delivery that cannot be enabled merely by a target advertising
+  the same application's identity capability;
 - Platform Member Directory infrastructure and bounded owner/member lifecycle without
   application-specific roles or entitlements;
 - whole-generation activation, drift detection, rollback, and Platform State access control; and

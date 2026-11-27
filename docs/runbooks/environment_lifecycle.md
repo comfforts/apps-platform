@@ -6,11 +6,12 @@ state, identity, OAuth client, DNS and TLS resources, application registrations,
 
 > **Identity-model transition:** The repository implements the Version 2 contracts, directory
 > infrastructure, Shared Edge enforcement, member lifecycle, application handoff, and complete
-> generation activation. All repository slices and candidate-readiness corrections are integrated,
-> but no Live Version 2 qualification has occurred. The deployed staging environment and W9
-> qualification therefore remain Version 1 predecessor evidence. Use the Candidate Source
-> procedure below only from the exact clean pushed integration revision after its repository gate
-> passes and the owner deliberately starts that operation.
+> generation activation. All repository slices and candidate-readiness corrections are integrated.
+> Version 2 Candidate Source qualification passed at revision
+> `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; W9 qualification remains separate Version 1
+> predecessor evidence. Because this documentation reconciliation changes the source revision, use
+> the Candidate Source procedure below once more from the resulting exact clean pushed integration
+> head after its repository gate passes and the owner deliberately starts that operation.
 
 | Environment | Intended hostname | Current operating boundary |
 | --- | --- | --- |
@@ -689,8 +690,9 @@ inspection, not as permission to bypass the failed boundary.
 ## Candidate staging verification
 
 A clean pushed `feat/platform-member-directory` integration revision containing current
-`origin/main` may exercise staging before the cumulative pull request to `main`. This is the
-remaining W10 Candidate Source procedure. **Run it only after every W10 slice and
+`origin/main` may exercise staging before the cumulative pull request to `main`. The procedure
+passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; this is the required final rerun
+for the post-reconciliation W10 integration head. **Run it only after every W10 slice and
 candidate-readiness correction has merged, the exact integration revision is pushed, `make check`
 passes, and the owner deliberately begins the staging operation.** The documented repository work
 performs none of these provider commands.

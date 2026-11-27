@@ -82,9 +82,10 @@ and other members never do.
 > atomic complete-generation activation. Qualification readiness reuses those same member
 > operations, verifies current-request restricted decisions, restores the reviewed owner-only
 > baseline, and blocks rollback on any mismatch. All repository slices and candidate-readiness
-> corrections are integrated; exact-revision Candidate Source qualification remains. The
-> deployed W9 candidate and Version 1 contracts remain predecessor evidence and are not Accepted
-> Source qualification for this model.
+> corrections are integrated. Version 2 Candidate Source qualification passed at integration
+> revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`. Because the documentation record changes the
+> exact source revision, the resulting integration head must repeat that qualification and then
+> remain frozen before merge to `main`. Neither Candidate result is Accepted Source qualification.
 
 ### Catalogue visibility
 
@@ -770,9 +771,11 @@ AP-M9-W9 is implemented and candidate-qualified under the predecessor Version 1 
 Candidate staging proved the dedicated fixture project, Shared VPC attachment, all three admission
 modes, separate registration, and the restricted-fixture detach, destruction, redeployment, and
 reactivation lifecycle. Candidate Source is not Accepted Source qualification. AP-M9-W10 has
-integrated all seven repository slices and its candidate-readiness corrections without a Live
-Version 2 qualification. The exact clean pushed integration revision must pass Candidate Source
-staging qualification and be frozen before the cumulative pull request to `main`.
+integrated all seven repository slices and its candidate-readiness corrections. Version 2
+Candidate Source staging qualification passed at revision
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c`; this documentation-only reconciliation changes the
+source revision, so the resulting clean pushed integration head must repeat the complete
+qualification and then be frozen before the cumulative pull request to `main`.
 Production remains blocked on that accepted result, explicit ownership transfer, and application
 adoption.
 

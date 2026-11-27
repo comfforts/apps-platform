@@ -1195,10 +1195,15 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_requirements = " ".join(requirements.split())
         normalized_evaluation = " ".join(evaluation.split())
         normalized_m9 = " ".join(m9.split())
+        normalized_w10 = " ".join(w10.split())
         normalized_recovery = " ".join(recovery.split())
 
         self.assertIn(
-            "ADR-015 implementation is integrated, Candidate Source qualification remains AP-M9-W10 work",
+            "ADR-015 implementation is integrated; Version 2 Candidate Source qualification passed",
+            normalized_requirements,
+        )
+        self.assertIn(
+            "must be repeated after the final documentation reconciliation",
             normalized_requirements,
         )
         self.assertIn(
@@ -1222,6 +1227,10 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertNotIn("operation-specific service-account impersonation", m9)
         self.assertIn("no operation-identity fleet", normalized_m9)
         self.assertIn("all seven functional-slice pull requests", w10)
+        self.assertIn(
+            "does not inherit that evidence: after merge, repeat the complete Candidate qualification",
+            normalized_w10,
+        )
         self.assertIn("ADR-016 operator-state recovery", w10)
         self.assertIn("Status: Proposed; still in discussion", recovery)
         self.assertIn(

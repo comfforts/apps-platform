@@ -2,7 +2,8 @@
 
 Status: AP-M9-W9 Version 1 lifecycle candidate-qualified; AP-M9-W10 Slices 1 through 7 implement
 the Version 2 contracts, directory infrastructure, Shared Edge enforcement, member lifecycle,
-application handoff/activation, and qualification readiness without a Live Version 2 operation
+application handoff/activation, and qualification; Candidate Source qualification passed at the
+named integration revision and requires one post-reconciliation exact-revision rerun before freeze
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -11,9 +12,10 @@ fakes and the non-fake command boundary exercise the same orchestration interfac
 
 ## Implemented commands
 
-The deployed evidence still describes the Version 1 predecessor operation. Repository consumers
-now emit and validate the complete Version 2 application-handoff family, but that implementation
-has not performed or qualified a Live Version 2 activation.
+The W9 deployed evidence describes the Version 1 predecessor operation. Repository consumers emit
+and validate the complete Version 2 application-handoff family, and the W10 integration revision
+performed Candidate Source qualification. That result remains revision-scoped and does not prove
+the post-reconciliation integration head or Accepted Source.
 
 The deploy target populates or verifies the checksum-bound local toolchain automatically. The
 operator must already have an active `gcloud` login, user Application Default Credentials, and the
@@ -149,10 +151,10 @@ member-directory database, exact-read runtime IAM, Shared Edge enforcement, memb
 application handoff/activation path.
 Provider readback accepts only the
 conditioned default-database session grant and the named-database custom member role containing
-`datastore.entities.get`; a broader project-level runtime grant fails closed. These additions have
-not been reconciled to a provider or Live-qualified. Version 1 generation documents remain
-readable predecessors; a reviewed application handoff creates one complete Version 2 successor
-rather than a mixed generation.
+`datastore.entities.get`; a broader project-level runtime grant fails closed. The named W10
+integration revision reconciled and Candidate-qualified these additions. Version 1 generation
+documents remain readable predecessors; a reviewed application handoff creates one complete
+Version 2 successor rather than a mixed generation.
 
 `platform-deploy` reconciles the empty Firestore directory infrastructure but never enrolls a
 member. `platform-member-bootstrap-owner` enrolls the first owner only after remote-empty readback,
@@ -192,8 +194,8 @@ successor over a readable Version 1 generation discards registration-scoped memb
 to `none` and protected routes to `required`, and activates one complete immutable Version 2
 generation. An application whose normalized registration is unchanged keeps its existing
 registration revision during that migration; only an actual application-registration change
-increments the revision. This is repository behavior only until the later Candidate operation
-exercises it.
+increments the revision. The named W10 integration revision exercised this behavior under
+Candidate Source; W11 must repeat it from Accepted Source.
 
 For local code maintenance, `platform-preflight-check` runs the same read-only profile, Git,
 GitHub, GCP, ADC, Terraform-tool, and DNS checks. It skips `SOURCE_NOT_CLEAN`, because the command

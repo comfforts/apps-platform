@@ -1,13 +1,17 @@
 # App Platform documentation
 
-Version 1.44 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted;
-all seven AP-M9-W10 slices and their candidate-readiness corrections are integrated with no Live
-Version 2 qualification; ADR-016 proposed
+Version 1.45 | Status: AP-M9-W9 candidate-qualified under Version 1; ADR-015 accepted; all seven
+AP-M9-W10 slices and their candidate-readiness corrections are integrated; Version 2 Candidate
+Source qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; final
+post-reconciliation Candidate qualification and freeze remain; ADR-016 proposed
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. W9
-also produced Candidate Source Live (`L`) evidence for the named staging revision and bindings;
-Accepted Source Live evidence and Application Adoption (`A`) evidence do not yet exist. Repository
+also produced Candidate Source Live (`L`) evidence for the named W9 staging revision and bindings.
+W10 produced separate Candidate Source Live evidence for the named Version 2 integration revision;
+because this documentation reconciliation changes that revision, W10 still requires one complete
+rerun against the resulting integration head before it is frozen. Accepted Source Live evidence
+and Application Adoption (`A`) evidence do not yet exist. Repository
 implementation alone does not imply a credential, backend, provider, DNS, deployment, or
 application-adoption action.
 
@@ -61,7 +65,7 @@ delivery authorities before beginning it.
 | AP-M6 | complete | network runtime tested with fakes and loopback |
 | AP-M7 | complete | static Terraform and inert workflow templates |
 | AP-M8 | historical | W1/W2 merged; no real manifest accepted; W3-W12 never started |
-| AP-M9 | W9 candidate-qualified; all W10 repository slices and candidate-readiness corrections are integrated, with exact-revision Candidate Source qualification remaining | operator-driven environment and application lifecycle |
+| AP-M9 | W9 candidate-qualified; W10 Version 2 Candidate qualification passed at `d8fdb8a…`; one final post-reconciliation exact-revision rerun and freeze remain before W11 | operator-driven environment and application lifecycle |
 
 AP-M9 replaces the withdrawn standalone Live-qualification milestone and supersedes the unexecuted
 AP-M8-W3 through AP-M8-W12 plan. AP-M8-W1/W2 remain factual records of merged work. AP-M9 does not
@@ -133,7 +137,10 @@ completed.
     the existing qualifier with the source-admitted member service, reviewed owner-only baseline,
     second-member add/suspend/reactivate/remove exercise, least-data current-request admission
     callbacks, cleanup on failure, and rollback prerequisite enforcement. It invokes no provider
-    from the slice branch; Candidate Source staging remains a post-merge owner operation.
+    from the slice branch. Candidate Source qualification subsequently passed at
+    `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; this documentation reconciliation changes the
+    integration revision, so the resulting head must repeat the complete qualification and then be
+    frozen before the cumulative pull request to `main`.
 11. **AP-M9-W11 — accepted staging operation:** from merged W10 code, deploy and qualify
     `apps-staging.comfforts.com` with the three synthetic applications and the reviewed member
     baseline. The deliberate command invocation and same-process confirmations authorize ordinary

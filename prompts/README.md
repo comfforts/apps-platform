@@ -6,8 +6,10 @@ acceptance criteria.
 
 - [AP-M9-W10 Candidate Source qualification](starting_prompt.md) starts a new chat from the exact
   clean pushed `feat/platform-member-directory` only after all seven functional slices merge and
-  their repository gates pass. It guides the separately owner-invoked staging operation and
-  revision freeze without authorizing Accepted Source or production. The handoff is subordinate to the
+  their repository gates pass. It also guides the required final rerun after the qualification
+  record is reconciled, because evidence from the earlier exact revision does not transfer to the
+  new integration head. It guides the separately owner-invoked staging operation and revision
+  freeze without authorizing Accepted Source or production. The handoff is subordinate to the
   [current W10 delivery plan](../docs/plans/ap_m9/w10_platform_member_directory.md).
 
 The handoff does not itself authorize the external operation; the owner must deliberately begin it

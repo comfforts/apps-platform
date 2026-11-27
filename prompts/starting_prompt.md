@@ -10,6 +10,12 @@ isolated Platform Member Directory infrastructure, Shared Edge enforcement, boun
 lifecycle, complete application handoff, operator documentation, and cleanup-safe qualification
 support. No slice branch performed a Live Version 2 operation.
 
+Version 2 Candidate Source qualification passed at integration revision
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c`. The final documentation reconciliation changes the
+exact source revision, so use this handoff once more against the resulting clean pushed integration
+head. The earlier result remains truthful revision-scoped evidence but does not qualify the new
+head.
+
 Read `AGENTS.md`, follow the complete order in `docs/README.md`, and read
 `docs/plans/ap_m9/000-m9_interactive_platform_lifecycle.md` as the milestone plan,
 `docs/plans/ap_m9/w10_platform_member_directory.md` as the completed implementation package, and

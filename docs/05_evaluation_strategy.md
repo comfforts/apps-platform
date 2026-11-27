@@ -1,11 +1,12 @@
 # <u>App Platform evaluation strategy</u>
 
-Version 0.28 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
+Version 0.29 | Status: AP-M9-W9 fixture lifecycle implemented and candidate-qualified under the
 Version 1 predecessor model; historical AP-EVAL-M8 and standalone AP-EVAL-M9 proposals superseded
 without execution; all seven AP-M9-W10 slices and candidate-readiness corrections supply
 deterministic Version 2 contract, infrastructure, runtime, member-lifecycle, application-handoff,
-operator-documentation, and qualification-readiness evidence; exact-revision Candidate Source
-qualification remains, and Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
+operator-documentation, and qualification-readiness evidence; Version 2 Candidate Source
+qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; one complete
+post-reconciliation rerun and freeze remain; Accepted Source AP-EVAL-M9 remains AP-M9-W11 work
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
@@ -65,8 +66,10 @@ second-member add/suspend/reactivate/remove journey, checks the current restrict
 after every transition, reconciles cleanup on failure, blocks rollback without exact baseline
 restoration, and emits no member reference or identity material in qualification evidence. Its
 loopback, in-memory, and provider fakes perform no Live member mutation, browser login, generation
-transition, or provider operation. Candidate Source Live evidence remains available only after the
-slice merges to the exact clean pushed integration revision and the owner invokes the runbook.
+transition, or provider operation. Candidate Source Live evidence became available only after the
+slice merged to the exact clean pushed integration revision and the owner invoked the runbook; the
+successful result is bound to revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c` and does not
+transfer to a later documentation or implementation revision.
 
 Plan: [App Platform implementation plan index](plans/README.md) and
 [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) and
@@ -1887,9 +1890,11 @@ Private provider payloads, state, plans, browser state, and identity material re
 W10 Slices 1 through 5 establish the deterministic Version 2 contract, infrastructure, runtime,
 lifecycle, and application-handoff evidence. Slice 6 reconciles the operator handoff and
 implemented limitations without a provider operation. Slice 7 and its candidate-readiness
-corrections implement cleanup-safe qualification support without a provider operation. The exact
-clean pushed integration revision must now repeat the
-applicable staging journey from Candidate Source, qualify the Version 2 member directory, restore
-the reviewed member baseline, and remain frozen. After the cumulative W10 pull request merges,
+corrections implement cleanup-safe qualification support without a provider operation. Revision
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c` subsequently completed the applicable Candidate Source
+staging journey, qualified the Version 2 member directory, and restored the reviewed member
+baseline. This documentation reconciliation changes the exact revision, so the resulting clean
+pushed integration head must repeat the complete qualification and then remain frozen. After the
+cumulative W10 pull request merges,
 W11 must repeat the journey from Accepted Source and complete the separately approved platform
 destruction/redeployment rehearsal before an accepted AP-EVAL-M9 result exists.

@@ -1,8 +1,9 @@
 # AP-M9 · Operator-driven environment lifecycle
 
-Version 0.10 | Status: AP-M9-W1 through AP-M9-W9 implemented and W9 candidate-qualified; all seven
-AP-M9-W10 slices and candidate-readiness corrections are integrated without a Live Version 2
-qualification; exact-revision Candidate Source qualification remains
+Version 0.11 | Status: AP-M9-W1 through AP-M9-W9 implemented and W9 candidate-qualified; all seven
+AP-M9-W10 slices and candidate-readiness corrections are integrated; Version 2 Candidate Source
+qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`; one final
+post-reconciliation exact-revision rerun and freeze remain
 
 This document is the canonical milestone plan for AP-M9 and its ordered work packages. Use the
 [implementation plan index](../README.md) for plan routing. AP-M9-W10 has a separate
@@ -369,9 +370,11 @@ Candidate Qualification and cannot satisfy Accepted Source qualification or qual
 W10 uses seven ordered functional slices on `feat/platform-member-directory` to replace the Version
 1 identity and restricted-membership model without partially changing `main`. After every slice is
 merged, the exact complete integration revision is candidate-qualified and frozen, then one
-cumulative pull request merges it to `main`. W11 begins only after that final merge and repeats the
-complete journey from Accepted Source, producing the first accepted staging result. W12 follows
-that result.
+cumulative pull request merges it to `main`. Candidate qualification passed at revision
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c`; the documentation reconciliation changes that exact
+revision and therefore requires one complete rerun before freeze. W11 begins only after the final
+merge to `main` and repeats the complete journey from Accepted Source, producing the first accepted
+staging result. W12 follows that result.
 
 Within W10 the operator first deploys the directory infrastructure, deliberately bootstraps the
 owner, exercises member lifecycle, deploys the Version 2 fixtures, and performs candidate

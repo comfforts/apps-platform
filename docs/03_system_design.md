@@ -1,8 +1,9 @@
 # <u>App Platform system design</u>
 
-Version 1.20 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
-evidence, and all seven AP-M9-W10 slices and candidate-readiness corrections are integrated without
-a Live Version 2 qualification
+Version 1.21 | Status: ADR-015 accepted; AP-M9-W9 Candidate Qualification is Version 1 predecessor
+evidence; all seven AP-M9-W10 slices and candidate-readiness corrections are integrated; Version 2
+Candidate Source qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`, with
+one post-reconciliation exact-revision rerun required before freeze
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -342,8 +343,9 @@ enforces explicit Version 2 admission and Identity Delivery, and queries one exa
 document. The operator publishes one complete Version 2 bundle/intent family, validates the
 application attachment, migrates a readable Version 1 predecessor without its member list, and
 atomically activates one complete Version 2 Registration Generation. Separate member commands
-mutate the directory without republishing bundles or generations. These implemented paths remain
-unqualified until the later Candidate Source slice exercises them against staging.
+mutate the directory without republishing bundles or generations. Candidate Source qualification
+exercised these paths at the named integration revision; the result remains revision-scoped and is
+not Accepted Source evidence.
 
 When Identity Delivery permits it and identity is present, the Shared Edge supplies a compact signed assertion in the versioned
 `X-Comfforts-Verified-Identity` header. The edge must remove any visitor-supplied value before

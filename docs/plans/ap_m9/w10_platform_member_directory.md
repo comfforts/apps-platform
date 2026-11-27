@@ -1,7 +1,8 @@
 # AP-M9-W10 · Platform Member Directory and explicit Identity Delivery
 
-Status: All seven functional slices and candidate-readiness corrections are integrated without a
-Live Version 2 qualification; exact-revision Candidate Source qualification and freeze remain
+Status: All seven functional slices and candidate-readiness corrections are integrated; Version 2
+Candidate Source qualification passed at revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c`;
+this documentation reconciliation requires one final exact-revision rerun before freeze
 
 Requirements: AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011,
 AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009
@@ -373,7 +374,11 @@ later-slice behavior has entered the branch. W10 is ready to advance to W11 only
 - documentation truthfully distinguishes implementation, Candidate Source qualification, the W11
   Accepted Source operation, W12 production readiness, and later Application Adoption.
 
-After those conditions pass, freeze the integration revision and open one cumulative pull request
+Revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c` satisfied the Candidate Source qualification and
+owner-only baseline-restoration conditions. This documentation-only reconciliation creates a new
+exact revision, so it does not inherit that evidence: after merge, repeat the complete Candidate
+qualification against the resulting clean pushed integration head. After all conditions pass for
+that final head, freeze the integration revision and open one cumulative pull request
 from `feat/platform-member-directory` to `main`. A merge records completed W10 repository work but
 does not transfer Candidate Source evidence to the resulting Accepted Source revision; W11 still
 owns that deployment and qualification.

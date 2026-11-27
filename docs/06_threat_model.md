@@ -1,11 +1,13 @@
 # <u>App Platform threat model</u>
 
-Version 1.21 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
+Version 1.22 | Status: AP-M6 through AP-M9-W9 controls implemented and candidate-qualified under
 the Version 1 predecessor model; ADR-015 Platform Member Directory and explicit Identity Delivery
 contract, infrastructure, deterministic runtime, and member-lifecycle controls are integrated by
 all seven AP-M9-W10 slices and candidate-readiness corrections, including Version 2 handoff
 activation, reconciled operator guidance, cleanup-safe temporary membership, and least-data
-admission readback, without a Live Version 2 qualification
+admission readback; Version 2 Candidate Source qualification passed at revision
+`d8fdb8afb2048e87b591ae400d7807a38784fd5c`, with one post-reconciliation exact-revision rerun
+required before freeze
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -352,8 +354,8 @@ projection without activating that path in staging. Slice 4 deterministically im
 browser-derived opaque references, remote-empty bootstrap, exact predecessor mutation, atomic
 control/member updates, and least-data readback. Slice 5 deterministically implements the complete
 Version 2 handoff, application-side Version 1/Version 2 assertion verification, mixed-version
-rejection, and atomic predecessor-bound activation. Provider realization and Live qualification
-remain pending later W10 slices.
+rejection, and atomic predecessor-bound activation. Later W10 work realized and Candidate-qualified
+the provider path; that evidence remains bound to its named integration revision.
 The demo accepts residual cross-instance replay risk because it makes
 no distributed replay-prevention claim.
 
@@ -560,8 +562,8 @@ repository posture with a conditioned default-database session grant and a separ
 database whose runtime custom role contains only exact-document read permission. Deterministic
 provider readback rejects an unconditioned, additional, enumeration-capable, or mutation-capable
 runtime grant. Slice 3 adds an exact-document provider adapter and deterministic restricted
-admission tests; no provider reconciliation or Live member lookup has occurred, so Live realization
-and qualification remain pending later W10 slices. Runtime failure diagnostics use
+admission tests; later W10 work reconciled and Candidate-qualified the provider member lookup.
+Runtime failure diagnostics use
 constant allowlisted boundary codes carried only by the minimized completion event routed to the
 dedicated seven-day regional log bucket. The isolated JSON-line logger prevents `INFO` completion
 events from being suppressed or misclassified as unselected text logs. Diagnostics never include
@@ -569,9 +571,9 @@ provider exceptions, visitor identity, OAuth material, query parameters, or sess
 application handoff check detects missing Terraform-managed identity prerequisites before bundle
 publication, including the platform-owned application-subnet NAT. The networked fixture emits only
 an allowlisted verification result code and its application identifier when assertion verification
-fails; it never logs the assertion, identity, token, provider exception, or request value. Live
-Google login remains unqualified until the corrected platform revision is
-deployed and AP-EVAL-M9-07 passes. Provider availability and disaster recovery beyond the 15-minute
+fails; it never logs the assertion, identity, token, provider exception, or request value. The
+named Candidate Source revision qualified Live Google login under AP-EVAL-M9-07; Accepted Source
+qualification still requires W11. Provider availability and disaster recovery beyond the 15-minute
 post-approval rollback objective remain outside the demo commitment.
 
 ### AP-TM-014 · External migration proposal or fixture mistaken for Application Adoption
@@ -865,7 +867,7 @@ AP-M9 carries forward AP-TM-001 through AP-TM-014 and adds the following control
   signing or OAuth authority. Application targets retain direct-origin denial, independent assertion
   verification, principals, data isolation, and Feature Entitlements. ADR-015 requires explicit
   Identity Delivery, environment-wide restricted membership, and current-visitor-only projection;
-  those refinements remain W10 work.
+  W10 implements and Candidate-qualifies those refinements at the named integration revision.
 - **AP-TM-007:** One canonical operation fingerprint, exact-source check, fixed reviewed stage
   order, exact plan digest, state lock, provider readback, and one atomically replaced progress
   cursor reject stale, concurrent, repeated, or partial lifecycle changes. Progress records no
@@ -961,11 +963,12 @@ IAM boundary, runtime Identity Delivery, owner/member lifecycle, complete applic
   baseline is exact. A predecessor callback that still observes successor identity policy gets
   only bounded, separately confirmed traffic-convergence retries; other failures do not retry, and
   the exact stable blocker remains in least-data evidence. Predecessor public-identity failure
-  cannot suppress restoration. Its branch invokes no provider. After it
-  merges, the exact integration revision must candidate-qualify the complete model before the
-  Accepted Source operation in W11. Candidate evidence
-proves only the named W9 predecessor bindings. No current result proves ADR-015 realization,
-Accepted Source staging, platform destruction/redeployment, production, or Application Adoption.
+  cannot suppress restoration. Its branch invokes no provider. After it merged, integration
+  revision `d8fdb8afb2048e87b591ae400d7807a38784fd5c` Candidate-qualified the complete Version 2 model
+  and restored the owner-only baseline. That evidence is exact-revision Candidate evidence, not
+  Accepted Source evidence; the final documentation revision must repeat the qualification before
+  freeze. No current result proves Accepted Source staging, platform destruction/redeployment,
+  production, or Application Adoption.
 
 ## <u>Remaining implementation and security decisions</u>
 

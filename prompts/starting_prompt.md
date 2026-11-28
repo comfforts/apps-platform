@@ -69,14 +69,20 @@ its distinct dummy API Cloud Run service is the optional `api` attachment at `/a
 Version 3 family. Fixture handoff, status, destruction, component documentation, fakes, and tests
 remain one lifecycle; no second application or state root represents the API target.
 
-The next, fifth platform slice must add `fixture-qualify` as a fixture-scoped interface separate from
-`platform-qualify`. Bind its result to the exact readable Accepted Source platform qualification,
-fixture source, complete handoff, both targets, and active Registration Generation. Prove the
-authenticated root and `/api` verify the same application identity, `/apix` remains on the root,
-direct origins are denied, and either target's invalid or unavailable candidate preserves the prior
-complete generation with no publication, fallback, traffic change, or partial activation. Store
-separate least-data fixture evidence and status; do not rerun or overwrite platform qualification,
-exercise member lifecycle, or claim platform-wide rollback.
+The fifth platform slice implements `fixture-qualify` as a fixture-scoped interface separate from
+`platform-qualify`. It binds its result to the exact readable Accepted Source platform
+qualification, fixture source, complete handoff, both targets, and active Registration Generation;
+uses injected provider, browser, route, failure, and evidence seams; and stores separate least-data
+fixture evidence and status. It does not rerun or overwrite platform qualification, exercise member
+lifecycle, or claim platform-wide rollback. The implementation slice did not invoke a provider.
+
+After Slice 5 merges to the integration branch, the next work is the separately authorized
+Candidate Source fixture operation. It must prove the authenticated root and `/api` independently
+verify the same application identity, `/apix` remains on the root, direct origins are denied, and
+either target's invalid or unavailable candidate preserves the prior complete generation with no
+publication, fallback, traffic change, or partial activation. Freeze that passing integration
+revision before its cumulative pull request; after merge to `main`, repeat the same fixture gate
+from Accepted Source before selecting Slice 6 work.
 
 Before the cross-owner operation, require all of the following:
 

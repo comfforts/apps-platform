@@ -1,10 +1,11 @@
 # <u>App Platform system design</u>
 
-Version 1.27 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
+Version 1.28 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
 Accepted Source staging platform and fixture qualification completed at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 schemas, relationship validation,
 every-target readback, atomic Version 2 projection, and the fourth fixture application are
-implemented for AP-M9-W12, while fixture qualification and adoption remain planned
+implemented for AP-M9-W12 together with the separate fixture qualification module; its Live
+Candidate/Accepted operations and real-application adoption remain planned
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It

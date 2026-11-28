@@ -1,11 +1,11 @@
 # <u>App Platform evaluation strategy</u>
 
-Version 0.35 | Status: AP-M9-W10 Version 2 Candidate Source qualification complete; AP-M9-W11
+Version 0.36 | Status: AP-M9-W10 Version 2 Candidate Source qualification complete; AP-M9-W11
 Accepted Source staging platform and fixture qualification completed at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 contract validation and atomic
-multi-target operator projection plus the fourth fixture application are implemented for AP-M9-W12
-while fixture qualification and AP-EVAL-M9-10 adoption remain next; destructive recovery and production readiness remain
-AP-EVAL-M9-11 and AP-EVAL-M9-12
+multi-target operator projection plus the fourth fixture application and separate qualifier are
+implemented for AP-M9-W12 while its Candidate/Accepted operations and AP-EVAL-M9-10 adoption remain
+next; destructive recovery and production readiness remain AP-EVAL-M9-11 and AP-EVAL-M9-12
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
@@ -1795,9 +1795,10 @@ detachment, and preservation of every unrelated registration. The existing three
 deployments and Version 2 handoffs remain unchanged and readable.
 
 Repository evidence for the fourth fixture covers its closed runtime markers, one-root/two-service
-Terraform shape, complete Version 3 family, per-target status, and two-target destruction readback.
-This is deterministic Fixture evidence only; the provider-backed checks below remain unavailable
-until the fixture-scoped qualification slice and its separately authorized operation.
+Terraform shape, complete Version 3 family, per-target status, two-target destruction readback, and
+the fixture-scoped qualifier's injected provider, browser, route, failed-target, and evidence seams.
+This is deterministic Fixture evidence only; the provider-backed result below remains unavailable
+until its separately authorized Candidate then Accepted operations.
 
 Provider posture validation must also prove that the selected staging profile accepts only the
 closed target stages `qualification` and `staging`. Exercise both labels with fixture and real

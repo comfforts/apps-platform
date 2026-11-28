@@ -1626,6 +1626,102 @@ def build_local_qualification(
     return QualificationLifecycle(state_reader, QualificationSuiteEvaluator(probe))
 
 
+def build_local_fixture_qualification(
+    project_root: Path,
+    state_root: Path,
+    source_authority: str = "accepted",
+):
+    """Construct the separate plural-fixture qualification gate.
+
+    This composition reads the existing Accepted Source platform evidence but
+    does not construct or invoke the platform-wide qualifier, member lifecycle,
+    or rollback exercise.  Provider access is read-only; browser observations
+    require explicit operator confirmation, and results use the fixture-only
+    evidence namespace.
+    """
+
+    from infrastructure.operator.fixture_qualification import (
+        FixtureQualificationEvaluator,
+        FixtureQualificationLifecycle,
+    )
+    from infrastructure.operator.integration import ApplicationIntegrationLifecycle
+    from infrastructure.operator.live_fixture_qualification import (
+        HttpxFixtureRouteQualification,
+        LoopbackFixtureQualification,
+    )
+    from infrastructure.operator.live_qualification import SystemBrowserLauncher
+    from infrastructure.operator.local_fixture_qualification import (
+        LocalFailedTargetQualification,
+        LocalFixtureAttachmentVerifier,
+        LocalFixtureQualificationEvidence,
+        LocalFixtureQualificationStateReader,
+    )
+    from infrastructure.operator.local_fixture_preparations import (
+        LocalFixturePreparations,
+    )
+    from infrastructure.operator.local_generation import (
+        LocalRegistrationGenerationControl,
+    )
+    from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
+    from infrastructure.operator.local_integration import (
+        LocalPlatformIntegrationReader,
+    )
+
+    resolved_project = project_root.resolve()
+    terminal = ConsoleTerminal()
+    executable_name = shutil.which("gcloud")
+    configured = os.environ.get("CLOUDSDK_CONFIG")
+    configuration = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud"
+    ).resolve()
+    verified = _verified_gcp_session(
+        ProfileGcp(
+            Path(executable_name).resolve() if executable_name else None,
+            configuration,
+        ),
+        state_root,
+        terminal,
+    )
+    resolved_state = verified.state_root
+    provider = _local_generation_provider(resolved_project, resolved_state)
+    if provider is None:
+        raise RuntimeError("GCLOUD_COMMAND_ADAPTER_UNAVAILABLE")
+    filesystem = LocalFilesystem(resolved_project, resolved_state)
+    generations = LocalRegistrationGenerationControl(filesystem, provider)
+    platform = LocalPlatformIntegrationReader(
+        filesystem,
+        build_local_operator(resolved_project, resolved_state, source_authority),
+        generations,
+        initial_generation_binder=generations,
+    )
+    integration = ApplicationIntegrationLifecycle(
+        platform,
+        attachment_reader=provider,
+    )
+    state = LocalFixtureQualificationStateReader(
+        filesystem,
+        LocalGit(resolved_project),
+        generations,
+        LocalFixturePreparations(filesystem),
+        LocalApplicationHandoffs(filesystem),
+        source_authority,
+    )
+    attachments = LocalFixtureAttachmentVerifier(integration, provider)
+    evaluator = FixtureQualificationEvaluator(
+        attachments,
+        LoopbackFixtureQualification(SystemBrowserLauncher(), terminal),
+        HttpxFixtureRouteQualification(),
+        LocalFailedTargetQualification(platform, provider, generations),
+    )
+    return FixtureQualificationLifecycle(
+        state,
+        evaluator,
+        LocalFixtureQualificationEvidence(filesystem),
+    )
+
+
 def build_local_destruction(
     project_root: Path,
     state_root: Path,

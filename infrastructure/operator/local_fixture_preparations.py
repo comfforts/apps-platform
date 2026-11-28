@@ -321,6 +321,66 @@ class LocalFixturePreparations:
             ),
         )
 
+    def read_current(
+        self,
+        environment: str,
+        application_id: str,
+    ) -> tuple[FixtureDeployRequest, FixturePreparation] | None:
+        """Read the current exact preparation without guessing its request binding.
+
+        The current pointer is first validated as private, canonical, self-bound
+        metadata.  Its complete request projection is then reconstructed and
+        passed through :meth:`read`, so callers receive the same document,
+        relationship, digest, and source checks used by normal preparation reuse.
+        No provider or Application State access occurs.
+        """
+
+        if (
+            environment != "staging"
+            or _APPLICATION_ID.fullmatch(application_id) is None
+        ):
+            raise ValueError("fixture preparation lookup is invalid")
+        lookup = FixtureDeployRequest(
+            environment=environment,
+            application_id=application_id,
+            fixture_source_revision="0" * 40,
+            expected_platform_source_revision="0" * 40,
+            expected_platform_generation=1,
+            catalogue_visibility="unlisted",
+        )
+        payload = self._read_private(self._current_path(lookup))
+        if payload is None:
+            return None
+        try:
+            raw = json.loads(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError("stored fixture preparation is invalid") from error
+        metadata = self._validate_metadata(raw)
+        if (
+            payload != _canonical(metadata) + b"\n"
+            or metadata["environment"] != environment
+            or metadata["application_id"] != application_id
+            or "catalogue_visibility" not in metadata
+        ):
+            raise ValueError("stored fixture preparation binding mismatch")
+        request = FixtureDeployRequest(
+            environment=environment,
+            application_id=application_id,
+            fixture_source_revision=str(metadata["fixture_source_revision"]),
+            expected_platform_source_revision=str(
+                metadata["expected_platform_source_revision"]
+            ),
+            expected_platform_generation=int(
+                metadata["expected_platform_generation"]
+            ),
+            catalogue_visibility=str(metadata["catalogue_visibility"]),
+            source_authority=str(metadata["source_authority"]),
+        )
+        preparation = self.read(request)
+        if preparation is None:
+            raise ValueError("current fixture preparation is incomplete")
+        return request, preparation
+
     def publish(
         self,
         request: FixtureDeployRequest,

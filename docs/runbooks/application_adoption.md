@@ -3,8 +3,9 @@
 Status: AP-M9-W12 application-neutral staging handoff; the closed staging target-stage readback is
 implemented by Slice 1; ADR-017 Version 3 complete attachment-set contracts are implemented by
 Slice 2, atomic multi-target projection is implemented by Slice 3, and the fourth fixture
-application is implemented by Slice 4; no real application is selected or authorized until
-matching authority exists in both repositories
+application is implemented by Slice 4; Slice 5 implements its separate qualification interface but
+has not run its Candidate or Accepted operation; no real application is selected or authorized
+until matching authority exists in both repositories
 
 This runbook explains how a real application will join one deployed App Platform environment after
 the application repository has approved its own adoption requirements, architecture, migration,
@@ -235,7 +236,7 @@ fixture must be qualified without changing `fixture-public`, `fixture-authentica
 unlisted catalogue visibility. Its single independent Application State root owns the required
 `web` frontend Cloud Run target at `/` and a distinct dummy `api` backend target at `/api`.
 
-Run its planned `fixture-qualify` interface separately from `platform-qualify`. The qualifier binds
+Run its implemented `fixture-qualify` interface separately from `platform-qualify`. The qualifier binds
 the exact readable platform result, fixture source, Version 3 handoff, both targets, and active
 Registration Generation; it records separate least-data fixture evidence and status. It does not
 rerun the three-fixture platform suite, change platform qualification status, exercise member

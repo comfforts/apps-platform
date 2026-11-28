@@ -1,10 +1,11 @@
 # AP-M9-W12 · First real-application staging adoption qualification
 
-Version 0.7 | Status: in progress after Accepted Source staging platform and fixture qualification
-completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; Slices 1–4 implement target-stage validation,
+Version 0.8 | Status: in progress after Accepted Source staging platform and fixture qualification
+completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; Slices 1–5 implement target-stage validation,
 ADR-017 Version 3 contracts, atomic multi-target registration projection, and the fourth fixture
-application; fixture qualification and later slices remain planned; no real application is selected
-and no external operation is authorized by this plan
+application plus its separate qualification interface; no fourth-fixture Candidate or Accepted
+qualification has run, later slices remain planned, no real application is selected, and no
+external operation is authorized by this plan
 
 Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 

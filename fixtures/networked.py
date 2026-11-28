@@ -90,8 +90,6 @@ class NetworkFixtureConfiguration:
     target_marker: str | None = None
 
     def __post_init__(self) -> None:
-        """Reject an unbounded retry delay before creating any HTTP client."""
-
         """Reject mismatched profiles, markers, identity endpoints, and audiences."""
 
         if _FIXTURE_MODES.get(self.application_id) != self.admission_mode:
@@ -257,7 +255,14 @@ def create_network_fixture(
         )
 
     async def http_probe(request: Request) -> Response:
-        """Enforce identity and serve the fixture's bounded HTTP test surfaces."""
+        """Enforce identity and serve the fixture's bounded HTTP test surfaces.
+
+        The browser callback returns only the application ID, opaque challenge,
+        coarse identity presence, and—for the plural fixture—its allowlisted
+        target marker.  The plural web target also accepts the closed
+        ``apix/qualification/browser`` path so Live qualification can prove that
+        `/apix` stays on the root attachment rather than matching `/api`.
+        """
 
         accepted, identity_present = await admitted(request.headers)
         if not accepted:
@@ -268,7 +273,12 @@ def create_network_fixture(
                 configuration.target_marker,
             )
         path = request.path_params.get("path", "")
-        if path == "qualification/browser" and request.method == "GET":
+        qualification_path = path == "qualification/browser" or (
+            configuration.application_id == "fixture-multi-attachment"
+            and configuration.target_marker == "web"
+            and path == "apix/qualification/browser"
+        )
+        if qualification_path and request.method == "GET":
             challenge_values = request.query_params.getlist("challenge")
             port_values = request.query_params.getlist("callback_port")
             if (
@@ -293,14 +303,15 @@ def create_network_fixture(
                     400,
                     configuration.target_marker,
                 )
+            callback_values = {
+                "application_id": configuration.application_id,
+                "challenge": challenge_values[0],
+                "identity_present": "true" if identity_present else "false",
+            }
+            if configuration.target_marker is not None:
+                callback_values["target"] = configuration.target_marker
             location = "http://127.0.0.1:" + str(callback_port) + "/?" + urlencode(
-                {
-                    "application_id": configuration.application_id,
-                    "challenge": challenge_values[0],
-                    "identity_present": (
-                        "true" if identity_present else "false"
-                    ),
-                }
+                callback_values
             )
             return RedirectResponse(
                 location,

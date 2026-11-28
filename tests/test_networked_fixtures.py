@@ -307,6 +307,48 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertEqual(web_verifier.assertions, ["synthetic.assertion.value"])
         self.assertEqual(api_verifier.assertions, ["synthetic.assertion.value"])
 
+    def test_multi_attachment_browser_callbacks_report_target_and_apix_root(self) -> None:
+        """Expose only safe markers while proving `/apix` remains on the web target."""
+
+        def multi(target_marker: str) -> NetworkFixtureConfiguration:
+            return NetworkFixtureConfiguration(
+                application_id="fixture-multi-attachment",
+                admission_mode="authenticated",
+                platform_issuer="https://apps-staging.comfforts.com/_platform",
+                public_key_reference=(
+                    "https://apps-staging.comfforts.com/.well-known/jwks.json"
+                ),
+                assertion_audience=(
+                    "urn:comfforts:app-platform:audience:fixture-multi-attachment"
+                ),
+                target_marker=target_marker,
+            )
+
+        challenge = "c" * 64
+        headers = {VERIFIED_IDENTITY_HEADER: "synthetic.assertion.value"}
+        web = create_network_fixture(multi("web"), verifier=FakeVerifier())
+        api = create_network_fixture(multi("api"), verifier=FakeVerifier())
+
+        with TestClient(web) as web_client, TestClient(api) as api_client:
+            apix = web_client.get(
+                "/apix/qualification/browser",
+                params={"callback_port": "43210", "challenge": challenge},
+                headers=headers,
+                follow_redirects=False,
+            )
+            api_result = api_client.get(
+                "/qualification/browser",
+                params={"callback_port": "43210", "challenge": challenge},
+                headers=headers,
+                follow_redirects=False,
+            )
+
+        self.assertEqual(apix.status_code, 303)
+        self.assertTrue(apix.headers["location"].endswith("&target=web"))
+        self.assertEqual(api_result.status_code, 303)
+        self.assertTrue(api_result.headers["location"].endswith("&target=api"))
+        self.assertNotIn("synthetic.assertion.value", apix.headers["location"])
+
     def test_target_marker_is_closed_to_the_multi_attachment_profile(self) -> None:
         with self.assertRaisesRegex(ValueError, "target marker"):
             NetworkFixtureConfiguration(

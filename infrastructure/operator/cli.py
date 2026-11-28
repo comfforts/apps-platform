@@ -20,6 +20,9 @@ from infrastructure.operator.application_handoff_check import (
 )
 from infrastructure.operator._core import LifecycleOperator
 from infrastructure.operator.destruction import DestructionLifecycle
+from infrastructure.operator.fixture_qualification import (
+    FixtureQualificationLifecycle,
+)
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
     IntegrationBundleRequest,
@@ -33,6 +36,7 @@ from infrastructure.operator.local import (
     build_local_destruction,
     build_local_deployment_check,
     build_local_fixture_operator,
+    build_local_fixture_qualification,
     build_local_fixture_status_operator,
     build_local_integration,
     build_local_member_lifecycle,
@@ -98,6 +102,7 @@ def _parser() -> argparse.ArgumentParser:
             "platform-connect-project",
             "destroy",
             "fixture-handoff",
+            "fixture-qualify",
             "fixture-status",
             "fixture-destroy",
             "platform-member-status",
@@ -257,6 +262,19 @@ def _default_qualification_factory(
     )
 
 
+def _default_fixture_qualification_factory(
+    state_directory: Path,
+    source_authority: str,
+) -> FixtureQualificationLifecycle:
+    """Construct the independent plural-fixture qualification lifecycle."""
+
+    return build_local_fixture_qualification(
+        PROJECT_ROOT,
+        state_directory,
+        source_authority,
+    )
+
+
 def _default_destruction_factory(
     state_directory: Path,
     source_authority: str,
@@ -348,30 +366,7 @@ def _load_registration_intent(path: Path) -> RegistrationIntent:
     if loaded.violations or loaded.value is None:
         raise ValueError("invalid registration intent")
     value = loaded.value
-    additional = value.get("additional_attachment_bindings", [])
-    if not isinstance(additional, list):
-        raise ValueError("invalid registration intent")
-    return RegistrationIntent(
-        application_id=str(value["application_id"]),
-        access_mode=str(value["access_mode"]),
-        identity_delivery=str(value["identity_delivery"]),
-        catalogue_visibility=str(value["catalogue_visibility"]),
-        catalogue_title=str(value["catalogue_title"]),
-        catalogue_summary=str(value["catalogue_summary"]),
-        attachment_id=str(value["attachment_id"]),
-        mount_path=str(value["mount_path"]),
-        forwarding_mode=str(value["forwarding_mode"]),
-        contract_version=int(value["contract_version"]),
-        additional_attachment_bindings=tuple(
-            RegistrationAttachmentBinding(
-                attachment_id=str(binding["attachment_id"]),
-                mount_path=str(binding["mount_path"]),
-                forwarding_mode=str(binding["forwarding_mode"]),
-            )
-            for binding in additional
-            if isinstance(binding, dict)
-        ),
-    )
+    return RegistrationIntent.from_document(value)
 
 
 def _registration_intent_document(intent: RegistrationIntent) -> dict[str, object]:
@@ -421,6 +416,9 @@ def _main(
     qualification_factory: Callable[
         [Path, str, str], QualificationLifecycle
     ] = _default_qualification_factory,
+    fixture_qualification_factory: Callable[
+        [Path, str], FixtureQualificationLifecycle
+    ] = _default_fixture_qualification_factory,
     destruction_factory: Callable[
         [Path, str], DestructionLifecycle
     ] = _default_destruction_factory,
@@ -440,7 +438,7 @@ def _main(
     selected_fixture = (
         str(_required(arguments, "application_id"))
         if arguments.operation
-        in {"fixture-handoff", "fixture-destroy"}
+        in {"fixture-handoff", "fixture-qualify", "fixture-destroy"}
         else None
     )
     _trace_invocation(arguments, selected_fixture)
@@ -549,6 +547,21 @@ def _main(
                 arguments.state_directory,
                 arguments.source_authority,
                 str(_required(arguments, "owner_member_reference")),
+            )
+        except RuntimeError as error:
+            _print(
+                {
+                    "blockers": [str(error)],
+                    "environment": arguments.environment,
+                    "outcome": "blocked",
+                }
+            )
+            return 2
+    elif arguments.operation == "fixture-qualify":
+        try:
+            fixture_qualification = fixture_qualification_factory(
+                arguments.state_directory,
+                arguments.source_authority,
             )
         except RuntimeError as error:
             _print(
@@ -1074,6 +1087,25 @@ def _main(
         )
         return 0 if result.outcome in {"succeeded", "unchanged"} else 2
 
+    if arguments.operation == "fixture-qualify":
+        result = fixture_qualification.qualify_current(
+            arguments.environment,
+            str(_required(arguments, "application_id")),
+        )
+        _print(
+            {
+                "application_id": arguments.application_id,
+                "blockers": list(result.blockers),
+                "environment": arguments.environment,
+                "outcome": result.outcome,
+                "result_digest": result.result_digest,
+                "result_path": result.result_path,
+                "source_authority": arguments.source_authority,
+                "status_path": result.status_path,
+            }
+        )
+        return 0 if result.outcome in {"candidate-qualified", "qualified"} else 2
+
     if arguments.operation == "qualify":
         result = qualification.qualify_current(arguments.environment)
         evidence_path: str | None = None
@@ -1380,8 +1412,11 @@ def main(
         [Path, str], ApplicationIntegrationLifecycle
     ] = _default_integration_factory,
     qualification_factory: Callable[
-        [Path, str], QualificationLifecycle
+        [Path, str, str], QualificationLifecycle
     ] = _default_qualification_factory,
+    fixture_qualification_factory: Callable[
+        [Path, str], FixtureQualificationLifecycle
+    ] = _default_fixture_qualification_factory,
     destruction_factory: Callable[
         [Path, str], DestructionLifecycle
     ] = _default_destruction_factory,
@@ -1402,6 +1437,7 @@ def main(
             deployment_check_factory=deployment_check_factory,
             integration_factory=integration_factory,
             qualification_factory=qualification_factory,
+            fixture_qualification_factory=fixture_qualification_factory,
             destruction_factory=destruction_factory,
             fixture_factory=fixture_factory,
             fixture_status_factory=fixture_status_factory,

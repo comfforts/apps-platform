@@ -254,6 +254,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         self,
         directory: str,
         fake: FakeGcloud,
+        application_project_id: str = FIXTURES_PROJECT_ID,
     ) -> GcloudGenerationProvider:
         root = Path(directory)
         executable = root / "gcloud"
@@ -269,7 +270,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             ) -> ApplicationProjectConnection:
                 return ApplicationProjectConnection(
                     environment=environment,
-                    project_id=FIXTURES_PROJECT_ID,
+                    project_id=application_project_id,
                     project_number=project_number,
                     host_project_id=PROJECT_ID,
                     host_project_number="455651441682",
@@ -638,7 +639,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                     )
                 )
 
-    def test_attachment_readback_verifies_owner_ingress_audience_and_caller(self) -> None:
+    def test_attachment_readback_verifies_environment_owner_and_edge_posture(self) -> None:
         compiled = _canonical(proposal().compiled_configuration)
         fixture_labels = json.loads(
             (
@@ -649,7 +650,7 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         )["labels"]
 
         class AttachmentGcloud(FakeGcloud):
-            target_environment = str(fixture_labels["environment"])
+            target_environment: str | None = str(fixture_labels["environment"])
             identity_audience: str | None = (
                 "urn:comfforts:app-platform:audience:fixture-authenticated"
             )
@@ -677,7 +678,11 @@ class GenerationProviderCommandsTest(unittest.TestCase):
                                     },
                                     "labels": {
                                         "application_id": "fixture-authenticated",
-                                        "environment": self.target_environment,
+                                        **(
+                                            {"environment": self.target_environment}
+                                            if self.target_environment is not None
+                                            else {}
+                                        ),
                                         "state_owner": "application",
                                     },
                                     "name": "fixture-authenticated",
@@ -758,6 +763,13 @@ class GenerationProviderCommandsTest(unittest.TestCase):
             provider = self._provider(directory, fake)
 
             target = provider.read_target("staging", reference)
+            real_root = Path(directory) / "real-project"
+            real_root.mkdir()
+            real_candidate = self._provider(
+                str(real_root),
+                AttachmentGcloud(compiled),
+                "real-application-nonprod",
+            ).read_target("staging", reference)
 
         self.assertTrue(target.exists)
         self.assertTrue(target.ready)
@@ -782,12 +794,28 @@ class GenerationProviderCommandsTest(unittest.TestCase):
         )
         self.assertEqual(target.egress_mode, "all-traffic")
         self.assertEqual(target.blockers, ())
+        self.assertEqual(real_candidate.application_project_id, "real-application-nonprod")
+        self.assertEqual(real_candidate.blockers, ())
 
         fake.target_environment = "staging"
+        staging_target = provider.read_target("staging", reference)
+
+        self.assertEqual(staging_target.application_project_id, FIXTURES_PROJECT_ID)
+        self.assertEqual(staging_target.blockers, ())
+
+        fake.target_environment = "production"
         mismatched = provider.read_target("staging", reference)
 
         self.assertEqual(
             mismatched.blockers,
+            ("TARGET_ENVIRONMENT_LABEL_MISMATCH",),
+        )
+
+        fake.target_environment = None
+        missing_environment = provider.read_target("staging", reference)
+
+        self.assertEqual(
+            missing_environment.blockers,
             ("TARGET_ENVIRONMENT_LABEL_MISMATCH",),
         )
 

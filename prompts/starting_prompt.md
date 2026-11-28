@@ -34,8 +34,12 @@ application or discussion history is not authority. Do not import another reposi
 requirements, credentials, state, plans, or implementation into Apps Platform.
 
 The first implementation slice must replace the fixture-only Cloud Run target-readback assumption
-with environment-derived, validated target posture. Trace the current
-`environment=qualification` expectation through provider readback, handoff validation, tests,
+with environment-derived, validated target posture. For the selected staging profile, accept
+exactly `environment=qualification` candidates and `environment=staging` releases for both fixture
+and real application projects; project ownership must not select the label. Reject missing or
+other labels with the stable blocker. Treat either valid label as posture rather than evidence, and
+require real-application Candidate Qualification before Accepted Source staging release
+qualification. Trace the expectation through provider readback, handoff validation, tests,
 operator messages, and documentation. Preserve exact application-project, Shared VPC, ingress,
 edge-caller IAM, audience, readiness, and state-ownership checks. Add no generic
 `application-deploy` or `application-destroy` command.

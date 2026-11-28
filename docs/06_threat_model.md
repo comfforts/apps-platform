@@ -1,6 +1,6 @@
 # <u>App Platform threat model</u>
 
-Version 1.24 | Status: ADR-015 controls are implemented and Candidate-qualified by AP-M9-W10;
+Version 1.25 | Status: ADR-015 controls are implemented and Candidate-qualified by AP-M9-W10;
 AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 multi-attachment controls are accepted but
 unimplemented; real-application adoption, destructive recovery, and production readiness remain
@@ -279,6 +279,10 @@ requirement, and ownership entry must agree. Secrets and Terraform state address
 Provider adapters resolve only their own typed references with least-privilege credentials. The
 referenced project number must resolve to an explicitly connected application project, and target
 readback must match that project's approved Shared VPC network and subnet.
+
+For staging, target readback accepts only the lifecycle-stage labels `qualification` and `staging`
+for both fixture and real projects. Project identity cannot choose or waive a stage, and a label
+cannot be promoted into Candidate or Accepted Source evidence.
 
 **Evidence:** `C` covers unsupported kinds, malformed references, secrets, duplicate ownership, and
 cross-registration conflicts. `F` covers attachment selection and application isolation. `L`
@@ -583,7 +587,9 @@ application's requirements and security decisions.
 authority. Fixtures use synthetic state and cannot depend on a real application. Adoption names
 compatible contract revisions, application-owned authority changes, state-owner transitions,
 cutover, rollback, and product-specific evidence. One project cannot approve another project's
-change.
+change. A real application's revision-bound Candidate Qualification precedes merge and Accepted
+Source staging release qualification; target labels are validated posture and never substitute for
+either evidence record.
 
 **Evidence:** `C` preserves authority labels and dependency checks. `F` proves only generic platform
 behavior. `A` is mandatory for every real application and retains its prior historical evidence.

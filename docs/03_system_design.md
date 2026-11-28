@@ -1,6 +1,6 @@
 # <u>App Platform system design</u>
 
-Version 1.23 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
+Version 1.24 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
 Accepted Source staging platform and fixture qualification completed at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 multi-attachment handoff is accepted
 and planned for AP-M9-W12 but not implemented
@@ -1604,6 +1604,14 @@ application's canonical identity-capable target so an immutable predecessor rema
 the target gains optional identity support. That target annotation is a capability, not delivery
 authority: the active registration retains a null audience and the Shared Edge emits no assertion.
 An unrelated or otherwise mismatched audience remains invalid.
+
+The Cloud Run `environment` label describes target lifecycle stage rather than project ownership.
+For the staging Platform Environment, provider readback accepts the closed values `qualification`
+for a candidate target and `staging` for a release target. Fixture and real application projects
+may use either value in the corresponding stage; a missing, foreign, or cross-environment value
+fails closed. Project identity never selects the stage. The label is provider posture only:
+revision-bound Candidate Qualification must pass before the selected real application's Accepted
+Source staging release qualification, and neither result may be inferred from the label alone.
 
 An unconditional `roles/run.invoker` binding must contain the configured platform edge
 service-account principal. Conditional grants are not interpreted by the runtime. Any URL or state

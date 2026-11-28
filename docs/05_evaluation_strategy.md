@@ -1,6 +1,6 @@
 # <u>App Platform evaluation strategy</u>
 
-Version 0.31 | Status: AP-M9-W10 Version 2 Candidate Source qualification complete; AP-M9-W11
+Version 0.32 | Status: AP-M9-W10 Version 2 Candidate Source qualification complete; AP-M9-W11
 Accepted Source staging platform and fixture qualification completed at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 multi-attachment implementation
 and AP-EVAL-M9-10 real-application adoption are next; destructive recovery and production readiness
@@ -1793,6 +1793,12 @@ registration occurs. Prove full-set replacement, retained predecessor rollback, 
 detachment, and preservation of every unrelated registration. The existing three fixture
 deployments and Version 2 handoffs remain unchanged and readable.
 
+Provider posture validation must also prove that the selected staging profile accepts only the
+closed target stages `qualification` and `staging`. Exercise both labels with fixture and real
+application project connections. Reject a missing label and every other environment label with the
+same stable mismatch blocker. Project ownership must not select a stage, and an accepted label must
+not be reported as qualification evidence.
+
 #### AP-EVAL-M9-07 · Live routing, identity, isolation, and limits
 
 Exercise HTTPS redirect, certificate, catalogue, routes, mounts, longest segment-bounded selection,
@@ -1889,16 +1895,23 @@ reconstructed.
 #### AP-EVAL-M9-10 · First real-application staging adoption
 
 For one application selected through matching platform and application-repository authority,
-verify the application-project connection and application handoff without using fixture-only
-labels or Apps Platform deployment authority. Bind a Version 3 Platform Integration Bundle to the
-exact Accepted Source platform revision and Version 2 Registration Generation. Require the
-Application Owner to deploy every target through its own repository and state lineage and return a
-valid complete Version 3 Application Attachment Bundle and registration intent. Require the root
-target and its `/` binding. When optional additional targets are present, require both optional
-attributes, at most fifteen entries, exact equality of their attachment IDs, and exclusion of the
-root ID. When the selected application uses separate frontend and backend services, the frontend
-must be the required root and the backend must be returned as an additional attachment such as
-`/api`.
+verify the application-project connection and application handoff without Apps Platform deployment
+authority. Bind a Version 3 Platform Integration Bundle to the exact Accepted Source platform
+revision and Version 2 Registration Generation. Require the Application Owner to deploy every
+target through its own repository and state lineage and return a valid complete Version 3
+Application Attachment Bundle and registration intent. Require the root target and its `/`
+binding. When optional additional targets are present, require both optional attributes, at most
+fifteen entries, exact equality of their attachment IDs, and exclusion of the root ID. When the
+selected application uses separate frontend and backend services, the frontend must be the
+required root and the backend must be returned as an additional attachment such as `/api`.
+
+Evaluate two ordered real-application gates. The Candidate Source gate requires every target to
+carry `environment=qualification`, records revision-bound Candidate Qualification, and restores
+the reviewed predecessor before merge. The Accepted Source release gate requires the candidate
+result, reconciles every target with `environment=staging`, and repeats the complete posture,
+routing, identity, authorization, isolation, rollback, and restoration checks. Both labels are
+valid for fixture and real application projects in their corresponding stage; missing or other
+labels fail. Neither project identity nor the label itself is evidence that either gate passed.
 
 Before this adoption begins, require both the exact readable Accepted Source platform qualification
 and the separate passing `fixture-multi-attachment` qualification bound to its exact platform
@@ -1913,8 +1926,8 @@ target-specific failure isolation, complete-generation rollback and restoration,
 state ownership. Prove one invalid or unavailable target activates no subset and preserves the
 reviewed predecessor. Record exact platform and application revisions, attachment identifiers,
 target-reference digests, handoff and generation versions, and least-data evidence in their
-separately governed records. Leave the complete application active for the destructive-recovery
-gate.
+separately governed Candidate and Accepted Source records. Leave the complete Accepted Source
+application active for the destructive-recovery gate.
 
 #### AP-EVAL-M9-11 · Platform destruction, recovery, reattachment, and requalification
 

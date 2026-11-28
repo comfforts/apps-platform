@@ -361,7 +361,8 @@ destroyed and recovered.
 ### AP-M9-W12 · First real-application staging adoption qualification
 
 Select one real application only through matching platform and application-repository authority.
-Replace the fixture-only target-readback assumption with environment-derived validation. Implement
+Replace the fixture-only target-readback assumption with closed, project-independent staging
+candidate/release target-stage validation. Implement
 ADR-017 as a closed Version 3 application-handoff family containing one required root target plus
 optional complete additional target and binding sets, validate and read back every target
 atomically, and project the result into the existing Version 2 multi-attachment registration and

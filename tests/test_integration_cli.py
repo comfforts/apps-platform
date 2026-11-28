@@ -30,9 +30,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 VECTORS = PROJECT_ROOT / "contracts/lifecycle/test-vectors/valid"
 
 
-def _integration_bundle() -> dict[str, object]:
+def _integration_bundle(version: int = 2) -> dict[str, object]:
+    filename = (
+        "platform-integration-bundle.staging.synthetic.v3.json"
+        if version == 3
+        else "platform-integration-bundle.staging.synthetic.v2.json"
+    )
     return json.loads(
-        (VECTORS / "platform-integration-bundle.staging.synthetic.v2.json").read_text()
+        (VECTORS / filename).read_text()
     )
 
 
@@ -43,7 +48,7 @@ class Integration:
 
     def outputs(self, request: IntegrationBundleRequest) -> IntegrationBundleResult:
         self.output_requests.append(request)
-        bundle = _integration_bundle()
+        bundle = _integration_bundle(request.handoff_version)
         return IntegrationBundleResult(
             "generated",
             bundle,
@@ -164,6 +169,33 @@ class IntegrationCliTest(unittest.TestCase):
                 FIXTURES_PROJECT_ID,
             )
 
+    def test_outputs_requires_an_explicit_v3_selection_for_plural_handoffs(self) -> None:
+        integration = Integration()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                code = main(
+                    [
+                        "outputs",
+                        "--environment", "staging",
+                        "--state-directory", temporary,
+                        "--application-id", "fixture-multi-attachment",
+                        "--application-project-id", FIXTURES_PROJECT_ID,
+                        "--access-mode", "authenticated",
+                        "--identity-delivery", "required",
+                        "--handoff-version", "3",
+                        "--route-intent", "/fixture-multi-attachment",
+                        "--platform-source-revision", "a" * 40,
+                        "--platform-generation", "1",
+                    ],
+                    integration_factory=lambda _path, _authority: integration,
+                )
+            result = json.loads(output.getvalue())
+
+        self.assertEqual(code, 0)
+        self.assertEqual(integration.output_requests[0].handoff_version, 3)
+        self.assertTrue(result["bundle_path"].endswith(".v3.json"))
+
     def test_fixture_handoff_consumes_existing_bundle_and_stops(self) -> None:
         fixture = Fixture()
         bundle_path = VECTORS / "platform-integration-bundle.staging.synthetic.v2.json"
@@ -224,6 +256,44 @@ class IntegrationCliTest(unittest.TestCase):
                 )
         self.assertEqual(code, 0)
         self.assertEqual(len(integration.registrations), 1)
+
+    def test_platform_register_accepts_one_complete_v3_handoff_family(self) -> None:
+        integration = Integration()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                code = main(
+                    [
+                        "register",
+                        "--environment", "staging",
+                        "--state-directory", temporary,
+                        "--integration-bundle",
+                        str(
+                            VECTORS
+                            / "platform-integration-bundle.staging.synthetic.v3.json"
+                        ),
+                        "--attachment-bundle",
+                        str(
+                            VECTORS
+                            / "application-attachment-bundle.staging.multi.synthetic.v3.json"
+                        ),
+                        "--registration-intent",
+                        str(
+                            VECTORS
+                            / "registration-intent.staging.multi.synthetic.v3.json"
+                        ),
+                    ],
+                    integration_factory=lambda _path, _authority: integration,
+                )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(len(integration.registrations), 1)
+        intent = integration.registrations[0][2]
+        self.assertEqual(intent.contract_version, 3)
+        self.assertEqual(
+            [binding.attachment_id for binding in intent.additional_attachment_bindings],
+            ["api"],
+        )
 
     def test_platform_register_rejects_mixed_handoff_versions(self) -> None:
         integration = Integration()

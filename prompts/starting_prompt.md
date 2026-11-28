@@ -54,14 +54,14 @@ Reject mixed versions, root-ID reuse, one optional attribute without the other, 
 ambiguous mounts, stale relationships, and partial sets. Prove omission of both optional attributes
 is a valid root-only Version 3 handoff.
 
-The next, third slice must validate and read back every target independently, aggregate only redacted
-ordered failures, project a fully valid Version 3 handoff into the existing Version 2
-multi-attachment Application Registration, and activate only one complete generation. Prove one
-target failure causes no publication, traffic change, or partial activation. Preserve
-longest-segment mount routing, full-set update, predecessor rollback, application-wide detachment,
-and unrelated registrations. Read no Application State.
+The third slice validates and reads back every target independently, aggregates only redacted
+ordered failures, projects a fully valid Version 3 handoff into the existing Version 2
+multi-attachment Application Registration, and activates only one complete generation. It proves
+one target failure causes no publication, traffic change, or partial activation; preserves
+longest-segment routing, full-set update, predecessor retention, application-wide detachment, and
+unrelated registrations; and reads no Application State.
 
-The fourth platform slice must keep all three existing fixture deployments and Version 2 handoffs
+The next, fourth platform slice must keep all three existing fixture deployments and Version 2 handoffs
 unchanged and add `fixture-multi-attachment` as a fourth application. Use authenticated admission,
 required Identity Delivery, unlisted catalogue visibility, and one independent Application State
 root. Return its frontend Cloud Run service as the required `web` attachment at `/` and its

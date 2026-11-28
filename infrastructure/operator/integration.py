@@ -49,7 +49,9 @@ class PlatformIntegrationState:
 class PlatformIntegrationReader(Protocol):
     """Read the already-reconciled platform state without reading Application State."""
 
-    def read_platform(self, environment: str) -> PlatformIntegrationState: ...
+    def read_platform(self, environment: str) -> PlatformIntegrationState:
+        """Return the selected environment's bounded platform integration facts."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +80,9 @@ class AttachmentTargetReader(Protocol):
         self,
         environment: str,
         resource_reference: str,
-    ) -> AttachmentTargetReadback: ...
+    ) -> AttachmentTargetReadback:
+        """Return bounded posture for one exact target without reading Application State."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +97,7 @@ class IntegrationBundleRequest:
     expected_platform_source_revision: str
     expected_generation: int
     application_project_id: str = field(default_factory=fixtures_project_id)
+    handoff_version: int = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,17 +114,23 @@ class ApplicationProjectConnection:
 
 
 class ApplicationProjectConnectionReader(Protocol):
+    """Read the reviewed project-to-platform network connection facts."""
+
     def read_connection(
         self,
         environment: str,
         project_id: str,
-    ) -> ApplicationProjectConnection: ...
+    ) -> ApplicationProjectConnection:
+        """Return one exact project connection selected by project identifier."""
+        ...
 
     def read_project_number(
         self,
         environment: str,
         project_number: str,
-    ) -> ApplicationProjectConnection: ...
+    ) -> ApplicationProjectConnection:
+        """Return one exact project connection selected by numeric identifier."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +150,33 @@ class AttachmentValidationResult:
     outcome: str
     attachment_bundle: dict[str, Any] | None
     blockers: tuple[str, ...] = ()
+    target_violations: tuple[AttachmentTargetViolation, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class AttachmentTargetViolation:
+    """One redacted target failure keyed only by reviewed attachment ID and code."""
+
+    attachment_id: str
+    code: str
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationAttachmentBinding:
+    """One additional V3 attachment's reviewed registration routing choices."""
+
+    attachment_id: str
+    mount_path: str
+    forwarding_mode: str
+
+    def document(self) -> dict[str, str]:
+        """Return the closed contract representation without target or provider data."""
+
+        return {
+            "attachment_id": self.attachment_id,
+            "mount_path": self.mount_path,
+            "forwarding_mode": self.forwarding_mode,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +192,31 @@ class RegistrationIntent:
     attachment_id: str
     mount_path: str
     forwarding_mode: str
+    contract_version: int = 2
+    additional_attachment_bindings: tuple[RegistrationAttachmentBinding, ...] = ()
+
+    def document(self) -> dict[str, object]:
+        """Return the exact closed V2 or V3 lifecycle-contract document."""
+
+        document: dict[str, object] = {
+            "contract_version": self.contract_version,
+            "document_kind": "registration-intent",
+            "application_id": self.application_id,
+            "access_mode": self.access_mode,
+            "identity_delivery": self.identity_delivery,
+            "catalogue_visibility": self.catalogue_visibility,
+            "catalogue_title": self.catalogue_title,
+            "catalogue_summary": self.catalogue_summary,
+            "attachment_id": self.attachment_id,
+            "mount_path": self.mount_path,
+            "forwarding_mode": self.forwarding_mode,
+        }
+        if self.additional_attachment_bindings:
+            document["additional_attachment_bindings"] = [
+                binding.document()
+                for binding in self.additional_attachment_bindings
+            ]
+        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,19 +265,25 @@ class RegistrationGenerationControl(Protocol):
     def current(
         self,
         environment: str,
-    ) -> RegistrationGenerationProposal | None: ...
+    ) -> RegistrationGenerationProposal | None:
+        """Return the exact active generation or ``None`` when no generation exists."""
+        ...
 
     def publish(
         self,
         proposal: RegistrationGenerationProposal,
-    ) -> GenerationPublicationReadback: ...
+    ) -> GenerationPublicationReadback:
+        """Create one immutable generation and return exact bounded readback."""
+        ...
 
     def activate(
         self,
         environment: str,
         publication_reference: str,
         generation_digest: str,
-    ) -> GenerationActivationReadback: ...
+    ) -> GenerationActivationReadback:
+        """Move the whole-generation pointer and return its exact active digest."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,6 +294,7 @@ class RegistrationLifecycleResult:
     generation: int | None
     generation_digest: str | None
     blockers: tuple[str, ...] = ()
+    target_violations: tuple[AttachmentTargetViolation, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +317,17 @@ class RegistrationApplicationStatus:
     resource_reference: str
     target_exists: bool
     target_ready: bool
+    attachments: tuple[RegistrationAttachmentStatus, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationAttachmentStatus:
+    """Read-only provider posture for one attachment in an active registration."""
+
+    attachment_id: str
+    resource_reference: str
+    target_exists: bool
+    target_ready: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +339,7 @@ class RegistrationStatusResult:
     generation_digest: str | None
     applications: tuple[RegistrationApplicationStatus, ...]
     blockers: tuple[str, ...] = ()
+    target_violations: tuple[AttachmentTargetViolation, ...] = ()
 
 
 class ApplicationIntegrationLifecycle:
@@ -272,6 +354,8 @@ class ApplicationIntegrationLifecycle:
         project_connections: ApplicationProjectConnectionReader | None = None,
         terminal: OperatorTerminal | None = None,
     ) -> None:
+        """Bind provider-neutral orchestration to explicit read and mutation seams."""
+
         self._platform_reader = platform_reader
         self._attachment_reader = attachment_reader
         self._generation_control = generation_control
@@ -288,6 +372,8 @@ class ApplicationIntegrationLifecycle:
 
     @staticmethod
     def _blocked(*blockers: str) -> IntegrationBundleResult:
+        """Return one deduplicated fail-closed integration-bundle result."""
+
         return IntegrationBundleResult(
             outcome="blocked",
             bundle=None,
@@ -296,8 +382,15 @@ class ApplicationIntegrationLifecycle:
         )
 
     def outputs(self, request: IntegrationBundleRequest) -> IntegrationBundleResult:
-        """Return one exact non-secret Platform Integration Bundle."""
+        """Return one exact non-secret V2 or explicitly selected V3 bundle.
 
+        The request performs only bounded platform and project-connection reads. V2 remains the
+        default compatibility path; V3 adds the complete attachment-set limits but no target,
+        publication, activation, Application State read, or application deployment.
+        """
+
+        if request.handoff_version not in {2, 3}:
+            return self._blocked("HANDOFF_VERSION_UNSUPPORTED")
         if request.access_mode not in {"public", "authenticated", "restricted"}:
             return self._blocked("ACCESS_MODE_UNSUPPORTED")
         allowed_identity_delivery = {
@@ -343,7 +436,7 @@ class ApplicationIntegrationLifecycle:
         identity_enabled = request.identity_delivery in {"optional", "required"}
         origin = f"https://{state.hostname}"
         bundle: dict[str, Any] = {
-            "contract_version": 2,
+            "contract_version": request.handoff_version,
             "document_kind": "platform-integration-bundle",
             "environment": request.environment,
             "application_id": request.application_id,
@@ -392,6 +485,13 @@ class ApplicationIntegrationLifecycle:
             },
             "qualification_status": state.qualification_status,
         }
+        if request.handoff_version == 3:
+            bundle["attachment_contract"].update(
+                {
+                    "maximum_additional_attachments": 15,
+                    "root_attachment_required": True,
+                }
+            )
         if validate_versioned_lifecycle_document(bundle, "platform-integration-bundle"):
             return self._blocked("INTEGRATION_BUNDLE_INVALID")
         return IntegrationBundleResult(
@@ -404,11 +504,17 @@ class ApplicationIntegrationLifecycle:
         )
 
     @staticmethod
-    def _attachment_blocked(*blockers: str) -> AttachmentValidationResult:
+    def _attachment_blocked(
+        *blockers: str,
+        target_violations: tuple[AttachmentTargetViolation, ...] = (),
+    ) -> AttachmentValidationResult:
+        """Return one fail-closed attachment result with redacted target details."""
+
         return AttachmentValidationResult(
             outcome="blocked",
             attachment_bundle=None,
             blockers=tuple(sorted(set(blockers))),
+            target_violations=target_violations,
         )
 
     @staticmethod
@@ -416,6 +522,8 @@ class ApplicationIntegrationLifecycle:
         bundle: dict[str, Any],
         state: PlatformIntegrationState,
     ) -> bool:
+        """Compare a handoff only with bounded current platform integration facts."""
+
         identity = bundle.get("identity")
         identity_enabled = bundle.get("identity_delivery") in {"optional", "required"}
         return (
@@ -439,48 +547,93 @@ class ApplicationIntegrationLifecycle:
             )
         )
 
-    def validate_attachment(
-        self,
-        integration_bundle: dict[str, Any],
+    @staticmethod
+    def _attachment_targets(
         attachment_bundle: dict[str, Any],
-    ) -> AttachmentValidationResult:
-        """Validate one application handoff and exact provider target posture."""
+        intent: RegistrationIntent | None,
+    ) -> tuple[tuple[str, dict[str, Any]], ...]:
+        """Normalize a validated V2/V3 bundle into root-first target entries.
 
-        if integration_bundle.get("contract_version") != 2:
-            return self._attachment_blocked("INTEGRATION_BUNDLE_VERSION_UNSUPPORTED")
-        if attachment_bundle.get("contract_version") != 2:
-            return self._attachment_blocked("ATTACHMENT_BUNDLE_VERSION_UNSUPPORTED")
-        if validate_versioned_lifecycle_document(
-            integration_bundle,
-            "platform-integration-bundle",
-        ):
-            return self._attachment_blocked("INTEGRATION_BUNDLE_INVALID")
-        if validate_versioned_lifecycle_document(
-            attachment_bundle,
-            "application-attachment-bundle",
-        ):
-            return self._attachment_blocked("ATTACHMENT_BUNDLE_INVALID")
-        if validate_versioned_lifecycle_relationships(
-            integration_bundle=integration_bundle,
-            attachment_bundle=attachment_bundle,
-        ):
-            return self._attachment_blocked("ATTACHMENT_BUNDLE_MISMATCH")
+        V3 additional entries retain canonical attachment-ID order established by the lifecycle
+        contract. The returned values contain no provider observations and are used only after the
+        source documents have passed their closed schemas.
+        """
+
+        target = attachment_bundle["target"]
+        assert isinstance(target, dict)
+        root_id = intent.attachment_id if intent is not None else "root"
+        targets: list[tuple[str, dict[str, Any]]] = [(root_id, target)]
+        additional = attachment_bundle.get("additional_attachments")
+        if isinstance(additional, list):
+            for entry in additional:
+                assert isinstance(entry, dict)
+                additional_target = entry["target"]
+                assert isinstance(additional_target, dict)
+                targets.append((str(entry["attachment_id"]), additional_target))
+        return tuple(targets)
+
+    @staticmethod
+    def _relationship_target_violations(
+        violations: tuple[Any, ...],
+        attachment_bundle: dict[str, Any],
+        intent: RegistrationIntent | None,
+    ) -> tuple[AttachmentTargetViolation, ...]:
+        """Project contract target violations into approved IDs and stable codes only."""
+
+        if intent is None:
+            return ()
+        additional = attachment_bundle.get("additional_attachments")
+        codes_by_attachment: dict[str, set[str]] = {}
+        for violation in violations:
+            attachment_id: str | None = None
+            if str(violation.path).startswith("/attachment_bundle/target"):
+                attachment_id = intent.attachment_id
+            elif str(violation.path).startswith(
+                "/attachment_bundle/additional_attachments/"
+            ):
+                parts = str(violation.path).split("/")
+                try:
+                    index = int(parts[3])
+                    entry = additional[index] if isinstance(additional, list) else None
+                except (IndexError, TypeError, ValueError):
+                    entry = None
+                if isinstance(entry, dict) and isinstance(
+                    entry.get("attachment_id"), str
+                ):
+                    attachment_id = str(entry["attachment_id"])
+            if attachment_id is not None:
+                codes_by_attachment.setdefault(attachment_id, set()).add(
+                    str(violation.code)
+                )
+        return tuple(
+            AttachmentTargetViolation(attachment_id, code)
+            for attachment_id, _target in ApplicationIntegrationLifecycle._attachment_targets(
+                attachment_bundle,
+                intent,
+            )
+            for code in sorted(codes_by_attachment.get(attachment_id, ()))
+        )
+
+    @staticmethod
+    def _target_posture_blockers(
+        target: dict[str, Any],
+        integration_bundle: dict[str, Any],
+    ) -> tuple[str, ...]:
+        """Return stable handoff relationship blockers for one validated target."""
 
         application_project = integration_bundle["application_project"]
         network = integration_bundle["network"]
         identity = integration_bundle["identity"]
         attachment_contract = integration_bundle["attachment_contract"]
-        target = attachment_bundle["target"]
         assert isinstance(application_project, dict)
         assert isinstance(network, dict)
         assert isinstance(identity, dict)
         assert isinstance(attachment_contract, dict)
-        assert isinstance(target, dict)
         expected_reference_prefix = (
             "urn:comfforts:app-platform:gcp:cloud-run:"
             f"{application_project['project_number']}:{network['region']}:"
         )
-        relationship_comparisons = (
+        comparisons = (
             (
                 target["application_project_id"],
                 application_project["project_id"],
@@ -529,41 +682,24 @@ class ApplicationIntegrationLifecycle:
                 "ATTACHMENT_AUDIENCE_MISMATCH",
             ),
         )
-        relationship_blockers = tuple(
+        return tuple(
             blocker
-            for observed, expected, blocker in relationship_comparisons
+            for observed, expected, blocker in comparisons
             if observed != expected
         )
-        if relationship_blockers:
-            return self._attachment_blocked(*relationship_blockers)
 
-        environment = integration_bundle["environment"]
-        assert isinstance(environment, str)
-        try:
-            state = self._platform_reader.read_platform(environment)
-        except Exception:
-            return self._attachment_blocked("PLATFORM_READBACK_FAILED")
-        if not self._matches_platform_state(integration_bundle, state):
-            return self._attachment_blocked("PLATFORM_STATE_MISMATCH")
-        if self._attachment_reader is None:
-            return self._attachment_blocked("ATTACHMENT_READBACK_UNAVAILABLE")
+    @staticmethod
+    def _provider_target_blockers(
+        target: dict[str, Any],
+        readback: AttachmentTargetReadback,
+    ) -> tuple[str, ...]:
+        """Compare one provider readback with its declared target without leaking payloads."""
 
-        resource_reference = target["resource_reference"]
-        assert isinstance(resource_reference, str)
-        try:
-            readback = self._attachment_reader.read_target(
-                environment,
-                resource_reference,
-            )
-        except Exception:
-            return self._attachment_blocked("TARGET_READBACK_FAILED")
         if not readback.exists:
-            return self._attachment_blocked("TARGET_NOT_FOUND")
+            return ("TARGET_NOT_FOUND",)
+        blockers = list(readback.blockers)
         if not readback.ready:
-            return self._attachment_blocked("TARGET_NOT_READY")
-        if readback.blockers:
-            return self._attachment_blocked(*readback.blockers)
-
+            blockers.append("TARGET_NOT_READY")
         comparisons = (
             (
                 readback.owner_application_id,
@@ -616,13 +752,115 @@ class ApplicationIntegrationLifecycle:
                 "TARGET_AUDIENCE_MISMATCH",
             ),
         )
-        blockers = tuple(
+        blockers.extend(
             blocker
             for observed, expected, blocker in comparisons
             if observed != expected
         )
-        if blockers:
-            return self._attachment_blocked(*blockers)
+        return tuple(sorted(set(blockers)))
+
+    def validate_attachment(
+        self,
+        integration_bundle: dict[str, Any],
+        attachment_bundle: dict[str, Any],
+        intent: RegistrationIntent | None = None,
+    ) -> AttachmentValidationResult:
+        """Validate a complete handoff and read every declared target atomically.
+
+        V2 remains a readable single-target compatibility path. V3 requires its registration
+        intent so root and optional target IDs can be validated as one exact family. Every validly
+        declared target is read before any failure is returned; failures expose only approved
+        attachment IDs and stable codes, and this method has no publication or activation seam.
+        """
+
+        selected_version = integration_bundle.get("contract_version")
+        if selected_version not in {2, 3}:
+            return self._attachment_blocked("INTEGRATION_BUNDLE_VERSION_UNSUPPORTED")
+        if attachment_bundle.get("contract_version") != selected_version:
+            return self._attachment_blocked("ATTACHMENT_BUNDLE_VERSION_UNSUPPORTED")
+        if selected_version == 3 and intent is None:
+            return self._attachment_blocked("REGISTRATION_INTENT_REQUIRED")
+        if validate_versioned_lifecycle_document(
+            integration_bundle,
+            "platform-integration-bundle",
+        ):
+            return self._attachment_blocked("INTEGRATION_BUNDLE_INVALID")
+        if validate_versioned_lifecycle_document(
+            attachment_bundle,
+            "application-attachment-bundle",
+        ):
+            return self._attachment_blocked("ATTACHMENT_BUNDLE_INVALID")
+        intent_document = (
+            intent.document()
+            if selected_version == 3 and intent is not None
+            else None
+        )
+        relationship_violations = validate_versioned_lifecycle_relationships(
+            integration_bundle=integration_bundle,
+            attachment_bundle=attachment_bundle,
+            registration_intent=intent_document,
+        )
+        if relationship_violations:
+            return self._attachment_blocked(
+                "ATTACHMENT_BUNDLE_MISMATCH",
+                target_violations=self._relationship_target_violations(
+                    relationship_violations,
+                    attachment_bundle,
+                    intent,
+                ),
+            )
+
+        targets = self._attachment_targets(attachment_bundle, intent)
+        relationship_details = tuple(
+            AttachmentTargetViolation(attachment_id, blocker)
+            for attachment_id, target in targets
+            for blocker in self._target_posture_blockers(
+                target,
+                integration_bundle,
+            )
+        )
+        relationship_blockers = tuple(
+            detail.code for detail in relationship_details
+        )
+        if relationship_blockers:
+            return self._attachment_blocked(
+                *relationship_blockers,
+                target_violations=relationship_details,
+            )
+
+        environment = integration_bundle["environment"]
+        assert isinstance(environment, str)
+        try:
+            state = self._platform_reader.read_platform(environment)
+        except Exception:
+            return self._attachment_blocked("PLATFORM_READBACK_FAILED")
+        if not self._matches_platform_state(integration_bundle, state):
+            return self._attachment_blocked("PLATFORM_STATE_MISMATCH")
+        if self._attachment_reader is None:
+            return self._attachment_blocked("ATTACHMENT_READBACK_UNAVAILABLE")
+
+        target_violations: list[AttachmentTargetViolation] = []
+        for attachment_id, target in targets:
+            resource_reference = target["resource_reference"]
+            assert isinstance(resource_reference, str)
+            try:
+                readback = self._attachment_reader.read_target(
+                    environment,
+                    resource_reference,
+                )
+            except Exception:
+                blockers = ("TARGET_READBACK_FAILED",)
+            else:
+                blockers = self._provider_target_blockers(target, readback)
+            target_violations.extend(
+                AttachmentTargetViolation(attachment_id, blocker)
+                for blocker in blockers
+            )
+        if target_violations:
+            return self._attachment_blocked(
+                *(detail.code for detail in target_violations),
+                target_violations=tuple(target_violations),
+            )
         return AttachmentValidationResult(
             outcome="validated",
             attachment_bundle=attachment_bundle,
@@ -633,7 +871,10 @@ class ApplicationIntegrationLifecycle:
         *blockers: str,
         outcome: str = "blocked",
         proposal: RegistrationGenerationProposal | None = None,
+        target_violations: tuple[AttachmentTargetViolation, ...] = (),
     ) -> RegistrationLifecycleResult:
+        """Return a fail-closed lifecycle result without publishing partial output."""
+
         return RegistrationLifecycleResult(
             outcome=outcome,
             generation=(
@@ -645,6 +886,7 @@ class ApplicationIntegrationLifecycle:
                 proposal.generation_digest if proposal is not None else None
             ),
             blockers=tuple(sorted(set(blockers))),
+            target_violations=target_violations,
         )
 
     @staticmethod
@@ -652,10 +894,14 @@ class ApplicationIntegrationLifecycle:
         integration_bundle: dict[str, Any],
         intent: RegistrationIntent,
     ) -> bool:
-        """Require the reviewed V2 intent to repeat, not redefine, handoff policy."""
+        """Require one valid same-version intent that repeats handoff policy."""
 
         return (
-            integration_bundle.get("contract_version") == 2
+            intent.contract_version == integration_bundle.get("contract_version")
+            and not validate_versioned_lifecycle_document(
+                intent.document(),
+                "registration-intent",
+            )
             and intent.application_id == integration_bundle.get("application_id")
             and intent.access_mode == integration_bundle.get("access_mode")
             and intent.identity_delivery
@@ -670,12 +916,53 @@ class ApplicationIntegrationLifecycle:
         lifecycle: str,
         registration_revision: int,
     ) -> dict[str, Any]:
+        """Project one validated V2/V3 handoff into the existing V2 registration."""
+
         access_mode = str(integration_bundle["access_mode"])
         identity_delivery = str(integration_bundle["identity_delivery"])
         identity = integration_bundle["identity"]
         target = attachment_bundle["target"]
         assert isinstance(identity, dict)
         assert isinstance(target, dict)
+        targets_by_id = {
+            str(entry["attachment_id"]): entry["target"]
+            for entry in attachment_bundle.get("additional_attachments", [])
+        }
+        attachment_bindings = (
+            RegistrationAttachmentBinding(
+                intent.attachment_id,
+                intent.mount_path,
+                intent.forwarding_mode,
+            ),
+            *intent.additional_attachment_bindings,
+        )
+        registration_attachments: list[dict[str, Any]] = []
+        for binding in attachment_bindings:
+            selected_target = (
+                target
+                if binding.attachment_id == intent.attachment_id
+                else targets_by_id[binding.attachment_id]
+            )
+            assert isinstance(selected_target, dict)
+            registration_attachments.append(
+                {
+                    "contract_version": 2,
+                    "owner_application_id": integration_bundle["application_id"],
+                    "attachment_id": binding.attachment_id,
+                    "adapter_kind": selected_target["adapter_kind"],
+                    "resource_reference": selected_target["resource_reference"],
+                    "mount_path": binding.mount_path,
+                    "forwarding_mode": binding.forwarding_mode,
+                    "identity_requirement": {
+                        "none": "none",
+                        "optional": "optional",
+                        "required": "verified",
+                    }[identity_delivery],
+                    "audience": identity["audience"],
+                    "ingress_mode": selected_target["ingress_mode"],
+                }
+            )
+        registration_attachments.sort(key=lambda item: item["attachment_id"])
         return {
             "contract_version": 2,
             "application_id": integration_bundle["application_id"],
@@ -689,28 +976,13 @@ class ApplicationIntegrationLifecycle:
             "admission": {"mode": access_mode},
             "identity_delivery": identity_delivery,
             "lifecycle": lifecycle,
-            "attachments": [
-                {
-                    "contract_version": 2,
-                    "owner_application_id": integration_bundle["application_id"],
-                    "attachment_id": intent.attachment_id,
-                    "adapter_kind": target["adapter_kind"],
-                    "resource_reference": target["resource_reference"],
-                    "mount_path": intent.mount_path,
-                    "forwarding_mode": intent.forwarding_mode,
-                    "identity_requirement": {
-                        "none": "none",
-                        "optional": "optional",
-                        "required": "verified",
-                    }[identity_delivery],
-                    "audience": identity["audience"],
-                    "ingress_mode": target["ingress_mode"],
-                }
-            ],
+            "attachments": registration_attachments,
         }
 
     @staticmethod
     def _canonical_digest(value: object) -> str:
+        """Return the deterministic digest used to bind compiled provider content."""
+
         payload = json.dumps(
             value,
             ensure_ascii=False,
@@ -746,6 +1018,8 @@ class ApplicationIntegrationLifecycle:
         registration: dict[str, Any],
         change_summary: str,
     ) -> RegistrationGenerationProposal | None:
+        """Compile one full successor while replacing exactly one application."""
+
         previous = current.registration_set if current is not None else None
         comparison_previous = cls._version_two_previous(previous)
         if previous is not None and comparison_previous is None:
@@ -809,6 +1083,8 @@ class ApplicationIntegrationLifecycle:
         replacements: tuple[dict[str, Any], ...],
         change_summary: str,
     ) -> RegistrationGenerationProposal | None:
+        """Compile one full successor while replacing a reviewed application set."""
+
         previous = current.registration_set if current is not None else None
         comparison_previous = cls._version_two_previous(previous)
         if previous is not None and comparison_previous is None:
@@ -869,6 +1145,8 @@ class ApplicationIntegrationLifecycle:
         *,
         reviewed_confirmation: bool = False,
     ) -> RegistrationLifecycleResult:
+        """Publish one immutable proposal, confirm it, and atomically activate it."""
+
         assert self._generation_control is not None
         assert self._terminal is not None
         try:
@@ -1000,9 +1278,13 @@ class ApplicationIntegrationLifecycle:
             validated = self.validate_attachment(
                 entry.integration_bundle,
                 entry.attachment_bundle,
+                entry.intent,
             )
             if validated.outcome != "validated":
-                return self._registration_blocked(*validated.blockers)
+                return self._registration_blocked(
+                    *validated.blockers,
+                    target_violations=validated.target_violations,
+                )
             if not self._registration_intent_valid(
                 entry.integration_bundle,
                 entry.intent,
@@ -1070,7 +1352,12 @@ class ApplicationIntegrationLifecycle:
         environment: str,
         application_ids: tuple[str, ...],
     ) -> RegistrationStatusResult:
-        """Read registration and target posture without mutating either owner."""
+        """Read every registered target without mutating either owner.
+
+        Application-level compatibility booleans summarize the complete attachment set. Target
+        failures are accumulated for the application and expose only attachment IDs and stable
+        codes, never provider payloads or Application State.
+        """
 
         if self._generation_control is None or self._attachment_reader is None:
             return RegistrationStatusResult(
@@ -1128,7 +1415,7 @@ class ApplicationIntegrationLifecycle:
             )
             if (
                 not isinstance(attachments, list)
-                or len(attachments) != 1
+                or not 1 <= len(attachments) <= 16
                 or catalogue_visibility not in {"listed", "unlisted"}
             ):
                 return RegistrationStatusResult(
@@ -1138,8 +1425,7 @@ class ApplicationIntegrationLifecycle:
                     tuple(statuses),
                     ("FIXTURE_REGISTRATION_INVALID",),
                 )
-            resource_reference = attachments[0].get("resource_reference")
-            if not isinstance(resource_reference, str):
+            if any(not isinstance(item, dict) for item in attachments):
                 return RegistrationStatusResult(
                     "blocked",
                     int(current.registration_set["generation"]),
@@ -1147,35 +1433,100 @@ class ApplicationIntegrationLifecycle:
                     tuple(statuses),
                     ("FIXTURE_REGISTRATION_INVALID",),
                 )
-            try:
-                target = self._attachment_reader.read_target(
-                    environment,
-                    resource_reference,
-                )
-            except Exception:
+            attachment_ids = [item.get("attachment_id") for item in attachments]
+            if (
+                any(not isinstance(item, str) for item in attachment_ids)
+                or len(set(attachment_ids)) != len(attachment_ids)
+            ):
                 return RegistrationStatusResult(
                     "blocked",
                     int(current.registration_set["generation"]),
                     current.generation_digest,
                     tuple(statuses),
-                    ("FIXTURE_TARGET_READBACK_FAILED",),
+                    ("FIXTURE_REGISTRATION_INVALID",),
                 )
-            if target.exists and target.owner_application_id != application_id:
+
+            attachment_statuses: list[RegistrationAttachmentStatus] = []
+            target_violations: list[AttachmentTargetViolation] = []
+            for registered_attachment in attachments:
+                attachment_id = str(registered_attachment["attachment_id"])
+                resource_reference = registered_attachment.get(
+                    "resource_reference"
+                )
+                if not isinstance(resource_reference, str):
+                    return RegistrationStatusResult(
+                        "blocked",
+                        int(current.registration_set["generation"]),
+                        current.generation_digest,
+                        tuple(statuses),
+                        ("FIXTURE_REGISTRATION_INVALID",),
+                    )
+                try:
+                    target = self._attachment_reader.read_target(
+                        environment,
+                        resource_reference,
+                    )
+                except Exception:
+                    target_violations.append(
+                        AttachmentTargetViolation(
+                            attachment_id,
+                            "FIXTURE_TARGET_READBACK_FAILED",
+                        )
+                    )
+                    attachment_statuses.append(
+                        RegistrationAttachmentStatus(
+                            attachment_id,
+                            resource_reference,
+                            False,
+                            False,
+                        )
+                    )
+                    continue
+                if target.exists and target.owner_application_id != application_id:
+                    target_violations.append(
+                        AttachmentTargetViolation(
+                            attachment_id,
+                            "FIXTURE_TARGET_OWNER_MISMATCH",
+                        )
+                    )
+                attachment_statuses.append(
+                    RegistrationAttachmentStatus(
+                        attachment_id,
+                        resource_reference,
+                        target.exists,
+                        target.ready,
+                    )
+                )
+            if target_violations:
                 return RegistrationStatusResult(
                     "blocked",
                     int(current.registration_set["generation"]),
                     current.generation_digest,
                     tuple(statuses),
-                    ("FIXTURE_TARGET_OWNER_MISMATCH",),
+                    tuple(sorted({item.code for item in target_violations})),
+                    tuple(target_violations),
                 )
+            root_status = next(
+                (
+                    attachment_status
+                    for registered_attachment, attachment_status in zip(
+                        attachments,
+                        attachment_statuses,
+                        strict=True,
+                    )
+                    if registered_attachment.get("mount_path") == "/"
+                ),
+                attachment_statuses[0],
+            )
             statuses.append(
                 RegistrationApplicationStatus(
                     application_id,
                     str(registration["lifecycle"]),
                     str(catalogue_visibility),
-                    resource_reference,
-                    target.exists,
-                    target.ready,
+                    root_status.resource_reference,
+                    all(item.target_exists for item in attachment_statuses),
+                    all(item.target_ready for item in attachment_statuses),
+                    tuple(attachment_statuses),
                 )
             )
         return RegistrationStatusResult(
@@ -1196,9 +1547,13 @@ class ApplicationIntegrationLifecycle:
         attachment = self.validate_attachment(
             integration_bundle,
             attachment_bundle,
+            intent,
         )
         if attachment.outcome != "validated":
-            return self._registration_blocked(*attachment.blockers)
+            return self._registration_blocked(
+                *attachment.blockers,
+                target_violations=attachment.target_violations,
+            )
         if not self._registration_intent_valid(integration_bundle, intent):
             return self._registration_blocked("REGISTRATION_INTENT_INVALID")
         if self._generation_control is None:
@@ -1285,6 +1640,8 @@ class ApplicationIntegrationLifecycle:
         request: LifecycleChangeRequest,
         target_lifecycle: str,
     ) -> RegistrationLifecycleResult:
+        """Activate one app-wide lifecycle transition while preserving its attachment set."""
+
         if self._generation_control is None:
             return self._registration_blocked("GENERATION_CONTROL_UNAVAILABLE")
         if self._terminal is None:
@@ -1373,6 +1730,7 @@ class ApplicationIntegrationLifecycle:
 
 __all__ = (
     "ApplicationIntegrationLifecycle",
+    "AttachmentTargetViolation",
     "AttachmentTargetReadback",
     "AttachmentTargetReader",
     "AttachmentValidationResult",
@@ -1387,6 +1745,8 @@ __all__ = (
     "RegistrationGenerationControl",
     "RegistrationGenerationProposal",
     "RegistrationEntry",
+    "RegistrationAttachmentBinding",
+    "RegistrationAttachmentStatus",
     "RegistrationApplicationStatus",
     "RegistrationStatusResult",
     "RegistrationIntent",

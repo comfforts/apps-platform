@@ -1,10 +1,10 @@
 # <u>App Platform system design</u>
 
-Version 1.25 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
+Version 1.26 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
 Accepted Source staging platform and fixture qualification completed at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 multi-attachment schemas, loader,
-vectors, and relationship validation are implemented for AP-M9-W12, while operator projection,
-fixture deployment, and adoption remain planned
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 schemas, relationship validation,
+every-target readback, and atomic Version 2 projection are implemented for AP-M9-W12, while fixture
+deployment and adoption remain planned
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -552,9 +552,10 @@ The qualified Version 2 lifecycle handoff exposes one Cloud Run target even thou
 Application Registration and Shared Edge already support between one and sixteen attachments.
 ADR-017 therefore adds depth at the cross-owner seam without changing the core registration
 interface. AP-M9-W12 Slice 2 implements the inert Version 3 schemas, compatibility loader,
-canonical vectors, prohibited-material checks, and complete relationship validation. No Version 3
-operator projection, provider readback, route activation, fixture deployment, or adoption result
-exists yet.
+canonical vectors, prohibited-material checks, and complete relationship validation. Slice 3
+implements explicit V3 output selection, every-target provider readback, and atomic projection into
+the existing V2 registration/generation path. No fixture deployment, Live route qualification, or
+adoption result exists yet.
 
 One Version 3 Platform Integration Bundle remains application-, project-, environment-, source-,
 generation-, Admission Mode-, and Identity Delivery-scoped. Its attachment contract declares one
@@ -574,8 +575,8 @@ service, internal-ingress, all-traffic Direct VPC egress, readiness, owner-label
 identity-audience readback. A target cannot override application-level policy. Per-attachment
 project, region, network, admission, or identity configuration remains unsupported.
 
-The lifecycle module now validates the three-document relationship without invoking target
-adapters. Slice 3 will then read every target and accumulate ordered, redacted violations. Any
+The lifecycle module validates the three-document relationship without invoking target adapters.
+The operator then reads every target and accumulates ordered, redacted violations. Any
 missing, extra, stale,
 unready, wrongly owned, incorrectly connected, directly public, wrongly granted, or audience-
 mismatched target produces no registration output and no publication. Only a fully valid set is
@@ -585,8 +586,8 @@ This adapter keeps the handoff version and compiled-generation version independe
 number-only core migration.
 
 The lifecycle-contract seam accepts one complete same-version Version 2 family or one complete
-same-version Version 3 family and rejects any mixed family. The active operator remains Version 2
-only and rejects Version 3 before target readback until Slice 3. Version 2 remains the qualified
+same-version Version 3 family and rejects any mixed family. Operator outputs default to Version 2
+and require explicit V3 selection for a plural handoff. Version 2 remains the qualified
 single-target fixture compatibility path. Version 3 without either optional array is a valid
 root-only handoff, so all existing fixture shapes remain valid. Version 3 is required for an
 additional returned attachment. A frontend/backend application can preserve its frontend as the

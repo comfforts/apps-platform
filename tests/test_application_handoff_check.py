@@ -169,6 +169,25 @@ class ApplicationHandoffCheckTest(unittest.TestCase):
             },
         )
 
+    def test_v3_selection_is_part_of_the_read_only_bundle_check(self) -> None:
+        integration = FakeIntegration(
+            IntegrationBundleResult(
+                "generated",
+                protected_bundle(),
+                "sha256:" + "a" * 64,
+            )
+        )
+        checker = ApplicationHandoffCheck(
+            FakeDeploymentChecker(deployment_result()),
+            integration,
+            FakeProjectReader(project_readback()),
+        )
+
+        result = checker.check(replace(self.request(), handoff_version=3))
+
+        self.assertTrue(result.ready)
+        self.assertEqual(integration.requests[0].handoff_version, 3)
+
     def test_blocks_when_platform_terraform_requires_reconciliation(self) -> None:
         result = self.checker(
             deployment=deployment_result(

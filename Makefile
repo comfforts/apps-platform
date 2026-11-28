@@ -10,6 +10,7 @@ FIXTURES_PROJECT_ID ?= comfforts-fixtures-nonprod
 FIXTURES_PROJECT_NAME ?= Comfforts Fixtures Non-Prod
 ACCESS_MODE ?=
 IDENTITY_DELIVERY ?=
+HANDOFF_VERSION ?= 2
 CATALOGUE_VISIBILITY ?=
 ROUTE_INTENT ?=
 PLATFORM_SOURCE_REVISION ?=
@@ -97,11 +98,11 @@ platform-connect-project:
 
 ## Require platform readiness, then check project connection, services, and handoff inputs.
 application-handoff-check: terraform-setup
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator application-handoff-check --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)" --application-project-id "$(APPLICATION_PROJECT_ID)" --access-mode "$(ACCESS_MODE)" --identity-delivery "$(IDENTITY_DELIVERY)" --route-intent "$(ROUTE_INTENT)" --platform-source-revision "$(PLATFORM_SOURCE_REVISION)" --platform-generation "$(PLATFORM_GENERATION)"
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator application-handoff-check --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)" --application-project-id "$(APPLICATION_PROJECT_ID)" --access-mode "$(ACCESS_MODE)" --identity-delivery "$(IDENTITY_DELIVERY)" --handoff-version "$(HANDOFF_VERSION)" --route-intent "$(ROUTE_INTENT)" --platform-source-revision "$(PLATFORM_SOURCE_REVISION)" --platform-generation "$(PLATFORM_GENERATION)"
 
 ## Generate one application-scoped non-secret integration bundle.
 platform-outputs:
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator outputs --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)" --application-project-id "$(APPLICATION_PROJECT_ID)" --access-mode "$(ACCESS_MODE)" --identity-delivery "$(IDENTITY_DELIVERY)" --route-intent "$(ROUTE_INTENT)" --platform-source-revision "$(PLATFORM_SOURCE_REVISION)" --platform-generation "$(PLATFORM_GENERATION)"
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator outputs --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)" --application-project-id "$(APPLICATION_PROJECT_ID)" --access-mode "$(ACCESS_MODE)" --identity-delivery "$(IDENTITY_DELIVERY)" --handoff-version "$(HANDOFF_VERSION)" --route-intent "$(ROUTE_INTENT)" --platform-source-revision "$(PLATFORM_SOURCE_REVISION)" --platform-generation "$(PLATFORM_GENERATION)"
 
 ## Validate one attachment and propose an immutable whole registration generation.
 platform-register:

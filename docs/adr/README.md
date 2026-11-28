@@ -45,7 +45,7 @@ continues to resolve to exactly one current record.
 | ADR-014 | Qualify cross-project attachment through an explicit Shared VPC connection | Accepted | [Origin ADR-014](000-origin-architecture-decision-records.md#adr-014--qualify-cross-project-attachment-through-an-explicit-shared-vpc-connection) |
 | ADR-015 | Use a platform-owned member directory and explicit identity delivery | Accepted; implemented, Candidate-qualified, and Accepted Source staging platform/fixture-qualified at `b433337…` | [ADR-015](015-platform-member-directory-and-explicit-identity-delivery.md) |
 | ADR-016 | Recover operator working state without fabricated history | Proposed; still in discussion and not implementation authority | [ADR-016](016-recover-operator-working-state-without-fabricated-history.md) |
-| ADR-017 | Exchange complete application attachment sets | Accepted; planned for AP-M9-W12 and not yet implemented or qualified | [ADR-017](017-exchange-complete-application-attachment-sets.md) |
+| ADR-017 | Exchange complete application attachment sets | Accepted; contract and atomic operator behavior implemented by AP-M9-W12 Slices 2–3, not yet deployed or qualified | [ADR-017](017-exchange-complete-application-attachment-sets.md) |
 
 ## Realization and evidence
 

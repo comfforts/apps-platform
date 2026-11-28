@@ -38,6 +38,7 @@ from infrastructure.operator.destruction import (
 )
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
+    AttachmentTargetViolation,
     AttachmentTargetReadback,
     AttachmentTargetReader,
     AttachmentValidationResult,
@@ -48,6 +49,8 @@ from infrastructure.operator.integration import (
     LifecycleChangeRequest,
     PlatformIntegrationReader,
     PlatformIntegrationState,
+    RegistrationAttachmentBinding,
+    RegistrationAttachmentStatus,
     RegistrationGenerationControl,
     RegistrationGenerationProposal,
     RegistrationIntent,
@@ -107,6 +110,7 @@ __all__ = (
     "ExecutionResult",
     "GitSnapshot",
     "ApplicationIntegrationLifecycle",
+    "AttachmentTargetViolation",
     "AttachmentTargetReadback",
     "AttachmentTargetReader",
     "AttachmentValidationResult",
@@ -144,6 +148,8 @@ __all__ = (
     "PlatformIntegrationReader",
     "PlatformIntegrationState",
     "PlatformMemberLifecycle",
+    "RegistrationAttachmentBinding",
+    "RegistrationAttachmentStatus",
     "RegistrationGenerationControl",
     "RegistrationGenerationProposal",
     "RegistrationIntent",

@@ -1,10 +1,10 @@
 # App Platform documentation
 
-Version 1.50 | Status: AP-M9-W10 complete; AP-M9-W11 Accepted Source staging platform and fixture
+Version 1.51 | Status: AP-M9-W10 complete; AP-M9-W11 Accepted Source staging platform and fixture
 qualification completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 target-stage
-readback and ADR-017 Version 3 complete attachment-set contracts are implemented, while operator
-projection, the fourth fixture, fixture qualification, and real-application adoption remain later
-slices; ADR-016 remains proposed
+readback, ADR-017 Version 3 contracts, and atomic multi-target registration projection are
+implemented, while the fourth fixture, fixture qualification, and real-application adoption remain
+later slices; ADR-016 remains proposed
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. W9
@@ -154,7 +154,7 @@ delivery shape under which they were completed.
     `apps-staging.comfforts.com`, the three cross-project fixtures, and the reviewed member
     baseline from Accepted Source at `b43333756b509d0f35cb82938a13f6abc459f7c4`. It did not
     perform the destructive rehearsal.
-12. **AP-M9-W12 — first real-application staging adoption (next):** replace the fixture-only
+12. **AP-M9-W12 — first real-application staging adoption (in progress):** replace the fixture-only
     target-readback assumption with closed, project-independent candidate and release target stages,
     implement ADR-017 as one complete Version 3 attachment-set handoff
     projected atomically into the existing Version 2 registration model, add a fourth authenticated

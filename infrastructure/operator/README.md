@@ -2,9 +2,9 @@
 
 Status: AP-M9-W10 implements and Candidate-qualifies the Version 2 lifecycle; AP-M9-W11 qualified
 the staging platform and cross-project fixtures from Accepted Source at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 Version 3 handoff, separate fourth-fixture
-contracts are readable, while multi-target operator projection, separate fourth-fixture
-qualification, and real-application adoption are next
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 Version 3 handoff and atomic multi-target
+operator projection are implemented, while the fourth fixture, its separate qualification, and
+real-application adoption are next
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -185,12 +185,16 @@ rebootstrap.
 
 `application-handoff-check` and `platform-outputs` require explicit Identity Delivery: `none` or
 `optional` for public admission and `required` for authenticated or restricted admission.
+They emit Version 2 by default; `HANDOFF_VERSION=3` explicitly selects the complete attachment-set
+contract and is required when the application will return any additional attachment.
 `fixture-handoff` consumes that decision from the Version 2 Integration Bundle and requires the
 application-owned `CATALOGUE_VISIBILITY=<listed|unlisted>` registration choice. Catalogue
 visibility is not an input to `application-handoff-check` or `platform-outputs`. The handoff
 preparation identity includes the choice so a visibility change cannot reuse an older intent.
-`platform-register` requires the exact Version 2 integration, attachment, and intent relationship;
-it accepts no independent identity-policy argument. Mixed handoff versions fail closed. The first
+`platform-register` requires one exact V2 or V3 integration, attachment, and intent relationship;
+it accepts no independent identity-policy argument. For V3 it reads every root/additional target,
+returns ordered redacted attachment-ID/code failures, and publishes nothing unless the whole set
+passes. Mixed handoff versions fail closed. The first
 successor over a readable Version 1 generation discards registration-scoped members, maps public
 to `none` and protected routes to `required`, and activates one complete immutable Version 2
 generation. An application whose normalized registration is unchanged keeps its existing
@@ -256,12 +260,15 @@ wait for Enter in the same process, and then use provider-verified or explicitly
 readback with bounded DNS/TLS polling.
 
 Outputs generates one canonical application-scoped bundle beneath the private operator directory
-without exposing a secret or another application's values. Register accepts the exact integration
-bundle, application-owned attachment bundle, and a strict private registration-intent document. It
-validates current platform and target posture, publishes the complete immutable generation
-create-only, verifies readback, and requires activation confirmation. Detach and retire require the
-expected active-generation digest; replacement attachment registration reactivates a suspended
-application. Interrupted confirmation may resume only the identical publication.
+without exposing a secret or another application's values. It defaults to V2 and requires explicit
+`HANDOFF_VERSION=3` selection for a root-plus-optionals handoff. Register accepts the exact
+integration bundle, application-owned attachment bundle, and strict private registration intent.
+For V3 it validates the full ID/binding relationship, reads every target through the same
+environment adapter, aggregates root-first redacted attachment-ID/code failures, and projects only
+a fully valid set into the existing V2 registration compiler. Publication and activation remain one
+complete immutable generation; status reads every registered attachment and summarizes readiness
+at application scope. Detach and retire remain app-wide and require the expected active-generation
+digest. Interrupted confirmation may resume only the identical publication.
 
 Cloud Run target readback derives its closed target-stage policy from the selected platform
 environment. For staging it accepts `environment=qualification` candidates and

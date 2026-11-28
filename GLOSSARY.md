@@ -159,14 +159,14 @@ qualification status the application is authorized to consume.
 
 A versioned, non-secret handoff generated under Application Owner authority after application
 deployment. Version 2 binds one application-owned target and owner to the exact Platform
-Integration Bundle it consumed. Planned Version 3 preserves that target as the required root
+Integration Bundle it consumed. Version 3 preserves that target as the required root
 attachment and adds an optional `additional_attachments` attribute. Validation does not transfer
 target ownership to Platform State.
 
 ## Registration Intent
 
 The application-owned, versioned handoff that declares catalogue and registration choices without
-activating them. Planned Version 3 keeps one required root attachment ID at mount `/` and adds an
+activating them. Version 3 keeps one required root attachment ID at mount `/` and adds an
 optional `additional_attachment_bindings` attribute whose identifiers must exactly match the
 Application Attachment Bundle's optional additional attachments.
 

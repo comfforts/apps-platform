@@ -20,6 +20,7 @@ from infrastructure.operator.integration import (
     LifecycleChangeRequest,
     OperatorInterrupted,
     PlatformIntegrationState,
+    RegistrationAttachmentBinding,
     RegistrationGenerationProposal,
     RegistrationEntry,
     RegistrationIntent,
@@ -80,7 +81,8 @@ class FakePlatformReader:
 
 class FakeAttachmentReader:
     def __init__(self) -> None:
-        self.targets: dict[str, AttachmentTargetReadback] = {}
+        self.targets: dict[str, AttachmentTargetReadback | BaseException] = {}
+        self.requests: list[str] = []
 
     def read_target(
         self,
@@ -88,7 +90,11 @@ class FakeAttachmentReader:
         resource_reference: str,
     ) -> AttachmentTargetReadback:
         del environment
-        return self.targets[resource_reference]
+        self.requests.append(resource_reference)
+        result = self.targets[resource_reference]
+        if isinstance(result, BaseException):
+            raise result
+        return result
 
 
 class FakeTerminal:
@@ -206,6 +212,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
         application_id: str,
         access_mode: str,
         identity_delivery: str | None = None,
+        handoff_version: int = 2,
     ) -> dict[str, object]:
         selected_delivery = identity_delivery or (
             "none" if access_mode == "public" else "required"
@@ -219,6 +226,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
                 route_intent=f"/{application_id}",
                 expected_platform_source_revision=SOURCE_REVISION,
                 expected_generation=4,
+                handoff_version=handoff_version,
             )
         )
         assert result.bundle is not None
@@ -230,6 +238,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
         *,
         revision: int = 1,
         suffix: str = "",
+        additional: tuple[tuple[str, str], ...] = (),
     ) -> dict[str, object]:
         application_id = str(bundle["application_id"])
         resource_reference = (
@@ -239,7 +248,7 @@ class RegistrationLifecycleTest(unittest.TestCase):
         identity = bundle["identity"]
         assert isinstance(identity, dict)
         attachment = {
-            "contract_version": 2,
+            "contract_version": bundle["contract_version"],
             "document_kind": "application-attachment-bundle",
             "environment": "staging",
             "application_id": application_id,
@@ -276,11 +285,33 @@ class RegistrationLifecycleTest(unittest.TestCase):
             subnetwork_reference=bundle["network"]["subnetwork_reference"],
             egress_mode="all-traffic",
         )
+        if additional:
+            attachment["additional_attachments"] = []
+            for attachment_id, additional_suffix in additional:
+                additional_target = copy.deepcopy(attachment["target"])
+                additional_reference = (
+                    "urn:comfforts:app-platform:gcp:cloud-run:123456789012:"
+                    f"us-west1:{application_id}{additional_suffix}"
+                )
+                additional_target["resource_reference"] = additional_reference
+                attachment["additional_attachments"].append(
+                    {
+                        "attachment_id": attachment_id,
+                        "target": additional_target,
+                    }
+                )
+                self.attachments.targets[additional_reference] = replace(
+                    self.attachments.targets[resource_reference],
+                    resource_reference=additional_reference,
+                )
         return attachment
 
     def _intent(
         self,
         bundle: dict[str, object],
+        *,
+        attachment_id: str = "primary",
+        additional: tuple[RegistrationAttachmentBinding, ...] = (),
     ) -> RegistrationIntent:
         return RegistrationIntent(
             application_id=str(bundle["application_id"]),
@@ -289,9 +320,11 @@ class RegistrationLifecycleTest(unittest.TestCase):
             catalogue_visibility="listed",
             catalogue_title="Fixture application",
             catalogue_summary="Synthetic qualification application",
-            attachment_id="primary",
+            attachment_id=attachment_id,
             mount_path="/",
             forwarding_mode="strip_application_prefix",
+            contract_version=int(bundle["contract_version"]),
+            additional_attachment_bindings=additional,
         )
 
     def test_new_application_activates_one_complete_generation(self) -> None:
@@ -332,6 +365,267 @@ class RegistrationLifecycleTest(unittest.TestCase):
                 proposal.content_digest,
                 _canonical_digest(proposal.compiled_configuration),
             )
+
+    def test_v3_root_only_handoff_projects_to_one_v2_attachment(self) -> None:
+        bundle = self._bundle(
+            "root-only-application",
+            "authenticated",
+            handoff_version=3,
+        )
+        attachment = self._attachment(bundle, suffix="-web")
+        intent = self._intent(bundle, attachment_id="web")
+
+        result = self.lifecycle.register(bundle, attachment, intent)
+
+        self.assertEqual(result.outcome, "activated")
+        current = self.generations.current_proposal
+        assert current is not None
+        projected = current.registration_set["registrations"][0]["attachments"]
+        self.assertEqual(len(projected), 1)
+        self.assertEqual(projected[0]["contract_version"], 2)
+        self.assertEqual(projected[0]["attachment_id"], "web")
+        self.assertEqual(projected[0]["mount_path"], "/")
+
+    def test_v3_maximum_attachment_set_reads_and_projects_all_sixteen(self) -> None:
+        bundle = self._bundle(
+            "maximum-attachment-app",
+            "authenticated",
+            handoff_version=3,
+        )
+        additions = tuple(
+            (f"api-{index:02d}", f"-api-{index:02d}")
+            for index in range(1, 16)
+        )
+        attachment = self._attachment(
+            bundle,
+            suffix="-web",
+            additional=additions,
+        )
+        intent = self._intent(
+            bundle,
+            attachment_id="web",
+            additional=tuple(
+                RegistrationAttachmentBinding(
+                    attachment_id,
+                    f"/{attachment_id}",
+                    "strip_attachment_mount",
+                )
+                for attachment_id, _suffix in additions
+            ),
+        )
+
+        result = self.lifecycle.register(bundle, attachment, intent)
+
+        self.assertEqual(result.outcome, "activated")
+        current = self.generations.current_proposal
+        assert current is not None
+        self.assertEqual(
+            len(current.registration_set["registrations"][0]["attachments"]),
+            16,
+        )
+        self.assertEqual(len(self.attachments.requests), 16)
+
+    def test_v3_complete_set_replaces_atomically_and_preserves_other_apps(self) -> None:
+        other_bundle = self._bundle("fixture-public", "public")
+        other_attachment = self._attachment(other_bundle)
+        other_result = self.lifecycle.register(
+            other_bundle,
+            other_attachment,
+            self._intent(other_bundle),
+        )
+        self.assertEqual(other_result.outcome, "activated")
+        original_other = copy.deepcopy(
+            self.generations.current_proposal.registration_set["registrations"][0]
+        )
+
+        bundle = self._bundle(
+            "finance-assistant",
+            "authenticated",
+            handoff_version=3,
+        )
+        attachment = self._attachment(
+            bundle,
+            suffix="-web",
+            additional=(("api", "-api"),),
+        )
+        intent = self._intent(
+            bundle,
+            attachment_id="web",
+            additional=(
+                RegistrationAttachmentBinding(
+                    "api",
+                    "/api",
+                    "strip_attachment_mount",
+                ),
+            ),
+        )
+
+        registered = self.lifecycle.register(bundle, attachment, intent)
+
+        self.assertEqual(registered.outcome, "activated")
+        current = self.generations.current_proposal
+        assert current is not None
+        registrations = {
+            item["application_id"]: item
+            for item in current.registration_set["registrations"]
+        }
+        self.assertEqual(registrations["fixture-public"], original_other)
+        projected = registrations["finance-assistant"]["attachments"]
+        self.assertEqual(
+            [
+                (item["attachment_id"], item["mount_path"])
+                for item in projected
+            ],
+            [("api", "/api"), ("web", "/")],
+        )
+        self.assertEqual(
+            [
+                item["attachment_id"]
+                for route in current.compiled_configuration["routes"]
+                for item in route["attachments"]
+            ],
+            ["api", "web", "primary"],
+        )
+
+        predecessor_digest = registered.generation_digest
+        replacement = self._attachment(
+            bundle,
+            revision=2,
+            suffix="-web-v2",
+            additional=(("api", "-api-v2"),),
+        )
+        replaced = self.lifecycle.register(bundle, replacement, intent)
+
+        self.assertEqual(replaced.outcome, "activated")
+        self.assertIn(predecessor_digest, self.generations.history)
+        predecessor = self.generations.history[str(predecessor_digest)]
+        self.assertEqual(
+            len(
+                next(
+                    item
+                    for item in predecessor.registration_set["registrations"]
+                    if item["application_id"] == "finance-assistant"
+                )["attachments"]
+            ),
+            2,
+        )
+        current = self.generations.current_proposal
+        assert current is not None
+        registrations = {
+            item["application_id"]: item
+            for item in current.registration_set["registrations"]
+        }
+        self.assertEqual(registrations["fixture-public"], original_other)
+        self.assertEqual(
+            {
+                item["resource_reference"]
+                for item in registrations["finance-assistant"]["attachments"]
+            },
+            {
+                replacement["target"]["resource_reference"],
+                replacement["additional_attachments"][0]["target"][
+                    "resource_reference"
+                ],
+            },
+        )
+
+        status = self.lifecycle.status_applications(
+            "staging",
+            ("finance-assistant",),
+        )
+        self.assertEqual(status.outcome, "read")
+        self.assertEqual(len(status.applications[0].attachments), 2)
+        self.assertTrue(status.applications[0].target_ready)
+
+        assert replaced.generation_digest is not None
+        detached = self.lifecycle.detach(
+            LifecycleChangeRequest(
+                environment="staging",
+                application_id="finance-assistant",
+                expected_platform_source_revision=SOURCE_REVISION,
+                expected_generation_digest=replaced.generation_digest,
+            )
+        )
+        self.assertEqual(detached.outcome, "activated")
+        current = self.generations.current_proposal
+        assert current is not None
+        detached_registration = next(
+            item
+            for item in current.registration_set["registrations"]
+            if item["application_id"] == "finance-assistant"
+        )
+        self.assertEqual(detached_registration["lifecycle"], "suspended")
+        self.assertEqual(len(detached_registration["attachments"]), 2)
+        self.assertFalse(
+            any(
+                route["application_id"] == "finance-assistant"
+                for route in current.compiled_configuration["routes"]
+            )
+        )
+
+    def test_v3_target_failures_are_aggregated_before_any_publication(self) -> None:
+        bundle = self._bundle(
+            "finance-assistant",
+            "authenticated",
+            handoff_version=3,
+        )
+        attachment = self._attachment(
+            bundle,
+            suffix="-web",
+            additional=(("api", "-api"),),
+        )
+        intent = self._intent(
+            bundle,
+            attachment_id="web",
+            additional=(
+                RegistrationAttachmentBinding(
+                    "api",
+                    "/api",
+                    "strip_attachment_mount",
+                ),
+            ),
+        )
+        root_reference = str(attachment["target"]["resource_reference"])
+        api_reference = str(
+            attachment["additional_attachments"][0]["target"][
+                "resource_reference"
+            ]
+        )
+        root_readback = self.attachments.targets[root_reference]
+        assert isinstance(root_readback, AttachmentTargetReadback)
+        self.attachments.targets[root_reference] = replace(
+            root_readback,
+            exists=False,
+            ready=False,
+        )
+        self.attachments.targets[api_reference] = RuntimeError(
+            "provider payload must remain private"
+        )
+
+        result = self.lifecycle.register(bundle, attachment, intent)
+
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(
+            result.blockers,
+            ("TARGET_NOT_FOUND", "TARGET_READBACK_FAILED"),
+        )
+        self.assertEqual(
+            [
+                (violation.attachment_id, violation.code)
+                for violation in result.target_violations
+            ],
+            [
+                ("web", "TARGET_NOT_FOUND"),
+                ("api", "TARGET_READBACK_FAILED"),
+            ],
+        )
+        self.assertEqual(
+            self.attachments.requests[-2:],
+            [root_reference, api_reference],
+        )
+        self.assertEqual(self.generations.publications, [])
+        self.assertEqual(self.generations.activations, [])
+        self.assertNotIn("provider payload", repr(result))
 
     def test_fixture_suite_activates_one_complete_generation_with_one_review(self) -> None:
         entries = []

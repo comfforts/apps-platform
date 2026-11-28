@@ -24,6 +24,7 @@ from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
     IntegrationBundleRequest,
     LifecycleChangeRequest,
+    RegistrationAttachmentBinding,
     RegistrationIntent,
 )
 from infrastructure.operator.local import (
@@ -150,6 +151,13 @@ def _parser() -> argparse.ArgumentParser:
         choices=("none", "optional", "required"),
     )
     parser.add_argument(
+        "--handoff-version",
+        choices=(2, 3),
+        default=2,
+        type=int,
+        help="explicit application-handoff contract version; defaults to V2",
+    )
+    parser.add_argument(
         "--catalogue-visibility",
         choices=("listed", "unlisted"),
     )
@@ -175,6 +183,8 @@ def _default_factory(
     state_directory: Path,
     source_authority: str,
 ) -> LifecycleOperator:
+    """Construct the verified local lifecycle operator without running an action."""
+
     return build_local_operator(
         PROJECT_ROOT,
         state_directory,
@@ -187,6 +197,8 @@ def _default_preflight_factory(
     state_directory: Path,
     source_authority: str,
 ) -> LifecycleOperator:
+    """Construct the read-only local preflight operator."""
+
     return build_local_operator(
         PROJECT_ROOT,
         state_directory,
@@ -199,6 +211,8 @@ def _default_deployment_check_factory(
     state_directory: Path,
     source_authority: str,
 ) -> LifecycleOperator:
+    """Construct the read-only local deployment checker."""
+
     return build_local_deployment_check(
         PROJECT_ROOT,
         state_directory,
@@ -210,6 +224,8 @@ def _default_integration_factory(
     state_directory: Path,
     source_authority: str,
 ) -> ApplicationIntegrationLifecycle:
+    """Construct the application integration lifecycle and its provider seams."""
+
     return build_local_integration(PROJECT_ROOT, state_directory, source_authority)
 
 
@@ -217,6 +233,8 @@ def _default_application_handoff_check_factory(
     state_directory: Path,
     source_authority: str,
 ) -> ApplicationHandoffCheck:
+    """Construct the read-only application handoff checker."""
+
     return build_local_application_handoff_check(
         PROJECT_ROOT,
         state_directory,
@@ -229,6 +247,8 @@ def _default_qualification_factory(
     source_authority: str,
     owner_member_reference: str,
 ) -> QualificationLifecycle:
+    """Construct the qualified local platform-evidence lifecycle."""
+
     return build_local_qualification(
         PROJECT_ROOT,
         state_directory,
@@ -241,6 +261,8 @@ def _default_destruction_factory(
     state_directory: Path,
     source_authority: str,
 ) -> DestructionLifecycle:
+    """Construct the separately authorized platform-destruction lifecycle."""
+
     return build_local_destruction(PROJECT_ROOT, state_directory, source_authority)
 
 
@@ -248,6 +270,8 @@ def _default_fixture_factory(  # type: ignore[no-untyped-def]
     state_directory: Path,
     source_authority: str,
 ):
+    """Construct the fixture application lifecycle command surface."""
+
     return build_local_fixture_operator(
         PROJECT_ROOT,
         state_directory,
@@ -259,6 +283,8 @@ def _default_fixture_status_factory(  # type: ignore[no-untyped-def]
     state_directory: Path,
     source_authority: str,
 ):
+    """Construct the fixture's read-only status surface."""
+
     return build_local_fixture_status_operator(
         PROJECT_ROOT,
         state_directory,
@@ -270,6 +296,8 @@ def _default_project_factory(  # type: ignore[no-untyped-def]
     state_directory: Path,
     source_authority: str,
 ):
+    """Construct the application-project bootstrap and connection lifecycle."""
+
     return build_local_project_lifecycle(
         PROJECT_ROOT,
         state_directory,
@@ -291,6 +319,8 @@ def _default_member_factory(
 
 
 def _required(arguments: argparse.Namespace, name: str) -> object:
+    """Return one non-empty required option or terminate with bounded guidance."""
+
     value = getattr(arguments, name)
     if value is None or (isinstance(value, str) and not value.strip()):
         option = name.replace("_", "-")
@@ -308,7 +338,7 @@ def _load_input(path: Path, kind: str) -> dict[str, object]:
 
 
 def _load_registration_intent(path: Path) -> RegistrationIntent:
-    """Load the canonical V2 intent used to confirm bundle policy at registration."""
+    """Load one canonical V2 or V3 intent without reading application/provider state."""
 
     loaded = load_versioned_lifecycle_document(
         path,
@@ -318,6 +348,9 @@ def _load_registration_intent(path: Path) -> RegistrationIntent:
     if loaded.violations or loaded.value is None:
         raise ValueError("invalid registration intent")
     value = loaded.value
+    additional = value.get("additional_attachment_bindings", [])
+    if not isinstance(additional, list):
+        raise ValueError("invalid registration intent")
     return RegistrationIntent(
         application_id=str(value["application_id"]),
         access_mode=str(value["access_mode"]),
@@ -328,31 +361,31 @@ def _load_registration_intent(path: Path) -> RegistrationIntent:
         attachment_id=str(value["attachment_id"]),
         mount_path=str(value["mount_path"]),
         forwarding_mode=str(value["forwarding_mode"]),
+        contract_version=int(value["contract_version"]),
+        additional_attachment_bindings=tuple(
+            RegistrationAttachmentBinding(
+                attachment_id=str(binding["attachment_id"]),
+                mount_path=str(binding["mount_path"]),
+                forwarding_mode=str(binding["forwarding_mode"]),
+            )
+            for binding in additional
+            if isinstance(binding, dict)
+        ),
     )
 
 
 def _registration_intent_document(intent: RegistrationIntent) -> dict[str, object]:
-    """Recreate the closed V2 document for cross-document relationship validation."""
+    """Return the intent's exact closed document for relationship validation."""
 
-    return {
-        "contract_version": 2,
-        "document_kind": "registration-intent",
-        "application_id": intent.application_id,
-        "access_mode": intent.access_mode,
-        "identity_delivery": intent.identity_delivery,
-        "catalogue_visibility": intent.catalogue_visibility,
-        "catalogue_title": intent.catalogue_title,
-        "catalogue_summary": intent.catalogue_summary,
-        "attachment_id": intent.attachment_id,
-        "mount_path": intent.mount_path,
-        "forwarding_mode": intent.forwarding_mode,
-    }
+    return intent.document()
 
 
 def _trace_invocation(
     arguments: argparse.Namespace,
     selected_fixture: str | None,
 ) -> None:
+    """Print bounded invocation facts without credentials or provider payloads."""
+
     print("Operator invocation:", file=sys.stderr)
     print(f"  operation: {arguments.operation}", file=sys.stderr)
     print(f"  environment: {arguments.environment}", file=sys.stderr)
@@ -723,6 +756,7 @@ def _main(
                 platform_generation=int(
                     _required(arguments, "platform_generation")
                 ),
+                handoff_version=arguments.handoff_version,
             )
         )
         _print(
@@ -1130,6 +1164,7 @@ def _main(
                 application_project_id=str(
                     _required(arguments, "application_project_id")
                 ),
+                handoff_version=arguments.handoff_version,
             )
         )
         output_path: str | None = None
@@ -1137,7 +1172,7 @@ def _main(
             relative_output_path = (
                 f"environments/{arguments.environment}/bundles/"
                 f"{result.bundle['application_id']}/"
-                f"{result.bundle_digest[7:]}.v2.json"
+                f"{result.bundle_digest[7:]}.v{result.bundle['contract_version']}.json"
             )
             filesystem = LocalFilesystem(PROJECT_ROOT, arguments.state_directory)
             output_path = str(filesystem.state_path(relative_output_path))
@@ -1242,6 +1277,13 @@ def _main(
                 "generation": result.generation,
                 "generation_digest": result.generation_digest,
                 "outcome": result.outcome,
+                "target_violations": [
+                    {
+                        "attachment_id": violation.attachment_id,
+                        "code": violation.code,
+                    }
+                    for violation in result.target_violations
+                ],
             }
         )
         return 0 if result.outcome in {"activated", "unchanged"} else 2
@@ -1306,6 +1348,8 @@ def _main(
 
 
 def _option_value(arguments: Sequence[str], option: str, default: str) -> str:
+    """Read one raw option for least-data outer exception reporting."""
+
     try:
         index = arguments.index(option)
         value = arguments[index + 1]
@@ -1340,6 +1384,8 @@ def main(
         [Path, str], PlatformMemberLifecycle
     ] = _default_member_factory,
 ) -> int:
+    """Run one CLI operation behind a redacted outer exception boundary."""
+
     try:
         return _main(
             argv,

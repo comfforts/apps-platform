@@ -1,9 +1,10 @@
 # <u>App Platform system design</u>
 
-Version 1.24 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
+Version 1.25 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
 Accepted Source staging platform and fixture qualification completed at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 multi-attachment handoff is accepted
-and planned for AP-M9-W12 but not implemented
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 multi-attachment schemas, loader,
+vectors, and relationship validation are implemented for AP-M9-W12, while operator projection,
+fixture deployment, and adoption remain planned
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -545,19 +546,22 @@ The provider and private generation history retain readable Version 1 predecesso
 Version 1 or Version 2 generation. Repository implementation and deterministic tests do not imply
 that this transition has been invoked against staging.
 
-### Planned Version 3 complete attachment-set handoff
+### Version 3 complete attachment-set handoff
 
 The qualified Version 2 lifecycle handoff exposes one Cloud Run target even though the Version 2
 Application Registration and Shared Edge already support between one and sixteen attachments.
 ADR-017 therefore adds depth at the cross-owner seam without changing the core registration
-interface. This section is AP-M9-W12 design authority only; no Version 3 schema, loader, operator
-path, provider readback, or adoption result exists yet.
+interface. AP-M9-W12 Slice 2 implements the inert Version 3 schemas, compatibility loader,
+canonical vectors, prohibited-material checks, and complete relationship validation. No Version 3
+operator projection, provider readback, route activation, fixture deployment, or adoption result
+exists yet.
 
 One Version 3 Platform Integration Bundle remains application-, project-, environment-, source-,
 generation-, Admission Mode-, and Identity Delivery-scoped. Its attachment contract declares one
-required root and at most fifteen optional additional attachments. The Version 3 Application
-Attachment Bundle preserves the required singular root `target` and adds an optional
-`additional_attachments` array sorted by stable `attachment_id`. The Version 3 registration intent
+required root through `root_attachment_required=true` and at most fifteen optional additional
+attachments through `maximum_additional_attachments=15`. The Version 3 Application Attachment
+Bundle preserves the required singular root `target` and adds an optional `additional_attachments`
+array sorted by stable `attachment_id`; every entry contains that ID and one closed `target`. The Version 3 registration intent
 preserves the required root `attachment_id`, `mount_path`, and `forwarding_mode`, constrains the root
 mount to `/`, and adds an optional `additional_attachment_bindings` array sorted by
 `attachment_id`. The two optional arrays must both be absent or contain exactly the same unique
@@ -570,8 +574,9 @@ service, internal-ingress, all-traffic Direct VPC egress, readiness, owner-label
 identity-audience readback. A target cannot override application-level policy. Per-attachment
 project, region, network, admission, or identity configuration remains unsupported.
 
-The lifecycle module validates the three-document relationship before it invokes target adapters.
-It then reads every target and accumulates ordered, redacted violations. Any missing, extra, stale,
+The lifecycle module now validates the three-document relationship without invoking target
+adapters. Slice 3 will then read every target and accumulate ordered, redacted violations. Any
+missing, extra, stale,
 unready, wrongly owned, incorrectly connected, directly public, wrongly granted, or audience-
 mismatched target produces no registration output and no publication. Only a fully valid set is
 projected into the existing Version 2 Application Registration `attachments` array, compiled with
@@ -579,13 +584,14 @@ the complete current Registration Set, and activated as one Version 2 Registrati
 This adapter keeps the handoff version and compiled-generation version independent and avoids a
 number-only core migration.
 
-The operator accepts one complete same-version Version 2 family or one complete same-version
-Version 3 family and rejects any mixed family. Version 2 remains the qualified single-target
-fixture compatibility path. Version 3 without either optional array is a valid root-only handoff,
-so all existing fixture shapes remain valid. Version 3 is required for an additional returned
-attachment. A frontend/backend application can preserve its frontend as the required root target
-and add a backend binding such as `/api`; existing longest segment-bounded mount selection chooses
-the backend without creating a second application or catalogue entry.
+The lifecycle-contract seam accepts one complete same-version Version 2 family or one complete
+same-version Version 3 family and rejects any mixed family. The active operator remains Version 2
+only and rejects Version 3 before target readback until Slice 3. Version 2 remains the qualified
+single-target fixture compatibility path. Version 3 without either optional array is a valid
+root-only handoff, so all existing fixture shapes remain valid. Version 3 is required for an
+additional returned attachment. A frontend/backend application can preserve its frontend as the
+required root target and add a backend binding such as `/api`; existing longest segment-bounded
+mount selection chooses the backend without creating a second application or catalogue entry.
 
 Every active update returns the required root target and, when any additional target is desired,
 the complete optional additional target and binding arrays including unchanged entries. Removal or

@@ -1,9 +1,9 @@
 # Adopt a real application
 
 Status: AP-M9-W12 application-neutral staging handoff; the closed staging target-stage readback is
-implemented by Slice 1; ADR-017 Version 3 complete attachment sets remain accepted but
-unimplemented; no application is selected or authorized until matching authority exists in both
-repositories
+implemented by Slice 1; ADR-017 Version 3 complete attachment-set contracts are implemented by
+Slice 2, while operator projection and activation remain unimplemented; no application is selected
+or authorized until matching authority exists in both repositories
 
 This runbook explains how a real application will join one deployed App Platform environment after
 the application repository has approved its own adoption requirements, architecture, migration,
@@ -41,8 +41,8 @@ procedure, all of these must be true:
 These are the platform implementation and fixture-qualification prerequisites in W12. Stop before
 a real deployment until the ordered slices merge, the complete repository gate passes, and the
 separate fixture result is readable. The current operator accepts only the qualified single-target
-Version 2 handoff and must reject the planned Version 3 filenames shown below until those slices
-are complete.
+Version 2 handoff. The contract loader accepts the implemented Version 3 filenames shown below,
+but the operator must reject them before provider readback until the projection slice is complete.
 
 ## Ownership through the handoff
 

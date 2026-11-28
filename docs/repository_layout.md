@@ -1,9 +1,10 @@
 # App Platform repository layout
 
-Version 2.18 | Status: canonical dedicated repository; ADR-015 implemented and Candidate-qualified
+Version 2.19 | Status: canonical dedicated repository; ADR-015 implemented and Candidate-qualified
 by AP-M9-W10; AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 complete attachment-set work and
-AP-M9-W12 real-application adoption are next
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 target-stage validation and ADR-017 Version
+3 complete attachment-set contracts are implemented, while operator projection and later slices
+remain planned
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -20,8 +21,8 @@ permission to create a resource or perform an external action.
 | `docs/plans/` | canonical implementation-plan index, AP-M3 through AP-M8 origin plan, and milestone directories containing `000-` entry points plus substantial work-package plans |
 | `docs/history/` | superseded delivery records with no action authority |
 | `prompts/` | bounded next-task entry points subordinate to current documents |
-| `contracts/` | readable Version 1 predecessors plus active Version 2 schemas, compilers, migration, vectors, and bounded loading |
-| `contracts/lifecycle/` | AP-M9 profiles plus readable Version 1 and implemented Version 2 handoff schemas, vectors, digests, and cross-document validation; planned Version 3 belongs here only when its W12 contract slice lands atomically |
+| `contracts/` | readable Version 1 predecessors, active Version 2 schemas and compilers, and implemented Version 3 application-handoff contracts |
+| `contracts/lifecycle/` | AP-M9 profiles plus readable Version 1, Version 2, and Version 3 handoff schemas, vectors, digests, and cross-document validation |
 | [`fixtures/`](../fixtures/README.md) | current networked synthetic applications plus the retained deterministic Version 1 reference harness |
 | [`edge/`](../edge/README.md) | network Shared Edge and production-adapter implementation |
 | `integrations/` | inactive application-adoption drafts |

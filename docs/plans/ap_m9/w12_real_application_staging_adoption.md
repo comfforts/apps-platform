@@ -1,9 +1,9 @@
 # AP-M9-W12 · First real-application staging adoption qualification
 
-Version 0.4 | Status: planned; next AP-M9 work package after Accepted Source staging platform and
-fixture qualification completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 is
-accepted but its Version 3 multi-attachment handoff is not implemented; no application is selected
-and no external operation is authorized by this plan
+Version 0.5 | Status: in progress after Accepted Source staging platform and fixture qualification
+completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; Slice 1 target-stage validation and Slice 2
+ADR-017 Version 3 contract validation are implemented, while operator projection and later slices
+remain planned; no application is selected and no external operation is authorized by this plan
 
 Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
@@ -101,8 +101,8 @@ Version 2 handoff documents remain readable for the three already qualified sing
 fixtures. One invocation accepts either one complete Version 2 family or one complete Version 3
 family; it rejects mixed versions. A root-only Version 3 family is valid when both optional arrays
 are absent. Version 3 is mandatory when the application returns an additional attachment. No
-Version 3 schema or operator behavior exists until the corresponding functional slices below merge
-and pass their evidence gates.
+Version 3 operator projection or activation exists until the corresponding functional slice below
+merges and passes its evidence gates.
 
 An update always returns the required root target. When additional attachments are present, it
 returns the complete optional target and binding arrays, including unchanged entries. Removing or
@@ -155,6 +155,9 @@ checks. This slice changes no contract cardinality and invokes no provider opera
 Suggested branch: `feat/complete-attachment-set-contracts`
 
 Pull-request target: `feat/real-application-staging-adoption`
+
+Implementation status: repository behavior implemented on the Slice 2 branch; merge and
+qualification remain separate states.
 
 Add the closed Version 3 Platform Integration Bundle, Application Attachment Bundle, and
 registration-intent schemas, canonical vectors, compatibility loading, prohibited-data checks,

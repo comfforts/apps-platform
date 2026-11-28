@@ -3,6 +3,7 @@
 Status: AP-M9-W10 implements and Candidate-qualifies the Version 2 lifecycle; AP-M9-W11 qualified
 the staging platform and cross-project fixtures from Accepted Source at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 Version 3 handoff, separate fourth-fixture
+contracts are readable, while multi-target operator projection, separate fourth-fixture
 qualification, and real-application adoption are next
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use

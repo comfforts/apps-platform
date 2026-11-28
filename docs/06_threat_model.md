@@ -1,10 +1,11 @@
 # <u>App Platform threat model</u>
 
-Version 1.25 | Status: ADR-015 controls are implemented and Candidate-qualified by AP-M9-W10;
+Version 1.26 | Status: ADR-015 controls are implemented and Candidate-qualified by AP-M9-W10;
 AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 multi-attachment controls are accepted but
-unimplemented; real-application adoption, destructive recovery, and production readiness remain
-separate W12, W13, and W14 evidence boundaries
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 multi-attachment contract controls are
+implemented while provider, activation, fixture, and adoption controls remain unimplemented;
+real-application adoption, destructive recovery, and production readiness remain separate W12,
+W13, and W14 evidence boundaries
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called

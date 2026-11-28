@@ -16,6 +16,14 @@ from contracts.lifecycle import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 VECTOR_DIRECTORY = PROJECT_ROOT / "contracts" / "lifecycle" / "test-vectors" / "valid"
 VECTORS = {
+    "application-attachment-bundle.staging.multi.synthetic.v3.json": (
+        "application-attachment-bundle",
+        "sha256:5532e5cb4cec5d9451245fe3c08bee3ef65329cf5d09f6f07cf0cf6e092d4ea8",
+    ),
+    "application-attachment-bundle.staging.root-only.synthetic.v3.json": (
+        "application-attachment-bundle",
+        "sha256:c7b9dfcd83e3f9684ab7551d723e19d62a5648177f593980a30d5e83ad7261f5",
+    ),
     "application-attachment-bundle.staging.synthetic.v1.json": (
         "application-attachment-bundle",
         "sha256:443fd2dddd7b6bc91533c1e616671eab7fe32f58e2ffc598ed7bb246175d2755",
@@ -32,6 +40,10 @@ VECTORS = {
         "platform-integration-bundle",
         "sha256:36ea2480010791dcf7a37aeeb493e17a4e7af91131f1f7f4219ffb87203c3d9e",
     ),
+    "platform-integration-bundle.staging.synthetic.v3.json": (
+        "platform-integration-bundle",
+        "sha256:c9a5e7ea887e3e3b774fb2df1635f32035aaa37ebdf9cf2af196509bdae8a64b",
+    ),
     "qualification-evidence.staging.synthetic.v1.json": (
         "qualification-evidence",
         "sha256:96dbf65339fc57d97049f1daa5632834c9bd194b2ba5193ad8a42028948eef1f",
@@ -39,6 +51,14 @@ VECTORS = {
     "registration-intent.staging.synthetic.v2.json": (
         "registration-intent",
         "sha256:21ca9faf32aa6554aefa0ee1448a5469e02f66bd495f4ff7c54a7bf774934d8e",
+    ),
+    "registration-intent.staging.multi.synthetic.v3.json": (
+        "registration-intent",
+        "sha256:994ddc0e4d913a7743deefdad5ac0c8a07d547f53ad2f2d3a280ae5dfd5e945d",
+    ),
+    "registration-intent.staging.root-only.synthetic.v3.json": (
+        "registration-intent",
+        "sha256:6f85732f0acf29721a109ce1cf614e2597c51220a57e787969e0f7bd7d4f58c8",
     ),
 }
 
@@ -53,7 +73,7 @@ class LifecycleVectorTest(unittest.TestCase):
             with self.subTest(filename=filename):
                 loader = (
                     load_versioned_lifecycle_document
-                    if ".v2." in filename
+                    if ".v1." not in filename
                     else load_lifecycle_document
                 )
                 loaded = loader(VECTOR_DIRECTORY / filename, kind)

@@ -1,13 +1,14 @@
 # App Platform contracts
 
-Versions 1 and 2 implemented; Version 3 application handoff planned | Scope: repository-owned
-machine interfaces and deterministic validation; no operation authority
+Versions 1 through 3 implemented for their documented scopes | Scope: repository-owned machine
+interfaces and deterministic validation; no operation authority
 
 Status: Version 1 remains a readable historical predecessor family. Version 2 is the active
 repository interface for application handoffs, registration compilation, Shared Edge loading, and
 independent application verification. AP-M9-W11 qualified the platform and fixtures using Version
-2 from Accepted Source. ADR-017 accepts a Version 3 complete attachment-set handoff for AP-M9-W12,
-but no Version 3 schema or implementation exists yet; no real Application Adoption or production
+2 from Accepted Source. The ADR-017 Version 3 complete attachment-set schemas, compatibility
+loader, canonical vectors, and relationship validation are implemented for AP-M9-W12. The operator
+does not yet project or activate Version 3; no real Application Adoption or production
 qualification is implied.
 
 The `contracts/` directory defines the versioned data exchanged between platform components,
@@ -73,6 +74,9 @@ route, admission policy, or provider command.
 | `lifecycle/schemas/platform-integration-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2` | Active handoff with explicit Admission Mode and Identity Delivery |
 | `lifecycle/schemas/application-attachment-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v2` | Version 2 application-owned target posture bound to an exact integration-bundle digest |
 | `lifecycle/schemas/registration-intent.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:registration-intent:v2` | Reviewed registration intent with explicit Identity Delivery and no member data |
+| `lifecycle/schemas/platform-integration-bundle.v3.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v3` | Application-scoped declaration of one required root and at most fifteen optional additional attachments |
+| `lifecycle/schemas/application-attachment-bundle.v3.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v3` | Required root target plus an optional canonical complete additional target set |
+| `lifecycle/schemas/registration-intent.v3.schema.json` | `urn:comfforts:app-platform:lifecycle:registration-intent:v3` | Required root binding at `/` plus an optional canonical complete additional binding set |
 
 [`lifecycle/`](lifecycle/README.md) is a separate local registry for the Environment Profile,
 destructive Deployment Specification, Platform Integration Bundle, Application Attachment Bundle,
@@ -83,16 +87,17 @@ infrastructure-configuration registry. Its canonical digests and cross-document 
 repository behavior only; they perform no prompt, approval, credential, provider, Terraform, DNS,
 deployment, application operation, or qualification probe.
 
-### Planned AP-M9-W12 Version 3 handoff family
+### AP-M9-W12 Version 3 handoff family
 
 ADR-017 requires a new major version of the three application-handoff documents because the
 qualified closed Version 2 Application Attachment Bundle and registration intent each describe
-one target. Version 3 will add:
+one target. Version 3 adds:
 
-- one application-scoped Platform Integration Bundle declaring one required root and at most
-  fifteen optional additional attachments;
+- one application-scoped Platform Integration Bundle whose `attachment_contract` fixes
+  `root_attachment_required=true` and `maximum_additional_attachments=15`;
 - one Application Attachment Bundle preserving the required singular root `target` and adding an
-  optional canonical `additional_attachments` array sorted by unique `attachment_id`; and
+  optional canonical `additional_attachments` array sorted by unique `attachment_id`, where every
+  entry contains that identifier and one closed `target`; and
 - one registration intent preserving the required root ID, forwarding mode, and mount constrained
   to `/`, plus an optional canonical `additional_attachment_bindings` array sorted by
   `attachment_id`.
@@ -102,19 +107,21 @@ and neither may repeat the required root ID. Relationship validation will reject
 more than fifteen additional attachments, one optional array without the other, duplicate or
 mismatched additional IDs, root-ID reuse, a non-root root mount, duplicate or ambiguous mounts,
 mixed handoff versions, stale digests, and non-canonical bytes.
-Provider validation will read every exact target before any output is projected into the existing
-Version 2 Application Registration `attachments` array. A failed target produces no compiled
+Every additional binding contains only `attachment_id`, `mount_path`, and `forwarding_mode`.
+The implemented contract seam validates every target's application-scoped posture without reading
+a provider. Slice 3 will read every exact target before any output is projected into the existing
+Version 2 Application Registration `attachments` array. A failed target must produce no compiled
 output or activation.
 
-This is planned contract authority, not an implemented inventory entry. The Version 3 schemas,
-registry mappings, vectors, validators, compatibility loader, operator consumers, and tests must
-land together in the AP-M9-W12 contract slice before a Version 3 document is accepted. Version 2
-remains unchanged and readable for the qualified single-target fixtures. Root-only Version 3 also
-remains valid when both optional attributes are absent. Handoff Version 3 does
+The Version 3 schemas, registry mappings, vectors, validators, compatibility loader, and
+deterministic tests are implemented at the inert lifecycle-contract seam. Active operator
+consumers continue to reject Version 3 until the atomic multi-target registration slice. Version 2
+remains unchanged and readable for the qualified single-target fixtures. Root-only Version 3 is
+valid when both optional attributes are absent. Handoff Version 3 does
 not require a Version 3 Registration Set, Compiled Shared Edge, Verified Identity Context, or State
 Ownership Manifest because those interfaces do not change.
 
-The planned valid vectors include both a root-only family and a
+The valid vectors include both a root-only family and a
 `fixture-multi-attachment` family whose required `web` target is bound to `/` and whose optional
 `api` target is bound to `/api`. That application identifier and those attachment identifiers are
 fixture data, not schema constants; reusable validation remains application-neutral.
@@ -126,7 +133,7 @@ Conflicts are resolved in this order:
 1. product requirements;
 2. accepted architecture decisions;
 3. system design;
-4. this contract index and the Version 1 and Version 2 schemas in both local registries;
+4. this contract index and the Version 1 through Version 3 schemas in both local registries;
 5. implementation plan and evaluation strategy; and
 6. test vectors, prompts, and evidence.
 
@@ -140,11 +147,11 @@ intent are never platform contract sources and do not specialize these generic i
 ## Versioning
 
 Each instance carries the integer `contract_version` selected by its schema. Filename suffixes and
-schema URNs use `v1` or `v2` for the same major version. Version-aware compatibility loaders
-currently accept only a reviewed Version 1 or Version 2 schema for the selected document kind; the
-original Version 1 entry points remain unchanged so adding Version 2 cannot silently alter an
-active consumer. AP-M9-W12 must extend only the lifecycle handoff loader to Version 3 and preserve
-every existing Version 1 and Version 2 entry point.
+schema URNs use `v1`, `v2`, or `v3` for the same major version. The lifecycle compatibility loader
+accepts reviewed Version 1, Version 2, and Version 3 handoff schemas while every original Version 1
+and Version 2 entry point remains unchanged. The core Registration Set, Compiled Shared Edge,
+Verified Identity Context, and State Ownership Manifest registries remain Version 1/2 as assigned
+by ADR-017.
 
 `migrate_registration_set_v1_to_v2` is deterministic and non-mutating. It preserves generation and
 registration-revision values as a compatibility representation, maps public to Identity Delivery

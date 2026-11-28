@@ -318,11 +318,12 @@ Applications remain responsible for their own runtime, data, state, secrets, and
 authorization. The platform and application exchange non-secret, digest-bound bundles:
 
 > **Real-application complete-set boundary:** The commands below currently implement the qualified
-> Version 2 single-target fixture handoff. The planned Version 3 family represents a real
-> application with one required root target and up to fifteen optional additional targets. Do not
-> pass a Version 3 document or begin a real
-> adoption until the environment-label, contract, and atomic multi-target registration changes
-> merge and pass `make check`. The fixture procedure later in this runbook remains Version 2.
+> Version 2 single-target fixture handoff. The implemented Version 3 contract family represents a
+> real application with one required root target and up to fifteen optional additional targets,
+> but the current operator still rejects it before provider readback. Do not begin a real adoption
+> until the atomic multi-target registration, fourth-fixture, and fixture-qualification slices
+> merge and pass their required gates. The fixture procedure later in this runbook remains Version
+> 2.
 
 1. Run `platform-connect-project` once for the application project in this environment. It attaches
    only that existing project to the platform Shared VPC and verifies subnet access for its Cloud

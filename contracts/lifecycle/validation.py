@@ -29,12 +29,15 @@ PROFILE_DIRECTORY = (
 SCHEMA_FILES = (
     "application-attachment-bundle.v1.schema.json",
     "application-attachment-bundle.v2.schema.json",
+    "application-attachment-bundle.v3.schema.json",
     "deployment-specification.v1.schema.json",
     "environment-profile.v1.schema.json",
     "platform-integration-bundle.v1.schema.json",
     "platform-integration-bundle.v2.schema.json",
+    "platform-integration-bundle.v3.schema.json",
     "qualification-evidence.v1.schema.json",
     "registration-intent.v2.schema.json",
+    "registration-intent.v3.schema.json",
 )
 SCHEMA_IDS = {
     "application-attachment-bundle": (
@@ -57,13 +60,16 @@ VERSIONED_SCHEMA_IDS = {
     "application-attachment-bundle": {
         1: "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v1",
         2: "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v2",
+        3: "urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v3",
     },
     "platform-integration-bundle": {
         1: "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v1",
         2: "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2",
+        3: "urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v3",
     },
     "registration-intent": {
         2: "urn:comfforts:app-platform:lifecycle:registration-intent:v2",
+        3: "urn:comfforts:app-platform:lifecycle:registration-intent:v3",
     },
 }
 
@@ -116,15 +122,21 @@ class LifecycleDocument:
 
 
 def _pointer(path: str, token: str | int) -> str:
+    """Append one escaped token to a JSON Pointer without mutating input."""
+
     encoded = str(token).replace("~", "~0").replace("/", "~1")
     return f"{path}/{encoded}" if path else f"/{encoded}"
 
 
 def _ordered(violations: list[Violation]) -> tuple[Violation, ...]:
+    """Return violations in stable path, code, and message order."""
+
     return tuple(sorted(violations, key=lambda item: (item.path, item.code, item.message)))
 
 
 def _canonical_bytes(value: Any) -> bytes:
+    """Serialize an in-memory value with the repository's canonical JSON rules."""
+
     return json.dumps(
         value,
         ensure_ascii=False,
@@ -137,10 +149,20 @@ def _canonical_bytes(value: Any) -> bytes:
 def load_lifecycle_schemas(
     schema_directory: Path | None = None,
 ) -> dict[str, dict[str, Any]]:
+    """Load the fixed local lifecycle registry without remote resolution.
+
+    ``schema_directory`` may replace the default only for deterministic verification. The function
+    reads every reviewed filename in ``SCHEMA_FILES`` and returns its identifier-indexed schema;
+    malformed, missing, duplicate, unsupported, or remotely referenced schemas raise the closed
+    registry errors from ``load_schema_registry``. No provider or repository state is changed.
+    """
+
     return load_schema_registry(schema_directory or SCHEMA_DIRECTORY, SCHEMA_FILES)
 
 
 def _scan_prohibited(value: Any, path: str = "") -> list[Violation]:
+    """Recursively report secret, state, plan, provider, and placeholder material."""
+
     violations: list[Violation] = []
     if isinstance(value, dict):
         for key, item in value.items():
@@ -178,8 +200,8 @@ def _scan_prohibited(value: Any, path: str = "") -> list[Violation]:
     return violations
 
 
-def _scan_v2_member_material(value: Any, path: str = "") -> list[Violation]:
-    """Reject directory data from every Version 2 handoff nesting level."""
+def _scan_member_material(value: Any, path: str = "") -> list[Violation]:
+    """Return violations for directory data nested anywhere in a V2 or V3 handoff."""
 
     member_keys = {
         "member",
@@ -198,13 +220,13 @@ def _scan_v2_member_material(value: Any, path: str = "") -> list[Violation]:
                     Violation(
                         "PROHIBITED_MATERIAL",
                         item_path,
-                        "member data is prohibited from Version 2 handoffs",
+                        "member data is prohibited from Version 2 and Version 3 handoffs",
                     )
                 )
-            violations.extend(_scan_v2_member_material(item, item_path))
+            violations.extend(_scan_member_material(item, item_path))
     elif isinstance(value, list):
         for index, item in enumerate(value):
-            violations.extend(_scan_v2_member_material(item, _pointer(path, index)))
+            violations.extend(_scan_member_material(item, _pointer(path, index)))
     return violations
 
 
@@ -334,7 +356,7 @@ def _specification_violations(value: dict[str, Any]) -> list[Violation]:
 
 
 def _integration_violations(value: dict[str, Any]) -> list[Violation]:
-    """Validate V1 or V2 identity values against admission and delivery policy."""
+    """Validate V1 through V3 identity values against admission and delivery policy."""
 
     violations: list[Violation] = []
     access_mode = value.get("access_mode")
@@ -345,7 +367,7 @@ def _integration_violations(value: dict[str, Any]) -> list[Violation]:
     application_id = value.get("application_id")
     identity_enabled = (
         identity_delivery in {"optional", "required"}
-        if contract_version == 2
+        if contract_version in {2, 3}
         else access_mode in {"authenticated", "restricted"}
     )
     if isinstance(identity, dict):
@@ -392,27 +414,125 @@ def _integration_violations(value: dict[str, Any]) -> list[Violation]:
 
 
 def _attachment_violations(value: dict[str, Any]) -> list[Violation]:
-    """Keep an attachment target bound to the bundle's application owner."""
+    """Validate root/additional ownership, identifier uniqueness, and canonical order."""
 
+    violations: list[Violation] = []
+    targets: list[tuple[str, dict[str, Any]]] = []
     target = value.get("target")
-    if isinstance(target, dict) and target.get("owner_application_id") != value.get(
-        "application_id"
-    ):
-        return [
-            Violation(
-                "OWNER_CONFLICT",
-                "/target/owner_application_id",
-                "attachment owner must equal the bundle application",
+    if isinstance(target, dict):
+        targets.append(("/target", target))
+    additional = value.get("additional_attachments")
+    identifiers: list[str] = []
+    if isinstance(additional, list):
+        seen: set[str] = set()
+        for index, entry in enumerate(additional):
+            if not isinstance(entry, dict):
+                continue
+            identifier = entry.get("attachment_id")
+            if isinstance(identifier, str):
+                identifiers.append(identifier)
+                if identifier in seen:
+                    violations.append(
+                        Violation(
+                            "ATTACHMENT_ID_CONFLICT",
+                            f"/additional_attachments/{index}/attachment_id",
+                            "additional attachment identifier is not unique",
+                        )
+                    )
+                seen.add(identifier)
+            additional_target = entry.get("target")
+            if isinstance(additional_target, dict):
+                targets.append(
+                    (f"/additional_attachments/{index}/target", additional_target)
+                )
+        if identifiers != sorted(identifiers):
+            violations.append(
+                Violation(
+                    "ATTACHMENT_ORDER_INVALID",
+                    "/additional_attachments",
+                    "additional attachments must be sorted by attachment_id",
+                )
             )
-        ]
-    return []
+    resource_references: set[str] = set()
+    for path, selected in targets:
+        if selected.get("owner_application_id") != value.get("application_id"):
+            violations.append(
+                Violation(
+                    "OWNER_CONFLICT",
+                    f"{path}/owner_application_id",
+                    "attachment owner must equal the bundle application",
+                )
+            )
+        resource_reference = selected.get("resource_reference")
+        if isinstance(resource_reference, str):
+            if resource_reference in resource_references:
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_TARGET_CONFLICT",
+                        f"{path}/resource_reference",
+                        "one target resource cannot occupy multiple attachment entries",
+                    )
+                )
+            resource_references.add(resource_reference)
+    return violations
 
 
 def _registration_intent_violations(value: dict[str, Any]) -> list[Violation]:
-    """Reserve a semantic-policy seam for the closed Version 2 intent schema."""
+    """Validate Version 3 root and canonical additional binding relationships."""
 
-    del value
-    return []
+    if value.get("contract_version") != 3:
+        return []
+    violations: list[Violation] = []
+    if value.get("mount_path") != "/":
+        violations.append(
+            Violation(
+                "ROOT_MOUNT_INVALID",
+                "/mount_path",
+                "the required root attachment must be mounted at /",
+            )
+        )
+    bindings = value.get("additional_attachment_bindings")
+    if not isinstance(bindings, list):
+        return violations
+    root_id = value.get("attachment_id")
+    identifiers: list[str] = []
+    seen_ids: set[str] = set()
+    seen_mounts = {"/"}
+    for index, binding in enumerate(bindings):
+        if not isinstance(binding, dict):
+            continue
+        identifier = binding.get("attachment_id")
+        if isinstance(identifier, str):
+            identifiers.append(identifier)
+            if identifier == root_id or identifier in seen_ids:
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_ID_CONFLICT",
+                        f"/additional_attachment_bindings/{index}/attachment_id",
+                        "additional binding identifier repeats the root or another binding",
+                    )
+                )
+            seen_ids.add(identifier)
+        mount = binding.get("mount_path")
+        if isinstance(mount, str):
+            if mount in seen_mounts:
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_MOUNT_CONFLICT",
+                        f"/additional_attachment_bindings/{index}/mount_path",
+                        "attachment mount is already used in this intent",
+                    )
+                )
+            seen_mounts.add(mount)
+    if identifiers != sorted(identifiers):
+        violations.append(
+            Violation(
+                "ATTACHMENT_ORDER_INVALID",
+                "/additional_attachment_bindings",
+                "additional bindings must be sorted by attachment_id",
+            )
+        )
+    return violations
 
 
 _QUALIFICATION_CHECKS = {
@@ -573,7 +693,13 @@ def validate_versioned_lifecycle_document(
     *,
     registry: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[Violation, ...]:
-    """Validate readable V1 or inert V2 handoff data without changing V1 consumers."""
+    """Validate one readable V1, V2, or V3 handoff without side effects.
+
+    The selected kind and embedded version choose the closed local schema. The result contains
+    deterministic, path-qualified schema, prohibited-material, member-data, kind, and semantic
+    violations; an empty tuple means the document is valid. Unknown kinds raise ``ValueError`` and
+    unsupported versions return ``CONTRACT_VERSION_UNSUPPORTED`` without schema discovery.
+    """
 
     versions = VERSIONED_SCHEMA_IDS.get(expected_kind)
     if versions is None:
@@ -594,8 +720,8 @@ def validate_versioned_lifecycle_document(
         validate_contract_instance(value, versions[version], active_registry)
     )
     violations.extend(_scan_prohibited(value))
-    if version == 2:
-        violations.extend(_scan_v2_member_material(value))
+    if version in {2, 3}:
+        violations.extend(_scan_member_material(value))
     if value.get("document_kind") != expected_kind:
         violations.append(
             Violation(
@@ -609,6 +735,8 @@ def validate_versioned_lifecycle_document(
 
 
 def validate_lifecycle_material(value: Any) -> tuple[Violation, ...]:
+    """Return stable prohibited-material violations for any in-memory value."""
+
     return _ordered(_scan_prohibited(value))
 
 
@@ -695,13 +823,108 @@ def validate_lifecycle_relationships(
     return _ordered(violations)
 
 
+def _target_relationship_violations(
+    target: dict[str, Any],
+    integration_bundle: dict[str, Any],
+    path: str,
+    *,
+    complete_posture: bool,
+) -> list[Violation]:
+    """Compare one target with application-scoped integration policy.
+
+    Root and additional targets share this pure comparison. ``complete_posture`` enables the V3
+    project, region, network, subnet, and egress checks while V1/V2 retain their accepted
+    compatibility behavior. Returned violations are not sorted until the family validator joins
+    them with document-level results.
+    """
+
+    violations: list[Violation] = []
+    if target.get("owner_application_id") != integration_bundle.get("application_id"):
+        violations.append(
+            Violation(
+                "OWNER_CONFLICT",
+                f"{path}/owner_application_id",
+                "attachment retains the named application owner",
+            )
+        )
+    contract = integration_bundle.get("attachment_contract")
+    if isinstance(contract, dict):
+        for field in ("adapter_kind", "ingress_mode"):
+            if target.get(field) != contract.get(field):
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_POSTURE_INVALID",
+                        f"{path}/{field}",
+                        "attachment violates integration contract",
+                    )
+                )
+    identity = integration_bundle.get("identity")
+    if isinstance(identity, dict):
+        for target_field, identity_field in (
+            ("caller_grant", "edge_caller_reference"),
+            ("audience", "audience"),
+        ):
+            if target.get(target_field) != identity.get(identity_field):
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_POSTURE_INVALID",
+                        f"{path}/{target_field}",
+                        "attachment posture does not match integration bundle",
+                    )
+                )
+    if not complete_posture:
+        return violations
+    application_project = integration_bundle.get("application_project")
+    network = integration_bundle.get("network")
+    if not isinstance(application_project, dict) or not isinstance(network, dict):
+        return violations
+    comparisons = (
+        ("application_project_id", application_project.get("project_id")),
+        ("network_reference", network.get("network_reference")),
+        ("subnetwork_reference", network.get("subnetwork_reference")),
+        ("egress_mode", network.get("egress_mode")),
+    )
+    for field, expected in comparisons:
+        if target.get(field) != expected:
+            violations.append(
+                Violation(
+                    "ATTACHMENT_POSTURE_INVALID",
+                    f"{path}/{field}",
+                    "attachment posture does not match application-scoped platform values",
+                )
+            )
+    expected_reference_prefix = (
+        "urn:comfforts:app-platform:gcp:cloud-run:"
+        f"{application_project.get('project_number')}:{network.get('region')}:"
+    )
+    reference = target.get("resource_reference")
+    if not isinstance(reference, str) or not reference.startswith(
+        expected_reference_prefix
+    ):
+        violations.append(
+            Violation(
+                "ATTACHMENT_POSTURE_INVALID",
+                f"{path}/resource_reference",
+                "attachment reference does not match the application project and region",
+            )
+        )
+    return violations
+
+
 def validate_versioned_lifecycle_relationships(
     *,
     integration_bundle: dict[str, Any] | None = None,
     attachment_bundle: dict[str, Any] | None = None,
     registration_intent: dict[str, Any] | None = None,
 ) -> tuple[Violation, ...]:
-    """Validate an all-V1 or all-V2 handoff while rejecting mixed activation input."""
+    """Validate one complete same-version handoff family without external effects.
+
+    V1/V2 compatibility remains readable. V3 additionally requires a registration intent,
+    validates the complete root-plus-optional identifier relationship, and compares every target
+    with application-scoped project, network, caller, audience, and adapter policy. The function
+    returns stable ordered violations and performs no file, provider, publication, or activation
+    operation.
+    """
 
     violations: list[Violation] = []
     documents = (
@@ -729,7 +952,20 @@ def validate_versioned_lifecycle_relationships(
             Violation(
                 "CONTRACT_VERSION_MIXED",
                 "",
-                "one activation handoff cannot mix V1 and V2 documents",
+                "one activation handoff cannot mix V1, V2, and V3 documents",
+            )
+        )
+    selected_version = (
+        integration_bundle.get("contract_version")
+        if isinstance(integration_bundle, dict)
+        else None
+    )
+    if selected_version == 3 and registration_intent is None:
+        violations.append(
+            Violation(
+                "DOCUMENT_REQUIRED",
+                "/registration_intent",
+                "a Version 3 handoff requires one registration intent",
             )
         )
     if violations or integration_bundle is None or attachment_bundle is None:
@@ -756,38 +992,26 @@ def validate_versioned_lifecycle_relationships(
                 )
             )
     target = attachment_bundle.get("target")
-    contract = integration_bundle.get("attachment_contract")
-    identity = integration_bundle.get("identity")
     if isinstance(target, dict):
-        if target.get("owner_application_id") != integration_bundle.get("application_id"):
-            violations.append(
-                Violation(
-                    "OWNER_CONFLICT",
-                    "/attachment_bundle/target/owner_application_id",
-                    "attachment retains the named application owner",
-                )
+        violations.extend(
+            _target_relationship_violations(
+                target,
+                integration_bundle,
+                "/attachment_bundle/target",
+                complete_posture=selected_version == 3,
             )
-        if isinstance(contract, dict):
-            for field in ("adapter_kind", "ingress_mode"):
-                if target.get(field) != contract.get(field):
-                    violations.append(
-                        Violation(
-                            "ATTACHMENT_POSTURE_INVALID",
-                            f"/attachment_bundle/target/{field}",
-                            "attachment violates integration contract",
-                        )
-                    )
-        if isinstance(identity, dict):
-            for target_field, identity_field in (
-                ("caller_grant", "edge_caller_reference"),
-                ("audience", "audience"),
-            ):
-                if target.get(target_field) != identity.get(identity_field):
-                    violations.append(
-                        Violation(
-                            "ATTACHMENT_POSTURE_INVALID",
-                            f"/attachment_bundle/target/{target_field}",
-                            "attachment posture does not match integration bundle",
+        )
+    if selected_version == 3:
+        additional = attachment_bundle.get("additional_attachments")
+        if isinstance(additional, list):
+            for index, entry in enumerate(additional):
+                if isinstance(entry, dict) and isinstance(entry.get("target"), dict):
+                    violations.extend(
+                        _target_relationship_violations(
+                            entry["target"],
+                            integration_bundle,
+                            f"/attachment_bundle/additional_attachments/{index}/target",
+                            complete_posture=True,
                         )
                     )
     if registration_intent is not None:
@@ -798,6 +1022,47 @@ def validate_versioned_lifecycle_relationships(
                         "DOCUMENT_RELATION_INVALID",
                         f"/registration_intent/{field}",
                         f"registration intent {field} does not match integration bundle",
+                    )
+                )
+    if selected_version == 3 and registration_intent is not None:
+        additional = attachment_bundle.get("additional_attachments")
+        bindings = registration_intent.get("additional_attachment_bindings")
+        additional_present = isinstance(additional, list)
+        bindings_present = isinstance(bindings, list)
+        if additional_present != bindings_present:
+            violations.append(
+                Violation(
+                    "ATTACHMENT_SET_MISMATCH",
+                    "/registration_intent/additional_attachment_bindings",
+                    "additional attachments and bindings must both be absent or present",
+                )
+            )
+        elif additional_present and bindings_present:
+            additional_ids = {
+                entry.get("attachment_id")
+                for entry in additional
+                if isinstance(entry, dict)
+            }
+            binding_ids = {
+                binding.get("attachment_id")
+                for binding in bindings
+                if isinstance(binding, dict)
+            }
+            if additional_ids != binding_ids:
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_SET_MISMATCH",
+                        "/registration_intent/additional_attachment_bindings",
+                        "additional attachment and binding identifiers must match exactly",
+                    )
+                )
+            root_id = registration_intent.get("attachment_id")
+            if root_id in additional_ids or root_id in binding_ids:
+                violations.append(
+                    Violation(
+                        "ATTACHMENT_ID_CONFLICT",
+                        "/registration_intent/attachment_id",
+                        "the root attachment identifier cannot be reused as an additional ID",
                     )
                 )
     return _ordered(violations)
@@ -811,7 +1076,11 @@ def canonical_lifecycle_bytes(value: Any, expected_kind: str) -> bytes:
 
 
 def canonical_versioned_lifecycle_bytes(value: Any, expected_kind: str) -> bytes:
-    """Serialize one valid readable handoff with Canonical JSON Version 1 rules."""
+    """Return canonical bytes for one valid V1, V2, or V3 handoff.
+
+    Validation includes the selected versioned schema and semantic policy. Invalid input raises
+    ``ValueError`` and no file or external state is changed.
+    """
 
     violations = validate_versioned_lifecycle_document(value, expected_kind)
     if violations:
@@ -825,7 +1094,7 @@ def lifecycle_digest(value: Any, expected_kind: str) -> str:
 
 
 def versioned_lifecycle_digest(value: Any, expected_kind: str) -> str:
-    """Return the digest for a readable V1 or inert V2 handoff document."""
+    """Return the SHA-256 canonical digest for a valid V1, V2, or V3 handoff."""
 
     canonical = canonical_versioned_lifecycle_bytes(value, expected_kind)
     return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
@@ -868,7 +1137,12 @@ def load_versioned_lifecycle_document(
     *,
     max_bytes: int = 262_144,
 ) -> LifecycleDocument:
-    """Load canonical V1 historical or inert V2 handoff data through compatibility policy."""
+    """Load one bounded canonical V1, V2, or V3 handoff from local storage.
+
+    The loader performs no remote resolution or mutation. It returns the validated object,
+    canonical bytes, and digest on success; malformed, unsupported, prohibited, non-canonical, or
+    oversized input returns stable violations without exposing partial document data.
+    """
 
     loaded = load_json_document(path, max_bytes=max_bytes)
     if loaded.violations:

@@ -1,10 +1,10 @@
 # <u>App Platform evaluation strategy</u>
 
-Version 0.32 | Status: AP-M9-W10 Version 2 Candidate Source qualification complete; AP-M9-W11
+Version 0.33 | Status: AP-M9-W10 Version 2 Candidate Source qualification complete; AP-M9-W11
 Accepted Source staging platform and fixture qualification completed at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 multi-attachment implementation
-and AP-EVAL-M9-10 real-application adoption are next; destructive recovery and production readiness
-remain AP-EVAL-M9-11 and AP-EVAL-M9-12
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 contract validation is implemented
+for AP-M9-W12 while operator projection, fixtures, qualification, and AP-EVAL-M9-10 adoption remain
+next; destructive recovery and production readiness remain AP-EVAL-M9-11 and AP-EVAL-M9-12
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns

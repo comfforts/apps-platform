@@ -400,6 +400,27 @@ class AttachmentValidationTest(unittest.TestCase):
         self.assertEqual(owner_result.blockers, ("ATTACHMENT_BUNDLE_INVALID",))
         self.assertEqual(reader.requests, [])
 
+    def test_v3_contracts_remain_inert_until_multi_target_registration_slice(self) -> None:
+        generated = ApplicationIntegrationLifecycle(
+            FakePlatformReader(_state())
+        ).outputs(_request("authenticated"))
+        assert generated.bundle is not None
+        attachment = _attachment(generated.bundle)
+        lifecycle, reader = self._lifecycle(attachment)
+        v3_integration = copy.deepcopy(generated.bundle)
+        v3_integration["contract_version"] = 3
+        v3_attachment = copy.deepcopy(attachment)
+        v3_attachment["contract_version"] = 3
+
+        result = lifecycle.validate_attachment(v3_integration, v3_attachment)
+
+        self.assertEqual(result.outcome, "blocked")
+        self.assertEqual(
+            result.blockers,
+            ("INTEGRATION_BUNDLE_VERSION_UNSUPPORTED",),
+        )
+        self.assertEqual(reader.requests, [])
+
     def test_current_platform_and_target_readback_must_match_exactly(self) -> None:
         generated = ApplicationIntegrationLifecycle(
             FakePlatformReader(_state())

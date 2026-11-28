@@ -654,7 +654,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |
 | `make application-handoff-check ...` | Require the platform-ready result, then verify the named application project, its services and Shared VPC grants, bundle inputs, access mode, and application identity projection without mutation |
 | `make platform-outputs ...` | Generate one application- and project-scoped Platform Integration Bundle from a verified project connection |
-| `make platform-register ...` | Validate a complete same-version handoff family and activate a complete immutable generation; Version 3 multi-target support is planned for W12 |
+| `make platform-register ...` | Validate a complete same-version handoff family and activate a complete immutable generation; Version 3 is contract-readable but multi-target operator support remains planned for W12 Slice 3 |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
 | `make platform-qualify ENVIRONMENT=<name> OWNER_MEMBER_REFERENCE=<opaque-reference>` | Evaluate the exact platform and fixture revisions, exercise and clean up one temporary second member, require the reviewed owner-only baseline, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every prerequisite passes; write redacted evidence without member references |
@@ -682,7 +682,7 @@ perform separate operations:
 3. The Application Owner consumes that bundle and deploys the runtime through its own Application
    State and release authority.
 4. The Application Owner returns one complete Application Attachment Bundle and registration
-   intent bound to the exact integration-bundle digest. Planned Version 3 always contains the root
+   intent bound to the exact integration-bundle digest. Version 3 always contains the root
    target and may contain optional additional targets plus an exact same-ID optional binding set.
 5. The Platform Operator validates the complete relationship plus every target, owner, network,
    ingress, edge-caller grant, audience, readiness result, and current platform binding, then
@@ -731,7 +731,8 @@ make platform-register \
 make platform-status ENVIRONMENT=staging
 ```
 
-The current operator rejects those Version 3 paths until the planned schemas and consumers land;
+The lifecycle-contract seam validates those Version 3 paths, but the current operator rejects them
+until the Slice 3 multi-target consumers land;
 do not use this sequence for a real application yet. `platform-connect-project` does not create or manage the application's runtime, state bucket,
 image repository, data, or route. There is no App Platform Make target for deploying a real application's runtime. That operation is
 intentionally supplied and authorized by the application's own repository. Apps Platform owns the
@@ -791,9 +792,9 @@ AP-M9-W10 completed and Candidate-qualified the Version 2 Platform Member Direct
 Identity Delivery transition. AP-M9-W11 then deployed and qualified the staging platform and all
 three cross-project fixtures from Accepted Source at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`. This does not qualify a real application,
-platform destruction/recovery, or production. AP-M9-W12 next implements the closed,
-project-independent staging candidate/release target-stage validation and the ADR-017 Version 3
-complete attachment-set handoff, adds and separately qualifies
+platform destruction/recovery, or production. AP-M9-W12 has implemented closed,
+project-independent staging candidate/release target-stage validation and the inert ADR-017 Version
+3 complete attachment-set contracts. It next implements atomic operator projection, then adds and separately qualifies
 the fourth authenticated multi-attachment fixture, then adopts one separately governed real
 application on staging. W13 owns destructive rehearsal and recovery; W14 owns the read-only
 production readiness and ownership check.

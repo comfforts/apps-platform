@@ -1,13 +1,14 @@
 # Operator lifecycle and handoff contracts
 
-Versions 1 and 2 implemented; Version 3 application handoff planned | Scope: closed, non-secret
-environment lifecycle, application handoff, and qualification-evidence documents; validation
-never authorizes mutation
+Versions 1 through 3 application handoff contracts implemented | Scope: closed, non-secret
+environment lifecycle, application handoff, and qualification-evidence documents; validation never
+authorizes mutation
 
 Version 1 handoff documents remain readable historical predecessors. Version 2 integration,
 attachment, and registration-intent documents are the implemented application-handoff interface
-and qualified fixture compatibility path. ADR-017 accepts a Version 3 complete attachment-set
-interface for AP-M9-W12, but its schemas and loader do not exist yet.
+and qualified fixture compatibility path. The ADR-017 Version 3 complete attachment-set schemas,
+loader, vectors, and relationship validation are implemented for AP-M9-W12; operator projection,
+provider readback, and activation remain later slices.
 
 This package defines the documents that connect environment preparation, deployment, status,
 application handoff, and qualification. It is separate from the platform/application registry in
@@ -37,9 +38,10 @@ bytes and the digest. The digest is lowercase SHA-256 over App Platform Canonica
 prefixed with `sha256:`.
 
 `load_versioned_lifecycle_document(path, expected_kind)` is the explicit compatibility entry point
-for a reviewed Version 1 or Version 2 handoff kind. Version-aware relationship validation rejects
-a mixed-version activation set. The original Version 1 loader and relationship validator remain
-available only for explicit historical Version 1 consumers.
+for a reviewed Version 1, Version 2, or Version 3 handoff kind. Version-aware relationship
+validation rejects a mixed-version family and requires a complete Version 3 registration intent.
+The original Version 1 loader and relationship validator remain available only for explicit
+historical Version 1 consumers.
 
 ## Contract inventory
 
@@ -53,6 +55,9 @@ available only for explicit historical Version 1 consumers.
 | `schemas/platform-integration-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v2` | active application-scoped handoff with explicit Identity Delivery |
 | `schemas/application-attachment-bundle.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v2` | Version 2 target posture bound to the exact Version 2 integration bundle |
 | `schemas/registration-intent.v2.schema.json` | `urn:comfforts:app-platform:lifecycle:registration-intent:v2` | explicit Admission Mode and Identity Delivery intent without member material |
+| `schemas/platform-integration-bundle.v3.schema.json` | `urn:comfforts:app-platform:lifecycle:platform-integration-bundle:v3` | application-scoped complete attachment-set limits and policy |
+| `schemas/application-attachment-bundle.v3.schema.json` | `urn:comfforts:app-platform:lifecycle:application-attachment-bundle:v3` | required root target plus optional complete additional targets |
+| `schemas/registration-intent.v3.schema.json` | `urn:comfforts:app-platform:lifecycle:registration-intent:v3` | required root binding at `/` plus optional complete additional bindings |
 
 Destructive-specification validation requires unique ordered steps, explicit action and resource
 allow-lists, declared prior outputs, stop-on-failure behavior, and an exact deletion boundary.
@@ -76,19 +81,21 @@ only by the operator's complete-generation transition: public becomes `none`, au
 restricted become `required`, and every registration-scoped member is discarded. The contracts do
 not enumerate or carry the environment member directory.
 
-Planned Version 3 retains those application-level policy pairs and preserves the singular target
-as a required root attachment. The registration intent preserves its required root ID and
-forwarding mode and requires mount `/`. The attachment bundle optionally adds a canonical
-`additional_attachments` array; the intent optionally adds canonical
-`additional_attachment_bindings`. Both optional attributes may be absent for a valid root-only
-handoff. When present, they contain the exact same additional IDs, include at most fifteen entries,
-and cannot repeat the root ID. All targets share the application project, region, network, owner,
-caller, Admission Mode, Identity Delivery, and audience. A complete Version 3 family will project
-into the existing Version 2 multi-attachment registration only after every relationship and target
-passes. The current registry must reject Version 3 until the AP-M9-W12 schema, registry, vector,
-validation, and deterministic-test slice is complete.
+Version 3 retains those application-level policy pairs, fixes
+`root_attachment_required=true` and `maximum_additional_attachments=15` in the integration bundle,
+and preserves the singular target as a required root attachment. The registration intent preserves
+its required root ID and forwarding mode and requires mount `/`. The attachment bundle optionally
+adds a canonical `additional_attachments` array whose entries contain `attachment_id` and a closed
+`target`; the intent optionally adds canonical `additional_attachment_bindings` entries containing
+`attachment_id`, `mount_path`, and `forwarding_mode`. Both optional attributes may be absent for a
+valid root-only handoff. When present, they contain the exact same additional IDs, include at most
+fifteen entries, and cannot repeat the root ID. All targets share the application project, region,
+network, owner, caller, Admission Mode, Identity Delivery, and audience. The inert contract seam accepts and
+validates a complete same-version family; the current operator still rejects Version 3 before
+provider readback or registration. Slice 3 will project a complete family into the existing
+Version 2 multi-attachment registration only after every relationship and target passes.
 
-The planned Version 3 vectors cover one root-only family and one
+The Version 3 vectors cover one root-only family and one
 `fixture-multi-attachment` family with required `web` at `/` and optional `api` at `/api`. The
 fixture names demonstrate the relationship only and are not allow-listed by the schemas.
 
@@ -97,10 +104,11 @@ profile, specification, final deployment progress, registration generation, and 
 revisions. It contains only redacted results permitted by its schema. A valid evidence document
 records what was evaluated; it does not make an unevaluated environment qualified.
 
-`test-vectors/valid/` contains canonical synthetic examples for Version 1 and Version 2 integration
-and attachment bundles, Version 2 registration intent, and Version 1 qualification evidence. The vectors are deterministic
-contract examples only; their source revisions, addresses, OAuth identifier, and target reference
-do not describe deployed resources or accepted operator input.
+`test-vectors/valid/` contains canonical synthetic examples for Version 1 through Version 3
+integration and attachment bundles, Version 2/3 registration intents, and Version 1 qualification
+evidence. The vectors are deterministic contract examples only; their source revisions, addresses,
+OAuth identifier, and target reference do not describe deployed resources or accepted operator
+input.
 
 This package intentionally exposes no prompt, approval, execution, resume, provider, Terraform,
 DNS, credential, or mutation behavior. The operator module consumes these documents for

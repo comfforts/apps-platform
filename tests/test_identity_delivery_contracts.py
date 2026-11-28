@@ -1,4 +1,4 @@
-"""Deterministic compatibility checks for inert Identity Delivery V2 contracts."""
+"""Deterministic compatibility checks for V2 identity and V3 handoff contracts."""
 
 from __future__ import annotations
 
@@ -310,11 +310,7 @@ class IdentityDeliveryContractTest(unittest.TestCase):
             )
         )
 
-    def test_v2_integration_bundle_accepts_each_reviewed_delivery_combination(self) -> None:
-        base = _document(
-            LIFECYCLE_VECTORS,
-            "platform-integration-bundle.staging.synthetic.v2.json",
-        )
+    def test_v2_v3_integration_bundles_accept_reviewed_delivery_combinations(self) -> None:
         cases = (
             ("public", "none", False, True),
             ("public", "optional", True, True),
@@ -324,31 +320,40 @@ class IdentityDeliveryContractTest(unittest.TestCase):
             ("restricted", "optional", True, False),
             ("public", "required", True, False),
         )
-        for access_mode, delivery, identity_enabled, valid in cases:
-            with self.subTest(access_mode=access_mode, delivery=delivery):
-                candidate = copy.deepcopy(base)
-                candidate["access_mode"] = access_mode
-                candidate["identity_delivery"] = delivery
-                if not identity_enabled:
-                    candidate["identity"] = {
-                        "oauth_client_id": None,
-                        "audience": None,
-                        "edge_caller_reference": candidate["identity"][
-                            "edge_caller_reference"
-                        ],
-                    }
-                    candidate["endpoints"]["issuer"] = None
-                    candidate["endpoints"]["jwks_uri"] = None
-                    candidate["endpoints"]["oauth_redirect_uri"] = None
+        for version in (2, 3):
+            base = _document(
+                LIFECYCLE_VECTORS,
+                f"platform-integration-bundle.staging.synthetic.v{version}.json",
+            )
+            for access_mode, delivery, identity_enabled, valid in cases:
+                with self.subTest(
+                    version=version,
+                    access_mode=access_mode,
+                    delivery=delivery,
+                ):
+                    candidate = copy.deepcopy(base)
+                    candidate["access_mode"] = access_mode
+                    candidate["identity_delivery"] = delivery
+                    if not identity_enabled:
+                        candidate["identity"] = {
+                            "oauth_client_id": None,
+                            "audience": None,
+                            "edge_caller_reference": candidate["identity"][
+                                "edge_caller_reference"
+                            ],
+                        }
+                        candidate["endpoints"]["issuer"] = None
+                        candidate["endpoints"]["jwks_uri"] = None
+                        candidate["endpoints"]["oauth_redirect_uri"] = None
 
-                violations = validate_versioned_lifecycle_document(
-                    candidate,
-                    "platform-integration-bundle",
-                )
+                    violations = validate_versioned_lifecycle_document(
+                        candidate,
+                        "platform-integration-bundle",
+                    )
 
-                self.assertEqual(not violations, valid)
+                    self.assertEqual(not violations, valid)
 
-    def test_versioned_lifecycle_loader_reads_v1_v2_and_registration_intent(self) -> None:
+    def test_versioned_lifecycle_loader_reads_v1_v2_and_v3_handoffs(self) -> None:
         cases = (
             (
                 "platform-integration-bundle.staging.synthetic.v1.json",
@@ -360,6 +365,18 @@ class IdentityDeliveryContractTest(unittest.TestCase):
             ),
             (
                 "registration-intent.staging.synthetic.v2.json",
+                "registration-intent",
+            ),
+            (
+                "platform-integration-bundle.staging.synthetic.v3.json",
+                "platform-integration-bundle",
+            ),
+            (
+                "application-attachment-bundle.staging.multi.synthetic.v3.json",
+                "application-attachment-bundle",
+            ),
+            (
+                "registration-intent.staging.multi.synthetic.v3.json",
                 "registration-intent",
             ),
         )

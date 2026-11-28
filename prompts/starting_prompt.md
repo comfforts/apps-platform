@@ -33,8 +33,8 @@ Application Owner confirms matching adoption authority in that application's rep
 application or discussion history is not authority. Do not import another repository's
 requirements, credentials, state, plans, or implementation into Apps Platform.
 
-The first implementation slice must replace the fixture-only Cloud Run target-readback assumption
-with environment-derived, validated target posture. For the selected staging profile, accept
+The first implementation slice replaced the fixture-only Cloud Run target-readback assumption
+with environment-derived, validated target posture. For the selected staging profile, it accepts
 exactly `environment=qualification` candidates and `environment=staging` releases for both fixture
 and real application projects; project ownership must not select the label. Reject missing or
 other labels with the stable blocker. Treat either valid label as posture rather than evidence, and
@@ -44,7 +44,7 @@ operator messages, and documentation. Preserve exact application-project, Shared
 edge-caller IAM, audience, readiness, and state-ownership checks. Add no generic
 `application-deploy` or `application-destroy` command.
 
-The second slice must implement the closed Version 3 Platform Integration Bundle, complete
+The second slice implements the closed Version 3 Platform Integration Bundle, complete
 Application Attachment Bundle, and registration-intent schemas, canonical vectors, compatibility
 loading, relationship validation, and deterministic tests. Preserve every Version 2 fixture
 consumer. Require one root target and a root intent mounted at `/`. Add optional
@@ -54,7 +54,7 @@ Reject mixed versions, root-ID reuse, one optional attribute without the other, 
 ambiguous mounts, stale relationships, and partial sets. Prove omission of both optional attributes
 is a valid root-only Version 3 handoff.
 
-The third slice must validate and read back every target independently, aggregate only redacted
+The next, third slice must validate and read back every target independently, aggregate only redacted
 ordered failures, project a fully valid Version 3 handoff into the existing Version 2
 multi-attachment Application Registration, and activate only one complete generation. Prove one
 target failure causes no publication, traffic change, or partial activation. Preserve

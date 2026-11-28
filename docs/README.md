@@ -1,8 +1,10 @@
 # App Platform documentation
 
-Version 1.46 | Status: AP-M9-W10 complete; AP-M9-W11 Accepted Source staging platform and fixture
+Version 1.48 | Status: AP-M9-W10 complete; AP-M9-W11 Accepted Source staging platform and fixture
 qualification completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 first
-real-application staging adoption is next; ADR-016 proposed
+implements ADR-017 Version 3 complete attachment sets, separately qualifies a fourth
+multi-attachment fixture, and then performs real-application staging adoption; ADR-016 remains
+proposed
 
 This directory is the design authority for Comfforts App Platform. Contract (`C`) and Fixture
 (`F`) evidence, the locally tested network runtime, and statically verified Terraform exist. W9
@@ -22,8 +24,9 @@ Read these documents completely, in order, before modifying the platform:
 2. [Domain glossary](../GLOSSARY.md) — canonical terms.
 3. [Product requirements](01_product_requirements.md) — AP-PR-001 through AP-PR-012 and AP-QR-001
    through AP-QR-009.
-4. [Architecture decision index](adr/README.md) — routes ADR-001 through proposed ADR-016 to their
-   current canonical records and separates decision status from realization evidence.
+4. [Architecture decision index](adr/README.md) — routes ADR-001 through accepted ADR-017,
+   including proposed ADR-016, to their current canonical records and separates decision status
+   from realization evidence.
 5. [System design](03_system_design.md) — interfaces, ownership, lifecycle, and provider design.
 6. [Threat model](06_threat_model.md) — trust zones, threats, controls, and evidence classes.
 7. [Implementation plan index](plans/README.md) — routes delivery identifiers to their current
@@ -31,7 +34,9 @@ Read these documents completely, in order, before modifying the platform:
 8. [AP-M9 milestone plan](plans/ap_m9/000-m9_interactive_platform_lifecycle.md) — milestone outcome,
    boundaries, ordered work packages, acceptance criteria, and trace.
 9. [AP-M9-W12 delivery plan](plans/ap_m9/w12_real_application_staging_adoption.md) — current
-   application-neutral adoption boundary, cross-owner sequence, and completion gate.
+   environment-label correction, Version 3 complete attachment-set interface, application-neutral
+   adoption boundary, separate fourth-fixture qualification, cross-owner sequence, and completion
+   gate.
 10. [Real-application adoption runbook](runbooks/application_adoption.md) — cross-owner handoff,
    application identifier, target posture, identity consumption, and ownership procedure.
 11. [Evaluation strategy](05_evaluation_strategy.md) — AP-EVAL-M9 gates and claim boundaries.
@@ -81,8 +86,13 @@ slice. W10 is an explicitly planned atomic integration exception: `feat/platform
 starts from clean `main`, every W10 slice starts from and targets the latest clean integration
 branch, and no partial W10 implementation merges to `main`. After all slices merge, the exact
 integration revision is candidate-qualified and frozen before one cumulative pull request targets
-`main`. Historical packages W1 through W9 retain the delivery shape under which they were
-completed.
+`main`. W12 uses the same bounded pattern for its Apps Platform governance and implementation
+slices: `feat/real-application-staging-adoption` starts from exact clean `main`, the
+`docs/multi-attachment-adoption-handoff` slice and platform Slices 1 through 5 target the latest
+clean integration branch, and the exact complete revision is candidate-qualified and frozen before
+one cumulative pull request targets `main`. Accepted Source fourth-fixture qualification and the
+cross-owner adoption occur only after that merge. Historical packages W1 through W9 retain the
+delivery shape under which they were completed.
 
 1. **AP-M9-W1 — governance rebaseline (merged):** define the product lifecycle, authority,
    architecture, threat controls, plan, evaluation, documentation routing, and historical
@@ -144,10 +154,13 @@ completed.
     `apps-staging.comfforts.com`, the three cross-project fixtures, and the reviewed member
     baseline from Accepted Source at `b43333756b509d0f35cb82938a13f6abc459f7c4`. It did not
     perform the destructive rehearsal.
-12. **AP-M9-W12 — first real-application staging adoption (next):** select one independently
-    governed application through matching platform/application authority, close the fixture-only
-    target-readback assumption, perform the Version 2 cross-owner handoff, and qualify the active
-    staging route without transferring Application State ownership.
+12. **AP-M9-W12 — first real-application staging adoption (next):** close the fixture-only
+    target-readback assumption, implement ADR-017 as one complete Version 3 attachment-set handoff
+    projected atomically into the existing Version 2 registration model, add a fourth authenticated
+    frontend-plus-dummy-API fixture with its own Application State root, qualify that fixture through
+    a fixture-scoped result separate from `platform-qualify`, then select one independently governed
+    application through matching platform/application authority and qualify every active staging
+    mount without transferring Application State ownership.
 13. **AP-M9-W13 — platform destruction and recovery:** after W12, detach applications, retain the
     real application's resources, destroy and recover the platform under separate authority,
     reattach, and requalify staging.

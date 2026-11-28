@@ -317,6 +317,13 @@ exact inputs and target readback pass.
 Applications remain responsible for their own runtime, data, state, secrets, and feature
 authorization. The platform and application exchange non-secret, digest-bound bundles:
 
+> **Real-application complete-set boundary:** The commands below currently implement the qualified
+> Version 2 single-target fixture handoff. The planned Version 3 family represents a real
+> application with one required root target and up to fifteen optional additional targets. Do not
+> pass a Version 3 document or begin a real
+> adoption until the environment-label, contract, and atomic multi-target registration changes
+> merge and pass `make check`. The fixture procedure later in this runbook remains Version 2.
+
 1. Run `platform-connect-project` once for the application project in this environment. It attaches
    only that existing project to the platform Shared VPC and verifies subnet access for its Cloud
    Run service agent.
@@ -326,11 +333,12 @@ authorization. The platform and application exchange non-secret, digest-bound bu
 3. Run `platform-outputs` with the same values.
 4. Give the resulting Platform Integration Bundle to the Application Owner.
 5. The Application Owner deploys the application through its own lifecycle and state.
-6. The Application Owner returns an Application Attachment Bundle bound to the integration-bundle
-   digest.
+6. The Application Owner returns an Application Attachment Bundle and registration intent bound to
+   the integration-bundle digest. Planned Version 3 returns the complete target and binding sets.
 7. Run `platform-register` with those bundles and the reviewed registration intent.
-8. The platform validates project, network, ingress, IAM, audience, and target posture and activates one complete immutable registration
-   generation.
+8. The platform validates every relationship and target's project, environment, network, ingress,
+   egress, IAM, audience, ownership, readiness, and posture and activates one complete immutable
+   registration generation only when the whole set passes.
 
 Project connection does not create a runtime, application backend, image, route, registration, or
 qualification. Every provider command names its project explicitly; do not switch the active
@@ -816,6 +824,34 @@ and qualification from clean current `main` using the default Accepted Source af
 
 Only one staging operation may run at a time because candidate and accepted operations target the
 same staging environment.
+
+## Planned multi-attachment fixture qualification
+
+The multi-attachment handoff extension adds `fixture-multi-attachment` as a fourth fixture without
+changing the three fixtures above. It is authenticated with required Identity Delivery and an
+unlisted catalogue entry. One independent fixture state root owns two Cloud Run services: the
+required `web` frontend mounted at `/` and a distinct dummy `api` backend mounted at `/api`.
+
+The command below is planned and must remain unavailable until its contract, registration,
+fixture, qualification, and deterministic-test slices merge:
+
+```bash
+make fixture-qualify \
+  ENVIRONMENT=staging \
+  APPLICATION_ID=fixture-multi-attachment
+```
+
+Run it only after the accepted platform qualification remains exactly readable and the fourth
+fixture has been deployed through its own state, handed off with one complete Version 3 family,
+registered, and read back. The qualifier proves authenticated login and verified identity at the
+fixture root and `/api`, `/apix` selection of the frontend, target-specific response markers,
+direct-origin denial for both services, and refusal of an invalid or unavailable target without a
+publication or traffic change.
+
+This command writes a separate fixture qualification result and fixture status. It does not call
+`platform-qualify`, alter its evidence or status, rerun its three-fixture and member-lifecycle
+journeys, or claim a platform-wide rollback. Later adoption readiness requires the exact platform
+result and the exact fixture result together.
 
 ## Remove a fixture
 

@@ -1,8 +1,9 @@
 # <u>App Platform system design</u>
 
-Version 1.22 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
+Version 1.23 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
 Accepted Source staging platform and fixture qualification completed at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 real-application adoption is next
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 multi-attachment handoff is accepted
+and planned for AP-M9-W12 but not implemented
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -11,7 +12,7 @@ consuming application.
 
 Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
-Decisions: ADR-001 through ADR-015
+Decisions: ADR-001 through ADR-015; ADR-017
 
 ## <u>Design outcome</u>
 
@@ -543,6 +544,83 @@ The provider and private generation history retain readable Version 1 predecesso
 2 objects under the Version 2 name, and may roll back traffic to an exact retained reviewed
 Version 1 or Version 2 generation. Repository implementation and deterministic tests do not imply
 that this transition has been invoked against staging.
+
+### Planned Version 3 complete attachment-set handoff
+
+The qualified Version 2 lifecycle handoff exposes one Cloud Run target even though the Version 2
+Application Registration and Shared Edge already support between one and sixteen attachments.
+ADR-017 therefore adds depth at the cross-owner seam without changing the core registration
+interface. This section is AP-M9-W12 design authority only; no Version 3 schema, loader, operator
+path, provider readback, or adoption result exists yet.
+
+One Version 3 Platform Integration Bundle remains application-, project-, environment-, source-,
+generation-, Admission Mode-, and Identity Delivery-scoped. Its attachment contract declares one
+required root and at most fifteen optional additional attachments. The Version 3 Application
+Attachment Bundle preserves the required singular root `target` and adds an optional
+`additional_attachments` array sorted by stable `attachment_id`. The Version 3 registration intent
+preserves the required root `attachment_id`, `mount_path`, and `forwarding_mode`, constrains the root
+mount to `/`, and adds an optional `additional_attachment_bindings` array sorted by
+`attachment_id`. The two optional arrays must both be absent or contain exactly the same unique
+identifier set, and neither may repeat the root ID.
+
+The initial Version 3 family keeps project, region, Shared VPC connection, application owner,
+edge-caller identity, Admission Mode, Identity Delivery, and assertion audience at application
+scope. Each Cloud Run target is still an independent provider-adapter input and must pass exact
+service, internal-ingress, all-traffic Direct VPC egress, readiness, owner-label, caller-IAM, and
+identity-audience readback. A target cannot override application-level policy. Per-attachment
+project, region, network, admission, or identity configuration remains unsupported.
+
+The lifecycle module validates the three-document relationship before it invokes target adapters.
+It then reads every target and accumulates ordered, redacted violations. Any missing, extra, stale,
+unready, wrongly owned, incorrectly connected, directly public, wrongly granted, or audience-
+mismatched target produces no registration output and no publication. Only a fully valid set is
+projected into the existing Version 2 Application Registration `attachments` array, compiled with
+the complete current Registration Set, and activated as one Version 2 Registration Generation.
+This adapter keeps the handoff version and compiled-generation version independent and avoids a
+number-only core migration.
+
+The operator accepts one complete same-version Version 2 family or one complete same-version
+Version 3 family and rejects any mixed family. Version 2 remains the qualified single-target
+fixture compatibility path. Version 3 without either optional array is a valid root-only handoff,
+so all existing fixture shapes remain valid. Version 3 is required for an additional returned
+attachment. A frontend/backend application can preserve its frontend as the required root target
+and add a backend binding such as `/api`; existing longest segment-bounded mount selection chooses
+the backend without creating a second application or catalogue entry.
+
+Every active update returns the required root target and, when any additional target is desired,
+the complete optional additional target and binding arrays including unchanged entries. Removal or
+replacement is therefore explicit, and replaced targets remain available for the accepted whole-
+generation rollback window. `platform-detach` suspends the application and all of its attachments
+together. No per-attachment lifecycle state or partial activation is introduced.
+
+The W12 platform fixture proves both shapes without changing any of the three already qualified
+fixtures. `fixture-public`, `fixture-authenticated`, and `fixture-restricted` retain their current
+single-target deployments and readable Version 2 handoffs. A fourth
+`fixture-multi-attachment` application uses authenticated admission, required Identity Delivery,
+and unlisted catalogue visibility. Its required `web` attachment is a frontend Cloud Run service
+at `/`; its optional `api` attachment is a distinct dummy backend Cloud Run service at `/api`.
+Both services share the application project, audience, edge caller, and policy, and one independent
+Fixture Application State root at `infrastructure/terraform/fixtures/fixture-multi-attachment`
+owns them through the `fixtures/fixture-multi-attachment` backend prefix.
+
+Fixture-scoped qualification is a separate deep module behind the small
+`fixture-qualify(environment, application_id)` operator interface. The initial allow-list accepts
+only `fixture-multi-attachment`; source authority and the exact active revisions are derived and
+read back rather than supplied as substitute evidence. The module requires the exact readable
+Accepted Source platform qualification, active Registration Generation, complete Version 3
+handoff, and both provider targets. It then proves authenticated login and verified identity at
+the root and `/api`, segment-bounded `/apix` fallback to the root, target-specific markers,
+direct-origin denial for both services, and fail-closed behavior for an invalid or unavailable
+candidate target. Its provider, browser, route, and evidence adapters are internal seams used by
+the same deterministic test surface.
+
+The fixture-scoped result and status live in a private namespace distinct from the platform-wide
+qualification record. `fixture-qualify` does not call `platform-qualify`, exercise the member
+directory lifecycle, run the three-fixture platform suite, change platform qualification status,
+or claim that the successor Registration Generation was platform-qualified. Cross-owner adoption
+readiness is the conjunction of the exact prior platform result and the exact fourth-fixture
+result; neither record is rewritten to imply the other. This qualifies the plural platform
+interface without making the fixture a model for Finance Assistant behavior.
 
 ## <u>Lifecycle and atomic change</u>
 
@@ -1179,7 +1257,8 @@ fixtures and completed restricted-fixture detach, destruction, redeployment, rea
 qualification under the predecessor Version 1 model. That operation does not promote its evidence
 to Accepted Source or qualify ADR-015. AP-M9-W10 implemented and Candidate-qualified the Version 2
 member-directory boundary; AP-M9-W11 then qualified the staging platform and fixtures from
-Accepted Source. AP-M9-W12 now owns the first separately governed real-application adoption. The live
+Accepted Source. AP-M9-W12 now owns the environment-derived target correction, Version 3 complete
+attachment-set handoff, and first separately governed real-application adoption. The live
 process accepts exact generated revision, generation, provider,
 OAuth-secret-version, KMS-key-version, edge-caller, and operator-subject bindings. It reads the
 OAuth payload directly from the selected Secret Manager version and never puts that payload in an
@@ -1849,5 +1928,5 @@ application-owned gate.
 | Terraform state and operator authority | AP-PR-002, AP-PR-007, AP-PR-008, AP-PR-009; AP-QR-001, AP-QR-003, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-004, ADR-007 |
 | AP-M7 Terraform configuration profile | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
 | Historical AP-M8 proposal, superseded before execution | AP-PR-001 through AP-PR-009; AP-QR-001 through AP-QR-006 | ADR-001 through ADR-009 |
-| AP-M9 interactive environment lifecycle | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-015 |
+| AP-M9 interactive environment lifecycle | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-015; ADR-017 |
 | Observability, evidence, incidents, and cost | AP-PR-001, AP-PR-003, AP-PR-005, AP-PR-007, AP-PR-008; AP-QR-002, AP-QR-004, AP-QR-005, AP-QR-006 | ADR-001, ADR-002, ADR-003, ADR-004, ADR-009 |

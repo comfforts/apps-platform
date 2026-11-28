@@ -1,11 +1,13 @@
 # Operator lifecycle and handoff contracts
 
-Versions 1 and 2 | Scope: closed, non-secret environment lifecycle, application handoff, and
-qualification-evidence documents; validation never authorizes mutation
+Versions 1 and 2 implemented; Version 3 application handoff planned | Scope: closed, non-secret
+environment lifecycle, application handoff, and qualification-evidence documents; validation
+never authorizes mutation
 
 Version 1 handoff documents remain readable historical predecessors. Version 2 integration,
-attachment, and registration-intent documents are the active application-handoff interface; no
-Live Version 2 operation or qualification is implied.
+attachment, and registration-intent documents are the implemented application-handoff interface
+and qualified fixture compatibility path. ADR-017 accepts a Version 3 complete attachment-set
+interface for AP-M9-W12, but its schemas and loader do not exist yet.
 
 This package defines the documents that connect environment preparation, deployment, status,
 application handoff, and qualification. It is separate from the platform/application registry in
@@ -73,6 +75,22 @@ mixed family or conflicting value fails closed. A readable Version 1 predecessor
 only by the operator's complete-generation transition: public becomes `none`, authenticated and
 restricted become `required`, and every registration-scoped member is discarded. The contracts do
 not enumerate or carry the environment member directory.
+
+Planned Version 3 retains those application-level policy pairs and preserves the singular target
+as a required root attachment. The registration intent preserves its required root ID and
+forwarding mode and requires mount `/`. The attachment bundle optionally adds a canonical
+`additional_attachments` array; the intent optionally adds canonical
+`additional_attachment_bindings`. Both optional attributes may be absent for a valid root-only
+handoff. When present, they contain the exact same additional IDs, include at most fifteen entries,
+and cannot repeat the root ID. All targets share the application project, region, network, owner,
+caller, Admission Mode, Identity Delivery, and audience. A complete Version 3 family will project
+into the existing Version 2 multi-attachment registration only after every relationship and target
+passes. The current registry must reject Version 3 until the AP-M9-W12 schema, registry, vector,
+validation, and deterministic-test slice is complete.
+
+The planned Version 3 vectors cover one root-only family and one
+`fixture-multi-attachment` family with required `web` at `/` and optional `api` at `/api`. The
+fixture names demonstrate the relationship only and are not allow-listed by the schemas.
 
 Qualification Evidence binds observations to an exact environment, source authority and revision,
 profile, specification, final deployment progress, registration generation, and component and fixture

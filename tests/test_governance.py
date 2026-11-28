@@ -40,7 +40,7 @@ def _canonical_architecture_decisions() -> str:
 
     return "\n\n".join(
         extracted[identifier] if identifier in extracted else origin_sections[identifier]
-        for identifier in (f"ADR-{number:03d}" for number in range(1, 17))
+        for identifier in (f"ADR-{number:03d}" for number in range(1, 18))
     )
 
 
@@ -74,6 +74,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "docs/adr/012-exchange-versioned-non-secret-bundles.md",
             "docs/adr/015-platform-member-directory-and-explicit-identity-delivery.md",
             "docs/adr/016-recover-operator-working-state-without-fabricated-history.md",
+            "docs/adr/017-exchange-complete-application-attachment-sets.md",
             "docs/03_system_design.md",
             "docs/04_implementation_plan.md",
             "docs/plans/README.md",
@@ -758,9 +759,10 @@ class ProjectAuthorityTest(unittest.TestCase):
                 "ADR-014",
                 "ADR-015",
                 "ADR-016",
+                "ADR-017",
             ],
         )
-        self.assertEqual(decisions.count("Status: Accepted"), 15)
+        self.assertEqual(decisions.count("Status: Accepted"), 16)
         self.assertEqual(decisions.count("Status: Proposed"), 1)
         normalized_decisions = " ".join(decisions.split())
         for identifier in (
@@ -914,6 +916,69 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("## Application Adoption", glossary)
         self.assertIn("independent synthetic Application State roots", layout)
 
+    def test_complete_attachment_set_decision_preserves_atomic_ownership(self) -> None:
+        decisions = _canonical_architecture_decisions()
+        normalized = " ".join(decisions.split())
+
+        for boundary in (
+            "Version 3 of the three-document application-handoff interface",
+            "one root attachment is required and at most fifteen additional attachments",
+            "optional `additional_attachments` attribute",
+            "requires the root mount to be `/`",
+            "exact same unique identifier set",
+            "read back every target before compiling or publishing anything",
+            "existing Version 2 Application Registration",
+            "Version 2 handoff documents remain readable",
+            "Version 3 root-only family is also valid",
+            "required root target is the frontend",
+            "backend bound at a more specific path such as `/api`",
+            "adds a fourth `fixture-multi-attachment` application",
+            "fixture-scoped qualification interface",
+            "does not rerun, replace, or broaden the platform-wide qualification result",
+            "`platform-detach` continues to suspend the whole application",
+        ):
+            self.assertIn(boundary, normalized)
+
+    def test_fourth_fixture_has_separate_qualification_authority(self) -> None:
+        requirements = (PROJECT_ROOT / "docs/01_product_requirements.md").read_text(
+            encoding="utf-8"
+        )
+        design = (PROJECT_ROOT / "docs/03_system_design.md").read_text(
+            encoding="utf-8"
+        )
+        evaluation = (PROJECT_ROOT / "docs/05_evaluation_strategy.md").read_text(
+            encoding="utf-8"
+        )
+        glossary = (PROJECT_ROOT / "GLOSSARY.md").read_text(encoding="utf-8")
+        fixture_docs = (PROJECT_ROOT / "fixtures/README.md").read_text(
+            encoding="utf-8"
+        )
+        runbook = (
+            PROJECT_ROOT / "docs/runbooks/environment_lifecycle.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(
+            "\n".join(
+                (requirements, design, evaluation, glossary, fixture_docs, runbook)
+            ).split()
+        )
+
+        for boundary in (
+            "fixture-multi-attachment",
+            "authenticated admission",
+            "required Identity Delivery",
+            "unlisted catalogue",
+            "fixture-multi-attachment-web",
+            "fixture-multi-attachment-api",
+            "fixtures/fixture-multi-attachment",
+            "fixture-qualify",
+            "separate from platform-wide qualification",
+            "does not call `platform-qualify`",
+            "/fixture-multi-attachment/api",
+            "/fixture-multi-attachment/apix",
+        ):
+            self.assertIn(boundary, normalized)
+        self.assertIn("## Fixture Qualification", glossary)
+
     def test_architecture_decision_index_routes_one_canonical_record_per_identifier(
         self,
     ) -> None:
@@ -933,7 +998,7 @@ class ProjectAuthorityTest(unittest.TestCase):
 
         self.assertEqual(
             observed,
-            [f"ADR-{number:03d}" for number in range(1, 17)],
+            [f"ADR-{number:03d}" for number in range(1, 18)],
         )
         self.assertEqual(len(observed), len(set(observed)))
         self.assertEqual(inventory.count("Origin ADR-"), 8)
@@ -952,7 +1017,7 @@ class ProjectAuthorityTest(unittest.TestCase):
                 for path in (PROJECT_ROOT / "docs/adr").glob("[0-9][0-9][0-9]-*.md")
                 if not path.name.startswith("000-")
             ),
-            ["003", "006", "008", "010", "011", "012", "015", "016"],
+            ["003", "006", "008", "010", "011", "012", "015", "016", "017"],
         )
         self.assertEqual(
             re.findall(r"^## (ADR-\d{3}) ·", origin, re.MULTILINE),
@@ -963,6 +1028,8 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("[architecture decision index](adr/README.md)", compatibility_router)
         self.assertIn("Decision status and realization status are intentionally separate", index)
         self.assertIn("ADR-016", index)
+        self.assertIn("ADR-017", index)
+        self.assertIn("Accepted; planned for AP-M9-W12", index)
         self.assertIn("Proposed; still in discussion", index)
         self.assertIn(
             "grants no implementation or external-operation authority",
@@ -1012,6 +1079,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "AP-PR-001 through AP-PR-012",
             "AP-QR-001 through AP-QR-009",
             "ADR-015",
+            "ADR-017",
             "AP-EVAL-M9-10",
             "AP-TM-001 through AP-TM-014",
         ):
@@ -1023,6 +1091,13 @@ class ProjectAuthorityTest(unittest.TestCase):
             "application-handoff-check",
             "Platform Integration Bundle",
             "Application Attachment Bundle",
+            "Version 3",
+            "exact equality of the optional identifier sets",
+            "valid root-only Version 3 handoff",
+            "fixture-multi-attachment",
+            "fixture-qualify",
+            "separate least-data fixture evidence and status",
+            "no publication, traffic change, or partial activation",
             "Add no generic `application-deploy` or `application-destroy` command",
             "Leave the selected real application active for AP-M9-W13",
             "Do not perform platform destruction",
@@ -1049,6 +1124,9 @@ class ProjectAuthorityTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         w10 = (
             PROJECT_ROOT / "docs/plans/ap_m9/w10_platform_member_directory.md"
+        ).read_text(encoding="utf-8")
+        w12 = (
+            PROJECT_ROOT / "docs/plans/ap_m9/w12_real_application_staging_adoption.md"
         ).read_text(encoding="utf-8")
         compatibility = (
             PROJECT_ROOT / "docs/04_implementation_plan.md"
@@ -1150,6 +1228,49 @@ class ProjectAuthorityTest(unittest.TestCase):
             self.assertLess(w10.index(predecessor), w10.index(successor))
         self.assertNotIn("seven coherent commits", w10)
 
+        for section in (
+            "## Approved handoff correction",
+            "## Integration branch and ordered functional slices",
+            "### Slice 1 · Environment-derived real-target readiness",
+            "### Slice 2 · Version 3 complete attachment-set contracts",
+            "### Slice 3 · Atomic multi-target registration adapter",
+            "### Slice 4 · Fourth multi-attachment fixture application",
+            "### Slice 5 · Fixture-scoped multi-attachment qualification",
+            "### Slice 6 · Selected application-owned adoption implementation",
+            "### Slice 7 · Joint staging adoption and evidence",
+            "## Ordered cross-owner journey",
+            "## Verification strategy",
+            "## Completion evidence",
+        ):
+            self.assertIn(section, w12)
+        for boundary in (
+            "ADR-017",
+            "one Version 3 Platform Integration Bundle",
+            "one required root target plus zero through fifteen optional additional targets",
+            "exact same unique identifier set",
+            "root-only Version 3 family is valid",
+            "fixture-multi-attachment-api",
+            "fixture-qualify",
+            "separately from the platform qualification record",
+            "existing Version 2 Application Registration",
+            "environment=qualification",
+            "fix/real-application-target-readiness",
+            "feat/complete-attachment-set-contracts",
+            "feat/atomic-multi-target-registration",
+            "feat/multi-attachment-fixture",
+            "feat/fixture-scoped-qualification",
+            "evidence/multi-attachment-staging-adoption",
+            "feat/real-application-staging-adoption",
+            "docs/multi-attachment-adoption-handoff",
+            "No partial W12 platform implementation targets `main`",
+            "Candidate-qualify the exact complete integration revision",
+            "one cumulative pull request",
+            "repeat the fourth-fixture deployment and fixture-scoped qualification from clean Accepted Source",
+            "Add no generic `application-deploy` or `application-destroy` command",
+            "failure of any one target is shown to preserve the prior complete generation",
+        ):
+            self.assertIn(boundary, " ".join(w12.split()))
+
     def test_incremental_delivery_sequence_keeps_later_slices_separate(self) -> None:
         index = (PROJECT_ROOT / "docs/README.md").read_text(encoding="utf-8")
         prompt = (PROJECT_ROOT / "prompts/starting_prompt.md").read_text(encoding="utf-8")
@@ -1168,11 +1289,23 @@ class ProjectAuthorityTest(unittest.TestCase):
         )
         self.assertIn("feat/platform-member-directory", normalized_index)
         self.assertIn("no partial W10 implementation merges to `main`", normalized_index)
+        self.assertIn(
+            "W12 uses the same bounded pattern for its Apps Platform governance and implementation slices",
+            normalized_index,
+        )
+        self.assertIn("feat/real-application-staging-adoption", normalized_index)
+        self.assertIn("docs/multi-attachment-adoption-handoff", normalized_index)
+        self.assertIn(
+            "Accepted Source fourth-fixture qualification and the cross-owner adoption occur only after that merge",
+            normalized_index,
+        )
         self.assertNotIn("Each work package is one bounded branch and pull request", normalized_index)
         self.assertLess(index.index("AP-M9-W1"), index.index("AP-M9-W14"))
         self.assertIn("AP-M9-W12", normalized_prompt)
         self.assertIn("real-application staging adoption", normalized_prompt)
         self.assertIn("matching adoption authority", normalized_prompt)
+        self.assertIn("feat/real-application-staging-adoption", normalized_prompt)
+        self.assertIn("target that integration branch", normalized_prompt)
         self.assertIn("Do not perform platform destruction", normalized_prompt)
         self.assertIn("production preparation or mutation", normalized_prompt)
 
@@ -1203,7 +1336,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         normalized_recovery = " ".join(recovery.split())
 
         self.assertIn(
-            "ADR-015 is implemented; AP-M9-W11 Accepted Source staging platform and fixture qualification completed",
+            "ADR-015 is implemented; ADR-017 is accepted and planned for AP-M9-W12; AP-M9-W11 Accepted Source staging platform and fixture qualification completed",
             normalized_requirements,
         )
         self.assertIn(

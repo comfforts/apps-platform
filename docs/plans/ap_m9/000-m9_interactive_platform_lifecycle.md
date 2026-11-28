@@ -1,9 +1,9 @@
 # AP-M9 · Operator-driven environment lifecycle
 
-Version 0.12 | Status: AP-M9-W1 through AP-M9-W10 complete; AP-M9-W11 Accepted Source staging
+Version 0.13 | Status: AP-M9-W1 through AP-M9-W10 complete; AP-M9-W11 Accepted Source staging
 platform and fixture qualification completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`;
-AP-M9-W12 real-application staging adoption is next; destruction/recovery and production readiness
-are separate W13 and W14 packages
+AP-M9-W12 Version 3 complete attachment-set implementation and real-application staging adoption
+are next; destruction/recovery and production readiness are separate W13 and W14 packages
 
 This document is the canonical milestone plan for AP-M9 and its ordered work packages. Use the
 [implementation plan index](../README.md) for plan routing. AP-M9-W10 has a separate
@@ -12,7 +12,7 @@ the W10 summary here.
 
 Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
-Decisions: ADR-001 through ADR-015
+Decisions: ADR-001 through ADR-015; ADR-017
 
 Design: [App Platform system design](../../03_system_design.md)
 
@@ -42,7 +42,10 @@ multiple slices. W10 is the explicit atomic exception: its slices target the
 `feat/platform-member-directory` integration branch so the Version 1/Version 2 transition reached
 `main` only as one completed, candidate-qualified feature. W11 then repeated the staging journey
 from Accepted Source and qualified the platform and fixtures without performing environment
-destruction.
+destruction. W12 is a second bounded exception for its Apps Platform governance and implementation
+slices: they target `feat/real-application-staging-adoption`, whose exact complete revision is
+Candidate-qualified and frozen before one cumulative pull request targets `main`. Accepted Source
+fixture qualification and cross-owner adoption remain post-merge operations.
 Repository implementation does not initiate an external operation. For ordinary reversible staging
 creation or update, the owner's deliberate invocation of the named command plus its same-process
 specification and plan confirmations authorizes the execution; no duplicate out-of-band approval is
@@ -358,13 +361,28 @@ destroyed and recovered.
 ### AP-M9-W12 · First real-application staging adoption qualification
 
 Select one real application only through matching platform and application-repository authority.
-Replace the fixture-only target-readback assumption with environment-derived validation, then use
-the existing project connection, Version 2 bundle, application-owned deployment, returned
-attachment, and complete-generation registration flow. Qualify the named staging route, admission,
-identity delivery, independent application authorization, direct-origin denial, failure isolation,
-rollback, and exclusive state ownership without making Apps Platform the application deployer or
-state owner. Leave the application active for W13. The detailed handoff is in the
+Replace the fixture-only target-readback assumption with environment-derived validation. Implement
+ADR-017 as a closed Version 3 application-handoff family containing one required root target plus
+optional complete additional target and binding sets, validate and read back every target
+atomically, and project the result into the existing Version 2 multi-attachment registration and
+complete-generation flow. Keep the qualified Version 2 single-target fixture path readable, keep
+root-only Version 3 valid, and leave the three qualified fixtures unchanged. Add a fourth
+authenticated `fixture-multi-attachment` application with one frontend root service, one dummy
+`/api` backend service, and one independent Application State root. Qualify it through a
+fixture-scoped command, evidence record, and status separate from `platform-qualify`. Then use the
+existing project connection and application-owned
+deployment to qualify every named staging mount, admission,
+identity delivery, independent application authorization, direct-origin denial, target failure
+isolation, rollback, and exclusive state ownership without making Apps Platform the application
+deployer or state owner. Leave the complete application active for W13. The detailed handoff is in the
 [W12 work-package plan](w12_real_application_staging_adoption.md).
+
+Apps Platform governance and implementation for W12 use the bounded
+`feat/real-application-staging-adoption` integration branch. The governance slice and platform
+Slices 1 through 5 target that branch in order; the exact complete revision is Candidate-qualified
+and frozen before one cumulative pull request targets `main`. Accepted Source fourth-fixture
+qualification and the selected application's separately governed implementation and adoption
+follow that cumulative merge.
 
 ### AP-M9-W13 · Platform destruction, recovery, and requalification
 
@@ -437,7 +455,8 @@ AP-M9 is accepted only when:
    directory failure, and application-owned Feature Entitlements pass deterministic, Candidate
    Source, and Accepted Source staging qualification without exposing member records.
 8. One named real application passes its own AP-M9-W12 staging adoption authority while Apps
-   Platform validates the shared handoff and retains no Application State authority.
+   Platform validates its complete Version 3 attachment set, activates one Version 2 Registration
+   Generation atomically, and retains no Application State authority.
 9. AP-EVAL-M9 passes for the exact platform and application revisions with secret-free evidence.
 10. Platform destruction refuses unsafe state, changes no real-application-owned resource, and
     passes its approved destruction, recovery, reattachment, and requalification rehearsal.
@@ -458,6 +477,6 @@ AP-M9 is accepted only when:
 | AP-M9-W8, AP-M9-W9 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-014 | AP-TM-001 through AP-TM-014 |
 | AP-M9-W10 | AP-PR-004 through AP-PR-006, AP-PR-008, AP-PR-010, AP-PR-011; AP-QR-001, AP-QR-002, AP-QR-004, AP-QR-006 through AP-QR-009 | ADR-003, ADR-004, ADR-006, ADR-008, ADR-012, ADR-014, ADR-015 | AP-TM-004 through AP-TM-011, AP-TM-013, AP-TM-014 |
 | AP-M9-W11 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-015 | AP-TM-001 through AP-TM-014 |
-| AP-M9-W12 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-015 | AP-TM-001 through AP-TM-014 |
+| AP-M9-W12 | AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009 | ADR-001 through ADR-015; ADR-017 | AP-TM-001 through AP-TM-014 |
 | AP-M9-W13 | AP-PR-001 through AP-PR-003, AP-PR-007 through AP-PR-012; AP-QR-001, AP-QR-003 through AP-QR-009 | ADR-001, ADR-002, ADR-004, ADR-007, ADR-008, ADR-010 through ADR-015 | AP-TM-007 through AP-TM-014 |
 | AP-M9-W14 | AP-PR-007, AP-PR-009 through AP-PR-012; AP-QR-001, AP-QR-003 through AP-QR-009 | ADR-001, ADR-002, ADR-004, ADR-007, ADR-010 through ADR-015 | AP-TM-007 through AP-TM-014 |

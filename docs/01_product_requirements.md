@@ -1,7 +1,8 @@
 # <u>App Platform product requirements</u>
 
-Version 0.9 | Status: requirements authority through the AP-M9 operator lifecycle; ADR-015 is
-implemented; AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
+Version 0.10 | Status: requirements authority through the AP-M9 operator lifecycle; ADR-015 is
+implemented; ADR-017 is accepted and planned for AP-M9-W12; AP-M9-W11 Accepted Source staging
+platform and fixture qualification completed at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; real-application adoption, destructive recovery, and
 production readiness remain W12, W13, and W14 work
 
@@ -123,6 +124,15 @@ exercise another member's addition, suspension or removal, and reactivation, pro
 failure closes restricted admission without changing public or authenticated policy, and restore
 the reviewed member baseline before completion.
 
+The complete attachment-set handoff must be qualified with a fourth provider-backed Fixture
+Application without changing the three already qualified fixtures. That fixture must use
+authenticated admission and required Identity Delivery, manage a frontend root target and dummy
+API target through one independent Application State root, bind the frontend to `/` and the API to
+`/api`, and prove both targets through the same application-scoped identity and ownership policy.
+Its qualification must use a fixture-scoped operator action and source-bound result separate from
+platform-wide qualification. It must consume the exact platform qualification as a read-only
+prerequisite and must not rerun, overwrite, or broaden that platform result.
+
 ### AP-PR-009 · Explicit application adoption
 
 A real application may adopt the platform only through that application's own requirements,
@@ -169,17 +179,23 @@ than promoting candidate evidence.
 
 The platform must generate a versioned, digest-bound Platform Integration Bundle containing the
 explicit Admission Mode and Identity Delivery policy plus only the non-secret environment and
-identity values a named application needs to deploy an eligible attachment. The Application Owner
-retains deployment authority and returns a versioned Application Attachment Bundle identifying the
-application-owned target and the exact Platform Integration Bundle it consumed. The platform must
-validate the bundle and provider posture before a complete Registration Generation may route
-traffic to the attachment.
+identity values a named application needs to deploy its eligible attachments. The Application
+Owner retains deployment authority and returns one versioned Application Attachment Bundle
+identifying one required root target, zero or more optional additional targets, and the exact
+Platform Integration Bundle it consumed. The accompanying registration intent must bind the
+required root attachment to mount `/` and, when additional targets are present, bind each optional
+attachment ID to one more-specific mount and forwarding mode. The platform must require the exact
+same unique additional-attachment ID set in both optional attributes, validate every bundle
+relationship and provider posture, and activate the root-plus-optionals set atomically before a
+complete Registration Generation may route traffic to any changed attachment.
 
-The operator must be able to inspect the exact canonical Platform Integration Bundle and
-Application Attachment Bundle before registration. A repository-owned Fixture Application may
-reuse that prepared pair only while its environment, application, source authority, application
-source, platform source and generation, bundle digests, immutable image, and provider posture still
-match; inspection never authorizes registration by itself.
+The operator must be able to inspect the exact canonical Platform Integration Bundle, Application
+Attachment Bundle, and registration intent before registration. Omitting optional additional
+attachments must remain a valid root-only handoff. A repository-owned Fixture
+Application may reuse that prepared family only while its environment, application, source
+authority, application source, platform source and generation, bundle digests, immutable images,
+attachment relationships, and provider posture still match; inspection never authorizes
+registration by itself.
 
 An integration bundle must never contain a Platform Member Directory entry or list, OAuth client
 secret, credential payload, Terraform state, application provider key, or a platform secret
@@ -189,8 +205,12 @@ reference that the application is not authorized to consume.
 
 The platform must support detaching an application without releasing its immutable application
 identifier or route reservation, allowing the Application Owner to destroy and later redeploy its
-assets before supplying a replacement attachment and reactivating the registration. A detached
-route must remain platform-controlled and invoke no application target.
+assets before supplying a required replacement root attachment plus any complete optional
+additional-attachment set and reactivating the registration. An active attachment update must also
+return the root and, when present, the complete additional set so one omitted additional target
+cannot be interpreted as an independently valid partial document. A detached route must remain
+platform-controlled and invoke no application target. Detachment applies to the Registered
+Application as a whole, not to one attachment independently.
 
 Retirement is a distinct permanent transition. A retired application identifier remains a
 tombstone and cannot reactivate. Route release, if later required, is an explicit separately

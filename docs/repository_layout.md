@@ -1,9 +1,9 @@
 # App Platform repository layout
 
-Version 2.19 | Status: canonical dedicated repository; ADR-015 implemented and Candidate-qualified
+Version 2.20 | Status: canonical dedicated repository; ADR-015 implemented and Candidate-qualified
 by AP-M9-W10; AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 target-stage validation and ADR-017 Version
-3 complete attachment-set contracts are implemented, while operator projection and later slices
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 target-stage validation, ADR-017 Version 3
+contracts, and atomic multi-target projection are implemented, while fixture and later slices
 remain planned
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
@@ -102,6 +102,13 @@ or selected status, automatic prepared-specification reuse, and a non-publishing
 `platform-preflight` readiness target with deterministic fake coverage, plus live qualification and
 safe platform-destruction adapter completion. Candidate staging operation is implementation
 feedback and revision-scoped Live evidence, not Accepted Source AP-M9 qualification.
+
+AP-M9-W12 Slices 1 through 3 keep the existing provider target-reader seam, add explicit V2/V3
+handoff selection to readiness and outputs, consume a complete Version 3 family in the deep
+application-integration lifecycle, read every target, and atomically project a valid set into the
+existing Version 2 compiler. Ordered failures retain only attachment IDs and stable codes. These
+slices add no application deploy/destroy command, Application State reader, fixture runtime, or
+Live evidence.
 
 AP-M9-W12 plans a fourth `fixture-multi-attachment` profile and one independent
 `infrastructure/terraform/fixtures/fixture-multi-attachment/` root. That root owns both the

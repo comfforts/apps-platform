@@ -1,9 +1,10 @@
 # AP-M9-W12 · First real-application staging adoption qualification
 
-Version 0.5 | Status: in progress after Accepted Source staging platform and fixture qualification
-completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; Slice 1 target-stage validation and Slice 2
-ADR-017 Version 3 contract validation are implemented, while operator projection and later slices
-remain planned; no application is selected and no external operation is authorized by this plan
+Version 0.6 | Status: in progress after Accepted Source staging platform and fixture qualification
+completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; Slices 1–3 implement target-stage validation,
+ADR-017 Version 3 contracts, and atomic multi-target registration projection; the fourth fixture
+and later slices remain planned; no application is selected and no external operation is authorized
+by this plan
 
 Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
@@ -100,9 +101,10 @@ registration meaning:
 Version 2 handoff documents remain readable for the three already qualified single-target
 fixtures. One invocation accepts either one complete Version 2 family or one complete Version 3
 family; it rejects mixed versions. A root-only Version 3 family is valid when both optional arrays
-are absent. Version 3 is mandatory when the application returns an additional attachment. No
-Version 3 operator projection or activation exists until the corresponding functional slice below
-merges and passes its evidence gates.
+are absent. Version 3 is mandatory when the application returns an additional attachment. The
+operator now accepts an explicitly selected complete Version 3 family, validates and reads every
+target, and projects only a fully valid set into one Version 2 generation. Merge and runtime
+qualification remain separate evidence states.
 
 An update always returns the required root target. When additional attachments are present, it
 returns the complete optional target and binding arrays, including unchanged entries. Removing or
@@ -174,6 +176,9 @@ provider, or activate a route.
 Suggested branch: `feat/atomic-multi-target-registration`
 
 Pull-request target: `feat/real-application-staging-adoption`
+
+Implementation status: repository behavior implemented on the Slice 3 branch; merge and
+qualification remain separate states.
 
 Teach the application-neutral readiness, output, registration, status, and fake-provider modules
 to consume a complete Version 3 family. Read the required root and every additional exact Cloud

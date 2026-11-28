@@ -1,6 +1,7 @@
 # ADR-017 · Exchange complete application attachment sets
 
-Status: Accepted; planned for AP-M9-W12 and not yet implemented, deployed, or qualified
+Status: Accepted; repository contract and atomic operator behavior implemented by AP-M9-W12
+Slices 2–3; not deployed or qualified
 
 Requirements: AP-PR-002, AP-PR-003, AP-PR-007, AP-PR-009, AP-PR-011, AP-PR-012,
 AP-QR-001 through AP-QR-004, AP-QR-006 through AP-QR-009

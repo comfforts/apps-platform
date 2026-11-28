@@ -1029,7 +1029,10 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertIn("Decision status and realization status are intentionally separate", index)
         self.assertIn("ADR-016", index)
         self.assertIn("ADR-017", index)
-        self.assertIn("Accepted; planned for AP-M9-W12", index)
+        self.assertIn(
+            "Accepted; contract and atomic operator behavior implemented by AP-M9-W12",
+            index,
+        )
         self.assertIn("Proposed; still in discussion", index)
         self.assertIn(
             "grants no implementation or external-operation authority",

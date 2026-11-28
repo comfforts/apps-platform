@@ -7,8 +7,8 @@ authorizes mutation
 Version 1 handoff documents remain readable historical predecessors. Version 2 integration,
 attachment, and registration-intent documents are the implemented application-handoff interface
 and qualified fixture compatibility path. The ADR-017 Version 3 complete attachment-set schemas,
-loader, vectors, and relationship validation are implemented for AP-M9-W12; operator projection,
-provider readback, and activation remain later slices.
+loader, vectors, relationship validation, every-target provider readback, and atomic Version 2
+projection are implemented for AP-M9-W12; fixture and Live qualification remain later slices.
 
 This package defines the documents that connect environment preparation, deployment, status,
 application handoff, and qualification. It is separate from the platform/application registry in
@@ -90,10 +90,10 @@ adds a canonical `additional_attachments` array whose entries contain `attachmen
 `attachment_id`, `mount_path`, and `forwarding_mode`. Both optional attributes may be absent for a
 valid root-only handoff. When present, they contain the exact same additional IDs, include at most
 fifteen entries, and cannot repeat the root ID. All targets share the application project, region,
-network, owner, caller, Admission Mode, Identity Delivery, and audience. The inert contract seam accepts and
-validates a complete same-version family; the current operator still rejects Version 3 before
-provider readback or registration. Slice 3 will project a complete family into the existing
-Version 2 multi-attachment registration only after every relationship and target passes.
+network, owner, caller, Admission Mode, Identity Delivery, and audience. The inert contract seam
+accepts and validates a complete same-version family. The operator emits V2 by default, requires
+explicit V3 selection, reads every root/additional target, and projects a complete family into the
+existing Version 2 multi-attachment registration only after every relationship and target passes.
 
 The Version 3 vectors cover one root-only family and one
 `fixture-multi-attachment` family with required `web` at `/` and optional `api` at `/api`. The

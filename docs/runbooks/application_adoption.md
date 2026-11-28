@@ -2,8 +2,8 @@
 
 Status: AP-M9-W12 application-neutral staging handoff; the closed staging target-stage readback is
 implemented by Slice 1; ADR-017 Version 3 complete attachment-set contracts are implemented by
-Slice 2, while operator projection and activation remain unimplemented; no application is selected
-or authorized until matching authority exists in both repositories
+Slice 2 and atomic multi-target projection is implemented by Slice 3; no application is selected or
+authorized until matching authority exists in both repositories
 
 This runbook explains how a real application will join one deployed App Platform environment after
 the application repository has approved its own adoption requirements, architecture, migration,
@@ -40,9 +40,9 @@ procedure, all of these must be true:
 
 These are the platform implementation and fixture-qualification prerequisites in W12. Stop before
 a real deployment until the ordered slices merge, the complete repository gate passes, and the
-separate fixture result is readable. The current operator accepts only the qualified single-target
-Version 2 handoff. The contract loader accepts the implemented Version 3 filenames shown below,
-but the operator must reject them before provider readback until the projection slice is complete.
+separate fixture result is readable. The operator accepts a complete V2 family by default or one
+explicitly selected complete V3 family, but repository behavior is not fourth-fixture or Live
+qualification evidence.
 
 ## Ownership through the handoff
 
@@ -129,6 +129,7 @@ make application-handoff-check \
   APPLICATION_ID=<application-id> \
   ACCESS_MODE=<public|authenticated|restricted> \
   IDENTITY_DELIVERY=<none|optional|required> \
+  HANDOFF_VERSION=3 \
   ROUTE_INTENT=/<route-prefix> \
   PLATFORM_SOURCE_REVISION=<active-platform-revision> \
   PLATFORM_GENERATION=<active-registration-generation>
@@ -144,6 +145,7 @@ make platform-outputs \
   APPLICATION_ID=<application-id> \
   ACCESS_MODE=<public|authenticated|restricted> \
   IDENTITY_DELIVERY=<none|optional|required> \
+  HANDOFF_VERSION=3 \
   ROUTE_INTENT=/<route-prefix> \
   PLATFORM_SOURCE_REVISION=<active-platform-revision> \
   PLATFORM_GENERATION=<active-registration-generation>
@@ -153,10 +155,11 @@ Inspect the generated Platform Integration Bundle. Give its exact file content a
 Application Owner through an application-approved private handoff. It is non-secret, but it is
 environment-, generation-, application-, and source-bound and must not be edited.
 
-After the W12 contract slice, this command writes a Version 3 bundle that declares one required
-root attachment and at most fifteen optional additional attachments. The platform bundle remains
-application-scoped; it does not prescribe service names, attachment IDs, optional mount paths, or
-an application architecture.
+`HANDOFF_VERSION=3` makes this command write a Version 3 bundle that declares one required root
+attachment and at most fifteen optional additional attachments. Omitting it retains the Version 2
+default used by the three qualified fixtures. The platform bundle remains application-scoped; it
+does not prescribe service names, attachment IDs, optional mount paths, or an application
+architecture.
 
 ## Deploy the application-owned Cloud Run services
 

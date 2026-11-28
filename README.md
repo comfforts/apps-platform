@@ -85,10 +85,10 @@ and other members never do.
 > corrections are integrated and Candidate-qualified. AP-M9-W11 subsequently qualified the
 > Version 2 staging platform, fixture suite, and member baseline from Accepted Source at
 > `b43333756b509d0f35cb82938a13f6abc459f7c4`. The next work is one separately governed real-
-> application staging adoption. ADR-017 now requires W12 to add a Version 3 complete attachment-set
-> handoff before that operation so one application can return separate frontend and backend
-> targets atomically. That interface is planned, not implemented, and no application has been
-> selected or qualified.
+> application staging adoption. W12 now implements the ADR-017 Version 3 complete attachment-set
+> handoff and atomic registration adapter so one application can return separate frontend and
+> backend targets. The fourth fixture and its separate qualification are still required before a
+> real adoption; no application has been selected or qualified.
 
 ### Catalogue visibility
 
@@ -652,9 +652,9 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-member-identify ENVIRONMENT=<name>` | Confirm a browser login, recover only that Visitor's opaque member reference, and read its exact lifecycle without listing or mutation |
 | `make fixture-project-bootstrap ENVIRONMENT=staging FIXTURES_PROJECT_ID=<project-id> FIXTURES_PROJECT_NAME="<display-name>"` | Idempotently create or repair the selected fixture application project, state bucket, and image repository; read back its provider-assigned project number; create no runtime or route |
 | `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |
-| `make application-handoff-check ...` | Require the platform-ready result, then verify the named application project, its services and Shared VPC grants, bundle inputs, access mode, and application identity projection without mutation |
-| `make platform-outputs ...` | Generate one application- and project-scoped Platform Integration Bundle from a verified project connection |
-| `make platform-register ...` | Validate a complete same-version handoff family and activate a complete immutable generation; Version 3 is contract-readable but multi-target operator support remains planned for W12 Slice 3 |
+| `make application-handoff-check ... [HANDOFF_VERSION=2\|3]` | Require the platform-ready result, then verify the named application project, its services and Shared VPC grants, selected handoff version, access mode, and application identity projection without mutation |
+| `make platform-outputs ... [HANDOFF_VERSION=2\|3]` | Generate one application- and project-scoped Platform Integration Bundle; V2 is the compatibility default and V3 is explicit |
+| `make platform-register ...` | Validate every target in one complete V2 or V3 same-version handoff family and activate one complete immutable V2 generation; any target failure leaves the predecessor active |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
 | `make platform-qualify ENVIRONMENT=<name> OWNER_MEMBER_REFERENCE=<opaque-reference>` | Evaluate the exact platform and fixture revisions, exercise and clean up one temporary second member, require the reviewed owner-only baseline, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every prerequisite passes; write redacted evidence without member references |
@@ -689,7 +689,7 @@ perform separate operations:
    atomically activates a complete Registration Generation.
 
 The complete handoff sequence is shown below. It becomes runnable for a real application only after
-the AP-M9-W12 Version 3 slices are implemented and pass `make check`:
+the remaining AP-M9-W12 fixture and qualification slices merge and pass their gates:
 
 ```bash
 make platform-status ENVIRONMENT=staging
@@ -704,6 +704,7 @@ make application-handoff-check \
   APPLICATION_ID=<application-id> \
   ACCESS_MODE=<public|authenticated|restricted> \
   IDENTITY_DELIVERY=<none|optional|required> \
+  HANDOFF_VERSION=3 \
   ROUTE_INTENT=/<route> \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   PLATFORM_GENERATION=<positive-integer>
@@ -714,6 +715,7 @@ make platform-outputs \
   APPLICATION_ID=<application-id> \
   ACCESS_MODE=<public|authenticated|restricted> \
   IDENTITY_DELIVERY=<none|optional|required> \
+  HANDOFF_VERSION=3 \
   ROUTE_INTENT=/<route> \
   PLATFORM_SOURCE_REVISION=<40-lowercase-hex> \
   PLATFORM_GENERATION=<positive-integer>
@@ -731,9 +733,9 @@ make platform-register \
 make platform-status ENVIRONMENT=staging
 ```
 
-The lifecycle-contract seam validates those Version 3 paths, but the current operator rejects them
-until the Slice 3 multi-target consumers land;
-do not use this sequence for a real application yet. `platform-connect-project` does not create or manage the application's runtime, state bucket,
+The operator accepts those Version 3 paths and reads every declared target atomically. Do not use
+this sequence for a real application until the fourth-fixture and fixture-qualification slices
+close the remaining W12 prerequisites. `platform-connect-project` does not create or manage the application's runtime, state bucket,
 image repository, data, or route. There is no App Platform Make target for deploying a real application's runtime. That operation is
 intentionally supplied and authorized by the application's own repository. Apps Platform owns the
 project connection and the surrounding checks and commands: `application-handoff-check` verifies
@@ -793,9 +795,9 @@ Identity Delivery transition. AP-M9-W11 then deployed and qualified the staging 
 three cross-project fixtures from Accepted Source at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`. This does not qualify a real application,
 platform destruction/recovery, or production. AP-M9-W12 has implemented closed,
-project-independent staging candidate/release target-stage validation and the inert ADR-017 Version
-3 complete attachment-set contracts. It next implements atomic operator projection, then adds and separately qualifies
-the fourth authenticated multi-attachment fixture, then adopts one separately governed real
+project-independent staging candidate/release target-stage validation, ADR-017 Version 3 contracts,
+and atomic multi-target registration projection. It next adds and separately qualifies the fourth
+authenticated multi-attachment fixture, then adopts one separately governed real
 application on staging. W13 owns destructive rehearsal and recovery; W14 owns the read-only
 production readiness and ownership check.
 

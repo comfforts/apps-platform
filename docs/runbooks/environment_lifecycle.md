@@ -309,33 +309,31 @@ Member administration does not run Terraform, deploy the platform or an applicat
 bundle, or compile or activate a Registration Generation. Ordinary status reads either coarse
 directory state or one explicitly requested opaque reference and never lists members. Member
 administration alone does not make Version 2 active in an environment. The application handoff and
-registration commands below create and activate only one complete Version 2 family after their
-exact inputs and target readback pass.
+registration commands below accept one complete same-version V2 or V3 family after exact inputs
+and target readback pass, and always activate one complete Version 2 Registration Generation.
 
 ## Connect an application
 
 Applications remain responsible for their own runtime, data, state, secrets, and feature
 authorization. The platform and application exchange non-secret, digest-bound bundles:
 
-> **Real-application complete-set boundary:** The commands below currently implement the qualified
-> Version 2 single-target fixture handoff. The implemented Version 3 contract family represents a
-> real application with one required root target and up to fifteen optional additional targets,
-> but the current operator still rejects it before provider readback. Do not begin a real adoption
-> until the atomic multi-target registration, fourth-fixture, and fixture-qualification slices
-> merge and pass their required gates. The fixture procedure later in this runbook remains Version
-> 2.
+> **Real-application complete-set boundary:** The commands below retain the qualified Version 2
+> single-target fixture handoff and implement the repository-tested Version 3 atomic adapter for
+> one required root plus up to fifteen optional additional targets. Do not begin a real adoption
+> until the fourth-fixture and fixture-qualification slices merge and pass their required gates.
+> The fixture procedure later in this runbook remains Version 2.
 
 1. Run `platform-connect-project` once for the application project in this environment. It attaches
    only that existing project to the platform Shared VPC and verifies subnet access for its Cloud
    Run service agent.
 2. Run `application-handoff-check` with the intended application, route, admission mode, active
-   platform revision, and Registration Generation. Resolve every blocker before publishing a
-   handoff.
-3. Run `platform-outputs` with the same values.
+   platform revision, Registration Generation, and `HANDOFF_VERSION=3`. Resolve every blocker
+   before publishing a handoff.
+3. Run `platform-outputs` with the same values and `HANDOFF_VERSION=3`.
 4. Give the resulting Platform Integration Bundle to the Application Owner.
 5. The Application Owner deploys the application through its own lifecycle and state.
 6. The Application Owner returns an Application Attachment Bundle and registration intent bound to
-   the integration-bundle digest. Planned Version 3 returns the complete target and binding sets.
+   the integration-bundle digest. Version 3 returns the complete target and binding sets.
 7. Run `platform-register` with those bundles and the reviewed registration intent.
 8. The platform validates every relationship and target's project, environment, network, ingress,
    egress, IAM, audience, ownership, readiness, and posture and activates one complete immutable

@@ -37,10 +37,13 @@ class ApplicationHandoffCheckRequest:
     route_intent: str
     platform_source_revision: str
     platform_generation: int
+    handoff_version: int = 2
 
 
 @dataclass(frozen=True, slots=True)
 class ApplicationHandoffCheckResult:
+    """Bounded readiness result that publishes no bundle or lifecycle state."""
+
     outcome: str
     ready: bool
     blockers: tuple[str, ...]
@@ -51,15 +54,27 @@ class ApplicationHandoffCheckResult:
 
 
 class DeploymentChecker(Protocol):
-    def deploy_check(self, environment: str) -> DeploymentCheckResult: ...
+    """Read the platform-wide deployment readiness projection."""
+
+    def deploy_check(self, environment: str) -> DeploymentCheckResult:
+        """Return one non-mutating environment readiness result."""
+        ...
 
 
 class IntegrationBundleChecker(Protocol):
-    def outputs(self, request: IntegrationBundleRequest) -> IntegrationBundleResult: ...
+    """Compile an application-scoped handoff bundle without publishing it."""
+
+    def outputs(self, request: IntegrationBundleRequest) -> IntegrationBundleResult:
+        """Return the selected contract version's bounded bundle projection."""
+        ...
 
 
 class ApplicationProjectReader(Protocol):
-    def read_project(self, project_id: str) -> ApplicationProjectReadback: ...
+    """Read bounded project/service/network posture for one application owner."""
+
+    def read_project(self, project_id: str) -> ApplicationProjectReadback:
+        """Return the exact named project's non-secret readiness facts."""
+        ...
 
 
 class ApplicationHandoffCheck:
@@ -71,6 +86,8 @@ class ApplicationHandoffCheck:
         integration: IntegrationBundleChecker,
         projects: ApplicationProjectReader,
     ) -> None:
+        """Bind read-only platform, bundle, and project readiness seams."""
+
         self._deployment = deployment
         self._integration = integration
         self._projects = projects
@@ -82,6 +99,8 @@ class ApplicationHandoffCheck:
         application_id: str,
         bundle: dict[str, object],
     ) -> tuple[bool, str]:
+        """Check the exact least-data identity projection for the requested mode."""
+
         endpoints = bundle.get("endpoints")
         identity = bundle.get("identity")
         if not isinstance(endpoints, dict) or not isinstance(identity, dict):
@@ -120,6 +139,8 @@ class ApplicationHandoffCheck:
         self,
         request: ApplicationHandoffCheckRequest,
     ) -> ApplicationHandoffCheckResult:
+        """Evaluate all non-mutating handoff prerequisites and aggregate blockers."""
+
         blockers: list[str] = []
         checks: dict[str, str] = {
             "platform-readiness": "blocked",
@@ -172,6 +193,7 @@ class ApplicationHandoffCheck:
                 expected_platform_source_revision=request.platform_source_revision,
                 expected_generation=request.platform_generation,
                 application_project_id=request.application_project_id,
+                handoff_version=request.handoff_version,
             )
         )
         blockers.extend(bundle_result.blockers)

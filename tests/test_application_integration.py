@@ -16,6 +16,8 @@ from infrastructure.operator.integration import (
     AttachmentTargetReadback,
     IntegrationBundleRequest,
     PlatformIntegrationState,
+    RegistrationAttachmentBinding,
+    RegistrationIntent,
 )
 
 
@@ -64,7 +66,11 @@ class FakePlatformReader:
 
 
 class FakeAttachmentReader:
-    def __init__(self, readback: AttachmentTargetReadback) -> None:
+    def __init__(
+        self,
+        readback: AttachmentTargetReadback
+        | dict[str, AttachmentTargetReadback],
+    ) -> None:
         self.readback = readback
         self.requests: list[tuple[str, str]] = []
 
@@ -74,6 +80,8 @@ class FakeAttachmentReader:
         resource_reference: str,
     ) -> AttachmentTargetReadback:
         self.requests.append((environment, resource_reference))
+        if isinstance(self.readback, dict):
+            return self.readback[resource_reference]
         return self.readback
 
 
@@ -96,6 +104,7 @@ def _state() -> PlatformIntegrationState:
 def _request(
     access_mode: str,
     identity_delivery: str | None = None,
+    handoff_version: int = 2,
 ) -> IntegrationBundleRequest:
     selected_delivery = identity_delivery or {
         "public": "none",
@@ -110,12 +119,13 @@ def _request(
         route_intent=f"/fixture-{access_mode}",
         expected_platform_source_revision=SOURCE_REVISION,
         expected_generation=7,
+        handoff_version=handoff_version,
     )
 
 
 def _attachment(bundle: dict[str, object]) -> dict[str, object]:
     return {
-        "contract_version": 2,
+        "contract_version": bundle["contract_version"],
         "document_kind": "application-attachment-bundle",
         "environment": bundle["environment"],
         "application_id": bundle["application_id"],
@@ -266,6 +276,31 @@ class PlatformOutputsTest(unittest.TestCase):
             "https://apps-staging.comfforts.com/_platform",
         )
 
+    def test_v3_bundle_explicitly_declares_the_complete_attachment_set(self) -> None:
+        lifecycle = ApplicationIntegrationLifecycle(FakePlatformReader(_state()))
+
+        result = lifecycle.outputs(_request("authenticated", handoff_version=3))
+
+        self.assertEqual(result.outcome, "generated")
+        assert result.bundle is not None
+        self.assertEqual(result.bundle["contract_version"], 3)
+        self.assertEqual(
+            result.bundle["attachment_contract"],
+            {
+                "adapter_kind": "gcp-cloud-run-v1",
+                "ingress_mode": "shared_edge_only",
+                "maximum_additional_attachments": 15,
+                "root_attachment_required": True,
+            },
+        )
+        self.assertEqual(
+            validate_versioned_lifecycle_document(
+                result.bundle,
+                "platform-integration-bundle",
+            ),
+            (),
+        )
+
     def test_bundle_is_bound_to_exact_current_platform_state(self) -> None:
         cases = {
             "wrong environment": (
@@ -400,26 +435,68 @@ class AttachmentValidationTest(unittest.TestCase):
         self.assertEqual(owner_result.blockers, ("ATTACHMENT_BUNDLE_INVALID",))
         self.assertEqual(reader.requests, [])
 
-    def test_v3_contracts_remain_inert_until_multi_target_registration_slice(self) -> None:
+    def test_v3_root_and_additional_targets_are_all_read_before_success(self) -> None:
         generated = ApplicationIntegrationLifecycle(
             FakePlatformReader(_state())
-        ).outputs(_request("authenticated"))
+        ).outputs(_request("authenticated", handoff_version=3))
         assert generated.bundle is not None
         attachment = _attachment(generated.bundle)
-        lifecycle, reader = self._lifecycle(attachment)
-        v3_integration = copy.deepcopy(generated.bundle)
-        v3_integration["contract_version"] = 3
-        v3_attachment = copy.deepcopy(attachment)
-        v3_attachment["contract_version"] = 3
-
-        result = lifecycle.validate_attachment(v3_integration, v3_attachment)
-
-        self.assertEqual(result.outcome, "blocked")
-        self.assertEqual(
-            result.blockers,
-            ("INTEGRATION_BUNDLE_VERSION_UNSUPPORTED",),
+        root_target = attachment["target"]
+        assert isinstance(root_target, dict)
+        api_target = copy.deepcopy(root_target)
+        api_target["resource_reference"] = (
+            f"{root_target['resource_reference']}-api"
         )
-        self.assertEqual(reader.requests, [])
+        attachment["additional_attachments"] = [
+            {"attachment_id": "api", "target": api_target}
+        ]
+        intent = RegistrationIntent(
+            application_id=str(generated.bundle["application_id"]),
+            access_mode="authenticated",
+            identity_delivery="required",
+            catalogue_visibility="unlisted",
+            catalogue_title="Multiple targets",
+            catalogue_summary="Root and API target",
+            attachment_id="web",
+            mount_path="/",
+            forwarding_mode="strip_application_prefix",
+            contract_version=3,
+            additional_attachment_bindings=(
+                RegistrationAttachmentBinding(
+                    "api",
+                    "/api",
+                    "strip_attachment_mount",
+                ),
+            ),
+        )
+        reader = FakeAttachmentReader(
+            {
+                str(root_target["resource_reference"]): _target_readback(attachment),
+                str(api_target["resource_reference"]): replace(
+                    _target_readback(attachment),
+                    resource_reference=str(api_target["resource_reference"]),
+                ),
+            }
+        )
+        lifecycle = ApplicationIntegrationLifecycle(
+            FakePlatformReader(_state()),
+            attachment_reader=reader,
+        )
+
+        result = lifecycle.validate_attachment(
+            generated.bundle,
+            attachment,
+            intent,
+        )
+
+        self.assertEqual(result.outcome, "validated")
+        self.assertEqual(
+            reader.requests,
+            [
+                ("staging", root_target["resource_reference"]),
+                ("staging", api_target["resource_reference"]),
+            ],
+        )
 
     def test_current_platform_and_target_readback_must_match_exactly(self) -> None:
         generated = ApplicationIntegrationLifecycle(

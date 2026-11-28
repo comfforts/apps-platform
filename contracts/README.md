@@ -7,9 +7,9 @@ Status: Version 1 remains a readable historical predecessor family. Version 2 is
 repository interface for application handoffs, registration compilation, Shared Edge loading, and
 independent application verification. AP-M9-W11 qualified the platform and fixtures using Version
 2 from Accepted Source. The ADR-017 Version 3 complete attachment-set schemas, compatibility
-loader, canonical vectors, and relationship validation are implemented for AP-M9-W12. The operator
-does not yet project or activate Version 3; no real Application Adoption or production
-qualification is implied.
+loader, canonical vectors, relationship validation, every-target readback, and atomic Version 2
+registration projection are implemented for AP-M9-W12. No fourth-fixture, real Application
+Adoption, or production qualification is implied.
 
 The `contracts/` directory defines the versioned data exchanged between platform components,
 operators, and applications. It answers four questions:
@@ -108,16 +108,16 @@ more than fifteen additional attachments, one optional array without the other, 
 mismatched additional IDs, root-ID reuse, a non-root root mount, duplicate or ambiguous mounts,
 mixed handoff versions, stale digests, and non-canonical bytes.
 Every additional binding contains only `attachment_id`, `mount_path`, and `forwarding_mode`.
-The implemented contract seam validates every target's application-scoped posture without reading
-a provider. Slice 3 will read every exact target before any output is projected into the existing
-Version 2 Application Registration `attachments` array. A failed target must produce no compiled
-output or activation.
+The contract seam validates every target's application-scoped posture without reading a provider.
+The operator then reads every exact target before any output is projected into the existing
+Version 2 Application Registration `attachments` array. A failed target produces ordered redacted
+attachment-ID/code violations and no compiled output or activation.
 
 The Version 3 schemas, registry mappings, vectors, validators, compatibility loader, and
-deterministic tests are implemented at the inert lifecycle-contract seam. Active operator
-consumers continue to reject Version 3 until the atomic multi-target registration slice. Version 2
-remains unchanged and readable for the qualified single-target fixtures. Root-only Version 3 is
-valid when both optional attributes are absent. Handoff Version 3 does
+deterministic tests are implemented together with explicit V3 output selection and atomic operator
+consumption. Version 2 remains the default and stays unchanged and readable for the qualified
+single-target fixtures. Root-only Version 3 is valid when both optional attributes are absent.
+Handoff Version 3 does
 not require a Version 3 Registration Set, Compiled Shared Edge, Verified Identity Context, or State
 Ownership Manifest because those interfaces do not change.
 
@@ -158,10 +158,9 @@ registration-revision values as a compatibility representation, maps public to I
 `none`, maps authenticated and restricted to `required`, and discards Version 1 restricted member
 sets. It never invents public `optional`. `compile_registration_set_v2` is pure and non-publishing;
 it compares against a historical Version 1 predecessor while binding the proposed successor to
-that predecessor's normalized generation digest. The implemented operator emits only a complete
-Version 2 handoff family and activates only a complete Version 2 successor; mixed input versions
-are rejected. The planned Version 3 operator path will accept only a complete same-version Version
-3 handoff family, project it into a complete Version 2 successor, and continue to reject mixed
+that predecessor's normalized generation digest. The implemented operator emits Version 2 by
+default and emits Version 3 only when the reviewed handoff version is selected. It accepts only one
+complete same-version family, projects V3 into a complete Version 2 successor, and rejects mixed
 handoff versions. Ownership semantics are unchanged, so the State Ownership Manifest remains
 Version 1.
 

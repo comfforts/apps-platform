@@ -57,6 +57,11 @@ ROOTS = (
     / "infrastructure"
     / "terraform"
     / "fixtures"
+    / "fixture-multi-attachment",
+    PROJECT_ROOT
+    / "infrastructure"
+    / "terraform"
+    / "fixtures"
     / "fixture-restricted",
 )
 

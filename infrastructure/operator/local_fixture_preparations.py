@@ -30,6 +30,8 @@ _REVISION = re.compile(r"[0-9a-f]{40}")
 
 
 def _canonical(value: object) -> bytes:
+    """Serialize private preparation metadata to canonical UTF-8 JSON."""
+
     return json.dumps(
         value,
         ensure_ascii=False,
@@ -40,6 +42,8 @@ def _canonical(value: object) -> bytes:
 
 
 def _digest(value: object) -> str:
+    """Return the SHA-256 binding for canonical private preparation metadata."""
+
     return "sha256:" + hashlib.sha256(_canonical(value)).hexdigest()
 
 
@@ -47,7 +51,15 @@ class LocalFixturePreparations:
     """Publish and read one exact non-secret fixture registration preparation."""
 
     def __init__(self, filesystem: LocalFilesystem) -> None:
+        """Bind preparation storage to the private atomic operator filesystem."""
+
         self._filesystem = filesystem
+
+    @staticmethod
+    def _handoff_version(request: FixtureDeployRequest) -> int:
+        """Select the closed fixture-owned handoff version without inspecting provider state."""
+
+        return 3 if request.application_id == "fixture-multi-attachment" else 2
 
     @staticmethod
     def _request_value(request: FixtureDeployRequest) -> dict[str, object]:
@@ -73,6 +85,8 @@ class LocalFixturePreparations:
         integration_bundle_digest: str,
         attachment_bundle_digest: str,
     ) -> dict[str, object]:
+        """Build canonical preparation metadata and its self-binding digest."""
+
         value = {
             "format_version": 1,
             **cls._request_value(request),
@@ -85,6 +99,8 @@ class LocalFixturePreparations:
 
     @staticmethod
     def _current_path(request: FixtureDeployRequest) -> str:
+        """Return the private pointer path for one fixture's current preparation."""
+
         return (
             f"environments/{request.environment}/fixtures/"
             f"{request.application_id}/preparations/current.v1.json"
@@ -92,6 +108,8 @@ class LocalFixturePreparations:
 
     @staticmethod
     def _base_path(request: FixtureDeployRequest, preparation_digest: str) -> str:
+        """Return the immutable private directory for one preparation digest."""
+
         return (
             f"environments/{request.environment}/fixtures/"
             f"{request.application_id}/preparations/"
@@ -167,6 +185,8 @@ class LocalFixturePreparations:
 
     @staticmethod
     def _document(payload: bytes | None, kind: str) -> dict[str, Any]:
+        """Read one bounded canonical lifecycle document or fail closed."""
+
         if payload is None or len(payload) > 262_144:
             raise ValueError("stored fixture preparation document is unavailable")
         try:
@@ -186,6 +206,8 @@ class LocalFixturePreparations:
         return value
 
     def _read_private(self, relative_path: str) -> bytes | None:
+        """Read one operator-state file only when its mode remains private."""
+
         payload = self._filesystem.read_state(relative_path)
         if payload is None:
             return None
@@ -200,12 +222,16 @@ class LocalFixturePreparations:
         metadata: dict[str, object],
         request: FixtureDeployRequest,
     ) -> bool:
+        """Compare all request fields that distinguish safe preparation reuse."""
+
         return all(
             metadata.get(name) == expected
             for name, expected in cls._request_value(request).items()
         )
 
     def read(self, request: FixtureDeployRequest) -> FixturePreparation | None:
+        """Read and validate one complete reusable V2 or V3 private handoff family."""
+
         payload = self._read_private(self._current_path(request))
         if payload is None:
             return None
@@ -224,9 +250,14 @@ class LocalFixturePreparations:
         manifest_payload = self._read_private(f"{base}/preparation.v1.json")
         if manifest_payload != payload:
             raise ValueError("stored fixture preparation manifest mismatch")
-        integration_relative = f"{base}/platform-integration-bundle.v2.json"
-        attachment_relative = f"{base}/application-attachment-bundle.v2.json"
-        intent_relative = f"{base}/registration-intent.v2.json"
+        handoff_version = self._handoff_version(request)
+        integration_relative = (
+            f"{base}/platform-integration-bundle.v{handoff_version}.json"
+        )
+        attachment_relative = (
+            f"{base}/application-attachment-bundle.v{handoff_version}.json"
+        )
+        intent_relative = f"{base}/registration-intent.v{handoff_version}.json"
         integration = self._document(
             self._read_private(integration_relative),
             "platform-integration-bundle",
@@ -296,7 +327,10 @@ class LocalFixturePreparations:
         image: FixtureImageReadback,
         integration_bundle: dict[str, Any],
         deployment: FixtureApplicationDeployment,
+        intent: RegistrationIntent | None = None,
     ) -> FixturePreparation:
+        """Publish one canonical bundle pair, atomically including the required V3 intent."""
+
         if (
             image.source_revision != request.fixture_source_revision
             or deployment.application_id != request.application_id
@@ -321,9 +355,16 @@ class LocalFixturePreparations:
             deployment.attachment_bundle,
             "application-attachment-bundle",
         )
-        if validate_versioned_lifecycle_relationships(
-            integration_bundle=integration_bundle,
-            attachment_bundle=deployment.attachment_bundle,
+        intent_document = intent.document() if intent is not None else None
+        handoff_version = self._handoff_version(request)
+        if (
+            (handoff_version == 3 and intent_document is None)
+            or (intent is not None and intent.contract_version != handoff_version)
+            or validate_versioned_lifecycle_relationships(
+                integration_bundle=integration_bundle,
+                attachment_bundle=deployment.attachment_bundle,
+                registration_intent=intent_document,
+            )
         ):
             raise ValueError("fixture preparation bundle relationship is invalid")
         metadata = self._metadata(
@@ -334,8 +375,13 @@ class LocalFixturePreparations:
         )
         preparation_digest = str(metadata["preparation_digest"])
         base = self._base_path(request, preparation_digest)
-        integration_relative = f"{base}/platform-integration-bundle.v2.json"
-        attachment_relative = f"{base}/application-attachment-bundle.v2.json"
+        integration_relative = (
+            f"{base}/platform-integration-bundle.v{handoff_version}.json"
+        )
+        attachment_relative = (
+            f"{base}/application-attachment-bundle.v{handoff_version}.json"
+        )
+        intent_relative = f"{base}/registration-intent.v{handoff_version}.json"
         self._filesystem.write_state(
             integration_relative,
             canonical_versioned_lifecycle_bytes(
@@ -354,6 +400,16 @@ class LocalFixturePreparations:
             + b"\n",
             replace=False,
         )
+        if intent_document is not None:
+            self._filesystem.write_state(
+                intent_relative,
+                canonical_versioned_lifecycle_bytes(
+                    intent_document,
+                    "registration-intent",
+                )
+                + b"\n",
+                replace=False,
+            )
         self._filesystem.write_state(
             f"{base}/preparation.v1.json",
             _canonical(metadata) + b"\n",
@@ -376,6 +432,11 @@ class LocalFixturePreparations:
             attachment_bundle_path=str(
                 self._filesystem.state_path(attachment_relative)
             ),
+            registration_intent_path=(
+                str(self._filesystem.state_path(intent_relative))
+                if intent_document is not None
+                else None
+            ),
         )
 
     def publish_registration_intent(
@@ -384,25 +445,18 @@ class LocalFixturePreparations:
         preparation: FixturePreparation,
         intent: RegistrationIntent,
     ) -> FixturePreparation:
+        """Publish a V2 registration intent after its bundle pair is durable."""
+
         current = self._read_private(self._current_path(request))
         if current is None:
             raise ValueError("fixture preparation is unavailable")
         metadata = self._validate_metadata(json.loads(current))
         base = self._base_path(request, str(metadata["preparation_digest"]))
-        relative = f"{base}/registration-intent.v2.json"
-        document = {
-            "contract_version": 2,
-            "document_kind": "registration-intent",
-            "application_id": intent.application_id,
-            "access_mode": intent.access_mode,
-            "identity_delivery": intent.identity_delivery,
-            "attachment_id": intent.attachment_id,
-            "catalogue_summary": intent.catalogue_summary,
-            "catalogue_title": intent.catalogue_title,
-            "catalogue_visibility": intent.catalogue_visibility,
-            "forwarding_mode": intent.forwarding_mode,
-            "mount_path": intent.mount_path,
-        }
+        handoff_version = self._handoff_version(request)
+        relative = f"{base}/registration-intent.v{handoff_version}.json"
+        document = intent.document()
+        if intent.contract_version != handoff_version:
+            raise ValueError("fixture registration intent version is invalid")
         if validate_versioned_lifecycle_relationships(
             integration_bundle=preparation.integration_bundle,
             attachment_bundle=preparation.deployment.attachment_bundle,

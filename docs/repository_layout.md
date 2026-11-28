@@ -1,10 +1,10 @@
 # App Platform repository layout
 
-Version 2.20 | Status: canonical dedicated repository; ADR-015 implemented and Candidate-qualified
+Version 2.21 | Status: canonical dedicated repository; ADR-015 implemented and Candidate-qualified
 by AP-M9-W10; AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 target-stage validation, ADR-017 Version 3
-contracts, and atomic multi-target projection are implemented, while fixture and later slices
-remain planned
+contracts, atomic multi-target projection, and the fourth fixture application are implemented,
+while fixture qualification and later slices remain planned
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -103,21 +103,22 @@ or selected status, automatic prepared-specification reuse, and a non-publishing
 safe platform-destruction adapter completion. Candidate staging operation is implementation
 feedback and revision-scoped Live evidence, not Accepted Source AP-M9 qualification.
 
-AP-M9-W12 Slices 1 through 3 keep the existing provider target-reader seam, add explicit V2/V3
+AP-M9-W12 Slices 1 through 4 keep the existing provider target-reader seam, add explicit V2/V3
 handoff selection to readiness and outputs, consume a complete Version 3 family in the deep
 application-integration lifecycle, read every target, and atomically project a valid set into the
-existing Version 2 compiler. Ordered failures retain only attachment IDs and stable codes. These
-slices add no application deploy/destroy command, Application State reader, fixture runtime, or
-Live evidence.
+existing Version 2 compiler. Slice 4 adds the fourth fixture runtime profile, one two-service
+Application State root, one complete Version 3 fixture handoff, per-target status, and exact
+two-target destruction readback. Ordered failures retain only attachment IDs and stable codes.
+These slices add no generic real-application deploy/destroy command or Live evidence.
 
-AP-M9-W12 plans a fourth `fixture-multi-attachment` profile and one independent
+AP-M9-W12 implements a fourth `fixture-multi-attachment` profile and one independent
 `infrastructure/terraform/fixtures/fixture-multi-attachment/` root. That root owns both the
 frontend and dummy API Cloud Run services and uses the existing fixture project's private state
 bucket with the distinct `fixtures/fixture-multi-attachment` prefix. The planned
 `fixture-qualify` target sits over a fixture-scoped qualification module and writes its result and
 status separately from `platform-qualify`. The existing three fixture roots, handoffs, and
-qualification record remain unchanged. None of these paths or behaviors exists until the ordered
-W12 slices implement and verify them.
+qualification record remain unchanged. The fixture qualifier does not yet exist, and no provider
+operation or qualification evidence is produced by the fourth-fixture repository implementation.
 
 ## AP-M9 capability locations
 
@@ -133,7 +134,6 @@ absence is expected until the named AP-M9 package implements them.
 | `infrastructure/evidence/` | redacted operation and qualification evidence tooling |
 | `artifacts/` | optional secret-free reviewed indexes and digests only |
 | root `Makefile` | shallow `platform-*` operator targets over the lifecycle module and the planned W12 `fixture-qualify` target over its fixture-scoped qualification module |
-| `infrastructure/terraform/fixtures/fixture-multi-attachment/` | planned W12 Fixture Application State root owning both fourth-fixture Cloud Run services |
 | `infrastructure/operator/` | planned W12 fixture-scoped qualification module with private evidence and status distinct from platform qualification |
 
 AP-M9 keeps one deep lifecycle module behind a small operator interface. Provider, Terraform, DNS,

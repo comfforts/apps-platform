@@ -31,11 +31,14 @@ _REGION = "us-west1"
 _FIXTURE_MODES = {
     "fixture-public": "public",
     "fixture-authenticated": "authenticated",
+    "fixture-multi-attachment": "authenticated",
     "fixture-restricted": "restricted",
 }
 
 
 def _object(value: str, code: str) -> dict[str, Any]:
+    """Parse one required JSON object or raise the caller's stable input code."""
+
     try:
         parsed = json.loads(value)
     except json.JSONDecodeError as error:
@@ -49,10 +52,14 @@ class FixtureConfigurationRenderer:
     """Derive one complete fixture root input without an operator manifest."""
 
     def __init__(self, project_root: Path, working_root: Path) -> None:
+        """Create an isolated private Terraform workspace for fixture roots."""
+
         self._workspace = PrivateTerraformWorkspace(project_root, working_root)
 
     @staticmethod
     def _inputs(context: StageContext) -> dict[str, str]:
+        """Return unique closed stage inputs or reject ambiguous duplicate keys."""
+
         values = dict(context.inputs)
         if len(values) != len(context.inputs):
             raise LocalDeploymentInputError("FIXTURE_INPUT_DUPLICATE")
@@ -63,6 +70,8 @@ class FixtureConfigurationRenderer:
         context: StageContext,
         request: PhasePlanRequest,
     ) -> RenderedTerraformInput:
+        """Render one private fixture-root input bound to its exact handoff family."""
+
         if context.environment != "staging" or request.environment != "staging":
             raise LocalDeploymentInputError("FIXTURE_ENVIRONMENT_UNAVAILABLE")
         stage_id = str(context.stage.get("stage_id", ""))
@@ -98,12 +107,14 @@ class FixtureConfigurationRenderer:
             edge_caller = identity["edge_caller_reference"]
             audience = identity["audience"]
             identity_delivery = bundle["identity_delivery"]
+            source_authority = bundle["platform_source_authority"]
             project_id = application_project["project_id"]
             project_number = application_project["project_number"]
         except (KeyError, TypeError) as error:
             raise LocalDeploymentInputError("FIXTURE_INPUT_INCOMPLETE") from error
         if (
-            bundle.get("contract_version") != 2
+            bundle.get("contract_version")
+            != (3 if request.owner_id == "fixture-multi-attachment" else 2)
             or validate_versioned_lifecycle_document(
                 bundle,
                 "platform-integration-bundle",
@@ -112,6 +123,7 @@ class FixtureConfigurationRenderer:
             or bundle.get("application_id") != request.owner_id
             or bundle.get("access_mode") != access_mode
             or bundle.get("route_intent") != f"/{request.owner_id}"
+            or source_authority not in {"accepted", "candidate"}
             or not isinstance(external_origin, str)
             or external_origin != "https://apps-staging.comfforts.com"
             or not isinstance(edge_caller, str)
@@ -137,6 +149,13 @@ class FixtureConfigurationRenderer:
             raise LocalDeploymentInputError("INTEGRATION_BUNDLE_MISMATCH")
 
         platform_issuer = f"{external_origin}/_platform"
+        target_stage = (
+            {"accepted": "staging", "candidate": "qualification"}[
+                source_authority
+            ]
+            if request.owner_id == "fixture-multi-attachment"
+            else "qualification"
+        )
         fixture_configuration = {
             "contract_version": 1,
             "configuration_kind": "fixture",
@@ -146,7 +165,11 @@ class FixtureConfigurationRenderer:
             "region": _REGION,
             "application_id": request.owner_id,
             "state_owner": "application",
-            "service_name": request.owner_id,
+            "service_name": (
+                "fixture-multi-attachment-web"
+                if request.owner_id == "fixture-multi-attachment"
+                else request.owner_id
+            ),
             "image_digest": image_reference,
             "admission_mode": access_mode,
             "assertion_audience": audience,
@@ -157,7 +180,7 @@ class FixtureConfigurationRenderer:
             "application_subnet_reference": network["subnetwork_reference"],
             "vpc_egress": network["egress_mode"],
             "labels": {
-                "environment": "qualification",
+                "environment": target_stage,
                 "managed_by": "terraform",
                 "state_owner": "application",
                 "application_id": request.owner_id,
@@ -196,7 +219,7 @@ class FixtureConfigurationRenderer:
 
 
 class FixtureTerraform(Protocol):
-    """Only Terraform operations needed by the three fixture roots."""
+    """Only Terraform operations needed by the four fixture roots."""
 
     def create_plan(
         self,
@@ -206,27 +229,39 @@ class FixtureTerraform(Protocol):
         *,
         bootstrap_remote: bool = False,
         destroy: bool = False,
-    ) -> TerraformPlanArtifact: ...
+    ) -> TerraformPlanArtifact:
+        """Create one saved fixture-root plan without applying it."""
+
+        ...
 
     def apply_plan(
         self,
         request: PhasePlanRequest,
         terraform_root: Path,
         saved_plan: Path,
-    ) -> None: ...
+    ) -> None:
+        """Apply the exact saved fixture-root plan bound to the request."""
+
+        ...
 
     def read_output(
         self,
         request: PhasePlanRequest,
         terraform_root: Path,
         output_name: str,
-    ) -> object: ...
+    ) -> object:
+        """Read one allowlisted non-secret Terraform output."""
+
+        ...
 
     def state_empty(
         self,
         request: PhasePlanRequest,
         terraform_root: Path,
-    ) -> bool: ...
+    ) -> bool:
+        """Return whether the selected fixture state contains no resources."""
+
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,6 +280,8 @@ class LocalFixtureDeploymentCommands:
         terraform: FixtureTerraform,
         target_reader: AttachmentTargetReader | None = None,
     ) -> None:
+        """Bind deterministic rendering, Terraform execution, and target readback."""
+
         self._renderer = renderer
         self._terraform = terraform
         self._target_reader = target_reader
@@ -256,6 +293,8 @@ class LocalFixtureDeploymentCommands:
         context: StageContext,
         request: PhasePlanRequest,
     ) -> TerraformPlanArtifact:
+        """Render and plan the exact fixture root without exposing private inputs."""
+
         try:
             rendered = self._renderer.render(context, request)
             actions = context.stage.get("actions")
@@ -280,6 +319,8 @@ class LocalFixtureDeploymentCommands:
         request: PhasePlanRequest,
         plan: ExactTerraformPlan,
     ) -> None:
+        """Apply only the saved plan previously bound to this fixture request."""
+
         try:
             rendered = self._plans_by_request[id(request)].rendered
             self._terraform.apply_plan(
@@ -295,32 +336,45 @@ class LocalFixtureDeploymentCommands:
             raise DeploymentCommandError("FIXTURE_APPLY_COMMAND_FAILED") from error
 
     @staticmethod
-    def _attachment_reference(
+    def _attachment_output(
         value: object,
         request: PhasePlanRequest,
         rendered: RenderedTerraformInput,
     ) -> str:
-        if not isinstance(value, dict):
-            raise DeploymentCommandError("FIXTURE_READBACK_INVALID")
+        """Validate and serialize the root's complete non-secret attachment output."""
+
         try:
             variables = json.loads(rendered.variable_file.read_bytes())
             configuration = variables["fixture_configuration"]
             expected_audience = configuration["assertion_audience"]
         except (KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
             raise DeploymentCommandError("FIXTURE_INPUT_READBACK_INVALID") from error
-        expected = {
-            "reference_kind": "attachment",
-            "state_owner": "application",
-            "owner_id": request.owner_id,
-            "application_id": request.owner_id,
-            "attachment_id": "primary",
-            "adapter_kind": "gcp-cloud-run-v1",
-            "resource_reference": (
-                "urn:comfforts:app-platform:gcp:cloud-run:"
-                f"{configuration['project_number']}:{_REGION}:{request.owner_id}"
-            ),
-            "audience": expected_audience,
-        }
+
+        def reference(attachment_id: str, service_name: str) -> dict[str, object]:
+            """Build the exact expected non-secret attachment reference."""
+
+            return {
+                "reference_kind": "attachment",
+                "state_owner": "application",
+                "owner_id": request.owner_id,
+                "application_id": request.owner_id,
+                "attachment_id": attachment_id,
+                "adapter_kind": "gcp-cloud-run-v1",
+                "resource_reference": (
+                    "urn:comfforts:app-platform:gcp:cloud-run:"
+                    f"{configuration['project_number']}:{_REGION}:{service_name}"
+                ),
+                "audience": expected_audience,
+            }
+
+        expected: object
+        if request.owner_id == "fixture-multi-attachment":
+            expected = {
+                "api": reference("api", "fixture-multi-attachment-api"),
+                "web": reference("web", "fixture-multi-attachment-web"),
+            }
+        else:
+            expected = reference("primary", request.owner_id)
         if value != expected:
             raise DeploymentCommandError("FIXTURE_READBACK_MISMATCH")
         return json.dumps(
@@ -335,6 +389,8 @@ class LocalFixtureDeploymentCommands:
         self,
         request: TerraformReadbackRequest,
     ) -> TerraformReadback:
+        """Read the exact complete attachment set or prove every target was destroyed."""
+
         try:
             planned = self._plans_by_stage[request.stage_id]
         except KeyError:
@@ -363,15 +419,23 @@ class LocalFixtureDeploymentCommands:
                 project_number = variables["fixture_configuration"][
                     "project_number"
                 ]
-                resource_reference = (
-                    "urn:comfforts:app-platform:gcp:cloud-run:"
-                    f"{project_number}:{_REGION}:{planned.request.owner_id}"
+                service_names = (
+                    (
+                        "fixture-multi-attachment-api",
+                        "fixture-multi-attachment-web",
+                    )
+                    if planned.request.owner_id == "fixture-multi-attachment"
+                    else (planned.request.owner_id,)
                 )
-                target = self._target_reader.read_target(
-                    request.environment,
-                    resource_reference,
+                targets = tuple(
+                    self._target_reader.read_target(
+                        request.environment,
+                        "urn:comfforts:app-platform:gcp:cloud-run:"
+                        f"{project_number}:{_REGION}:{service_name}",
+                    )
+                    for service_name in service_names
                 )
-                if not state_empty or target.exists:
+                if not state_empty or any(target.exists for target in targets):
                     return TerraformReadback(
                         False,
                         blockers=("FIXTURE_DESTRUCTION_READBACK_MISMATCH",),
@@ -380,17 +444,28 @@ class LocalFixtureDeploymentCommands:
                     True,
                     (("fixture-destroyed", planned.request.owner_id),),
                 )
+            multi_attachment = planned.request.owner_id == "fixture-multi-attachment"
             value = self._terraform.read_output(
                 planned.request,
                 planned.rendered.terraform_root,
-                "attachment_reference",
+                "attachment_references" if multi_attachment else "attachment_reference",
             )
-            reference = self._attachment_reference(
+            reference = self._attachment_output(
                 value,
                 planned.request,
                 planned.rendered,
             )
-            return TerraformReadback(True, (("attachment-reference", reference),))
+            return TerraformReadback(
+                True,
+                (
+                    (
+                        "attachment-references"
+                        if multi_attachment
+                        else "attachment-reference",
+                        reference,
+                    ),
+                ),
+            )
         except DeploymentCommandError:
             raise
         except (OSError, RuntimeError, ValueError) as error:

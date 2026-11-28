@@ -30,6 +30,7 @@ EXAMPLE_KINDS = {
     "cross-state-backend.synthetic.v1.json": "cross-state-reference",
     "cross-state-platform.synthetic.v1.json": "cross-state-reference",
     "fixture-authenticated.synthetic.v1.json": "fixture",
+    "fixture-multi-attachment.synthetic.v1.json": "fixture",
     "fixture-public.synthetic.v1.json": "fixture",
     "fixture-restricted.synthetic.v1.json": "fixture",
     "platform-foundation.synthetic.v2.json": "platform",
@@ -261,6 +262,15 @@ class InfrastructureConfigurationTest(unittest.TestCase):
         self.assertIn(("OWNER_CONFLICT", "/service_name"), _codes(violations))
         self.assertIn(("OWNER_CONFLICT", "/labels/application_id"), _codes(violations))
 
+        fixture = _example("fixture-multi-attachment.synthetic.v1.json")
+        labels = fixture["labels"]
+        assert isinstance(labels, dict)
+        labels["environment"] = "staging"
+        self.assertEqual(
+            validate_configuration(fixture, "fixture", allow_synthetic=True),
+            (),
+        )
+
         reference = _example("cross-state-attachment.synthetic.v1.json")
         attachment = reference["reference"]
         assert isinstance(attachment, dict)
@@ -336,7 +346,7 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                 self.assertIn("CONFIGURATION_POLICY_INVALID", {item.code for item in violations})
 
 
-    def test_w8_adds_only_the_approved_platform_and_fixture_resources(self) -> None:
+    def test_only_approved_platform_and_fixture_resources_exist(self) -> None:
         terraform_root = PROJECT_ROOT / "infrastructure" / "terraform"
         terraform_files = sorted(
             path.relative_to(terraform_root).as_posix()
@@ -363,6 +373,12 @@ class InfrastructureConfigurationTest(unittest.TestCase):
                     "fixtures/fixture-public/provider.tf",
                     "fixtures/fixture-public/variables.tf",
                     "fixtures/fixture-public/versions.tf",
+                    "fixtures/fixture-multi-attachment/backend.tf",
+                    "fixtures/fixture-multi-attachment/main.tf",
+                    "fixtures/fixture-multi-attachment/outputs.tf",
+                    "fixtures/fixture-multi-attachment/provider.tf",
+                    "fixtures/fixture-multi-attachment/variables.tf",
+                    "fixtures/fixture-multi-attachment/versions.tf",
                     "fixtures/fixture-restricted/backend.tf",
                     "fixtures/fixture-restricted/main.tf",
                     "fixtures/fixture-restricted/outputs.tf",
@@ -410,6 +426,7 @@ class InfrastructureConfigurationTest(unittest.TestCase):
         for application_id in (
             "fixture-public",
             "fixture-authenticated",
+            "fixture-multi-attachment",
             "fixture-restricted",
         ):
             root = terraform_root / "fixtures" / application_id

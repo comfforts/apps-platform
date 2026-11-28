@@ -965,6 +965,14 @@ def _main(
                         "target_exists": item.target_exists,
                         "target_ready": item.target_ready,
                         "route_ready": item.route_ready,
+                        "attachments": [
+                            {
+                                "attachment_id": attachment.attachment_id,
+                                "target_exists": attachment.target_exists,
+                                "target_ready": attachment.target_ready,
+                            }
+                            for attachment in item.attachments
+                        ],
                     }
                     for item in result.applications
                 ],

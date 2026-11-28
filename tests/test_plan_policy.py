@@ -805,6 +805,7 @@ class PlanPolicyTest(unittest.TestCase):
         for application_id in (
             "fixture-public",
             "fixture-authenticated",
+            "fixture-multi-attachment",
             "fixture-restricted",
         ):
             with self.subTest(application_id=application_id):

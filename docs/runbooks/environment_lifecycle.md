@@ -6,9 +6,9 @@ state, identity, OAuth client, DNS and TLS resources, application registrations,
 
 > **Current staging boundary:** The Version 2 staging platform and all three cross-project fixtures
 > are qualified from Accepted Source at
-> `b43333756b509d0f35cb82938a13f6abc459f7c4`. The next delivery adopts one separately governed
-> real application. Platform destruction/recovery and read-only production readiness remain later,
-> separate work.
+> `b43333756b509d0f35cb82938a13f6abc459f7c4`. The fourth multi-attachment fixture is implemented in
+> the repository but not deployed or qualified; its separate qualification is next. Real-application
+> adoption, platform destruction/recovery, and read-only production readiness remain later work.
 
 | Environment | Intended hostname | Current operating boundary |
 | --- | --- | --- |
@@ -517,13 +517,14 @@ inherited create or update, any replacement or deletion, or a failed foundation-
 This exception is exact migration authority, not general permission for the Shared Edge phase to
 mutate foundation resources.
 
-`fixture-status` reconciles all three fixture registrations and provider targets by default. During
+`fixture-status` reconciles all four fixture registrations and provider targets by default. During
 an individual rollout or investigation, add `APPLICATION_ID=<fixture-application-id>` to narrow the
 read-only result to one fixture. Each result includes the active Registration Generation's
 `catalogue_visibility` (`listed` or `unlisted`). `target_ready` is Cloud Run/provider posture;
-`route_ready` is a separate HTTPS read of the platform route and becomes true only for a successful
-response or a real authentication redirect. An active registration and ready target do not by
-themselves make `route_ready` true.
+the fourth fixture additionally reports its `web` and `api` attachment postures. `route_ready` is a
+separate HTTPS read of the platform route and becomes true only for a successful response or a real
+authentication redirect. An active registration and ready target do not by themselves make
+`route_ready` true.
 
 ## Qualify an environment
 
@@ -824,9 +825,9 @@ and qualification from clean current `main` using the default Accepted Source af
 Only one staging operation may run at a time because candidate and accepted operations target the
 same staging environment.
 
-## Planned multi-attachment fixture qualification
+## Implemented fixture handoff and planned multi-attachment qualification
 
-The multi-attachment handoff extension adds `fixture-multi-attachment` as a fourth fixture without
+The implemented multi-attachment handoff adds `fixture-multi-attachment` as a fourth fixture without
 changing the three fixtures above. It is authenticated with required Identity Delivery and an
 unlisted catalogue entry. One independent fixture state root owns two Cloud Run services: the
 required `web` frontend mounted at `/` and a distinct dummy `api` backend mounted at `/api`.

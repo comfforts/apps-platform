@@ -14,7 +14,7 @@ from infrastructure.backend import (
 
 
 class BackendLifecycleTest(unittest.TestCase):
-    def test_staging_defines_six_lineages_over_two_owner_buckets(self) -> None:
+    def test_staging_defines_seven_lineages_over_two_owner_buckets(self) -> None:
         declarations = backend_declarations("staging")
 
         self.assertEqual(
@@ -25,6 +25,7 @@ class BackendLifecycleTest(unittest.TestCase):
                 "shared-edge",
                 "fixture-public",
                 "fixture-authenticated",
+                "fixture-multi-attachment",
                 "fixture-restricted",
             ),
         )
@@ -36,6 +37,7 @@ class BackendLifecycleTest(unittest.TestCase):
                 "platform",
                 "fixtures/fixture-public",
                 "fixtures/fixture-authenticated",
+                "fixtures/fixture-multi-attachment",
                 "fixtures/fixture-restricted",
             ),
         )
@@ -50,7 +52,7 @@ class BackendLifecycleTest(unittest.TestCase):
                     for declaration in declarations
                 }
             ),
-            5,
+            6,
         )
         self.assertEqual(declarations[1].bucket, declarations[2].bucket)
         self.assertEqual(declarations[1].state_owner, "platform")

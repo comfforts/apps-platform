@@ -26,6 +26,8 @@ FIXTURE_PROFILES = {
         "urn:comfforts:app-platform:audience:fixture-restricted",
     ),
 }
+MULTI_ATTACHMENT_FIXTURE = "fixture-multi-attachment"
+ALL_FIXTURES = (*FIXTURE_PROFILES, MULTI_ATTACHMENT_FIXTURE)
 
 
 def _terraform_sources(root: Path) -> str:
@@ -71,6 +73,33 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
                 self.assertNotIn("bucket", backend)
                 self.assertNotIn("prefix", backend)
 
+    def test_multi_attachment_root_owns_two_services_as_one_application(self) -> None:
+        root = FIXTURE_ROOT / MULTI_ATTACHMENT_FIXTURE
+        variables = (root / "variables.tf").read_text(encoding="utf-8")
+        outputs = (root / "outputs.tf").read_text(encoding="utf-8")
+        main = (root / "main.tf").read_text(encoding="utf-8")
+        backend = (root / "backend.tf").read_text(encoding="utf-8")
+
+        self.assertEqual(
+            re.findall(r'^module "([^"]+)"', main, re.MULTILINE),
+            ["web", "api"],
+        )
+        self.assertEqual(
+            re.findall(r'^output "([^"]+)"', outputs, re.MULTILINE),
+            ["attachment_references"],
+        )
+        self.assertIn('service_name                 = "fixture-multi-attachment-web"', main)
+        self.assertIn('service_name                 = "fixture-multi-attachment-api"', main)
+        self.assertIn('target_marker                = "web"', main)
+        self.assertIn('target_marker                = "api"', main)
+        self.assertIn(
+            'assertion_audience == "urn:comfforts:app-platform:audience:fixture-multi-attachment"',
+            variables,
+        )
+        self.assertEqual(backend.count('backend "gcs" {}'), 1)
+        self.assertNotIn("bucket", backend)
+        self.assertNotIn("prefix", backend)
+
     def test_each_root_is_bound_to_one_application_owner_and_profile(self) -> None:
         for application_id, (admission_mode, audience) in FIXTURE_PROFILES.items():
             with self.subTest(application_id=application_id):
@@ -111,7 +140,7 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
         )
         self.assertIn("public_key_reference", platform_fields)
 
-        for application_id in FIXTURE_PROFILES:
+        for application_id in ALL_FIXTURES:
             variables = (
                 FIXTURE_ROOT / application_id / "variables.tf"
             ).read_text(encoding="utf-8")
@@ -165,6 +194,7 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
             "APP_PLATFORM_ISSUER",
             "APP_PLATFORM_PUBLIC_KEY_REFERENCE",
             "APP_PLATFORM_ASSERTION_AUDIENCE",
+            "APP_PLATFORM_TARGET_MARKER",
             '"comfforts.com/identity-audience"',
         ):
             self.assertIn(required_control, module)
@@ -218,8 +248,40 @@ class TerraformFixtureApplicationTest(unittest.TestCase):
                 (),
             )
 
+        fixture = _example("fixture-multi-attachment.synthetic.v1.json")
+        for attachment_id, service_name in (
+            ("api", "fixture-multi-attachment-api"),
+            ("web", "fixture-multi-attachment-web"),
+        ):
+            reference = {
+                "contract_version": 1,
+                "configuration_kind": "cross-state-reference",
+                "configuration_class": "synthetic",
+                "reference": {
+                    "reference_kind": "attachment",
+                    "state_owner": "application",
+                    "owner_id": MULTI_ATTACHMENT_FIXTURE,
+                    "application_id": MULTI_ATTACHMENT_FIXTURE,
+                    "attachment_id": attachment_id,
+                    "adapter_kind": "gcp-cloud-run-v1",
+                    "resource_reference": (
+                        "urn:comfforts:app-platform:gcp:cloud-run:"
+                        f"{fixture['project_number']}:{fixture['region']}:{service_name}"
+                    ),
+                    "audience": fixture["assertion_audience"],
+                },
+            }
+            self.assertEqual(
+                validate_configuration(
+                    reference,
+                    "cross-state-reference",
+                    allow_synthetic=True,
+                ),
+                (),
+            )
+
     def test_plan_tests_use_only_mocked_plan_mode_and_w3_examples(self) -> None:
-        for application_id in FIXTURE_PROFILES:
+        for application_id in ALL_FIXTURES:
             with self.subTest(application_id=application_id):
                 test_file = (
                     FIXTURE_ROOT / application_id / "tests/fixture.tftest.hcl"

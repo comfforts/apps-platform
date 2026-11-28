@@ -1,10 +1,10 @@
 # <u>App Platform system design</u>
 
-Version 1.26 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
+Version 1.27 | Status: ADR-015 implemented and Candidate-qualified by AP-M9-W10; AP-M9-W11
 Accepted Source staging platform and fixture qualification completed at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 schemas, relationship validation,
-every-target readback, and atomic Version 2 projection are implemented for AP-M9-W12, while fixture
-deployment and adoption remain planned
+every-target readback, atomic Version 2 projection, and the fourth fixture application are
+implemented for AP-M9-W12, while fixture qualification and adoption remain planned
 
 This document defines the smallest logical design that can support the App Platform requirements
 and accepted architecture decisions. It is authoritative only inside the App Platform project. It
@@ -609,6 +609,12 @@ at `/`; its optional `api` attachment is a distinct dummy backend Cloud Run serv
 Both services share the application project, audience, edge caller, and policy, and one independent
 Fixture Application State root at `infrastructure/terraform/fixtures/fixture-multi-attachment`
 owns them through the `fixtures/fixture-multi-attachment` backend prefix.
+
+The fourth fixture's application-owned lifecycle emits one complete Version 3 family, reports the
+`web` and `api` provider postures separately, and destroys both through that one state root only
+after application-wide detachment. Candidate source renders the `qualification` target stage and
+Accepted Source renders `staging`; both labels remain provider posture rather than qualification
+evidence. No provider operation or qualification is implied by this repository implementation.
 
 Fixture-scoped qualification is a separate deep module behind the small
 `fixture-qualify(environment, application_id)` operator interface. The initial allow-list accepts

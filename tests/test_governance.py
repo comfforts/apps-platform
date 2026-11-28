@@ -1967,7 +1967,7 @@ class ProjectAuthorityTest(unittest.TestCase):
         self.assertTrue((config_root / "README.md").is_file())
         self.assertTrue((config_root / "validation.py").is_file())
         self.assertEqual(len(tuple((config_root / "schemas").glob("*.json"))), 5)
-        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 16)
+        self.assertEqual(len(tuple((config_root / "examples").glob("*.json"))), 17)
         module_root = PROJECT_ROOT / "infrastructure/terraform/modules"
         self.assertEqual(
             sorted(path.name for path in module_root.iterdir() if path.is_dir()),
@@ -1986,6 +1986,7 @@ class ProjectAuthorityTest(unittest.TestCase):
             "infrastructure/terraform/fixtures/fixture-public",
             "infrastructure/terraform/fixtures/fixture-authenticated",
             "infrastructure/terraform/fixtures/fixture-restricted",
+            "infrastructure/terraform/fixtures/fixture-multi-attachment",
         )
         for relative_root in expected_roots:
             root = PROJECT_ROOT / relative_root
@@ -2030,6 +2031,11 @@ class ProjectAuthorityTest(unittest.TestCase):
                     "infrastructure/terraform/fixtures/fixture-authenticated/outputs.tf",
                     "infrastructure/terraform/fixtures/fixture-authenticated/provider.tf",
                     "infrastructure/terraform/fixtures/fixture-authenticated/variables.tf",
+                    "infrastructure/terraform/fixtures/fixture-multi-attachment/backend.tf",
+                    "infrastructure/terraform/fixtures/fixture-multi-attachment/main.tf",
+                    "infrastructure/terraform/fixtures/fixture-multi-attachment/outputs.tf",
+                    "infrastructure/terraform/fixtures/fixture-multi-attachment/provider.tf",
+                    "infrastructure/terraform/fixtures/fixture-multi-attachment/variables.tf",
                     "infrastructure/terraform/fixtures/fixture-public/backend.tf",
                     "infrastructure/terraform/fixtures/fixture-public/main.tf",
                     "infrastructure/terraform/fixtures/fixture-public/outputs.tf",

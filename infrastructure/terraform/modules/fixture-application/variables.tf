@@ -15,6 +15,7 @@ variable "runtime_configuration" {
     application_subnet_reference = string
     labels                       = map(string)
     destruction_enabled          = bool
+    target_marker                = optional(string)
   })
 }
 

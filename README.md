@@ -87,8 +87,9 @@ and other members never do.
 > `b43333756b509d0f35cb82938a13f6abc459f7c4`. The next work is one separately governed real-
 > application staging adoption. W12 now implements the ADR-017 Version 3 complete attachment-set
 > handoff and atomic registration adapter so one application can return separate frontend and
-> backend targets. The fourth fixture and its separate qualification are still required before a
-> real adoption; no application has been selected or qualified.
+> backend targets. The fourth fixture's repository implementation now supplies that two-target
+> shape; its separate qualification is still required before a real adoption, and no real
+> application has been selected or qualified.
 
 ### Catalogue visibility
 
@@ -144,11 +145,12 @@ These fixtures are qualification assets, not templates that force a real applica
 visibility or product behavior. All initial provider-backed attachments use the same Cloud Run
 attachment contract regardless of admission mode.
 
-AP-M9-W12 plans a fourth `fixture-multi-attachment` application without changing those three
-fixtures. It is authenticated, requires Identity Delivery, remains unlisted, and uses one
-independent Application State root to own a frontend Cloud Run service for `/` plus a distinct
-dummy API Cloud Run service for `/api`. Its fixture-scoped qualification result remains separate
-from `platform-qualify` and from real Application Adoption evidence.
+AP-M9-W12 implements a fourth `fixture-multi-attachment` application without changing those three
+fixtures or their Version 2 handoffs. It is authenticated, requires Identity Delivery, remains
+unlisted, and uses one independent Application State root to own a frontend Cloud Run service for
+`/` plus a distinct dummy API Cloud Run service for `/api`. It emits one complete Version 3
+handoff family. Its planned fixture-scoped qualification result remains separate from
+`platform-qualify` and from real Application Adoption evidence.
 
 ## How the platform works
 
@@ -796,8 +798,8 @@ three cross-project fixtures from Accepted Source at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`. This does not qualify a real application,
 platform destruction/recovery, or production. AP-M9-W12 has implemented closed,
 project-independent staging candidate/release target-stage validation, ADR-017 Version 3 contracts,
-and atomic multi-target registration projection. It next adds and separately qualifies the fourth
-authenticated multi-attachment fixture, then adopts one separately governed real
+atomic multi-target registration projection, and the fourth authenticated multi-attachment fixture
+implementation. It next adds the fixture-scoped qualification, then adopts one separately governed real
 application on staging. W13 owns destructive rehearsal and recovery; W14 owns the read-only
 production readiness and ownership check.
 

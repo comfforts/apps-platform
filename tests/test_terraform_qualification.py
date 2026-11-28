@@ -178,6 +178,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
                 "platform",
                 "fixtures/fixture-public",
                 "fixtures/fixture-authenticated",
+                "fixtures/fixture-multi-attachment",
                 "fixtures/fixture-restricted",
             ),
         )
@@ -186,7 +187,7 @@ class TerraformQualificationGateTest(unittest.TestCase):
             for root in terraform_setup.ROOTS
             for test_file in terraform_check._plan_only_test_files(root)
         )
-        self.assertEqual(len(test_files), 7)
+        self.assertEqual(len(test_files), 8)
         for test_file in test_files:
             contents = test_file.read_text(encoding="utf-8")
             with self.subTest(test_file=test_file):

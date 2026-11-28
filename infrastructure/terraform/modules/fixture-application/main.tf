@@ -78,6 +78,15 @@ resource "google_cloud_run_v2_service" "runtime" {
           value = env.value
         }
       }
+
+      dynamic "env" {
+        for_each = var.runtime_configuration.target_marker == null ? [] : [var.runtime_configuration.target_marker]
+
+        content {
+          name  = "APP_PLATFORM_TARGET_MARKER"
+          value = env.value
+        }
+      }
     }
   }
 }

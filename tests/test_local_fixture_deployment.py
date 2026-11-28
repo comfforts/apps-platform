@@ -47,14 +47,16 @@ def _bundle(
     application_id: str,
     access_mode: str,
     identity_delivery: str | None = None,
+    source_authority: str = "accepted",
 ) -> dict[str, object]:
     selected_delivery = identity_delivery or (
         "none" if access_mode == "public" else "required"
     )
     identity_enabled = selected_delivery in {"optional", "required"}
+    multi_attachment = application_id == "fixture-multi-attachment"
     origin = "https://apps-staging.comfforts.com"
     return {
-        "contract_version": 2,
+        "contract_version": 3 if multi_attachment else 2,
         "document_kind": "platform-integration-bundle",
         "environment": "staging",
         "application_id": application_id,
@@ -63,7 +65,7 @@ def _bundle(
         "route_intent": f"/{application_id}",
         "generation": 7,
         "profile_digest": "sha256:" + ("1" * 64),
-        "platform_source_authority": "accepted",
+        "platform_source_authority": source_authority,
         "platform_source_revision": "b" * 40,
         "specification_digest": "sha256:" + ("2" * 64),
         "deployment_progress_digest": "sha256:" + ("3" * 64),
@@ -109,6 +111,14 @@ def _bundle(
         "attachment_contract": {
             "adapter_kind": "gcp-cloud-run-v1",
             "ingress_mode": "shared_edge_only",
+            **(
+                {
+                    "maximum_additional_attachments": 15,
+                    "root_attachment_required": True,
+                }
+                if multi_attachment
+                else {}
+            ),
         },
         "qualification_status": "unqualified",
     }
@@ -128,7 +138,13 @@ def _context(application_id: str, access_mode: str) -> StageContext:
                 "google_cloud_run_v2_service_iam_member",
             ],
             "consumes": ["fixture-image-reference", "platform-integration-bundle"],
-            "produces": ["attachment-reference"],
+            "produces": [
+                (
+                    "attachment-references"
+                    if application_id == "fixture-multi-attachment"
+                    else "attachment-reference"
+                )
+            ],
             "manual_checkpoint": "none",
             "readback": "provider-verified",
         },
@@ -211,7 +227,7 @@ class FixtureConfigurationRendererTest(unittest.TestCase):
                 predecessor.read_text(encoding="utf-8"),
             )
 
-    def test_renders_complete_private_inputs_for_all_three_roots(self) -> None:
+    def test_renders_complete_private_inputs_for_all_four_roots(self) -> None:
         profiles = (
             ("fixture-public", "public", None),
             (
@@ -223,6 +239,11 @@ class FixtureConfigurationRendererTest(unittest.TestCase):
                 "fixture-restricted",
                 "restricted",
                 "urn:comfforts:app-platform:audience:fixture-restricted",
+            ),
+            (
+                "fixture-multi-attachment",
+                "authenticated",
+                "urn:comfforts:app-platform:audience:fixture-multi-attachment",
             ),
         )
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -241,6 +262,14 @@ class FixtureConfigurationRendererTest(unittest.TestCase):
                 self.assertEqual(configuration["admission_mode"], access_mode)
                 self.assertEqual(configuration["assertion_audience"], audience)
                 self.assertEqual(configuration["image_digest"], IMAGE_REFERENCE)
+                self.assertEqual(
+                    configuration["labels"]["environment"],
+                    (
+                        "staging"
+                        if application_id == "fixture-multi-attachment"
+                        else "qualification"
+                    ),
+                )
                 self.assertFalse(variables["destruction_enabled"])
                 self.assertEqual(
                     variables["platform_reference"]["state_owner"],
@@ -256,8 +285,34 @@ class FixtureConfigurationRendererTest(unittest.TestCase):
                 self.assertTrue(module_root.is_dir())
                 self.assertTrue((module_root / "main.tf").is_file())
 
-        self.assertEqual(len({value.terraform_root for value in rendered}), 3)
-        self.assertEqual(len({value.configuration_digest for value in rendered}), 3)
+        self.assertEqual(len({value.terraform_root for value in rendered}), 4)
+        self.assertEqual(len({value.configuration_digest for value in rendered}), 4)
+
+    def test_multi_attachment_candidate_uses_qualification_target_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            working_root = Path(temporary_directory) / "private"
+            renderer = FixtureConfigurationRenderer(PROJECT_ROOT, working_root)
+            context = _context("fixture-multi-attachment", "authenticated")
+            inputs = dict(context.inputs)
+            inputs["platform-integration-bundle"] = json.dumps(
+                _bundle(
+                    "fixture-multi-attachment",
+                    "authenticated",
+                    source_authority="candidate",
+                ),
+                sort_keys=True,
+            )
+
+            rendered = renderer.render(
+                replace(context, inputs=tuple(inputs.items())),
+                _request(working_root, "fixture-multi-attachment"),
+            )
+            variables = json.loads(rendered.variable_file.read_bytes())
+
+        self.assertEqual(
+            variables["fixture_configuration"]["labels"]["environment"],
+            "qualification",
+        )
 
     def test_rejects_cross_owner_bundle_before_writing_variables(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -387,13 +442,37 @@ class FakeTerraform:
         terraform_root: Path,
         output_name: str,
     ) -> object:
-        if output_name != "attachment_reference":
+        multi_attachment = request.owner_id == "fixture-multi-attachment"
+        expected_output = (
+            "attachment_references" if multi_attachment else "attachment_reference"
+        )
+        if output_name != expected_output:
             raise AssertionError("unexpected fixture output")
         variables = json.loads(
             (terraform_root / "terraform.tfvars.json").read_bytes()
         )
         configuration = variables["fixture_configuration"]
         self.outputs.append(request.phase)
+        def reference(attachment_id: str, service_name: str) -> dict[str, object]:
+            return {
+                "reference_kind": "attachment",
+                "state_owner": "application",
+                "owner_id": request.owner_id,
+                "application_id": request.owner_id,
+                "attachment_id": attachment_id,
+                "adapter_kind": "gcp-cloud-run-v1",
+                "resource_reference": (
+                    "urn:comfforts:app-platform:gcp:cloud-run:123456789012:"
+                    f"us-west1:{service_name}"
+                ),
+                "audience": configuration["assertion_audience"],
+            }
+
+        if multi_attachment:
+            return {
+                "api": reference("api", "fixture-multi-attachment-api"),
+                "web": reference("web", "fixture-multi-attachment-web"),
+            }
         return {
             "reference_kind": "attachment",
             "state_owner": "application",
@@ -474,6 +553,30 @@ class FixtureExactPlanExecutionTest(unittest.TestCase):
         self.assertEqual(result.outputs[0][0], "attachment-reference")
         self.assertTrue(any(message.startswith("PLAN\n{") for message in terminal.messages))
         self.assertTrue(any("Apply the reviewed" in message for message in terminal.messages))
+
+    def test_multi_attachment_root_reads_one_complete_two_target_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            working_root = Path(temporary_directory) / "private"
+            working_root.mkdir(mode=0o700)
+            terminal = FakeTerminal()
+            terraform = FakeTerraform()
+            commands = LocalFixtureDeploymentCommands(
+                FixtureConfigurationRenderer(PROJECT_ROOT, working_root),
+                terraform,
+            )
+            executor = DeploymentExecutor(working_root, terminal, commands)  # type: ignore[arg-type]
+
+            result = executor.execute(
+                _context("fixture-multi-attachment", "authenticated")
+            )
+
+        self.assertEqual(result.outcome, "succeeded")
+        self.assertEqual(result.outputs[0][0], "attachment-references")
+        references = json.loads(result.outputs[0][1])
+        self.assertEqual(tuple(references), ("api", "web"))
+        self.assertEqual(references["api"]["attachment_id"], "api")
+        self.assertEqual(references["web"]["attachment_id"], "web")
+        self.assertEqual(references["api"]["audience"], references["web"]["audience"])
 
     def test_policy_refusal_or_operator_cancellation_never_applies(self) -> None:
         cases = (
@@ -565,6 +668,46 @@ class FixtureExactPlanExecutionTest(unittest.TestCase):
         self.assertEqual(destroyed.outputs, (("fixture-destroyed", "fixture-authenticated"),))
         self.assertEqual(terraform.applied, ["fixture-authenticated"] * 2)
         self.assertTrue(terraform.destroyed)
+
+    def test_multi_attachment_destroy_requires_both_targets_to_be_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            working_root = Path(temporary_directory) / "private"
+            working_root.mkdir(mode=0o700)
+            terminal = FakeTerminal()
+            terraform = FakeTerraform()
+            commands = LocalFixtureDeploymentCommands(
+                FixtureConfigurationRenderer(PROJECT_ROOT, working_root),
+                terraform,
+                FakeTargetReader(terraform),
+            )
+            executor = DeploymentExecutor(working_root, terminal, commands)  # type: ignore[arg-type]
+            base = _context("fixture-multi-attachment", "authenticated")
+            unlock = replace(
+                base,
+                stage={
+                    **base.stage,
+                    "actions": ["read", "update"],
+                    "destruction_enabled": True,
+                },
+            )
+            destroy = replace(
+                unlock,
+                stage={
+                    **unlock.stage,
+                    "actions": ["delete", "read"],
+                    "produces": ["fixture-destroyed"],
+                },
+            )
+
+            unlocked = executor.execute(unlock)
+            destroyed = executor.execute(destroy)
+
+        self.assertEqual(unlocked.outcome, "succeeded")
+        self.assertEqual(destroyed.outcome, "succeeded")
+        self.assertEqual(
+            destroyed.outputs,
+            (("fixture-destroyed", "fixture-multi-attachment"),),
+        )
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
 # AP-M9-W12 · First real-application staging adoption qualification
 
-Version 0.6 | Status: in progress after Accepted Source staging platform and fixture qualification
-completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; Slices 1–3 implement target-stage validation,
-ADR-017 Version 3 contracts, and atomic multi-target registration projection; the fourth fixture
-and later slices remain planned; no application is selected and no external operation is authorized
-by this plan
+Version 0.7 | Status: in progress after Accepted Source staging platform and fixture qualification
+completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; Slices 1–4 implement target-stage validation,
+ADR-017 Version 3 contracts, atomic multi-target registration projection, and the fourth fixture
+application; fixture qualification and later slices remain planned; no real application is selected
+and no external operation is authorized by this plan
 
 Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
@@ -194,6 +194,9 @@ rollback, full-set update, and app-wide detachment. Add no generic `application-
 Suggested branch: `feat/multi-attachment-fixture`
 
 Pull-request target: `feat/real-application-staging-adoption`
+
+Implementation status: repository behavior implemented on the Slice 4 branch; merge, provider
+operation, and qualification remain separate states.
 
 Keep the existing `fixture-public`, `fixture-authenticated`, and `fixture-restricted` deployments,
 Version 2 handoffs, and evidence unchanged. Add `fixture-multi-attachment` as a fourth application

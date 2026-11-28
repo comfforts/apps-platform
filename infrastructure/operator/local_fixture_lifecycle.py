@@ -18,6 +18,7 @@ from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationDeployment,
     FixtureApplicationStatus,
     FixtureApplicationDeployRequest,
+    FixtureAttachmentStatus,
     FixtureCommandError,
     FixtureDeployRequest,
     FixtureImageReadback,
@@ -30,6 +31,7 @@ from infrastructure.operator.fixture_lifecycle import (
 from infrastructure.operator.integration import (
     ApplicationIntegrationLifecycle,
     IntegrationBundleRequest,
+    RegistrationAttachmentBinding,
     RegistrationIntent,
     PlatformIntegrationReader,
 )
@@ -45,16 +47,27 @@ from infrastructure.operator.local_integration import PlatformIntegrationReadbac
 
 
 class FixtureImageProvider(Protocol):
-    def publish_fixture_image(self, source_revision: str) -> str: ...
+    def publish_fixture_image(self, source_revision: str) -> str:
+        """Publish the fixture image for one exact source revision."""
 
-    def read_fixture_image(self, source_revision: str) -> str | None: ...
+        ...
+
+    def read_fixture_image(self, source_revision: str) -> str | None:
+        """Read the immutable image reference bound to one source revision."""
+
+        ...
 
 
 class FixtureTerraformExecutor(Protocol):
-    def execute(self, context: StageContext) -> StageExecution: ...
+    def execute(self, context: StageContext) -> StageExecution:
+        """Execute one reviewed fixture state-root stage and return closed outputs."""
+
+        ...
 
 
 def _canonical(value: object) -> str:
+    """Serialize one private stage input deterministically for digest binding."""
+
     return json.dumps(
         value,
         ensure_ascii=False,
@@ -65,6 +78,8 @@ def _canonical(value: object) -> str:
 
 
 def _digest(value: object) -> str:
+    """Return the canonical SHA-256 binding for one private stage input."""
+
     return "sha256:" + hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
 
 
@@ -74,6 +89,8 @@ def _status(
     application_id: str | None = None,
     route_readiness: Callable[[str], bool] | None = None,
 ) -> FixtureStatusResult:
+    """Reconcile one fixture or the ordered four-application suite without mutation."""
+
     application_ids = (
         (application_id,)
         if application_id is not None
@@ -81,6 +98,7 @@ def _status(
             "fixture-public",
             "fixture-authenticated",
             "fixture-restricted",
+            "fixture-multi-attachment",
         )
     )
     readback = integration.status_applications(
@@ -105,6 +123,14 @@ def _status(
                     and route_readiness is not None
                     and route_readiness(item.application_id)
                 ),
+                tuple(
+                    FixtureAttachmentStatus(
+                        attachment.attachment_id,
+                        attachment.target_exists,
+                        attachment.target_ready,
+                    )
+                    for attachment in item.attachments
+                ),
             )
             for item in readback.applications
         ),
@@ -124,6 +150,8 @@ class LocalFixtureLifecycleCommands:
         terminal: OperatorTerminal | None = None,
         preparations: LocalFixturePreparations | None = None,
     ) -> None:
+        """Bind fixture image, Terraform, handoff, terminal, and private-state seams."""
+
         self._integration = integration
         self._image_provider = image_provider
         self._terraform_executor = terraform_executor
@@ -132,6 +160,8 @@ class LocalFixtureLifecycleCommands:
         self._preparations = preparations
 
     def build_image(self, request: FixtureImageRequest) -> FixtureImageReadback:
+        """Publish one immutable fixture image and require exact provider readback."""
+
         try:
             reference = self._image_provider.publish_fixture_image(
                 request.source_revision
@@ -159,6 +189,8 @@ class LocalFixtureLifecycleCommands:
 
     @staticmethod
     def _stage(request: FixtureApplicationDeployRequest) -> StageContext:
+        """Build one exact Terraform stage for the fixture's single state root."""
+
         specification_digest = _digest(
             {
                 "application_id": request.application_id,
@@ -166,6 +198,7 @@ class LocalFixtureLifecycleCommands:
                 "fixture_source_revision": request.source_revision,
                 "image_reference": request.image.reference,
                 "integration_bundle": request.integration_bundle,
+                "catalogue_visibility": request.catalogue_visibility,
             }
         )
         return StageContext(
@@ -184,7 +217,13 @@ class LocalFixtureLifecycleCommands:
                     "fixture-image-reference",
                     "platform-integration-bundle",
                 ],
-                "produces": ["attachment-reference"],
+                "produces": [
+                    (
+                        "attachment-references"
+                        if request.application_id == "fixture-multi-attachment"
+                        else "attachment-reference"
+                    )
+                ],
                 "manual_checkpoint": "none",
                 "readback": "provider-verified",
             },
@@ -201,29 +240,62 @@ class LocalFixtureLifecycleCommands:
         self,
         request: FixtureApplicationDeployRequest,
     ) -> FixtureApplicationDeployment:
+        """Deploy one fixture root and construct its complete validated handoff."""
+
         execution = self._terraform_executor.execute(self._stage(request))
         if execution.outcome != "succeeded":
             raise FixtureCommandError(
                 execution.blockers[0] if execution.blockers else "FIXTURE_DEPLOY_FAILED"
             )
-        if tuple(name for name, _ in execution.outputs) != ("attachment-reference",):
+        expected_output = (
+            "attachment-references"
+            if request.application_id == "fixture-multi-attachment"
+            else "attachment-reference"
+        )
+        if tuple(name for name, _ in execution.outputs) != (expected_output,):
             raise FixtureCommandError("FIXTURE_READBACK_MISSING")
         try:
-            reference = json.loads(execution.outputs[0][1])
+            output = json.loads(execution.outputs[0][1])
             identity = request.integration_bundle["identity"]
             attachment_contract = request.integration_bundle["attachment_contract"]
             application_project = request.integration_bundle["application_project"]
             network = request.integration_bundle["network"]
             if (
-                not isinstance(reference, dict)
+                not isinstance(output, dict)
                 or not isinstance(identity, dict)
                 or not isinstance(attachment_contract, dict)
                 or not isinstance(application_project, dict)
                 or not isinstance(network, dict)
             ):
                 raise TypeError
+
+            def target(reference: dict[str, Any]) -> dict[str, Any]:
+                """Project one typed Terraform attachment reference into V3 target posture."""
+
+                return {
+                    "owner_application_id": reference["owner_id"],
+                    "adapter_kind": reference["adapter_kind"],
+                    "resource_reference": reference["resource_reference"],
+                    "application_project_id": application_project["project_id"],
+                    "network_reference": network["network_reference"],
+                    "subnetwork_reference": network["subnetwork_reference"],
+                    "egress_mode": network["egress_mode"],
+                    "ingress_mode": attachment_contract["ingress_mode"],
+                    "caller_grant": identity["edge_caller_reference"],
+                    "audience": reference["audience"],
+                }
+
+            multi_attachment = request.application_id == "fixture-multi-attachment"
+            if multi_attachment:
+                if set(output) != {"api", "web"} or any(
+                    not isinstance(output[name], dict) for name in ("api", "web")
+                ):
+                    raise TypeError
+                root_reference = output["web"]
+            else:
+                root_reference = output
             attachment = {
-                "contract_version": 2,
+                "contract_version": int(request.integration_bundle["contract_version"]),
                 "document_kind": "application-attachment-bundle",
                 "environment": request.environment,
                 "application_id": request.application_id,
@@ -236,19 +308,15 @@ class LocalFixtureLifecycleCommands:
                     "platform-integration-bundle",
                 ),
                 "application_source_revision": request.source_revision,
-                "target": {
-                    "owner_application_id": reference["owner_id"],
-                    "adapter_kind": reference["adapter_kind"],
-                    "resource_reference": reference["resource_reference"],
-                    "application_project_id": application_project["project_id"],
-                    "network_reference": network["network_reference"],
-                    "subnetwork_reference": network["subnetwork_reference"],
-                    "egress_mode": network["egress_mode"],
-                    "ingress_mode": attachment_contract["ingress_mode"],
-                    "caller_grant": identity["edge_caller_reference"],
-                    "audience": reference["audience"],
-                },
+                "target": target(root_reference),
             }
+            if multi_attachment:
+                attachment["additional_attachments"] = [
+                    {
+                        "attachment_id": "api",
+                        "target": target(output["api"]),
+                    }
+                ]
         except (IndexError, KeyError, TypeError, json.JSONDecodeError) as error:
             raise FixtureCommandError("FIXTURE_READBACK_INVALID") from error
         if validate_versioned_lifecycle_document(
@@ -259,6 +327,12 @@ class LocalFixtureLifecycleCommands:
         validated = self._integration.validate_attachment(
             request.integration_bundle,
             attachment,
+            self._intent(
+                request.application_id,
+                str(request.integration_bundle["access_mode"]),
+                str(request.integration_bundle["identity_delivery"]),
+                request.catalogue_visibility,
+            ),
         )
         if validated.outcome != "validated":
             raise FixtureCommandError(
@@ -276,6 +350,8 @@ class LocalFixtureLifecycleCommands:
         self,
         request: FixtureDeployRequest,
     ) -> FixturePreparation | None:
+        """Reuse only an exact private preparation whose image and targets still read back."""
+
         if self._preparations is None:
             return None
         try:
@@ -294,6 +370,12 @@ class LocalFixtureLifecycleCommands:
         validation = self._integration.validate_attachment(
             preparation.integration_bundle,
             preparation.deployment.attachment_bundle,
+            self._intent(
+                request.application_id,
+                str(preparation.integration_bundle["access_mode"]),
+                str(preparation.integration_bundle["identity_delivery"]),
+                request.catalogue_visibility,
+            ),
         )
         if validation.outcome != "validated":
             return None
@@ -304,24 +386,31 @@ class LocalFixtureLifecycleCommands:
         request: FixtureDeployRequest,
         preparation: FixturePreparation,
     ) -> FixturePreparation:
+        """Publish the canonical bundle family beneath the private operator root."""
+
         if self._preparations is None:
             return preparation
         try:
+            intent = self._intent(
+                request.application_id,
+                str(preparation.integration_bundle["access_mode"]),
+                str(preparation.integration_bundle["identity_delivery"]),
+                request.catalogue_visibility,
+            )
+            v3_handoff = preparation.integration_bundle.get("contract_version") == 3
             published = self._preparations.publish(
                 request,
                 preparation.image,
                 preparation.integration_bundle,
                 preparation.deployment,
+                intent if v3_handoff else None,
             )
+            if v3_handoff:
+                return published
             return self._preparations.publish_registration_intent(
                 request,
                 published,
-                self._intent(
-                    request.application_id,
-                    str(preparation.integration_bundle["access_mode"]),
-                    str(preparation.integration_bundle["identity_delivery"]),
-                    request.catalogue_visibility,
-                ),
+                intent,
             )
         except (FileExistsError, OSError, ValueError) as error:
             raise FixtureCommandError(
@@ -333,6 +422,8 @@ class LocalFixtureLifecycleCommands:
         bundle: dict[str, Any],
         source_revision: str,
     ) -> int:
+        """Reuse an unchanged accepted revision or allocate its next monotonic value."""
+
         if self._handoffs is None:
             return 1
         application_id = str(bundle["application_id"])
@@ -362,8 +453,9 @@ class LocalFixtureLifecycleCommands:
         identity_delivery: str,
         catalogue_visibility: str,
     ) -> RegistrationIntent:
-        """Build the fixture's V2 intent from the exact platform bundle policy."""
+        """Build the fixture's exact V2 or V3 intent from reviewed fixture policy."""
 
+        multi_attachment = application_id == "fixture-multi-attachment"
         return RegistrationIntent(
             application_id=application_id,
             access_mode=access_mode,
@@ -372,12 +464,29 @@ class LocalFixtureLifecycleCommands:
             catalogue_title={
                 "fixture-public": "Public fixture",
                 "fixture-authenticated": "Authenticated fixture",
+                "fixture-multi-attachment": "Multi-Attachment Fixture",
                 "fixture-restricted": "Restricted fixture",
             }[application_id],
-            catalogue_summary="Synthetic App Platform qualification application",
-            attachment_id="primary",
+            catalogue_summary=(
+                "Synthetic authenticated multi-attachment fixture"
+                if multi_attachment
+                else "Synthetic App Platform qualification application"
+            ),
+            attachment_id="web" if multi_attachment else "primary",
             mount_path="/",
             forwarding_mode="strip_application_prefix",
+            contract_version=3 if multi_attachment else 2,
+            additional_attachment_bindings=(
+                (
+                    RegistrationAttachmentBinding(
+                        "api",
+                        "/api",
+                        "strip_attachment_mount",
+                    ),
+                )
+                if multi_attachment
+                else ()
+            ),
         )
 
     def status(
@@ -385,12 +494,16 @@ class LocalFixtureLifecycleCommands:
         environment: str,
         application_id: str | None = None,
     ) -> FixtureStatusResult:
+        """Read one selected fixture or the complete four-application fixture suite."""
+
         return _status(self._integration, environment, application_id)
 
     def destroy_application(
         self,
         request: FixtureDestroyRequest,
     ) -> FixtureDestroyReadback:
+        """Destroy one detached fixture state root after exact confirmation and reread."""
+
         if self._terminal is None:
             raise FixtureCommandError("FIXTURE_DESTRUCTION_TERMINAL_UNAVAILABLE")
         detached = self._integration.status_applications(
@@ -453,16 +566,24 @@ class LocalFixtureLifecycleCommands:
             raise FixtureCommandError("FIXTURE_DESTRUCTION_REREAD_MISMATCH")
 
         definition = {
-            "fixture-public": ("public", "none", "/fixture-public"),
+            "fixture-public": ("public", "none", "/fixture-public", 2),
             "fixture-authenticated": (
                 "authenticated",
                 "required",
                 "/fixture-authenticated",
+                2,
+            ),
+            "fixture-multi-attachment": (
+                "authenticated",
+                "required",
+                "/fixture-multi-attachment",
+                3,
             ),
             "fixture-restricted": (
                 "restricted",
                 "required",
                 "/fixture-restricted",
+                2,
             ),
         }[request.application_id]
         bundle_result = self._integration.outputs(
@@ -476,6 +597,7 @@ class LocalFixtureLifecycleCommands:
                     request.expected_platform_source_revision
                 ),
                 expected_generation=detached.generation,
+                handoff_version=definition[3],
             )
         )
         if bundle_result.outcome != "generated" or bundle_result.bundle is None:
@@ -492,6 +614,7 @@ class LocalFixtureLifecycleCommands:
             environment=request.environment,
             application_id=request.application_id,
             access_mode=definition[0],
+            catalogue_visibility=detached.applications[0].catalogue_visibility,
             source_revision=request.operator_source_revision,
             image=FixtureImageReadback(
                 image_reference,
@@ -572,6 +695,8 @@ class LocalFixtureOperator:
         *,
         source_authority: str = "accepted",
     ) -> None:  # type: ignore[no-untyped-def]
+        """Bind repository and platform readers to one fixture lifecycle."""
+
         self._git = git
         self._platform = platform
         self._lifecycle = lifecycle
@@ -671,9 +796,13 @@ class LocalFixtureOperator:
         environment: str,
         application_id: str | None = None,
     ):  # type: ignore[no-untyped-def]
+        """Delegate a read-only fixture reconciliation through the lifecycle core."""
+
         return self._lifecycle.status(environment, application_id)
 
     def destroy(self, environment: str, application_id: str):  # type: ignore[no-untyped-def]
+        """Bind source, platform, handoff, and detached status before destruction."""
+
         from infrastructure.operator.fixture_lifecycle import (
             FixtureDestroyRequest,
             FixtureDestroyResult,
@@ -771,6 +900,8 @@ class LocalFixtureStatusOperator:
         integration: ApplicationIntegrationLifecycle,
         route_readiness: Callable[[str], bool],
     ) -> None:
+        """Bind registration/provider status to route-readiness observation."""
+
         self._integration = integration
         self._route_readiness = route_readiness
 
@@ -779,6 +910,8 @@ class LocalFixtureStatusOperator:
         environment: str,
         application_id: str | None = None,
     ) -> FixtureStatusResult:
+        """Return route-aware fixture status without changing provider or registration state."""
+
         return _status(
             self._integration,
             environment,

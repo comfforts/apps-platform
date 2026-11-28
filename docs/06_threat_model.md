@@ -1,10 +1,10 @@
 # <u>App Platform threat model</u>
 
-Version 1.27 | Status: ADR-015 controls are implemented and Candidate-qualified by AP-M9-W10;
+Version 1.28 | Status: ADR-015 controls are implemented and Candidate-qualified by AP-M9-W10;
 AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 multi-attachment contract, every-target
-readback, and atomic activation controls are implemented while fixture and adoption controls remain
-unimplemented;
+readback, atomic activation, and fourth-fixture repository controls are implemented while fixture
+qualification and adoption controls remain unimplemented;
 real-application adoption, destructive recovery, and production readiness remain separate W12,
 W13, and W14 evidence boundaries
 
@@ -1004,6 +1004,10 @@ not qualify Version 3 or a frontend/backend adoption. The provider-backed contro
 fourth authenticated application with a required frontend root and additional dummy API target,
 both owned by one independent Application State root. The three already qualified fixtures remain
 unchanged so a plural-handoff test cannot silently rewrite their established policy or evidence.
+The repository implementation binds both services to one application audience, emits only safe
+target markers, reads both targets before handoff or status, and requires both absent after that
+single root is destroyed. These deterministic controls do not prove provider posture, direct-origin
+denial, routing, or identity behavior until fixture qualification runs.
 
 Fixture qualification uses a result and status namespace distinct from platform-wide
 qualification. It must bind the exact readable Accepted Source platform result, fixture source,

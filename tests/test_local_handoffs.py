@@ -20,7 +20,10 @@ from infrastructure.operator.local_fixture_preparations import (
     LocalFixturePreparations,
 )
 from infrastructure.operator.local_handoffs import LocalApplicationHandoffs
-from infrastructure.operator.integration import RegistrationIntent
+from infrastructure.operator.integration import (
+    RegistrationAttachmentBinding,
+    RegistrationIntent,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -287,6 +290,78 @@ class LocalFixturePreparationsTest(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertIsNone(store.read(request))
+
+    def test_publishes_and_reuses_complete_v3_multi_attachment_family(self) -> None:
+        integration = json.loads(
+            (
+                VECTORS
+                / "platform-integration-bundle.staging.synthetic.v3.json"
+            ).read_text(encoding="utf-8")
+        )
+        attachment = json.loads(
+            (
+                VECTORS
+                / "application-attachment-bundle.staging.multi.synthetic.v3.json"
+            ).read_text(encoding="utf-8")
+        )
+        request = FixtureDeployRequest(
+            environment="staging",
+            application_id="fixture-multi-attachment",
+            fixture_source_revision="b" * 40,
+            expected_platform_source_revision="a" * 40,
+            expected_platform_generation=1,
+            catalogue_visibility="unlisted",
+        )
+        image = FixtureImageReadback(
+            "us-west1-docker.pkg.dev/comfforts-platform-non-prod/"
+            "app-platform/fixture@sha256:" + ("2" * 64),
+            "b" * 40,
+        )
+        deployment = FixtureApplicationDeployment(
+            "fixture-multi-attachment",
+            image.reference,
+            attachment,
+        )
+        intent = RegistrationIntent(
+            application_id="fixture-multi-attachment",
+            access_mode="authenticated",
+            identity_delivery="required",
+            catalogue_visibility="unlisted",
+            catalogue_title="Multi-Attachment Fixture",
+            catalogue_summary="Synthetic authenticated multi-attachment fixture",
+            attachment_id="web",
+            mount_path="/",
+            forwarding_mode="strip_application_prefix",
+            contract_version=3,
+            additional_attachment_bindings=(
+                RegistrationAttachmentBinding(
+                    "api",
+                    "/api",
+                    "strip_attachment_mount",
+                ),
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = LocalFixturePreparations(
+                LocalFilesystem(PROJECT_ROOT, Path(directory) / "operator")
+            )
+            published = store.publish(
+                request,
+                image,
+                integration,
+                deployment,
+                intent,
+            )
+            observed = store.read(request)
+
+        self.assertEqual(observed, published)
+        assert published.integration_bundle_path is not None
+        assert published.attachment_bundle_path is not None
+        assert published.registration_intent_path is not None
+        self.assertTrue(published.integration_bundle_path.endswith(".v3.json"))
+        self.assertTrue(published.attachment_bundle_path.endswith(".v3.json"))
+        self.assertTrue(published.registration_intent_path.endswith(".v3.json"))
 
 
 if __name__ == "__main__":

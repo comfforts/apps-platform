@@ -40,23 +40,25 @@ provider-backed rollout.
 | `fixture-public` | `public` | `none` or `optional` | `none` accepts anonymous requests and receives no platform assertion. `optional` still accepts anonymous requests and independently verifies an assertion when a visitor deliberately establishes Platform Identity. |
 | `fixture-authenticated` | `authenticated` | `required` | Requires and independently verifies Platform Identity. Platform Membership is irrelevant. |
 | `fixture-restricted` | `restricted` | `required` | Receives requests only after the Shared Edge verifies Platform Identity and current active Platform Membership; the fixture still independently verifies the resulting assertion. |
+| `fixture-multi-attachment` | `authenticated` | `required` | Uses one application identity and audience across distinct `web` and `api` targets, each returning only its safe target marker after independent assertion verification. |
 
 Admission is not application feature authorization. A `fixture-ready` response proves only that
 the request reached the synthetic runtime under the selected platform policy. The fixtures contain
 no real user database, provider authorization, product role, or Feature Entitlement.
 
-### Planned multi-attachment fixture
+### Multi-attachment fixture
 
-The ordered W12 work plans a fourth `fixture-multi-attachment` profile. It will use authenticated
-admission, required Identity Delivery, unlisted catalogue visibility, and one independent Fixture
-Application State root. That root will own a `fixture-multi-attachment-web` frontend Cloud Run
-service returned as the required `web` attachment at `/` and a distinct
-`fixture-multi-attachment-api` dummy backend returned as the optional `api` attachment at `/api`.
-Both services will independently verify the same application audience and expose distinct safe
-qualification markers. The existing three profiles and their Version 2 handoffs remain unchanged.
+W12 adds a fourth `fixture-multi-attachment` profile. It uses authenticated admission, required
+Identity Delivery, unlisted catalogue visibility, and one independent Fixture Application State
+root. That root owns a `fixture-multi-attachment-web` frontend Cloud Run service returned as the
+required `web` attachment at `/` and a distinct `fixture-multi-attachment-api` dummy backend
+returned as the optional `api` attachment at `/api`. Both services independently verify the same
+application audience and expose distinct safe `web` and `api` markers. The existing three profiles
+and their Version 2 handoffs remain unchanged.
 
-This fourth profile, its Terraform root, and its runtime behavior are planned rather than
-implemented. Its provider-backed result will be produced by `fixture-qualify` separately from
+The runtime, Terraform root, Version 3 handoff, status, and destruction behavior are implemented
+and deterministically tested. No provider operation or qualification occurred in this slice. The
+planned provider-backed result will be produced by `fixture-qualify` separately from
 `platform-qualify`; neither result will replace the other.
 
 ## Application handoff lifecycle
@@ -65,17 +67,18 @@ Fixtures use the same cross-owner sequence expected of an external application:
 
 1. `application-handoff-check` verifies platform, application-project, Shared VPC, service, and
    requested Admission Mode/Identity Delivery readiness without publishing a bundle.
-2. `platform-outputs` writes one application-scoped Version 2 Platform Integration Bundle.
+2. `platform-outputs` writes one application-scoped Version 2 Platform Integration Bundle for an
+   existing single-target fixture or the explicit Version 3 bundle for `fixture-multi-attachment`.
 3. `fixture-handoff` consumes that bundle, reconciles only the selected fixture's Application
    State, requires the explicit `listed` or `unlisted` catalogue choice, and writes the bound
-   Version 2 Application Attachment Bundle and registration intent.
+   same-version Application Attachment Bundle and registration intent.
    The route is still inactive.
 4. The operator inspects the three canonical documents and invokes `platform-register`.
-5. Registration validates the complete Version 2 family, reads back the target, compiles one
+5. Registration validates the complete same-version family, reads back every target, compiles one
    immutable complete generation, and atomically activates it at the Shared Edge.
-6. `fixture-status` reports the active `listed` or `unlisted` catalogue policy and reports target
-   and route readiness separately. Detachment precedes `fixture-destroy`; registration recovery
-   and reactivation remain platform operations.
+6. `fixture-status` reports the active `listed` or `unlisted` catalogue policy and reports aggregate
+   and per-attachment target posture separately from route readiness. Detachment precedes
+   `fixture-destroy`; registration recovery and reactivation remain platform operations.
 
 The fixture helper exists so real application repositories can copy the ownership pattern, not so
 Apps Platform can deploy real applications. A real application owns its equivalent deploy, status,
@@ -85,12 +88,14 @@ and destroy commands.
 
 The networked image requires these non-secret variables:
 
-- `APP_PLATFORM_APPLICATION_ID` — one of the three currently implemented exact fixture IDs;
+- `APP_PLATFORM_APPLICATION_ID` — one of the four implemented exact fixture IDs;
 - `APP_PLATFORM_ADMISSION_MODE` — the matching `public`, `authenticated`, or `restricted` mode;
 - `APP_PLATFORM_ISSUER` — the exact environment issuer ending in `/_platform`;
 - `APP_PLATFORM_PUBLIC_KEY_REFERENCE` — the matching platform JWKS URL; and
 - `APP_PLATFORM_ASSERTION_AUDIENCE` — omitted for public `none`, present with the exact
-  application audience for public `optional`, authenticated, or restricted delivery.
+  application audience for public `optional`, authenticated, or restricted delivery; and
+- `APP_PLATFORM_TARGET_MARKER` — required as `web` or `api` only for the corresponding
+  `fixture-multi-attachment` service and prohibited for the three existing fixture profiles.
 
 The runtime exposes only bounded qualification surfaces:
 

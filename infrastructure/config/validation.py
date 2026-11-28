@@ -37,6 +37,7 @@ SCHEMA_IDS = {
 FIXTURE_MODES = {
     "fixture-public": "public",
     "fixture-authenticated": "authenticated",
+    "fixture-multi-attachment": "authenticated",
     "fixture-restricted": "restricted",
 }
 FIXED_PROJECT_ID = "comfforts-platform-non-prod"
@@ -79,15 +80,21 @@ class ConfigurationResult:
 
 
 def _pointer(path: str, token: str | int) -> str:
+    """Append one escaped token to a JSON Pointer."""
+
     encoded = str(token).replace("~", "~0").replace("/", "~1")
     return f"{path}/{encoded}" if path else f"/{encoded}"
 
 
 def _violation(code: str, path: str, message: str) -> Violation:
+    """Construct one stable configuration violation."""
+
     return Violation(code, path, message)
 
 
 def _ordered(violations: list[Violation]) -> tuple[Violation, ...]:
+    """Return configuration violations in deterministic order."""
+
     return tuple(sorted(violations, key=lambda item: (item.path, item.code, item.message)))
 
 
@@ -100,6 +107,8 @@ def load_configuration_schemas(
 
 
 def _prohibited_material_violations(value: Any, path: str = "") -> list[Violation]:
+    """Recursively reject secret, credential, state, plan, and provider material."""
+
     violations: list[Violation] = []
     if isinstance(value, dict):
         for key, item in value.items():
@@ -135,6 +144,8 @@ def _field_equals(
     expected: object,
     violations: list[Violation],
 ) -> None:
+    """Append a stable violation when a present field differs from authority."""
+
     if field in value and value[field] != expected:
         violations.append(
             _violation(
@@ -146,6 +157,8 @@ def _field_equals(
 
 
 def _reserved_synthetic_violations(value: Any, path: str = "") -> list[Violation]:
+    """Recursively reject reserved synthetic markers from operator inputs."""
+
     violations: list[Violation] = []
     if isinstance(value, dict):
         for key, item in value.items():
@@ -179,6 +192,8 @@ def _reserved_synthetic_violations(value: Any, path: str = "") -> list[Violation
 
 
 def _fixed_operator_violations(value: dict[str, Any]) -> list[Violation]:
+    """Enforce reviewed repository, environment, project, and region constants."""
+
     if value.get("configuration_class") != "operator":
         return []
     violations = _reserved_synthetic_violations(value)
@@ -288,6 +303,8 @@ def _fixed_operator_violations(value: dict[str, Any]) -> list[Violation]:
 
 
 def _backend_violations(value: dict[str, Any]) -> list[Violation]:
+    """Enforce independent state owners, prefixes, buckets, and recovery scope."""
+
     buckets = value.get("state_buckets")
     if not isinstance(buckets, list):
         return []
@@ -462,6 +479,8 @@ def _platform_violations(value: dict[str, Any]) -> list[Violation]:
 
 
 def _fixture_violations(value: dict[str, Any]) -> list[Violation]:
+    """Enforce the closed fixture profiles, root services, owners, and scopes."""
+
     violations: list[Violation] = []
     application_id = value.get("application_id")
     mode = value.get("admission_mode")
@@ -483,12 +502,20 @@ def _fixture_violations(value: dict[str, Any]) -> list[Violation]:
                 "protected fixtures require an application-bound audience",
             )
         )
-    if isinstance(application_id, str) and value.get("service_name") != application_id:
+    expected_service_name = (
+        "fixture-multi-attachment-web"
+        if application_id == "fixture-multi-attachment"
+        else application_id
+    )
+    if (
+        isinstance(application_id, str)
+        and value.get("service_name") != expected_service_name
+    ):
         violations.append(
             _violation(
                 "OWNER_CONFLICT",
                 "/service_name",
-                "fixture service must remain scoped to its application owner",
+                "fixture root service must remain scoped to its application owner",
             )
         )
     labels = value.get("labels")
@@ -527,6 +554,8 @@ def _fixture_violations(value: dict[str, Any]) -> list[Violation]:
 
 
 def _cross_state_violations(value: dict[str, Any]) -> list[Violation]:
+    """Enforce exact non-secret references without crossing state ownership."""
+
     reference = value.get("reference")
     if not isinstance(reference, dict):
         return []
@@ -576,7 +605,15 @@ def _cross_state_violations(value: dict[str, Any]) -> list[Violation]:
             )
         resource_reference = reference.get("resource_reference")
         if isinstance(resource_reference, str) and isinstance(application_id, str):
-            if resource_reference.rsplit(":", 1)[-1] != application_id:
+            allowed_service_names = (
+                {
+                    "fixture-multi-attachment-api",
+                    "fixture-multi-attachment-web",
+                }
+                if application_id == "fixture-multi-attachment"
+                else {application_id}
+            )
+            if resource_reference.rsplit(":", 1)[-1] not in allowed_service_names:
                 violations.append(
                     _violation(
                         "OWNER_CONFLICT",
@@ -602,6 +639,8 @@ def _cross_state_violations(value: dict[str, Any]) -> list[Violation]:
 
 
 def _workflow_violations(value: dict[str, Any]) -> list[Violation]:
+    """Enforce inert workflow subject, plan, and destructive-target bindings."""
+
     violations: list[Violation] = []
     environment = value.get("protected_environment")
     subject = value.get("protected_subject")
@@ -657,6 +696,8 @@ def _workflow_violations(value: dict[str, Any]) -> list[Violation]:
 
 
 def _semantic_violations(value: dict[str, Any]) -> list[Violation]:
+    """Dispatch the closed semantic policy for a configuration kind."""
+
     kind = value.get("configuration_kind")
     handlers = {
         "backend": _backend_violations,

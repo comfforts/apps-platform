@@ -791,8 +791,9 @@ AP-M9-W10 completed and Candidate-qualified the Version 2 Platform Member Direct
 Identity Delivery transition. AP-M9-W11 then deployed and qualified the staging platform and all
 three cross-project fixtures from Accepted Source at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`. This does not qualify a real application,
-platform destruction/recovery, or production. AP-M9-W12 next implements environment-derived target
-validation and the ADR-017 Version 3 complete attachment-set handoff, adds and separately qualifies
+platform destruction/recovery, or production. AP-M9-W12 next implements the closed,
+project-independent staging candidate/release target-stage validation and the ADR-017 Version 3
+complete attachment-set handoff, adds and separately qualifies
 the fourth authenticated multi-attachment fixture, then adopts one separately governed real
 application on staging. W13 owns destructive rehearsal and recovery; W14 owns the read-only
 production readiness and ownership check.

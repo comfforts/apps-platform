@@ -777,7 +777,19 @@ class GcloudGenerationProvider(GenerationProvider):
         environment: str,
         resource_reference: str,
     ) -> AttachmentTargetReadback:
-        """Read one exact Cloud Run attachment and its edge-caller IAM grant."""
+        """Read and validate one exact Cloud Run attachment without mutation.
+
+        ``environment`` selects the connected platform profile and
+        ``resource_reference`` names the application project, region, and service. For the
+        staging profile, the target may carry either the candidate ``qualification`` label or
+        the release ``staging`` label; project ownership does not select between them. The method
+        reads the service and its IAM policy through the closed Cloud SDK runner, returns an
+        absent posture when the service is missing, and otherwise reports stable blockers for
+        invalid labels while preserving the remaining posture for integration validation. A valid
+        label is target posture, not qualification evidence. Invalid references, connections,
+        provider responses, or IAM responses raise a coarse
+        :class:`GenerationProviderError` without exposing provider output.
+        """
 
         prefix = "urn:comfforts:app-platform:gcp:cloud-run:"
         parts = resource_reference.removeprefix(prefix).split(":")
@@ -859,7 +871,7 @@ class GcloudGenerationProvider(GenerationProvider):
         label_blockers: list[str] = []
         if labels.get("state_owner") != "application":
             label_blockers.append("TARGET_STATE_OWNER_LABEL_MISMATCH")
-        if labels.get("environment") != "qualification":
+        if labels.get("environment") not in {"qualification", environment}:
             label_blockers.append("TARGET_ENVIRONMENT_LABEL_MISMATCH")
         if identity_audience != environment_values.get(
             "APP_PLATFORM_ASSERTION_AUDIENCE"

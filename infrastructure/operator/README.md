@@ -262,6 +262,13 @@ create-only, verifies readback, and requires activation confirmation. Detach and
 expected active-generation digest; replacement attachment registration reactivates a suspended
 application. Interrupted confirmation may resume only the identical publication.
 
+Cloud Run target readback derives its closed target-stage policy from the selected platform
+environment. For staging it accepts `environment=qualification` candidates and
+`environment=staging` releases for either fixture or real application projects, and reports
+`TARGET_ENVIRONMENT_LABEL_MISMATCH` for a missing or other label. Project ownership does not choose
+the stage. This readback is posture validation only; Candidate and Accepted Source evidence remain
+separate lifecycle gates.
+
 W8 implements exact revision readback, the closed qualification profile, redacted evidence,
 network fixtures, failure injection, reviewed rollback, separate destruction authority, and
 create-only resume state. Qualification evaluates every non-mutating check before the reviewed

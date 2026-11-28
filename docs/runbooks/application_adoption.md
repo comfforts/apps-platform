@@ -1,8 +1,9 @@
 # Adopt a real application
 
-Status: AP-M9-W12 application-neutral staging handoff; ADR-017 Version 3 complete attachment sets
-are accepted but unimplemented; no application is selected or authorized until matching authority
-exists in both repositories
+Status: AP-M9-W12 application-neutral staging handoff; the closed staging target-stage readback is
+implemented by Slice 1; ADR-017 Version 3 complete attachment sets remain accepted but
+unimplemented; no application is selected or authorized until matching authority exists in both
+repositories
 
 This runbook explains how a real application will join one deployed App Platform environment after
 the application repository has approved its own adoption requirements, architecture, migration,
@@ -27,8 +28,9 @@ procedure, all of these must be true:
 - the application project, runtime, state, secrets, data, and release remain application-owned;
 - the application implements the Version 3 integration, complete attachment-set, and
   registration-intent contracts plus the Version 2 Verified Identity Context contract; and
-- the platform's Cloud Run target readback accepts the selected real environment rather than the
-  currently hardcoded `environment=qualification` fixture label; and
+- the platform's Cloud Run target readback accepts the closed, project-independent staging target
+  stages `environment=qualification` and `environment=staging`, while rejecting a missing or other
+  label; and
 - the platform has implemented and deterministically verified the ADR-017 Version 3 schemas,
   compatibility loading, complete-set relationship validation, every-target provider readback, and
   atomic Version 2 registration projection; and
@@ -171,6 +173,8 @@ these conditions independently:
 - grant the bundle's exact edge-caller service account unconditional `roles/run.viewer` and
   `roles/run.invoker` on only that selected service;
 - carry `state_owner=application` and `application_id=<application-id>` labels;
+- carry `environment=qualification` for a staging candidate or `environment=staging` for a staging
+  release, regardless of whether the connected application project is a fixture or real project;
 - become provider-ready with a serving revision; and
 - retain application-owned deletion protection, scaling, runtime identity, secrets, data, and
   release controls.
@@ -296,6 +300,21 @@ A public application may instead use an independent application-owned OAuth clie
 session, user database, and account-linking process remain separate. Do not merge it with Platform
 Identity unless the application adopts an explicit, reviewed account-linking flow.
 
+## Qualify the candidate before the staging release
+
+The selected real application first deploys its Candidate Source targets with
+`environment=qualification`. Under separately approved joint authority, the Platform Operator
+registers the complete set, exercises every declared application-adoption check, records
+revision-bound Candidate Qualification in both repositories, and restores the reviewed
+predecessor. A failed or missing candidate result blocks merge and release.
+
+After that exact candidate becomes Accepted Source, the Application Owner reconciles every target
+with `environment=staging`. The Platform Operator must read the prior candidate result and repeat
+the complete registration, posture, route, identity, application-authorization, isolation,
+rollback, and restoration gate before recording staging release qualification. Fixture projects
+may also carry `staging`, and real projects may carry `qualification`; project ownership is not a
+label policy. Neither valid label proves that its corresponding evidence gate passed.
+
 ## Inspect and activate the registration
 
 The Platform Operator inspects the exact three-document family without editing it, then runs:
@@ -346,6 +365,9 @@ be detached, and its Application Owner must complete the separately governed app
   both absent or contain the exact same unique IDs and complete desired additional set.
 - Every target's project connection, network, subnet, environment label, ingress, egress, IAM,
   service readiness, and audience pass platform readback.
+- The selected real application's exact Candidate Source revision passed Candidate Qualification
+  with `environment=qualification` before its Accepted Source targets were reconciled with
+  `environment=staging` and the release gate was repeated.
 - Every identity-consuming target independently verifies platform assertions before constructing a
   principal.
 - Application permissions are tested independently from platform admission and membership.

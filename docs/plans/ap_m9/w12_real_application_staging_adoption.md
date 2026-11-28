@@ -1,6 +1,6 @@
 # AP-M9-W12 · First real-application staging adoption qualification
 
-Version 0.3 | Status: planned; next AP-M9 work package after Accepted Source staging platform and
+Version 0.4 | Status: planned; next AP-M9 work package after Accepted Source staging platform and
 fixture qualification completed at `b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 is
 accepted but its Version 3 multi-attachment handoff is not implemented; no application is selected
 and no external operation is authorized by this plan
@@ -41,6 +41,14 @@ platform revision, complete attachment set, and environment. It does not make Ap
 application's deployer, state owner, user store, feature-authorization service, or migration
 authority. It does not qualify a second application, production, platform destruction, or
 application destruction.
+
+The real application follows two staging gates. Its Candidate Source targets first carry
+`environment=qualification` and must pass revision-bound Candidate Qualification before merge.
+After that exact candidate is accepted, the Application Owner reconciles the release targets with
+`environment=staging`, and the Accepted Source adoption gate repeats the complete target and route
+qualification. Fixture and real projects may use either label in the corresponding lifecycle
+stage; project identity never selects the label. A label is provider posture only and cannot stand
+in for either evidence record.
 
 ## Selection and joint-authority gate
 
@@ -131,12 +139,16 @@ Suggested branch: `fix/real-application-target-readiness`
 
 Pull-request target: `feat/real-application-staging-adoption`
 
-Replace the fixture-only `environment=qualification` Cloud Run label assumption with the exact
-environment derived from the selected profile and handoff. Trace target readback, registration
-validation, status, operator diagnostics, fakes, tests, and documentation together. Preserve exact
-application project, region, Shared VPC, internal ingress, Direct VPC egress, edge-caller viewer
-and invoker grants, application owner, audience, and readiness checks. This slice changes no
-contract cardinality and invokes no provider operation.
+Replace the fixture-only `environment=qualification` Cloud Run label assumption with a closed
+target-stage policy derived from the selected profile and handoff. The staging profile accepts
+exactly `environment=qualification` for a candidate target or `environment=staging` for a staging
+release target. Both values are valid for fixture and real application projects; project ownership
+must not select the label. A missing or other environment label fails with the stable target-label
+blocker, and neither accepted value proves that its corresponding evidence gate passed. Trace
+target readback, registration validation, status, operator diagnostics, fakes, tests, and
+documentation together. Preserve exact application project, region, Shared VPC, internal ingress,
+Direct VPC egress, edge-caller viewer and invoker grants, application owner, audience, and readiness
+checks. This slice changes no contract cardinality and invokes no provider operation.
 
 ### Slice 2 · Version 3 complete attachment-set contracts
 
@@ -226,23 +238,29 @@ intent. For a frontend/backend application, both services must independently sat
 network, ingress, IAM, label, readiness, and audience posture. Apps Platform does not implement or
 execute this application lifecycle.
 
+Before this slice merges, a separately authorized joint Candidate Source operation uses
+`environment=qualification` on every selected target, registers the complete candidate set,
+executes the declared real-application checks, records revision-bound Candidate Qualification in
+both repositories, and restores the reviewed predecessor. Failure blocks the application merge.
+The target label alone is never candidate evidence.
+
 ### Slice 7 · Joint staging adoption and evidence
 
 Suggested platform branch: `evidence/multi-attachment-staging-adoption`
 
 Pull-request target: updated clean `main` after the cumulative integration pull request merges
 
-Only after Slices 1 through 6 merge, the separate fourth-fixture qualification passes, and both
-owners deliberately authorize the operation, execute
-the ordered cross-owner journey below. Record the least-data AP-EVAL-M9-10 result in each
+Only after Slices 1 through 6 merge, the separate fourth-fixture qualification and real-application
+Candidate Qualification pass, and both owners deliberately authorize the operation, execute the
+Accepted Source release journey below. Record the least-data AP-EVAL-M9-10 release result in each
 repository under its own evidence rules. A discovered software defect returns to a reviewed fix
-slice and requires the exact operation to rerun; the evidence slice does not absorb implementation
-changes or broaden authority.
+slice and requires the candidate and release gates required by the changed revision to rerun; the
+evidence slice does not absorb implementation changes or broaden authority.
 
 ## Ordered cross-owner journey
 
-After the platform implementation and application-owned adoption implementation merge through
-their respective authorities and the separate fourth-fixture result passes:
+After the platform implementation and the candidate-qualified application implementation merge
+through their respective authorities and the separate fourth-fixture result remains current:
 
 1. Read back the Accepted Source staging qualification, the separately stored
    `fixture-multi-attachment` qualification, active platform source revision, Version 2
@@ -254,10 +272,12 @@ their respective authorities and the separate fourth-fixture result passes:
    attachment-bound blocker.
 4. Run `platform-outputs` with the same values and transfer the exact canonical Version 3 Platform
    Integration Bundle through the application repository's approved private handoff.
-5. The Application Owner deploys or reconciles all application targets and Application State,
-   independently verifies Platform Identity where enabled, tests application permissions, and
-   returns the required root target plus any complete optional additional target and binding arrays
-   in the exact canonical Version 3 Application Attachment Bundle and registration intent.
+5. The Application Owner deploys or reconciles the Accepted Source application targets and
+   Application State with `environment=staging`, independently verifies Platform Identity where
+   enabled, tests application permissions, and returns the required root target plus any complete
+   optional additional target and binding arrays in the exact canonical Version 3 Application
+   Attachment Bundle and registration intent. A fixture or real project may carry this release
+   label; the prior Candidate Qualification, not project identity, authorizes this phase.
 6. The Platform Operator inspects the three-document family, runs `platform-register`, and verifies
    that every target readback passed before the new complete Version 2 Registration Generation
    became active without changing another application.
@@ -276,7 +296,11 @@ The repository-only slices must deterministically verify:
 - unchanged Version 1 and Version 2 compatibility behavior and vectors;
 - Version 3 required-root, optional-additional schema, canonicalization, relationship, cardinality,
   exact-optional-ID-set, root-ID exclusion, root-mount, and mixed-version rejection;
-- environment-derived labels for both fixture qualification compatibility and real staging;
+- the closed, project-independent staging target stages: fixture and real
+  `environment=qualification` candidates, fixture and real `environment=staging` releases, and
+  deterministic rejection of missing or other labels;
+- source-bound Candidate Qualification before the selected real application's Accepted Source
+  staging release qualification, with neither target label accepted as evidence by itself;
 - independent provider posture validation for every target and no activation after any target
   fails;
 - projection of one root-only or root-plus-optionals Version 3 handoff into one valid Version 2
@@ -307,6 +331,9 @@ AP-M9-W12 completes only when:
   digests, and the active Registration Generation without rewriting platform qualification status;
 - the selected application repository records its own accepted adoption authority and exact
   evaluated revision;
+- the selected real application's exact Candidate Source revision passed Candidate Qualification
+  with `environment=qualification` targets before merge, and the Accepted Source release repeats
+  the complete gate with `environment=staging` targets;
 - the platform's environment-derived target validation, Version 3 complete-set implementation,
   focused deterministic tests, and full credential-free `make check` pass;
 - the application project connection, the required root and every additional target's service

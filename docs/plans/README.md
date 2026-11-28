@@ -1,7 +1,7 @@
 # App Platform implementation plan index
 
 Version 0.8 | Status: canonical plan router through AP-M9-W14; AP-M9-W11 Accepted Source
-qualification complete; AP-M9-W12 environment-derived target validation, Version 3 complete
+qualification complete; AP-M9-W12 closed staging target-stage validation, Version 3 complete
 attachment-set handoff, separate fourth-fixture qualification, and real-application adoption are
 next
 
@@ -26,7 +26,7 @@ map, atomic integration branch, and effort signals. Not every work package needs
 file; the milestone plan remains canonical when no extracted work-package plan exists.
 
 The [AP-M9-W12 work-package plan](ap_m9/w12_real_application_staging_adoption.md) is the current
-handoff for environment-derived target validation, the ADR-017 Version 3 complete attachment-set
+handoff for closed, project-independent staging target-stage validation, the ADR-017 Version 3 complete attachment-set
 interface, atomic multi-target registration, a fourth authenticated frontend-plus-dummy-API
 fixture and its fixture-scoped qualification, and the first real-application staging adoption. It
 remains application-neutral until the Platform Owner and one Application Owner accept the same

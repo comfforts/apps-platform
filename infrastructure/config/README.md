@@ -1,6 +1,6 @@
 # App Platform infrastructure configuration contracts
 
-Version 1.7 | Status: AP-M9-W10 Version 2 generation compatibility implemented; no external operation
+Version 1.8 | Status: AP-M9-W12 fourth-fixture configuration implemented; no external operation
 
 This directory contains closed, non-secret repository configuration contracts. It is subordinate
 to the platform requirements, accepted ADRs, system design, implementation plan, and evaluation
@@ -49,6 +49,14 @@ Shared Edge generation references accept the retained Version 1 and current Vers
 contracts only. Content-addressed references must bind the exact generation digest; environment-
 scoped references must bind the exact environment and generation number. Unsupported compiled
 versions and mismatched paths fail before Terraform planning.
+
+The fixture contract admits the existing three single-target profiles plus
+`fixture-multi-attachment`. That fourth profile binds its root service to
+`fixture-multi-attachment-web`; its typed cross-state references may name only that service or
+`fixture-multi-attachment-api`. Fixture target labels accept the closed `qualification` and
+`staging` stages. The new two-service Terraform root derives the candidate or release label from
+the source-authority-bound handoff, while the three existing fixture roots retain their current
+qualification deployment configuration.
 
 ## Terraform boundary
 

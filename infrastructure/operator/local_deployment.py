@@ -40,6 +40,9 @@ _PHASE_SOURCES = {
     "fixture-authenticated": (
         "infrastructure/terraform/fixtures/fixture-authenticated"
     ),
+    "fixture-multi-attachment": (
+        "infrastructure/terraform/fixtures/fixture-multi-attachment"
+    ),
     "fixture-restricted": "infrastructure/terraform/fixtures/fixture-restricted",
 }
 _PLATFORM_PHASES = {"bootstrap", "platform-foundation", "shared-edge"}

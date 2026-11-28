@@ -104,7 +104,7 @@ application-handoff-check: terraform-setup
 platform-outputs:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator outputs --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --application-id "$(APPLICATION_ID)" --application-project-id "$(APPLICATION_PROJECT_ID)" --access-mode "$(ACCESS_MODE)" --identity-delivery "$(IDENTITY_DELIVERY)" --handoff-version "$(HANDOFF_VERSION)" --route-intent "$(ROUTE_INTENT)" --platform-source-revision "$(PLATFORM_SOURCE_REVISION)" --platform-generation "$(PLATFORM_GENERATION)"
 
-## Validate one attachment and propose an immutable whole registration generation.
+## Validate one complete attachment set and propose an immutable whole registration generation.
 platform-register:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m infrastructure.operator register --environment "$(ENVIRONMENT)" --state-directory "$(OPERATOR_STATE_DIRECTORY)" --source-authority "$(SOURCE_AUTHORITY)" --integration-bundle "$(INTEGRATION_BUNDLE)" --attachment-bundle "$(ATTACHMENT_BUNDLE)" --registration-intent "$(REGISTRATION_INTENT)"
 

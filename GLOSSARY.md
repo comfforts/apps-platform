@@ -277,7 +277,8 @@ authority.
 A deterministic, non-production Registered Application used to qualify platform behavior without a
 real application migration. Provider-backed fixtures run in a dedicated application project
 attached to the platform Shared VPC. Their runtime, images, and state remain application-owned test
-assets, not Platform State.
+assets, not Platform State. A fixture may own multiple attachment targets through one Application
+State root and lifecycle; that does not create another Fixture Application.
 
 ## Fixture Qualification
 

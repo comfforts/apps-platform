@@ -29,9 +29,11 @@ from fixtures.identity import VERIFIED_IDENTITY_HEADER
 
 _FIXTURE_MODES = {
     "fixture-authenticated": "authenticated",
+    "fixture-multi-attachment": "authenticated",
     "fixture-public": "public",
     "fixture-restricted": "restricted",
 }
+_MULTI_ATTACHMENT_MARKERS = {"api", "web"}
 _QUALIFICATION_CHALLENGE = re.compile(r"[0-9a-f]{64}")
 _SAFE_IDENTITY_DIAGNOSTICS = {
     "assertion_key_unknown": "assertion_key_unknown",
@@ -50,6 +52,8 @@ _SAFE_IDENTITY_DIAGNOSTICS = {
 
 
 def _write_identity_rejection(application_id: str, code: str) -> None:
+    """Write one allowlisted rejection event without visitor or assertion data."""
+
     safe_code = _SAFE_IDENTITY_DIAGNOSTICS.get(
         code,
         "identity_verification_rejected",
@@ -68,7 +72,10 @@ def _write_identity_rejection(application_id: str, code: str) -> None:
 
 
 class NetworkIdentityVerifier(Protocol):
-    async def verify(self, assertion: str | None) -> VerificationResult: ...
+    async def verify(self, assertion: str | None) -> VerificationResult:
+        """Verify one optional platform assertion independently of edge admission."""
+
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,10 +87,23 @@ class NetworkFixtureConfiguration:
     platform_issuer: str
     public_key_reference: str
     assertion_audience: str | None
+    target_marker: str | None = None
 
     def __post_init__(self) -> None:
+        """Reject an unbounded retry delay before creating any HTTP client."""
+
+        """Reject mismatched profiles, markers, identity endpoints, and audiences."""
+
         if _FIXTURE_MODES.get(self.application_id) != self.admission_mode:
             raise ValueError("application and admission mode must select one fixture profile")
+        if (
+            self.application_id == "fixture-multi-attachment"
+            and self.target_marker not in _MULTI_ATTACHMENT_MARKERS
+        ) or (
+            self.application_id != "fixture-multi-attachment"
+            and self.target_marker is not None
+        ):
+            raise ValueError("target marker must match the multi-attachment fixture profile")
         issuer = urlsplit(self.platform_issuer)
         if (
             issuer.scheme != "https"
@@ -115,6 +135,8 @@ class NetworkFixtureConfiguration:
 
     @classmethod
     def from_environment(cls) -> NetworkFixtureConfiguration:
+        """Load the closed non-secret fixture configuration from process variables."""
+
         required = (
             "APP_PLATFORM_APPLICATION_ID",
             "APP_PLATFORM_ADMISSION_MODE",
@@ -131,12 +153,15 @@ class NetworkFixtureConfiguration:
             platform_issuer=values["APP_PLATFORM_ISSUER"],
             public_key_reference=values["APP_PLATFORM_PUBLIC_KEY_REFERENCE"],
             assertion_audience=os.environ.get("APP_PLATFORM_ASSERTION_AUDIENCE"),
+            target_marker=os.environ.get("APP_PLATFORM_TARGET_MARKER"),
         )
 
 
 @dataclass(frozen=True, slots=True)
 class _SystemAssertionClock:
     def now(self) -> int:
+        """Return the current Unix time for application-side assertion validation."""
+
         return int(time.time())
 
 
@@ -151,6 +176,8 @@ class _BoundedJwksFetcher:
             raise ValueError("JWKS retry delay is outside the bounded range")
 
     async def fetch(self) -> dict[str, object]:
+        """Fetch the exact JWKS with one bounded retry and no redirects."""
+
         for attempt in range(2):
             try:
                 async with httpx.AsyncClient(
@@ -166,9 +193,19 @@ class _BoundedJwksFetcher:
         raise AssertionError("bounded JWKS retry exhausted unexpectedly")
 
 
-def _fixed_response(application_id: str, outcome: str, status: int) -> JSONResponse:
+def _fixed_response(
+    application_id: str,
+    outcome: str,
+    status: int,
+    target_marker: str | None = None,
+) -> JSONResponse:
+    """Return only the fixture identity, coarse outcome, and optional safe target marker."""
+
+    payload = {"application_id": application_id, "outcome": outcome}
+    if target_marker is not None:
+        payload["target"] = target_marker
     return JSONResponse(
-        {"application_id": application_id, "outcome": outcome},
+        payload,
         status_code=status,
     )
 
@@ -209,8 +246,15 @@ def create_network_fixture(
         return True, True
 
     async def health(request: Request) -> Response:
+        """Report process health without evaluating platform identity."""
+
         del request
-        return _fixed_response(configuration.application_id, "healthy", 200)
+        return _fixed_response(
+            configuration.application_id,
+            "healthy",
+            200,
+            configuration.target_marker,
+        )
 
     async def http_probe(request: Request) -> Response:
         """Enforce identity and serve the fixture's bounded HTTP test surfaces."""
@@ -221,6 +265,7 @@ def create_network_fixture(
                 configuration.application_id,
                 "identity-denied",
                 401,
+                configuration.target_marker,
             )
         path = request.path_params.get("path", "")
         if path == "qualification/browser" and request.method == "GET":
@@ -235,6 +280,7 @@ def create_network_fixture(
                     configuration.application_id,
                     "qualification-challenge-invalid",
                     400,
+                    configuration.target_marker,
                 )
             try:
                 callback_port = int(port_values[0])
@@ -245,6 +291,7 @@ def create_network_fixture(
                     configuration.application_id,
                     "qualification-challenge-invalid",
                     400,
+                    configuration.target_marker,
                 )
             location = "http://127.0.0.1:" + str(callback_port) + "/?" + urlencode(
                 {
@@ -265,6 +312,7 @@ def create_network_fixture(
                 configuration.application_id,
                 "fixture-ready",
                 200,
+                configuration.target_marker,
             )
         if path == "upload" and request.method == "POST":
             async for _ in request.stream():
@@ -272,6 +320,8 @@ def create_network_fixture(
             return Response(status_code=204)
         if path == "stream" and request.method == "GET":
             async def body():
+                """Yield the fixture's two fixed streaming-response segments."""
+
                 yield b"fixture-stream-1\n"
                 yield b"fixture-stream-2\n"
 
@@ -281,8 +331,14 @@ def create_network_fixture(
                 configuration.application_id,
                 "synthetic-failure",
                 503,
+                configuration.target_marker,
             )
-        return _fixed_response(configuration.application_id, "not-found", 404)
+        return _fixed_response(
+            configuration.application_id,
+            "not-found",
+            404,
+            configuration.target_marker,
+        )
 
     async def websocket_probe(websocket: WebSocket) -> None:
         """Enforce identity before accepting the bounded echo socket."""

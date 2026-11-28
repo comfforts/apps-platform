@@ -386,6 +386,52 @@ class RegistrationLifecycleTest(unittest.TestCase):
         self.assertEqual(projected[0]["attachment_id"], "web")
         self.assertEqual(projected[0]["mount_path"], "/")
 
+    def test_multi_attachment_fixture_projects_one_unlisted_application(self) -> None:
+        bundle = self._bundle(
+            "fixture-multi-attachment",
+            "authenticated",
+            handoff_version=3,
+        )
+        attachment = self._attachment(
+            bundle,
+            suffix="-web",
+            additional=(("api", "-api"),),
+        )
+        intent = replace(
+            self._intent(
+                bundle,
+                attachment_id="web",
+                additional=(
+                    RegistrationAttachmentBinding(
+                        "api",
+                        "/api",
+                        "strip_attachment_mount",
+                    ),
+                ),
+            ),
+            catalogue_visibility="unlisted",
+            catalogue_title="Multi-Attachment Fixture",
+            catalogue_summary="Synthetic authenticated multi-attachment fixture",
+        )
+
+        result = self.lifecycle.register(bundle, attachment, intent)
+
+        self.assertEqual(result.outcome, "activated")
+        current = self.generations.current_proposal
+        assert current is not None
+        registration = current.registration_set["registrations"][0]
+        self.assertEqual(registration["application_id"], "fixture-multi-attachment")
+        self.assertEqual(registration["route_prefix"], "/fixture-multi-attachment")
+        self.assertEqual(registration["catalogue"]["visibility"], "unlisted")
+        self.assertEqual(registration["admission"]["mode"], "authenticated")
+        self.assertEqual(registration["identity_delivery"], "required")
+        self.assertEqual(
+            [
+                (item["attachment_id"], item["mount_path"])
+                for item in registration["attachments"]
+            ],
+            [("api", "/api"), ("web", "/")],
+        )
     def test_v3_maximum_attachment_set_reads_and_projects_all_sixteen(self) -> None:
         bundle = self._bundle(
             "maximum-attachment-app",

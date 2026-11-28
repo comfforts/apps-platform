@@ -61,15 +61,15 @@ one target failure causes no publication, traffic change, or partial activation;
 longest-segment routing, full-set update, predecessor retention, application-wide detachment, and
 unrelated registrations; and reads no Application State.
 
-The next, fourth platform slice must keep all three existing fixture deployments and Version 2 handoffs
-unchanged and add `fixture-multi-attachment` as a fourth application. Use authenticated admission,
-required Identity Delivery, unlisted catalogue visibility, and one independent Application State
-root. Return its frontend Cloud Run service as the required `web` attachment at `/` and its
-distinct dummy API Cloud Run service as the optional `api` attachment at `/api` in one complete
-Version 3 family. Extend fixture handoff, status, destruction, component documentation, fakes, and
-tests without creating a second application or state root for the API target.
+The fourth platform slice keeps all three existing fixture deployments and Version 2 handoffs
+unchanged and implements `fixture-multi-attachment` as a fourth application. It uses authenticated
+admission, required Identity Delivery, unlisted catalogue visibility, and one independent
+Application State root. Its frontend Cloud Run service is the required `web` attachment at `/` and
+its distinct dummy API Cloud Run service is the optional `api` attachment at `/api` in one complete
+Version 3 family. Fixture handoff, status, destruction, component documentation, fakes, and tests
+remain one lifecycle; no second application or state root represents the API target.
 
-The fifth platform slice must add `fixture-qualify` as a fixture-scoped interface separate from
+The next, fifth platform slice must add `fixture-qualify` as a fixture-scoped interface separate from
 `platform-qualify`. Bind its result to the exact readable Accepted Source platform qualification,
 fixture source, complete handoff, both targets, and active Registration Generation. Prove the
 authenticated root and `/api` verify the same application identity, `/apix` remains on the root,

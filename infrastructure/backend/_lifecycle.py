@@ -112,6 +112,7 @@ def backend_declarations(
             for owner_id in (
                 "fixture-public",
                 "fixture-authenticated",
+                "fixture-multi-attachment",
                 "fixture-restricted",
             )
         ),

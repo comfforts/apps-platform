@@ -25,12 +25,15 @@ _IMAGE_REFERENCE = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class FixtureDefinition:
-    """Stable fixture admission posture and permitted explicit identity behavior."""
+    """Stable fixture policy and exact handoff attachment shape."""
 
     application_id: str
     access_mode: str
     route_intent: str
     identity_deliveries: tuple[str, ...]
+    handoff_version: int = 2
+    root_attachment_id: str = "primary"
+    additional_attachment_ids: tuple[str, ...] = ()
 
 
 _FIXTURES = (
@@ -52,8 +55,60 @@ _FIXTURES = (
         "/fixture-restricted",
         ("required",),
     ),
+    FixtureDefinition(
+        "fixture-multi-attachment",
+        "authenticated",
+        "/fixture-multi-attachment",
+        ("required",),
+        3,
+        "web",
+        ("api",),
+    ),
 )
 _FIXTURE_BY_ID = {item.application_id: item for item in _FIXTURES}
+
+
+def _registration_intent_document(
+    definition: FixtureDefinition,
+    catalogue_visibility: str,
+) -> dict[str, object]:
+    """Return the exact closed fixture intent needed to validate a complete handoff."""
+
+    multi_attachment = definition.handoff_version == 3
+    document: dict[str, object] = {
+        "contract_version": definition.handoff_version,
+        "document_kind": "registration-intent",
+        "application_id": definition.application_id,
+        "access_mode": definition.access_mode,
+        "identity_delivery": definition.identity_deliveries[0],
+        "catalogue_visibility": catalogue_visibility,
+        "catalogue_title": (
+            "Multi-Attachment Fixture"
+            if multi_attachment
+            else {
+                "fixture-public": "Public fixture",
+                "fixture-authenticated": "Authenticated fixture",
+                "fixture-restricted": "Restricted fixture",
+            }[definition.application_id]
+        ),
+        "catalogue_summary": (
+            "Synthetic authenticated multi-attachment fixture"
+            if multi_attachment
+            else "Synthetic App Platform qualification application"
+        ),
+        "attachment_id": definition.root_attachment_id,
+        "mount_path": "/",
+        "forwarding_mode": "strip_application_prefix",
+    }
+    if multi_attachment:
+        document["additional_attachment_bindings"] = [
+            {
+                "attachment_id": "api",
+                "mount_path": "/api",
+                "forwarding_mode": "strip_attachment_mount",
+            }
+        ]
+    return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,21 +128,28 @@ class FixtureDeployRequest:
 
 @dataclass(frozen=True, slots=True)
 class FixtureImageRequest:
+    """Immutable fixture-image publication request for one source revision."""
+
     environment: str
     source_revision: str
 
 
 @dataclass(frozen=True, slots=True)
 class FixtureImageReadback:
+    """Provider-read immutable fixture image reference and source binding."""
+
     reference: str
     source_revision: str
 
 
 @dataclass(frozen=True, slots=True)
 class FixtureApplicationDeployRequest:
+    """Exact application-owned deployment input for one fixture handoff."""
+
     environment: str
     application_id: str
     access_mode: str
+    catalogue_visibility: str
     source_revision: str
     image: FixtureImageReadback
     integration_bundle: dict[str, Any]
@@ -95,6 +157,8 @@ class FixtureApplicationDeployRequest:
 
 @dataclass(frozen=True, slots=True)
 class FixtureApplicationDeployment:
+    """Complete read-back fixture attachment bundle bound to its immutable image."""
+
     application_id: str
     image_reference: str
     attachment_bundle: dict[str, Any]
@@ -102,6 +166,8 @@ class FixtureApplicationDeployment:
 
 @dataclass(frozen=True, slots=True)
 class FixturePreparation:
+    """Private reusable handoff documents and their exact digests and paths."""
+
     image: FixtureImageReadback
     integration_bundle: dict[str, Any]
     deployment: FixtureApplicationDeployment
@@ -114,6 +180,8 @@ class FixturePreparation:
 
 @dataclass(frozen=True, slots=True)
 class FixtureHandoffResult:
+    """Least-data fixture preparation result returned to the operator."""
+
     outcome: str
     application_id: str
     image_reference: str | None
@@ -127,6 +195,15 @@ class FixtureHandoffResult:
 
 
 @dataclass(frozen=True, slots=True)
+class FixtureAttachmentStatus:
+    """Read-only provider posture for one fixture attachment target."""
+
+    attachment_id: str
+    target_exists: bool
+    target_ready: bool
+
+
+@dataclass(frozen=True, slots=True)
 class FixtureApplicationStatus:
     """Registration policy, provider posture, and route readiness for one fixture."""
 
@@ -136,6 +213,7 @@ class FixtureApplicationStatus:
     target_exists: bool
     target_ready: bool
     route_ready: bool
+    attachments: tuple[FixtureAttachmentStatus, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +229,8 @@ class FixtureStatusResult:
 
 @dataclass(frozen=True, slots=True)
 class FixtureDestroyRequest:
+    """Exact detached-fixture destruction authority and revision bindings."""
+
     environment: str
     application_id: str
     operator_source_revision: str
@@ -162,6 +242,8 @@ class FixtureDestroyRequest:
 
 @dataclass(frozen=True, slots=True)
 class FixtureDestroyReadback:
+    """Least-data terminal destruction result bound to registration readback."""
+
     outcome: str
     application_id: str
     registration_generation: int | None
@@ -179,34 +261,52 @@ class FixtureCommandError(RuntimeError):
 class FixtureCommands(Protocol):
     """Closed side-effect boundary consumed by the fixture lifecycle core."""
 
-    def build_image(self, request: FixtureImageRequest) -> FixtureImageReadback: ...
+    def build_image(self, request: FixtureImageRequest) -> FixtureImageReadback:
+        """Publish and read back the immutable fixture image."""
+
+        ...
 
     def deploy_application(
         self,
         request: FixtureApplicationDeployRequest,
-    ) -> FixtureApplicationDeployment: ...
+    ) -> FixtureApplicationDeployment:
+        """Reconcile one fixture state root and return its complete target set."""
+
+        ...
 
     def prepared_handoff(
         self,
         request: FixtureDeployRequest,
-    ) -> FixturePreparation | None: ...
+    ) -> FixturePreparation | None:
+        """Read an exact reusable private handoff, if one remains current."""
+
+        ...
 
     def record_prepared_handoff(
         self,
         request: FixtureDeployRequest,
         preparation: FixturePreparation,
-    ) -> FixturePreparation: ...
+    ) -> FixturePreparation:
+        """Persist and reread one canonical private handoff family."""
+
+        ...
 
     def status(
         self,
         environment: str,
         application_id: str | None = None,
-    ) -> FixtureStatusResult: ...
+    ) -> FixtureStatusResult:
+        """Reconcile registration and provider posture without mutation."""
+
+        ...
 
     def destroy_application(
         self,
         request: FixtureDestroyRequest,
-    ) -> FixtureDestroyReadback: ...
+    ) -> FixtureDestroyReadback:
+        """Destroy one detached fixture state root and prove all targets absent."""
+
+        ...
 
 
 class FixtureSuiteLifecycle:
@@ -217,10 +317,14 @@ class FixtureSuiteLifecycle:
         commands: FixtureCommands,
         terminal: OperatorTerminal | None = None,
     ) -> None:
+        """Bind the deep fixture lifecycle to injected commands and output."""
+
         self._commands = commands
         self._terminal = terminal
 
     def _announce_stage(self, index: int, total: int, title: str) -> None:
+        """Write one bounded progress message when a terminal is available."""
+
         if self._terminal is not None:
             self._terminal.write(f"▸ Stage {index}/{total} · {title}")
 
@@ -229,6 +333,8 @@ class FixtureSuiteLifecycle:
         request: FixtureDeployRequest,
         *blockers: str,
     ) -> FixtureHandoffResult:
+        """Return a deduplicated least-data blocked handoff result."""
+
         return FixtureHandoffResult(
             outcome="blocked",
             application_id=request.application_id,
@@ -267,8 +373,16 @@ class FixtureSuiteLifecycle:
         definition: FixtureDefinition,
         request: FixtureDeployRequest,
     ) -> bool:
+        """Require the selected fixture's exact version, policy, and source bindings."""
+
+        attachment_contract = bundle.get("attachment_contract")
+        v3_policy_matches = definition.handoff_version != 3 or (
+            isinstance(attachment_contract, dict)
+            and attachment_contract.get("root_attachment_required") is True
+            and attachment_contract.get("maximum_additional_attachments") == 15
+        )
         return (
-            bundle.get("contract_version") == 2
+            bundle.get("contract_version") == definition.handoff_version
             and not validate_versioned_lifecycle_document(
                 bundle,
                 "platform-integration-bundle",
@@ -283,6 +397,7 @@ class FixtureSuiteLifecycle:
             and bundle.get("platform_source_authority")
             == request.source_authority
             and bundle.get("generation") == request.expected_platform_generation
+            and v3_policy_matches
         )
 
     @staticmethod
@@ -293,8 +408,10 @@ class FixtureSuiteLifecycle:
         bundle: dict[str, Any],
         request: FixtureDeployRequest,
     ) -> tuple[bool, str]:
+        """Validate the complete deployed target set and immutable image binding."""
+
         attachment = deployment.attachment_bundle
-        if attachment.get("contract_version") != 2:
+        if attachment.get("contract_version") != definition.handoff_version:
             return False, "ATTACHMENT_BUNDLE_VERSION_UNSUPPORTED"
         if validate_versioned_lifecycle_document(
             attachment,
@@ -304,9 +421,32 @@ class FixtureSuiteLifecycle:
         if validate_versioned_lifecycle_relationships(
             integration_bundle=bundle,
             attachment_bundle=attachment,
+            registration_intent=_registration_intent_document(
+                definition,
+                request.catalogue_visibility,
+            ),
         ):
             return False, "ATTACHMENT_BUNDLE_MISMATCH"
         target = attachment.get("target")
+        additional = attachment.get("additional_attachments", [])
+        additional_ids = (
+            tuple(
+                item.get("attachment_id")
+                for item in additional
+                if isinstance(item, dict)
+            )
+            if isinstance(additional, list)
+            else ()
+        )
+        additional_owners = (
+            tuple(
+                item.get("target", {}).get("owner_application_id")
+                for item in additional
+                if isinstance(item, dict) and isinstance(item.get("target"), dict)
+            )
+            if isinstance(additional, list)
+            else ()
+        )
         if (
             deployment.application_id != definition.application_id
             or deployment.image_reference != image.reference
@@ -316,6 +456,9 @@ class FixtureSuiteLifecycle:
             != request.fixture_source_revision
             or not isinstance(target, dict)
             or target.get("owner_application_id") != definition.application_id
+            or additional_ids != definition.additional_attachment_ids
+            or additional_owners
+            != (definition.application_id,) * len(definition.additional_attachment_ids)
         ):
             return False, "FIXTURE_DEPLOYMENT_READBACK_MISMATCH"
         return True, ""
@@ -327,6 +470,8 @@ class FixtureSuiteLifecycle:
         definition: FixtureDefinition,
         request: FixtureDeployRequest,
     ) -> tuple[bool, str]:
+        """Validate a reusable preparation, including canonical document digests."""
+
         if not cls._bundle_matches(
             preparation.integration_bundle,
             definition,
@@ -371,6 +516,8 @@ class FixtureSuiteLifecycle:
         preparation_stage_title: str,
         reuse_stage_title: str,
     ) -> tuple[FixturePreparation | None, bool, tuple[str, ...]]:
+        """Reuse or create one complete handoff without registering the application."""
+
         self._announce_stage(1, total_stages, "Resolve the Platform Handoff")
         try:
             prepared = self._commands.prepared_handoff(request)
@@ -416,6 +563,7 @@ class FixtureSuiteLifecycle:
                     environment=request.environment,
                     application_id=definition.application_id,
                     access_mode=definition.access_mode,
+                    catalogue_visibility=request.catalogue_visibility,
                     source_revision=request.fixture_source_revision,
                     image=image,
                     integration_bundle=bundle,
@@ -538,11 +686,7 @@ class FixtureSuiteLifecycle:
         if (
             request.environment != "staging"
             or request.application_id
-            not in {
-                "fixture-public",
-                "fixture-authenticated",
-                "fixture-restricted",
-            }
+            not in _FIXTURE_BY_ID
             or _REVISION.fullmatch(request.operator_source_revision) is None
             or _REVISION.fullmatch(request.fixture_source_revision) is None
             or _REVISION.fullmatch(request.expected_platform_source_revision) is None
@@ -576,6 +720,7 @@ __all__ = (
     "FixtureApplicationDeployRequest",
     "FixtureApplicationDeployment",
     "FixtureApplicationStatus",
+    "FixtureAttachmentStatus",
     "FixtureCommandError",
     "FixtureCommands",
     "FixtureDefinition",

@@ -3,8 +3,8 @@
 Status: AP-M9-W10 implements and Candidate-qualifies the Version 2 lifecycle; AP-M9-W11 qualified
 the staging platform and cross-project fixtures from Accepted Source at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 Version 3 handoff and atomic multi-target
-operator projection are implemented, while the fourth fixture, its separate qualification, and
-real-application adoption are next
+operator projection plus the fourth fixture application are implemented, while its separate
+qualification and real-application adoption are next
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -91,7 +91,8 @@ make platform-member-remove ENVIRONMENT=staging MEMBER_REFERENCE=pmr1_<64-lowerc
 ```
 
 Fixture status is read-only. Each returned application includes its active Registration
-Generation `catalogue_visibility` together with lifecycle, provider-target, and route readiness.
+Generation `catalogue_visibility` together with lifecycle, aggregate provider-target, per-
+attachment provider-target, and route readiness.
 
 Fixture handoff and destroy always require one fixture application identifier and operate only that
 fixture's Application State. Destruction additionally requires a prior platform detachment.
@@ -121,6 +122,10 @@ project, and prints the canonical Platform Integration Bundle, Application Attac
 registration-intent paths, but does not register the fixture. Registration remains the separate
 `platform-register` operation. A repeated handoff reuses the exact pair only when every source,
 project connection, generation, image, digest, relationship, and provider binding is unchanged.
+The three existing fixtures retain Version 2. `fixture-multi-attachment` requires Version 3 and
+returns the required `web` root plus the optional `api` target as one atomic family. Its candidate
+deployment uses `environment=qualification`; its Accepted Source release deployment uses
+`environment=staging`.
 
 On success, fixture handoff prints a concise human-readable completion message in addition to its
 machine-readable JSON and explicitly says that the fixture is not yet routed. Platform registration

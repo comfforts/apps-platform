@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 import unittest
 
 from contracts.lifecycle import versioned_lifecycle_digest
-from infrastructure.operator._interfaces import GitSnapshot
+from infrastructure.operator._interfaces import GitSnapshot, StageExecution
 from infrastructure.operator.fixture_lifecycle import (
     FixtureApplicationDeployRequest,
     FixtureApplicationDeployment,
@@ -23,10 +24,13 @@ from infrastructure.operator.fixture_lifecycle import (
 from tests.environment import FIXTURES_PROJECT_ID
 from infrastructure.operator.integration import PlatformIntegrationState
 from infrastructure.operator.integration import (
+    AttachmentValidationResult,
+    RegistrationAttachmentStatus,
     RegistrationApplicationStatus,
     RegistrationStatusResult,
 )
 from infrastructure.operator.local_fixture_lifecycle import (
+    LocalFixtureLifecycleCommands,
     LocalFixtureOperator,
     LocalFixtureStatusOperator,
 )
@@ -46,13 +50,15 @@ SUBNET = (
 
 
 def _bundle(application_id: str = "fixture-public") -> dict[str, object]:
+    multi_attachment = application_id == "fixture-multi-attachment"
+    identity_enabled = multi_attachment
     return {
-        "contract_version": 2,
+        "contract_version": 3 if multi_attachment else 2,
         "document_kind": "platform-integration-bundle",
         "environment": "staging",
         "application_id": application_id,
-        "access_mode": "public",
-        "identity_delivery": "none",
+        "access_mode": "authenticated" if multi_attachment else "public",
+        "identity_delivery": "required" if multi_attachment else "none",
         "route_intent": f"/{application_id}",
         "generation": 2,
         "profile_digest": "sha256:" + ("1" * 64),
@@ -62,13 +68,33 @@ def _bundle(application_id: str = "fixture-public") -> dict[str, object]:
         "deployment_progress_digest": "sha256:" + ("3" * 64),
         "endpoints": {
             "external_origin": "https://apps-staging.comfforts.com",
-            "issuer": None,
-            "jwks_uri": None,
-            "oauth_redirect_uri": None,
+            "issuer": (
+                "https://apps-staging.comfforts.com/_platform"
+                if identity_enabled
+                else None
+            ),
+            "jwks_uri": (
+                "https://apps-staging.comfforts.com/.well-known/jwks.json"
+                if identity_enabled
+                else None
+            ),
+            "oauth_redirect_uri": (
+                "https://apps-staging.comfforts.com/_platform/auth/callback"
+                if identity_enabled
+                else None
+            ),
         },
         "identity": {
-            "oauth_client_id": None,
-            "audience": None,
+            "oauth_client_id": (
+                "1234567890-appsplatform.apps.googleusercontent.com"
+                if identity_enabled
+                else None
+            ),
+            "audience": (
+                "urn:comfforts:app-platform:audience:fixture-multi-attachment"
+                if identity_enabled
+                else None
+            ),
             "edge_caller_reference": EDGE_CALLER,
         },
         "application_project": {
@@ -86,22 +112,38 @@ def _bundle(application_id: str = "fixture-public") -> dict[str, object]:
         "attachment_contract": {
             "adapter_kind": "gcp-cloud-run-v1",
             "ingress_mode": "shared_edge_only",
+            **(
+                {
+                    "maximum_additional_attachments": 15,
+                    "root_attachment_required": True,
+                }
+                if multi_attachment
+                else {}
+            ),
         },
         "qualification_status": "unqualified",
     }
 
 
-def _request(bundle: dict[str, object] | None = None) -> FixtureDeployRequest:
+def _request(
+    bundle: dict[str, object] | None = None,
+    application_id: str = "fixture-public",
+) -> FixtureDeployRequest:
+    version = 3 if application_id == "fixture-multi-attachment" else 2
     return FixtureDeployRequest(
         environment="staging",
-        application_id="fixture-public",
+        application_id=application_id,
         fixture_source_revision=SOURCE,
         expected_platform_source_revision=PLATFORM_SOURCE,
         expected_platform_generation=2,
-        catalogue_visibility="listed",
+        catalogue_visibility=(
+            "unlisted" if application_id == "fixture-multi-attachment" else "listed"
+        ),
         source_authority="candidate",
         integration_bundle=bundle,
-        integration_bundle_path="/private/platform-integration-bundle.v2.json",
+        integration_bundle_path=(
+            f"/private/platform-integration-bundle.v{version}.json"
+        ),
     )
 
 
@@ -133,8 +175,14 @@ class Commands:
     ) -> FixtureApplicationDeployment:
         self.deployments += 1
         bundle = request.integration_bundle
+        multi_attachment = request.application_id == "fixture-multi-attachment"
+        audience = (
+            "urn:comfforts:app-platform:audience:fixture-multi-attachment"
+            if multi_attachment
+            else None
+        )
         attachment = {
-            "contract_version": 2,
+            "contract_version": 3 if multi_attachment else 2,
             "document_kind": "application-attachment-bundle",
             "environment": "staging",
             "application_id": request.application_id,
@@ -149,6 +197,7 @@ class Commands:
                 "resource_reference": (
                     "urn:comfforts:app-platform:gcp:cloud-run:123456789012:"
                     f"us-west1:{request.application_id}"
+                    + ("-web" if multi_attachment else "")
                 ),
                 "application_project_id": FIXTURES_PROJECT_ID,
                 "network_reference": NETWORK,
@@ -156,9 +205,22 @@ class Commands:
                 "egress_mode": "all-traffic",
                 "ingress_mode": "shared_edge_only",
                 "caller_grant": EDGE_CALLER,
-                "audience": None,
+                "audience": audience,
             },
         }
+        if multi_attachment:
+            attachment["additional_attachments"] = [
+                {
+                    "attachment_id": "api",
+                    "target": {
+                        **attachment["target"],
+                        "resource_reference": (
+                            "urn:comfforts:app-platform:gcp:cloud-run:"
+                            "123456789012:us-west1:fixture-multi-attachment-api"
+                        ),
+                    },
+                }
+            ]
         return FixtureApplicationDeployment(
             request.application_id,
             request.image.reference,
@@ -170,11 +232,14 @@ class Commands:
         request: FixtureDeployRequest,
         preparation: FixturePreparation,
     ) -> FixturePreparation:
+        version = 3 if request.application_id == "fixture-multi-attachment" else 2
         return replace(
             preparation,
             integration_bundle_path=request.integration_bundle_path,
-            attachment_bundle_path="/private/application-attachment-bundle.v2.json",
-            registration_intent_path="/private/registration-intent.v2.json",
+            attachment_bundle_path=(
+                f"/private/application-attachment-bundle.v{version}.json"
+            ),
+            registration_intent_path=f"/private/registration-intent.v{version}.json",
         )
 
     def status(
@@ -232,6 +297,100 @@ class FixtureHandoffLifecycleTest(unittest.TestCase):
             ],
         )
 
+    def test_local_fixture_owner_constructs_complete_v3_attachment_set_and_intent(
+        self,
+    ) -> None:
+        class Integration:
+            intent = None
+
+            def validate_attachment(self, bundle, attachment, intent):  # type: ignore[no-untyped-def]
+                del bundle
+                self.intent = intent
+                return AttachmentValidationResult("validated", attachment)
+
+        class Executor:
+            @staticmethod
+            def execute(context):  # type: ignore[no-untyped-def]
+                self_output = {
+                    attachment_id: {
+                        "reference_kind": "attachment",
+                        "state_owner": "application",
+                        "owner_id": "fixture-multi-attachment",
+                        "application_id": "fixture-multi-attachment",
+                        "attachment_id": attachment_id,
+                        "adapter_kind": "gcp-cloud-run-v1",
+                        "resource_reference": (
+                            "urn:comfforts:app-platform:gcp:cloud-run:"
+                            "123456789012:us-west1:"
+                            f"fixture-multi-attachment-{attachment_id}"
+                        ),
+                        "audience": (
+                            "urn:comfforts:app-platform:audience:"
+                            "fixture-multi-attachment"
+                        ),
+                    }
+                    for attachment_id in ("api", "web")
+                }
+                if context.stage["produces"] != ["attachment-references"]:
+                    raise AssertionError("multi-attachment stage output is incomplete")
+                return StageExecution(
+                    "succeeded",
+                    (("attachment-references", json.dumps(self_output)),),
+                )
+
+        integration = Integration()
+        commands = LocalFixtureLifecycleCommands(  # type: ignore[arg-type]
+            integration,
+            object(),
+            Executor(),
+        )
+        bundle = _bundle("fixture-multi-attachment")
+        deployment = commands.deploy_application(
+            FixtureApplicationDeployRequest(
+                environment="staging",
+                application_id="fixture-multi-attachment",
+                access_mode="authenticated",
+                catalogue_visibility="unlisted",
+                source_revision=SOURCE,
+                image=FixtureImageReadback(
+                    f"us-west1-docker.pkg.dev/{FIXTURES_PROJECT_ID}/"
+                    "app-platform-images/fixture@sha256:" + ("4" * 64),
+                    SOURCE,
+                ),
+                integration_bundle=bundle,
+            )
+        )
+
+        self.assertEqual(deployment.attachment_bundle["contract_version"], 3)
+        self.assertEqual(
+            deployment.attachment_bundle["target"]["resource_reference"],
+            "urn:comfforts:app-platform:gcp:cloud-run:123456789012:"
+            "us-west1:fixture-multi-attachment-web",
+        )
+        self.assertEqual(
+            deployment.attachment_bundle["additional_attachments"][0]["attachment_id"],
+            "api",
+        )
+        self.assertIsNotNone(integration.intent)
+        self.assertEqual(integration.intent.contract_version, 3)
+        self.assertEqual(integration.intent.attachment_id, "web")
+        self.assertEqual(
+            integration.intent.additional_attachment_bindings[0].mount_path,
+            "/api",
+        )
+    def test_multi_attachment_handoff_emits_one_complete_v3_family(self) -> None:
+        commands = Commands()
+        bundle = _bundle("fixture-multi-attachment")
+
+        result = FixtureSuiteLifecycle(commands).handoff(
+            _request(bundle, "fixture-multi-attachment")
+        )
+
+        self.assertEqual(result.outcome, "prepared")
+        self.assertEqual(result.attachment_bundle_path, "/private/application-attachment-bundle.v3.json")
+        self.assertEqual(result.registration_intent_path, "/private/registration-intent.v3.json")
+        self.assertEqual(commands.deployments, 1)
+
     def test_status_distinguishes_target_and_route_readiness(self) -> None:
         result = FixtureSuiteLifecycle(Commands()).status(
             "staging", "fixture-public"
@@ -276,6 +435,60 @@ class FixtureHandoffLifecycleTest(unittest.TestCase):
 
         self.assertFalse(unavailable.applications[0].route_ready)
         self.assertTrue(available.applications[0].route_ready)
+
+    def test_multi_attachment_status_preserves_each_target_posture(self) -> None:
+        class Integration:
+            @staticmethod
+            def status_applications(
+                environment: str,
+                application_ids: tuple[str, ...],
+            ) -> RegistrationStatusResult:
+                del environment
+                return RegistrationStatusResult(
+                    "read",
+                    4,
+                    "sha256:" + ("8" * 64),
+                    (
+                        RegistrationApplicationStatus(
+                            application_ids[0],
+                            "active",
+                            "unlisted",
+                            "urn:web",
+                            True,
+                            True,
+                            (
+                                RegistrationAttachmentStatus(
+                                    "api",
+                                    "urn:api",
+                                    True,
+                                    True,
+                                ),
+                                RegistrationAttachmentStatus(
+                                    "web",
+                                    "urn:web",
+                                    True,
+                                    True,
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+
+        result = LocalFixtureStatusOperator(  # type: ignore[arg-type]
+            Integration(),
+            lambda application_id: application_id == "fixture-multi-attachment",
+        ).status("staging", "fixture-multi-attachment")
+
+        self.assertEqual(result.outcome, "read")
+        self.assertEqual(result.applications[0].catalogue_visibility, "unlisted")
+        self.assertTrue(result.applications[0].route_ready)
+        self.assertEqual(
+            [
+                (item.attachment_id, item.target_exists, item.target_ready)
+                for item in result.applications[0].attachments
+            ],
+            [("api", True, True), ("web", True, True)],
+        )
 
 
 class LocalFixtureOperatorTest(unittest.TestCase):

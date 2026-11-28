@@ -86,6 +86,7 @@ _PHASE_INVENTORIES = {
         for owner_id in (
             "fixture-public",
             "fixture-authenticated",
+            "fixture-multi-attachment",
             "fixture-restricted",
         )
     },

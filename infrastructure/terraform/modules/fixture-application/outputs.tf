@@ -32,6 +32,7 @@ output "policy_summary" {
     service_deletion_protection     = !var.runtime_configuration.destruction_enabled
     destruction_enabled             = var.runtime_configuration.destruction_enabled
     immutable_image_digest          = var.runtime_configuration.image_digest
+    target_marker                   = var.runtime_configuration.target_marker
     platform_resource_management    = false
     application_feature_entitlement = false
   }

@@ -19,6 +19,7 @@ EXPECTED_ROOTS = (
     "platform",
     "fixtures/fixture-public",
     "fixtures/fixture-authenticated",
+    "fixtures/fixture-multi-attachment",
     "fixtures/fixture-restricted",
 )
 

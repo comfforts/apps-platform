@@ -21,6 +21,7 @@ RESOURCE_TYPES = {
     "shared-edge": "google_compute_global_address",
     "fixture-public": "google_cloud_run_v2_service",
     "fixture-authenticated": "google_cloud_run_v2_service",
+    "fixture-multi-attachment": "google_cloud_run_v2_service",
     "fixture-restricted": "google_cloud_run_v2_service",
 }
 
@@ -97,11 +98,12 @@ class TerraformLifecycleIntegrationTest(unittest.TestCase):
         self.assertIsNone(result.plan_digest)
         self.assertIn("PROJECT_MISMATCH", [item.code for item in result.violations])
 
-    def test_fixture_plans_use_three_prefixes_in_the_fixture_project_bucket(self) -> None:
+    def test_fixture_plans_use_four_prefixes_in_the_fixture_project_bucket(self) -> None:
         fake = FakeTerraformCommands()
         phases = (
             "fixture-public",
             "fixture-authenticated",
+            "fixture-multi-attachment",
             "fixture-restricted",
         )
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -119,13 +121,13 @@ class TerraformLifecycleIntegrationTest(unittest.TestCase):
         self.assertTrue(all(result.accepted for result in results))
         self.assertEqual(
             [request.state_owner for request in fake.requests],
-            ["application", "application", "application"],
+            ["application", "application", "application", "application"],
         )
         self.assertEqual(
             [request.owner_id for request in fake.requests],
             list(phases),
         )
-        self.assertEqual(len({request.backend_digest for request in fake.requests}), 3)
+        self.assertEqual(len({request.backend_digest for request in fake.requests}), 4)
         self.assertEqual(len({request.backend_bucket for request in fake.requests}), 1)
 
     def test_production_refuses_before_render_or_command_invocation(self) -> None:

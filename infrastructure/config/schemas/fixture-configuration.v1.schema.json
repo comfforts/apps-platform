@@ -173,7 +173,10 @@
       ],
       "properties": {
         "environment": {
-          "const": "qualification"
+          "enum": [
+            "qualification",
+            "staging"
+          ]
         },
         "managed_by": {
           "const": "terraform"

@@ -259,6 +259,82 @@ class NetworkedFixtureTest(unittest.TestCase):
         self.assertNotIn("synthetic-subject", accepted.text)
         self.assertNotIn("assertion", accepted.text.lower())
 
+    def test_multi_attachment_targets_verify_one_audience_and_return_safe_markers(
+        self,
+    ) -> None:
+        """Prove the frontend and API remain two targets of one application identity."""
+
+        def multi(target_marker: str) -> NetworkFixtureConfiguration:
+            return NetworkFixtureConfiguration(
+                application_id="fixture-multi-attachment",
+                admission_mode="authenticated",
+                platform_issuer="https://apps-staging.comfforts.com/_platform",
+                public_key_reference=(
+                    "https://apps-staging.comfforts.com/.well-known/jwks.json"
+                ),
+                assertion_audience=(
+                    "urn:comfforts:app-platform:audience:fixture-multi-attachment"
+                ),
+                target_marker=target_marker,
+            )
+
+        web_verifier = FakeVerifier()
+        api_verifier = FakeVerifier()
+        web = create_network_fixture(multi("web"), verifier=web_verifier)
+        api = create_network_fixture(multi("api"), verifier=api_verifier)
+        headers = {VERIFIED_IDENTITY_HEADER: "synthetic.assertion.value"}
+
+        with TestClient(web) as web_client, TestClient(api) as api_client:
+            web_response = web_client.get("/", headers=headers)
+            api_response = api_client.get("/", headers=headers)
+
+        self.assertEqual(
+            web_response.json(),
+            {
+                "application_id": "fixture-multi-attachment",
+                "outcome": "fixture-ready",
+                "target": "web",
+            },
+        )
+        self.assertEqual(
+            api_response.json(),
+            {
+                "application_id": "fixture-multi-attachment",
+                "outcome": "fixture-ready",
+                "target": "api",
+            },
+        )
+        self.assertEqual(web_verifier.assertions, ["synthetic.assertion.value"])
+        self.assertEqual(api_verifier.assertions, ["synthetic.assertion.value"])
+
+    def test_target_marker_is_closed_to_the_multi_attachment_profile(self) -> None:
+        with self.assertRaisesRegex(ValueError, "target marker"):
+            NetworkFixtureConfiguration(
+                application_id="fixture-multi-attachment",
+                admission_mode="authenticated",
+                platform_issuer="https://apps-staging.comfforts.com/_platform",
+                public_key_reference=(
+                    "https://apps-staging.comfforts.com/.well-known/jwks.json"
+                ),
+                assertion_audience=(
+                    "urn:comfforts:app-platform:audience:fixture-multi-attachment"
+                ),
+                target_marker=None,
+            )
+        with self.assertRaisesRegex(ValueError, "target marker"):
+            NetworkFixtureConfiguration(
+                application_id="fixture-authenticated",
+                admission_mode="authenticated",
+                platform_issuer="https://apps-staging.comfforts.com/_platform",
+                public_key_reference=(
+                    "https://apps-staging.comfforts.com/.well-known/jwks.json"
+                ),
+                assertion_audience=(
+                    "urn:comfforts:app-platform:audience:fixture-authenticated"
+                ),
+                target_marker="web",
+            )
+
     def test_rejected_assertion_and_duplicate_identity_header_fail_closed(self) -> None:
         verifier = FakeVerifier(accepted=False)
         app = create_network_fixture(

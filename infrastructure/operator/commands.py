@@ -817,6 +817,7 @@ class TerraformCliAdapter:
             },
             "fixture-public": {"attachment_reference"},
             "fixture-authenticated": {"attachment_reference"},
+            "fixture-multi-attachment": {"attachment_references"},
             "fixture-restricted": {"attachment_reference"},
         }
         if output_name not in allowed.get(request.phase, set()):

@@ -2,8 +2,9 @@
 
 Status: AP-M9-W12 application-neutral staging handoff; the closed staging target-stage readback is
 implemented by Slice 1; ADR-017 Version 3 complete attachment-set contracts are implemented by
-Slice 2 and atomic multi-target projection is implemented by Slice 3; no application is selected or
-authorized until matching authority exists in both repositories
+Slice 2, atomic multi-target projection is implemented by Slice 3, and the fourth fixture
+application is implemented by Slice 4; no real application is selected or authorized until
+matching authority exists in both repositories
 
 This runbook explains how a real application will join one deployed App Platform environment after
 the application repository has approved its own adoption requirements, architecture, migration,
@@ -38,11 +39,11 @@ procedure, all of these must be true:
   Accepted Source platform qualification, complete fourth-fixture handoff, two target references,
   and active Registration Generation without replacing platform qualification status.
 
-These are the platform implementation and fixture-qualification prerequisites in W12. Stop before
+These are the remaining fixture-qualification and cross-owner prerequisites in W12. Stop before
 a real deployment until the ordered slices merge, the complete repository gate passes, and the
 separate fixture result is readable. The operator accepts a complete V2 family by default or one
-explicitly selected complete V3 family, but repository behavior is not fourth-fixture or Live
-qualification evidence.
+explicitly selected complete V3 family. The fourth fixture is implemented in the repository, but
+that implementation is not provider-backed or Live qualification evidence.
 
 ## Ownership through the handoff
 
@@ -228,11 +229,11 @@ Identity Delivery, and assertion audience. A need for per-attachment values is a
 new design work. These documents contain no credential, secret, Terraform state, application data,
 provider token, or member record.
 
-Before the first real adoption, add `fixture-multi-attachment` as a fourth platform-owned fixture
-without changing `fixture-public`, `fixture-authenticated`, or `fixture-restricted`. The fourth
-fixture is authenticated with required Identity Delivery and unlisted catalogue visibility. Its
-single independent Application State root owns the required `web` frontend Cloud Run target at
-`/` and a distinct dummy `api` backend target at `/api`.
+Before the first real adoption, the implemented `fixture-multi-attachment` fourth platform-owned
+fixture must be qualified without changing `fixture-public`, `fixture-authenticated`, or
+`fixture-restricted`. The fourth fixture is authenticated with required Identity Delivery and
+unlisted catalogue visibility. Its single independent Application State root owns the required
+`web` frontend Cloud Run target at `/` and a distinct dummy `api` backend target at `/api`.
 
 Run its planned `fixture-qualify` interface separately from `platform-qualify`. The qualifier binds
 the exact readable platform result, fixture source, Version 3 handoff, both targets, and active

@@ -207,6 +207,7 @@ _TERRAFORM_PHASES = {
     "tls-readiness": "shared-edge",
     "fixture-public": "fixture-public",
     "fixture-authenticated": "fixture-authenticated",
+    "fixture-multi-attachment": "fixture-multi-attachment",
     "fixture-restricted": "fixture-restricted",
 }
 _READ_ONLY_STAGES = {"preflight", "readback"}

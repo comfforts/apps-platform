@@ -88,8 +88,9 @@ and other members never do.
 > application staging adoption. W12 now implements the ADR-017 Version 3 complete attachment-set
 > handoff and atomic registration adapter so one application can return separate frontend and
 > backend targets. The fourth fixture's repository implementation now supplies that two-target
-> shape; its separate qualification is still required before a real adoption, and no real
-> application has been selected or qualified.
+> shape and a separate fixture-scoped qualification interface. Its Candidate then Accepted Live
+> results are still required before a real adoption, and no real application has been selected or
+> qualified.
 
 ### Catalogue visibility
 
@@ -149,8 +150,9 @@ AP-M9-W12 implements a fourth `fixture-multi-attachment` application without cha
 fixtures or their Version 2 handoffs. It is authenticated, requires Identity Delivery, remains
 unlisted, and uses one independent Application State root to own a frontend Cloud Run service for
 `/` plus a distinct dummy API Cloud Run service for `/api`. It emits one complete Version 3
-handoff family. Its planned fixture-scoped qualification result remains separate from
-`platform-qualify` and from real Application Adoption evidence.
+handoff family. Its fixture-scoped qualification result remains separate from
+`platform-qualify` and from real Application Adoption evidence. The interface is implemented; no
+Candidate or Accepted result has yet been produced.
 
 ## How the platform works
 
@@ -660,7 +662,7 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
 | `make platform-qualify ENVIRONMENT=<name> OWNER_MEMBER_REFERENCE=<opaque-reference>` | Evaluate the exact platform and fixture revisions, exercise and clean up one temporary second member, require the reviewed owner-only baseline, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every prerequisite passes; write redacted evidence without member references |
-| `make fixture-qualify ENVIRONMENT=staging APPLICATION_ID=fixture-multi-attachment` | Planned W12 command: qualify only the fourth fixture's two-target handoff and routes against the exact readable platform qualification; write separate fixture evidence and never invoke or overwrite `platform-qualify` |
+| `make fixture-qualify ENVIRONMENT=staging APPLICATION_ID=fixture-multi-attachment` | Qualify only the fourth fixture's two-target handoff and routes against the exact readable platform qualification; write separate fixture evidence and never invoke or overwrite `platform-qualify` |
 | `make platform-destroy ENVIRONMENT=<name>` | Compile, confirm, execute, and resume safe platform destruction |
 | `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> CATALOGUE_VISIBILITY=<listed\|unlisted> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and explicit catalogue intent, and stop before registration |
 | `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Report active catalogue visibility and reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
@@ -799,9 +801,10 @@ three cross-project fixtures from Accepted Source at
 platform destruction/recovery, or production. AP-M9-W12 has implemented closed,
 project-independent staging candidate/release target-stage validation, ADR-017 Version 3 contracts,
 atomic multi-target registration projection, and the fourth authenticated multi-attachment fixture
-implementation. It next adds the fixture-scoped qualification, then adopts one separately governed real
-application on staging. W13 owns destructive rehearsal and recovery; W14 owns the read-only
-production readiness and ownership check.
+implementation plus its separate fixture-scoped qualifier. Candidate then Accepted fixture
+qualification are next, followed by one separately governed real application on staging. W13 owns
+destructive rehearsal and recovery; W14 owns the read-only production readiness and ownership
+check.
 
 See [the documentation index](docs/README.md) for the current work-package sequence, evidence
 boundary, and historical delivery record.

@@ -7,8 +7,9 @@ state, identity, OAuth client, DNS and TLS resources, application registrations,
 > **Current staging boundary:** The Version 2 staging platform and all three cross-project fixtures
 > are qualified from Accepted Source at
 > `b43333756b509d0f35cb82938a13f6abc459f7c4`. The fourth multi-attachment fixture is implemented in
-> the repository but not deployed or qualified; its separate qualification is next. Real-application
-> adoption, platform destruction/recovery, and read-only production readiness remain later work.
+> the repository with a separate qualification command, but it is not deployed or qualified;
+> Candidate then Accepted qualification remain next. Real-application adoption, platform
+> destruction/recovery, and read-only production readiness remain later work.
 
 | Environment | Intended hostname | Current operating boundary |
 | --- | --- | --- |
@@ -825,15 +826,16 @@ and qualification from clean current `main` using the default Accepted Source af
 Only one staging operation may run at a time because candidate and accepted operations target the
 same staging environment.
 
-## Implemented fixture handoff and planned multi-attachment qualification
+## Implemented fixture handoff and multi-attachment qualification interface
 
 The implemented multi-attachment handoff adds `fixture-multi-attachment` as a fourth fixture without
 changing the three fixtures above. It is authenticated with required Identity Delivery and an
 unlisted catalogue entry. One independent fixture state root owns two Cloud Run services: the
 required `web` frontend mounted at `/` and a distinct dummy `api` backend mounted at `/api`.
 
-The command below is planned and must remain unavailable until its contract, registration,
-fixture, qualification, and deterministic-test slices merge:
+The command below is implemented but must run only after its contract, registration, fixture, and
+qualification slices merge to the integration branch and a separately authorized operation has
+deployed and registered the fourth fixture:
 
 ```bash
 make fixture-qualify \

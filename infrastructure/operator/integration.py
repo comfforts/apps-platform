@@ -195,6 +195,44 @@ class RegistrationIntent:
     contract_version: int = 2
     additional_attachment_bindings: tuple[RegistrationAttachmentBinding, ...] = ()
 
+    @classmethod
+    def from_document(cls, value: dict[str, Any]) -> RegistrationIntent:
+        """Construct one intent only from a validated closed V2 or V3 document.
+
+        The method performs no file, provider, or Application State access.  It
+        revalidates the supplied mapping before projecting optional bindings so
+        internal callers cannot accidentally accept a partial or mixed-version
+        family.
+        """
+
+        if validate_versioned_lifecycle_document(value, "registration-intent"):
+            raise ValueError("invalid registration intent")
+        additional = value.get("additional_attachment_bindings", [])
+        if not isinstance(additional, list) or any(
+            not isinstance(item, dict) for item in additional
+        ):
+            raise ValueError("invalid registration intent")
+        return cls(
+            application_id=str(value["application_id"]),
+            access_mode=str(value["access_mode"]),
+            identity_delivery=str(value["identity_delivery"]),
+            catalogue_visibility=str(value["catalogue_visibility"]),
+            catalogue_title=str(value["catalogue_title"]),
+            catalogue_summary=str(value["catalogue_summary"]),
+            attachment_id=str(value["attachment_id"]),
+            mount_path=str(value["mount_path"]),
+            forwarding_mode=str(value["forwarding_mode"]),
+            contract_version=int(value["contract_version"]),
+            additional_attachment_bindings=tuple(
+                RegistrationAttachmentBinding(
+                    attachment_id=str(item["attachment_id"]),
+                    mount_path=str(item["mount_path"]),
+                    forwarding_mode=str(item["forwarding_mode"]),
+                )
+                for item in additional
+            ),
+        )
+
     def document(self) -> dict[str, object]:
         """Return the exact closed V2 or V3 lifecycle-contract document."""
 

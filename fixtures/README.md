@@ -56,10 +56,11 @@ returned as the optional `api` attachment at `/api`. Both services independently
 application audience and expose distinct safe `web` and `api` markers. The existing three profiles
 and their Version 2 handoffs remain unchanged.
 
-The runtime, Terraform root, Version 3 handoff, status, and destruction behavior are implemented
-and deterministically tested. No provider operation or qualification occurred in this slice. The
-planned provider-backed result will be produced by `fixture-qualify` separately from
-`platform-qualify`; neither result will replace the other.
+The runtime, Terraform root, Version 3 handoff, status, destruction behavior, and separate
+fixture-scoped qualification interface are implemented and deterministically tested. No provider
+operation or Live qualification occurred in this implementation slice. A separately authorized
+provider-backed result is produced by `fixture-qualify`, never by `platform-qualify`; neither
+result replaces the other.
 
 ## Application handoff lifecycle
 
@@ -79,6 +80,9 @@ Fixtures use the same cross-owner sequence expected of an external application:
 6. `fixture-status` reports the active `listed` or `unlisted` catalogue policy and reports aggregate
    and per-attachment target posture separately from route readiness. Detachment precedes
    `fixture-destroy`; registration recovery and reactivation remain platform operations.
+7. After the plural fixture is active, `fixture-qualify` independently binds the accepted platform
+   result, exact Version 3 family, both targets, and active Version 2 generation; it neither reruns
+   the three-fixture suite nor exercises Platform Member lifecycle or platform rollback.
 
 The fixture helper exists so real application repositories can copy the ownership pattern, not so
 Apps Platform can deploy real applications. A real application owns its equivalent deploy, status,
@@ -107,7 +111,9 @@ The runtime exposes only bounded qualification surfaces:
 - `GET /qualification/browser` for a challenge-bound loopback callback carrying only the fixture
   identifier, one-use challenge, and whether identity delivery was observed; enabled identity is
   counted only after verification, while a disabled public fixture reports any prohibited header
-  presence so public-`none` qualification fails closed; and
+  presence so public-`none` qualification fails closed. The multi-attachment profile additionally
+  returns its allowlisted `web` or `api` marker; only its web target accepts the closed
+  `GET /apix/qualification/browser` observation used to prove segment-bounded root selection; and
 - `/socket` for WebSocket admission and delivery.
 
 Unknown paths return the fixture's fixed not-found response. Responses contain only the fixture ID

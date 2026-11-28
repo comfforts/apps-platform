@@ -1,9 +1,10 @@
 # <u>App Platform evaluation strategy</u>
 
-Version 0.30 | Status: AP-M9-W10 Version 2 Candidate Source qualification complete; AP-M9-W11
+Version 0.31 | Status: AP-M9-W10 Version 2 Candidate Source qualification complete; AP-M9-W11
 Accepted Source staging platform and fixture qualification completed at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-EVAL-M9-10 real-application adoption is next;
-destructive recovery and production readiness remain AP-EVAL-M9-11 and AP-EVAL-M9-12
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 multi-attachment implementation
+and AP-EVAL-M9-10 real-application adoption are next; destructive recovery and production readiness
+remain AP-EVAL-M9-11 and AP-EVAL-M9-12
 
 This document preserves AP-EVAL-M3 through AP-EVAL-M7 and the historical unexecuted AP-EVAL-M8 and
 standalone AP-EVAL-M9 proposals. The active AP-EVAL-M9 definition at the end of this document owns
@@ -1631,7 +1632,8 @@ gate.
 
 #### AP-EVAL-M9-01 · Authority, supersession, source, and regression integrity
 
-Verify AP-PR-001 through AP-PR-012, AP-QR-001 through AP-QR-009, ADR-001 through ADR-015,
+Verify AP-PR-001 through AP-PR-012, AP-QR-001 through AP-QR-009, ADR-001 through ADR-015 and
+ADR-017,
 AP-TM-001 through AP-TM-014, AP-M9-W1 through W14, and this evaluation definition are complete and
 uniquely traced. Confirm AP-M8-W1/W2 remain historical, AP-M8-W3 through W12 and the old standalone
 AP-M9 proposal are superseded without execution, the source is clean protected main, and every
@@ -1640,10 +1642,20 @@ prior deterministic gate passes without credential or mutation.
 #### AP-EVAL-M9-02 · Environment profiles and lifecycle contracts
 
 Verify closed staging and disabled-production profiles, the small private deployment
-specification, atomic progress, truthful status, Version 2 registrations and generations, Platform
-Integration Bundles, Application Attachment Bundles, Verified Identity Context, and Qualification
-Evidence. Verify deterministic migration from Version 1 maps public identity delivery to `none`,
-maps authenticated and restricted delivery to `required`, and removes per-registration members.
+specification, atomic progress, truthful status, Version 2 registrations and generations, Version
+1 and Version 2 handoff compatibility, the Version 3 Platform Integration Bundle, Application
+Attachment Bundle and registration intent, Verified Identity Context, and Qualification Evidence.
+Verify deterministic migration from Version 1 maps public identity delivery to `none`, maps
+authenticated and restricted delivery to `required`, and removes per-registration members.
+
+For Version 3, verify the required root target, required root registration fields, root mount `/`,
+optional `additional_attachments` and `additional_attachment_bindings`, canonical additional-ID
+ordering, exact equality of the optional identifier sets, root-ID exclusion, unique
+segment-bounded mounts, complete relationship digests, and projection into an unchanged Version 2
+multi-attachment registration. Verify root-only handoffs with both optional attributes absent.
+Reject a missing root, sixteen additional attachments, only one optional attribute, duplicate or
+mismatched additional identifiers, root-ID reuse, a non-root root mount, ambiguous mounts,
+non-canonical order, and every mixed Version 1/Version 2/Version 3 handoff family.
 Reject placeholders, discoverable/generated facts
 in profiles, cross-environment values, unknown fields, secrets, state, plans, raw provider data,
 mutable references, non-canonical bytes, and stale cross-owner digests.
@@ -1766,9 +1778,25 @@ source, authority, project connection, platform-generation, digest, image, relat
 provider-posture binding remains current. Change each binding class and verify reuse is refused and
 the normal fixture reconciliation path runs instead.
 
+For the Version 3 path, preserve the existing Version 2 single-target representations of
+`fixture-public`, `fixture-authenticated`, and `fixture-restricted` unchanged and prove a root-only
+Version 3 representation remains valid. Add a fourth `fixture-multi-attachment` application with
+authenticated admission, required Identity Delivery, unlisted catalogue visibility, a required
+`web` frontend target bound to `/`, and an application-owned dummy `api` backend in
+`additional_attachments` bound to `/api`. One independent Fixture Application State root must own
+both Cloud Run services. Prove the root-only and root-plus-optional relationships independently,
+and prove every target is validated against the exact environment-derived label, project, region,
+network, ingress, egress, owner, caller grants, audience, and readiness posture before the set is
+projected into one Version 2 Application Registration. Fail each target and relationship class in
+turn and prove no configuration object, candidate revision, traffic change, or partial
+registration occurs. Prove full-set replacement, retained predecessor rollback, app-wide
+detachment, and preservation of every unrelated registration. The existing three fixture
+deployments and Version 2 handoffs remain unchanged and readable.
+
 #### AP-EVAL-M9-07 · Live routing, identity, isolation, and limits
 
-Exercise HTTPS redirect, certificate, catalogue, routes, mounts, path rewriting, public anonymous
+Exercise HTTPS redirect, certificate, catalogue, routes, mounts, longest segment-bounded selection,
+path rewriting, public anonymous
 access with Identity Delivery `none`, public opt-in login with `optional`, Google OIDC/session/logout,
 authenticated admission independent of membership, and restricted member allow/deny. Prove
 platform deployment creates an empty directory without enrolling the operator; separately bootstrap
@@ -1786,6 +1814,18 @@ general availability or distributed replay prevention. Prove a protected applica
 connected service project can retrieve the public platform JWKS through the platform-owned
 application-subnet NAT, then deny or remove that egress and verify the application fails closed
 with only `verification_keys_unavailable` in its diagnostic event.
+
+For the W12 fourth fixture, invoke `fixture-qualify` separately from `platform-qualify` after exact
+readback of the Accepted Source platform qualification and the active fourth-fixture registration.
+Prove `/fixture-multi-attachment` reaches the frontend, `/fixture-multi-attachment/api` reaches the
+dummy backend, and `/fixture-multi-attachment/apix` remains on the frontend. Complete login once
+through the authenticated route and prove both targets independently verify the same
+application-scoped identity audience. Prove target-specific safe response markers, direct-origin
+denial for both services, and rejection of an update containing either invalid or unavailable
+target without publication, traffic change, fallback to the other target, or partial activation.
+Write a distinct source-bound fixture result and fixture status. Do not rewrite platform
+qualification evidence or status, rerun the three-fixture platform suite, exercise a member
+lifecycle, or claim a platform-wide rollback result.
 
 The active-generation routing-qualification browser portion has exactly four separately confirmed
 invocations: clear any prior Platform Session and authenticate with the reviewed account, reuse
@@ -1850,14 +1890,31 @@ reconstructed.
 
 For one application selected through matching platform and application-repository authority,
 verify the application-project connection and application handoff without using fixture-only
-labels or Apps Platform deployment authority. Bind a Version 2 Platform Integration Bundle to the
-exact Accepted Source platform revision and generation. Require the Application Owner to deploy
-its runtime and return a valid Application Attachment Bundle and registration intent from its own
-repository and state lineage. Register one complete successor generation and verify the named
-route, target posture, admission, Identity Delivery, independent application authorization,
-direct-origin denial, failure isolation, rollback, and exclusive state ownership. Record exact
-platform and application revisions and least-data evidence in their separately governed records.
-Leave the application active for the destructive-recovery gate.
+labels or Apps Platform deployment authority. Bind a Version 3 Platform Integration Bundle to the
+exact Accepted Source platform revision and Version 2 Registration Generation. Require the
+Application Owner to deploy every target through its own repository and state lineage and return a
+valid complete Version 3 Application Attachment Bundle and registration intent. Require the root
+target and its `/` binding. When optional additional targets are present, require both optional
+attributes, at most fifteen entries, exact equality of their attachment IDs, and exclusion of the
+root ID. When the selected application uses separate frontend and backend services, the frontend
+must be the required root and the backend must be returned as an additional attachment such as
+`/api`.
+
+Before this adoption begins, require both the exact readable Accepted Source platform qualification
+and the separate passing `fixture-multi-attachment` qualification bound to its exact platform
+result, fixture source revision, Version 3 handoff digests, target-reference digests, and active
+Registration Generation. Neither result may substitute for or overwrite the other.
+
+Read back every target's exact environment, project, region, Shared VPC, ingress, egress, owner,
+edge-caller IAM, audience, and readiness posture. Register one complete Version 2 successor
+generation only after all targets pass. Verify every named mount, longest segment-bounded routing,
+admission, Identity Delivery, independent application authorization, direct-origin denial,
+target-specific failure isolation, complete-generation rollback and restoration, and exclusive
+state ownership. Prove one invalid or unavailable target activates no subset and preserves the
+reviewed predecessor. Record exact platform and application revisions, attachment identifiers,
+target-reference digests, handoff and generation versions, and least-data evidence in their
+separately governed records. Leave the complete application active for the destructive-recovery
+gate.
 
 #### AP-EVAL-M9-11 · Platform destruction, recovery, reattachment, and requalification
 

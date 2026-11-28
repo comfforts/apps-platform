@@ -1,14 +1,16 @@
 # ADR-012 · Exchange versioned non-secret bundles across platform and application ownership
 
-Status: Accepted; identity-delivery projection amended by ADR-015
+Status: Accepted; identity-delivery projection amended by ADR-015 and singular handoff amended by
+ADR-017
 
 Requirements: AP-PR-002, AP-PR-007, AP-PR-009, AP-PR-011, AP-PR-012, AP-QR-001 through AP-QR-004,
 AP-QR-006, AP-QR-008, AP-QR-009
 
 This record is extracted from the
 [origin architecture decision record](000-origin-architecture-decision-records.md). ADR-015 is
-authoritative for explicit Identity Delivery and membership exclusion; the remaining cross-owner
-bundle, digest, validation, and ownership decisions stay accepted.
+authoritative for explicit Identity Delivery and membership exclusion. ADR-017 is authoritative
+for a complete multi-attachment handoff. The remaining cross-owner bundle, digest, validation, and
+ownership decisions stay accepted.
 
 ## Context
 
@@ -22,7 +24,9 @@ the owners and weaken provenance.
 The platform produces one Platform Integration Bundle for a named application, environment,
 Admission Mode, Identity Delivery policy, and platform revision. The application consumes it under
 its own authority and returns an Application Attachment Bundle bound to the exact platform-bundle
-digest. Both bundles are closed, versioned, canonical, non-secret contracts.
+digest. Both bundles are closed, versioned, canonical, non-secret contracts. ADR-017 requires a
+new handoff version to return the application's complete attachment set when more than one target
+participates in the application route.
 
 The platform bundle contains only values the application needs, such as hostname, explicit identity
 delivery, login/logout endpoints when applicable, assertion issuer, JWKS URI, application audience,

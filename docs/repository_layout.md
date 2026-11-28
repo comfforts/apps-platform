@@ -1,8 +1,9 @@
 # App Platform repository layout
 
-Version 2.16 | Status: canonical dedicated repository; ADR-015 implemented and Candidate-qualified
+Version 2.18 | Status: canonical dedicated repository; ADR-015 implemented and Candidate-qualified
 by AP-M9-W10; AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 real-application adoption is next
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 Version 3 complete attachment-set work and
+AP-M9-W12 real-application adoption are next
 
 Paths are relative to the dedicated repository root. A path records ownership; it does not grant
 permission to create a resource or perform an external action.
@@ -20,7 +21,7 @@ permission to create a resource or perform an external action.
 | `docs/history/` | superseded delivery records with no action authority |
 | `prompts/` | bounded next-task entry points subordinate to current documents |
 | `contracts/` | readable Version 1 predecessors plus active Version 2 schemas, compilers, migration, vectors, and bounded loading |
-| `contracts/lifecycle/` | AP-M9 profiles plus readable Version 1 and active Version 2 handoff schemas, vectors, digests, and cross-document validation |
+| `contracts/lifecycle/` | AP-M9 profiles plus readable Version 1 and implemented Version 2 handoff schemas, vectors, digests, and cross-document validation; planned Version 3 belongs here only when its W12 contract slice lands atomically |
 | [`fixtures/`](../fixtures/README.md) | current networked synthetic applications plus the retained deterministic Version 1 reference harness |
 | [`edge/`](../edge/README.md) | network Shared Edge and production-adapter implementation |
 | `integrations/` | inactive application-adoption drafts |
@@ -101,6 +102,15 @@ or selected status, automatic prepared-specification reuse, and a non-publishing
 safe platform-destruction adapter completion. Candidate staging operation is implementation
 feedback and revision-scoped Live evidence, not Accepted Source AP-M9 qualification.
 
+AP-M9-W12 plans a fourth `fixture-multi-attachment` profile and one independent
+`infrastructure/terraform/fixtures/fixture-multi-attachment/` root. That root owns both the
+frontend and dummy API Cloud Run services and uses the existing fixture project's private state
+bucket with the distinct `fixtures/fixture-multi-attachment` prefix. The planned
+`fixture-qualify` target sits over a fixture-scoped qualification module and writes its result and
+status separately from `platform-qualify`. The existing three fixture roots, handoffs, and
+qualification record remain unchanged. None of these paths or behaviors exists until the ordered
+W12 slices implement and verify them.
+
 ## AP-M9 capability locations
 
 The implemented profile, lifecycle-contract, operator/deployment/integration, backend, and
@@ -114,7 +124,9 @@ absence is expected until the named AP-M9 package implements them.
 | `registrations/qualification/` | provider-backed synthetic qualification registrations |
 | `infrastructure/evidence/` | redacted operation and qualification evidence tooling |
 | `artifacts/` | optional secret-free reviewed indexes and digests only |
-| root `Makefile` | shallow `platform-*` operator targets over the lifecycle module |
+| root `Makefile` | shallow `platform-*` operator targets over the lifecycle module and the planned W12 `fixture-qualify` target over its fixture-scoped qualification module |
+| `infrastructure/terraform/fixtures/fixture-multi-attachment/` | planned W12 Fixture Application State root owning both fourth-fixture Cloud Run services |
+| `infrastructure/operator/` | planned W12 fixture-scoped qualification module with private evidence and status distinct from platform qualification |
 
 AP-M9 keeps one deep lifecycle module behind a small operator interface. Provider, Terraform, DNS,
 OAuth, filesystem, and console code are adapters at real side-effect boundaries; orchestration and
@@ -130,6 +142,10 @@ policy stay testable without credentials or network access.
   `terraform_remote_state` as an integration contract.
 - Exchange only versioned, non-secret Platform Integration Bundles and Application Attachment
   Bundles across the platform/application boundary.
+- Keep the required Version 3 root attachment plus any complete optional additional target and
+  binding sets in the lifecycle-contract and operator modules; project them into the existing
+  Version 2 registration family without creating application-specific schemas or a second state
+  owner.
 - Keep application-specific migration plans and adoption authority in the consuming application's
   repository.
 - Update a public contract and all repository consumers in the same bounded slice.

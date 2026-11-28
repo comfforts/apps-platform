@@ -85,7 +85,10 @@ and other members never do.
 > corrections are integrated and Candidate-qualified. AP-M9-W11 subsequently qualified the
 > Version 2 staging platform, fixture suite, and member baseline from Accepted Source at
 > `b43333756b509d0f35cb82938a13f6abc459f7c4`. The next work is one separately governed real-
-> application staging adoption; that adoption has not yet been selected or qualified.
+> application staging adoption. ADR-017 now requires W12 to add a Version 3 complete attachment-set
+> handoff before that operation so one application can return separate frontend and backend
+> targets atomically. That interface is planned, not implemented, and no application has been
+> selected or qualified.
 
 ### Catalogue visibility
 
@@ -129,7 +132,7 @@ integration and attachment bundles as a real application. A real application rem
 Owner connects its project, adopts the platform contracts, and performs its own deployment and
 release process.
 
-The included fixture suite demonstrates the three admission modes:
+The currently qualified fixture suite demonstrates the three admission modes:
 
 | Fixture | Admission | Catalogue | What it demonstrates |
 | --- | --- | --- | --- |
@@ -140,6 +143,12 @@ The included fixture suite demonstrates the three admission modes:
 These fixtures are qualification assets, not templates that force a real application into the same
 visibility or product behavior. All initial provider-backed attachments use the same Cloud Run
 attachment contract regardless of admission mode.
+
+AP-M9-W12 plans a fourth `fixture-multi-attachment` application without changing those three
+fixtures. It is authenticated, requires Identity Delivery, remains unlisted, and uses one
+independent Application State root to own a frontend Cloud Run service for `/` plus a distinct
+dummy API Cloud Run service for `/api`. Its fixture-scoped qualification result remains separate
+from `platform-qualify` and from real Application Adoption evidence.
 
 ## How the platform works
 
@@ -160,19 +169,24 @@ Platform Integration Bundle
     v
 application deploys its own runtime and state
     |
-    | returns an Application Attachment Bundle
+    | returns one complete Application Attachment Bundle + registration intent
     v
 platform-register -> immutable Registration Generation -> routed application
 ```
 
-That is the contract sequence for every application, including repository-owned fixtures. The
+That is the ownership sequence for every application, including repository-owned fixtures. The
 platform first connects the application project. `application-handoff-check` then performs a
 read-only rehearsal of the platform Terraform boundaries and verifies the application project's
 required services, Shared VPC connection, platform-owned application-subnet egress, bundle inputs,
 and access-mode prerequisites.
 `platform-outputs` creates the project- and application-scoped Platform Integration Bundle only
 after those checks are ready. The application deployment consumes that bundle and returns an
-Application Attachment Bundle. Only `platform-register` can activate the route.
+Application Attachment Bundle plus registration intent. The implemented Version 2 fixture path
+returns one target. ADR-017 plans Version 3 to preserve that required root target and optionally
+return as many as fifteen additional targets with an exact additional-ID-to-mount binding set.
+Omitting both optional attributes remains a valid root-only handoff. Only `platform-register` can
+activate the route, and the Version 3 path will validate every target before activating any part of
+the change.
 
 For fixtures, `fixture-handoff` is the application-owned middle of that sequence. It builds and
 deploys one selected fixture in the dedicated fixture project, validates its live target, writes
@@ -640,10 +654,11 @@ accepted qualification, deploy and qualify the platform from clean current `main
 | `make platform-connect-project ...` | Attach one existing application project to the platform Shared VPC and record the verified connection; create no runtime or route |
 | `make application-handoff-check ...` | Require the platform-ready result, then verify the named application project, its services and Shared VPC grants, bundle inputs, access mode, and application identity projection without mutation |
 | `make platform-outputs ...` | Generate one application- and project-scoped Platform Integration Bundle from a verified project connection |
-| `make platform-register ...` | Validate an application attachment and activate a complete immutable generation |
+| `make platform-register ...` | Validate a complete same-version handoff family and activate a complete immutable generation; Version 3 multi-target support is planned for W12 |
 | `make platform-detach ...` | Reversibly remove one application from catalogue and routing |
 | `make platform-retire ...` | Permanently retire an application while reserving its identifier and route |
 | `make platform-qualify ENVIRONMENT=<name> OWNER_MEMBER_REFERENCE=<opaque-reference>` | Evaluate the exact platform and fixture revisions, exercise and clean up one temporary second member, require the reviewed owner-only baseline, then—with explicit rollback and restoration confirmations—exercise the reviewed predecessor only after every prerequisite passes; write redacted evidence without member references |
+| `make fixture-qualify ENVIRONMENT=staging APPLICATION_ID=fixture-multi-attachment` | Planned W12 command: qualify only the fourth fixture's two-target handoff and routes against the exact readable platform qualification; write separate fixture evidence and never invoke or overwrite `platform-qualify` |
 | `make platform-destroy ENVIRONMENT=<name>` | Compile, confirm, execute, and resume safe platform destruction |
 | `make fixture-handoff ENVIRONMENT=staging APPLICATION_ID=<id> CATALOGUE_VISIBILITY=<listed\|unlisted> INTEGRATION_BUNDLE=<path>` | Consume an existing project-scoped bundle, deploy one selected fixture, write its inspectable attachment and explicit catalogue intent, and stop before registration |
 | `make fixture-status ENVIRONMENT=staging [APPLICATION_ID=<id>]` | Report active catalogue visibility and reconcile registration, target posture, and live HTTPS route for every fixture by default, or one selected fixture, without mutation |
@@ -661,16 +676,20 @@ perform separate operations:
 
 1. The Platform Operator connects the existing application project to the environment's Shared
    VPC. This is normally a once-per-environment project operation.
-2. The Platform Operator generates a Platform Integration Bundle for that project, application,
-   route, access mode, environment, platform revision, and Registration Generation.
+2. The Platform Operator generates one Platform Integration Bundle for that project, application,
+   route, access mode, environment, platform revision, Registration Generation, and required-root
+   plus optional-additional attachment bounds.
 3. The Application Owner consumes that bundle and deploys the runtime through its own Application
    State and release authority.
-4. The Application Owner returns an Application Attachment Bundle bound to the exact integration-
-   bundle digest.
-5. The Platform Operator validates the bundle, target, owner, network, ingress, edge-caller grant, audience,
-   and current platform state, then activates a complete Registration Generation.
+4. The Application Owner returns one complete Application Attachment Bundle and registration
+   intent bound to the exact integration-bundle digest. Planned Version 3 always contains the root
+   target and may contain optional additional targets plus an exact same-ID optional binding set.
+5. The Platform Operator validates the complete relationship plus every target, owner, network,
+   ingress, edge-caller grant, audience, readiness result, and current platform binding, then
+   atomically activates a complete Registration Generation.
 
-The complete handoff sequence is:
+The complete handoff sequence is shown below. It becomes runnable for a real application only after
+the AP-M9-W12 Version 3 slices are implemented and pass `make check`:
 
 ```bash
 make platform-status ENVIRONMENT=staging
@@ -705,14 +724,15 @@ make platform-outputs \
 
 make platform-register \
   ENVIRONMENT=staging \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
-  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
-  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v3.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v3.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v3.json
 
 make platform-status ENVIRONMENT=staging
 ```
 
-`platform-connect-project` does not create or manage the application's runtime, state bucket,
+The current operator rejects those Version 3 paths until the planned schemas and consumers land;
+do not use this sequence for a real application yet. `platform-connect-project` does not create or manage the application's runtime, state bucket,
 image repository, data, or route. There is no App Platform Make target for deploying a real application's runtime. That operation is
 intentionally supplied and authorized by the application's own repository. Apps Platform owns the
 project connection and the surrounding checks and commands: `application-handoff-check` verifies
@@ -771,8 +791,10 @@ AP-M9-W10 completed and Candidate-qualified the Version 2 Platform Member Direct
 Identity Delivery transition. AP-M9-W11 then deployed and qualified the staging platform and all
 three cross-project fixtures from Accepted Source at
 `b43333756b509d0f35cb82938a13f6abc459f7c4`. This does not qualify a real application,
-platform destruction/recovery, or production. AP-M9-W12 next adopts one separately governed real
-application on staging; W13 owns destructive rehearsal and recovery; W14 owns the read-only
+platform destruction/recovery, or production. AP-M9-W12 next implements environment-derived target
+validation and the ADR-017 Version 3 complete attachment-set handoff, adds and separately qualifies
+the fourth authenticated multi-attachment fixture, then adopts one separately governed real
+application on staging. W13 owns destructive rehearsal and recovery; W14 owns the read-only
 production readiness and ownership check.
 
 See [the documentation index](docs/README.md) for the current work-package sequence, evidence

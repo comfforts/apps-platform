@@ -1,12 +1,14 @@
 # App Platform contracts
 
-Versions 1 and 2 | Scope: repository-owned machine interfaces and deterministic validation; no
-operation authority
+Versions 1 and 2 implemented; Version 3 application handoff planned | Scope: repository-owned
+machine interfaces and deterministic validation; no operation authority
 
 Status: Version 1 remains a readable historical predecessor family. Version 2 is the active
 repository interface for application handoffs, registration compilation, Shared Edge loading, and
 independent application verification. AP-M9-W11 qualified the platform and fixtures using Version
-2 from Accepted Source; no real Application Adoption or production qualification is implied.
+2 from Accepted Source. ADR-017 accepts a Version 3 complete attachment-set handoff for AP-M9-W12,
+but no Version 3 schema or implementation exists yet; no real Application Adoption or production
+qualification is implied.
 
 The `contracts/` directory defines the versioned data exchanged between platform components,
 operators, and applications. It answers four questions:
@@ -81,6 +83,42 @@ infrastructure-configuration registry. Its canonical digests and cross-document 
 repository behavior only; they perform no prompt, approval, credential, provider, Terraform, DNS,
 deployment, application operation, or qualification probe.
 
+### Planned AP-M9-W12 Version 3 handoff family
+
+ADR-017 requires a new major version of the three application-handoff documents because the
+qualified closed Version 2 Application Attachment Bundle and registration intent each describe
+one target. Version 3 will add:
+
+- one application-scoped Platform Integration Bundle declaring one required root and at most
+  fifteen optional additional attachments;
+- one Application Attachment Bundle preserving the required singular root `target` and adding an
+  optional canonical `additional_attachments` array sorted by unique `attachment_id`; and
+- one registration intent preserving the required root ID, forwarding mode, and mount constrained
+  to `/`, plus an optional canonical `additional_attachment_bindings` array sorted by
+  `attachment_id`.
+
+The optional target and binding arrays must both be absent or have the exact same identifier set,
+and neither may repeat the required root ID. Relationship validation will reject a missing root,
+more than fifteen additional attachments, one optional array without the other, duplicate or
+mismatched additional IDs, root-ID reuse, a non-root root mount, duplicate or ambiguous mounts,
+mixed handoff versions, stale digests, and non-canonical bytes.
+Provider validation will read every exact target before any output is projected into the existing
+Version 2 Application Registration `attachments` array. A failed target produces no compiled
+output or activation.
+
+This is planned contract authority, not an implemented inventory entry. The Version 3 schemas,
+registry mappings, vectors, validators, compatibility loader, operator consumers, and tests must
+land together in the AP-M9-W12 contract slice before a Version 3 document is accepted. Version 2
+remains unchanged and readable for the qualified single-target fixtures. Root-only Version 3 also
+remains valid when both optional attributes are absent. Handoff Version 3 does
+not require a Version 3 Registration Set, Compiled Shared Edge, Verified Identity Context, or State
+Ownership Manifest because those interfaces do not change.
+
+The planned valid vectors include both a root-only family and a
+`fixture-multi-attachment` family whose required `web` target is bound to `/` and whose optional
+`api` target is bound to `/api`. That application identifier and those attachment identifiers are
+fixture data, not schema constants; reusable validation remains application-neutral.
+
 ## Authority and precedence
 
 Conflicts are resolved in this order:
@@ -102,18 +140,23 @@ intent are never platform contract sources and do not specialize these generic i
 ## Versioning
 
 Each instance carries the integer `contract_version` selected by its schema. Filename suffixes and
-schema URNs use `v1` or `v2` for the same major version. Version-aware compatibility loaders accept
-only a reviewed Version 1 or Version 2 schema for the selected document kind; the original Version
-1 entry points remain unchanged so adding Version 2 cannot silently alter an active consumer.
+schema URNs use `v1` or `v2` for the same major version. Version-aware compatibility loaders
+currently accept only a reviewed Version 1 or Version 2 schema for the selected document kind; the
+original Version 1 entry points remain unchanged so adding Version 2 cannot silently alter an
+active consumer. AP-M9-W12 must extend only the lifecycle handoff loader to Version 3 and preserve
+every existing Version 1 and Version 2 entry point.
 
 `migrate_registration_set_v1_to_v2` is deterministic and non-mutating. It preserves generation and
 registration-revision values as a compatibility representation, maps public to Identity Delivery
 `none`, maps authenticated and restricted to `required`, and discards Version 1 restricted member
 sets. It never invents public `optional`. `compile_registration_set_v2` is pure and non-publishing;
 it compares against a historical Version 1 predecessor while binding the proposed successor to
-that predecessor's normalized generation digest. The operator emits only a complete Version 2
-handoff family and activates only a complete Version 2 successor; mixed input versions are
-rejected. Ownership semantics are unchanged, so the State Ownership Manifest remains Version 1.
+that predecessor's normalized generation digest. The implemented operator emits only a complete
+Version 2 handoff family and activates only a complete Version 2 successor; mixed input versions
+are rejected. The planned Version 3 operator path will accept only a complete same-version Version
+3 handoff family, project it into a complete Version 2 successor, and continue to reject mixed
+handoff versions. Ownership semantics are unchanged, so the State Ownership Manifest remains
+Version 1.
 
 Because Accepted Source Live qualification now exists, an incompatible correction must introduce
 a new contract version rather than revising the qualified Version 2 meaning in place. A compatible

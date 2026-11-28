@@ -45,6 +45,20 @@ Admission is not application feature authorization. A `fixture-ready` response p
 the request reached the synthetic runtime under the selected platform policy. The fixtures contain
 no real user database, provider authorization, product role, or Feature Entitlement.
 
+### Planned multi-attachment fixture
+
+The ordered W12 work plans a fourth `fixture-multi-attachment` profile. It will use authenticated
+admission, required Identity Delivery, unlisted catalogue visibility, and one independent Fixture
+Application State root. That root will own a `fixture-multi-attachment-web` frontend Cloud Run
+service returned as the required `web` attachment at `/` and a distinct
+`fixture-multi-attachment-api` dummy backend returned as the optional `api` attachment at `/api`.
+Both services will independently verify the same application audience and expose distinct safe
+qualification markers. The existing three profiles and their Version 2 handoffs remain unchanged.
+
+This fourth profile, its Terraform root, and its runtime behavior are planned rather than
+implemented. Its provider-backed result will be produced by `fixture-qualify` separately from
+`platform-qualify`; neither result will replace the other.
+
 ## Application handoff lifecycle
 
 Fixtures use the same cross-owner sequence expected of an external application:
@@ -71,7 +85,7 @@ and destroy commands.
 
 The networked image requires these non-secret variables:
 
-- `APP_PLATFORM_APPLICATION_ID` — one of the three exact fixture IDs;
+- `APP_PLATFORM_APPLICATION_ID` — one of the three currently implemented exact fixture IDs;
 - `APP_PLATFORM_ADMISSION_MODE` — the matching `public`, `authenticated`, or `restricted` mode;
 - `APP_PLATFORM_ISSUER` — the exact environment issuer ending in `/_platform`;
 - `APP_PLATFORM_PUBLIC_KEY_REFERENCE` — the matching platform JWKS URL; and

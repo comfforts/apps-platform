@@ -7,8 +7,10 @@ acceptance criteria.
 - [AP-M9-W12 real-application staging adoption](starting_prompt.md) starts a new chat from updated
   clean `main` after the W11 Accepted Source platform/fixture result and this documentation
   sequence merge. It keeps the platform work application-neutral until both owners establish
-  matching authority, then guides the platform correction and cross-owner staging handoff without
-  authorizing platform destruction or production. The handoff is subordinate to the
+  matching authority, then guides the environment-label correction, Version 3 complete
+  attachment-set implementation, atomic Version 2 registration projection, fourth
+  multi-attachment fixture, separate fixture-scoped qualification, and cross-owner staging handoff
+  without authorizing platform destruction or production. The handoff is subordinate to the
   [current W12 delivery plan](../docs/plans/ap_m9/w12_real_application_staging_adoption.md).
 
 The handoff does not itself authorize the external operation; the owner must deliberately begin it

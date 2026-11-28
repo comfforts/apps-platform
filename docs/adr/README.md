@@ -1,6 +1,6 @@
 # App Platform architecture decision index
 
-Version 0.4 | Status: canonical decision router through proposed ADR-016
+Version 0.5 | Status: canonical decision router through accepted ADR-017; ADR-016 remains proposed
 
 This directory is the canonical router for App Platform architecture decisions. A decision record
 captures a hard-to-reverse choice and why it was made. Requirements define required behavior;
@@ -16,8 +16,10 @@ for an unextracted decision. ADR-003, ADR-006, ADR-008, ADR-010, ADR-011, and AD
 extracted to isolate the boundaries affected by accepted ADR-015 and proposed ADR-016. ADR-015
 amends the identity and membership clauses in ADR-003, ADR-006, ADR-008, and ADR-012; the remaining
 clauses stay accepted. ADR-016 proposes a recovery refinement but does not amend ADR-010 or ADR-011
-while it remains under discussion. Each individual file is the only current decision text for its
-identifier; the origin record remains provenance and cannot override it.
+while it remains under discussion. ADR-017 amends ADR-012's singular handoff boundary without
+changing the existing multi-attachment registration contract. Each individual file is the only
+current decision text for its identifier; the origin record remains provenance and cannot override
+it.
 
 The compatibility document at `docs/02_architecture_decision_records.md` routes old paths to this
 index. A future extraction must update the affected row here in the same change so every identifier
@@ -38,11 +40,12 @@ continues to resolve to exactly one current record.
 | ADR-009 | Bound demo observability, evidence, and spend | Accepted | [Origin ADR-009](000-origin-architecture-decision-records.md#adr-009--bound-demo-observability-evidence-and-spend) |
 | ADR-010 | Use one interactive lifecycle module instead of an operator-authored manifest | Accepted; proposed ADR-016 may refine recovery | [Extracted ADR-010](010-use-one-interactive-lifecycle-module.md) |
 | ADR-011 | Bind interactive mutation to one verified operator session and exact plans | Accepted; proposed ADR-016 may refine recovery | [Extracted ADR-011](011-bind-interactive-mutation-to-one-verified-session.md) |
-| ADR-012 | Exchange versioned non-secret bundles across platform and application ownership | Accepted; identity projection amended by ADR-015 | [Extracted ADR-012](012-exchange-versioned-non-secret-bundles.md) |
+| ADR-012 | Exchange versioned non-secret bundles across platform and application ownership | Accepted; identity projection amended by ADR-015 and singular handoff amended by ADR-017 | [Extracted ADR-012](012-exchange-versioned-non-secret-bundles.md) |
 | ADR-013 | Isolate environments and distinguish detachment from permanent retirement | Accepted | [Origin ADR-013](000-origin-architecture-decision-records.md#adr-013--isolate-environments-and-distinguish-detachment-from-permanent-retirement) |
 | ADR-014 | Qualify cross-project attachment through an explicit Shared VPC connection | Accepted | [Origin ADR-014](000-origin-architecture-decision-records.md#adr-014--qualify-cross-project-attachment-through-an-explicit-shared-vpc-connection) |
 | ADR-015 | Use a platform-owned member directory and explicit identity delivery | Accepted; implemented, Candidate-qualified, and Accepted Source staging platform/fixture-qualified at `b433337…` | [ADR-015](015-platform-member-directory-and-explicit-identity-delivery.md) |
 | ADR-016 | Recover operator working state without fabricated history | Proposed; still in discussion and not implementation authority | [ADR-016](016-recover-operator-working-state-without-fabricated-history.md) |
+| ADR-017 | Exchange complete application attachment sets | Accepted; planned for AP-M9-W12 and not yet implemented or qualified | [ADR-017](017-exchange-complete-application-attachment-sets.md) |
 
 ## Realization and evidence
 

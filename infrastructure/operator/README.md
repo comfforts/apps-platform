@@ -2,7 +2,8 @@
 
 Status: AP-M9-W10 implements and Candidate-qualifies the Version 2 lifecycle; AP-M9-W11 qualified
 the staging platform and cross-project fixtures from Accepted Source at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 real-application adoption is next
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; AP-M9-W12 Version 3 handoff, separate fourth-fixture
+qualification, and real-application adoption are next
 
 This package keeps lifecycle orchestration behind `LifecycleOperator`. Preparation and status use
 injected Git, GitHub, GCP, Terraform, DNS, terminal, filesystem, and clock boundaries. Deployment
@@ -415,3 +416,18 @@ replaying a completed mutation.
 The Shared Edge runtime's member-verification endpoint is documented in
 [`edge/README.md`](../../edge/README.md). The edge derives a reference but never mutates membership;
 the operator adapter mutates membership but never receives raw Visitor identity.
+
+## Planned fixture-scoped qualification
+
+W12 plans a shallow `fixture-qualify` command over one fixture-scoped qualification module. Its
+initial interface accepts only the selected environment and
+`APPLICATION_ID=fixture-multi-attachment`; the module derives and reads back source authority, the
+exact Accepted Source platform qualification, fixture source, complete Version 3 handoff, both
+Cloud Run targets, and the active Version 2 Registration Generation.
+
+The module will reuse provider, browser, route, and evidence adapters behind internal seams while
+keeping one test surface at the command interface. It will write a private fixture result and
+fixture status separate from the existing platform qualification record. It must not invoke
+`platform-qualify`, change platform qualification status, rerun the three-fixture suite, exercise
+member lifecycle, or claim platform-wide rollback. This command and module are not implemented by
+the current package.

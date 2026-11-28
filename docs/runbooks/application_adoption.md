@@ -1,7 +1,8 @@
 # Adopt a real application
 
-Status: AP-M9-W12 application-neutral staging handoff; no application is selected or authorized
-until matching authority exists in both repositories
+Status: AP-M9-W12 application-neutral staging handoff; ADR-017 Version 3 complete attachment sets
+are accepted but unimplemented; no application is selected or authorized until matching authority
+exists in both repositories
 
 This runbook explains how a real application will join one deployed App Platform environment after
 the application repository has approved its own adoption requirements, architecture, migration,
@@ -24,14 +25,22 @@ procedure, all of these must be true:
 - the selected Platform Environment is deployed and qualified under the required Source Authority;
 - the application repository has accepted its own adoption and rollback plan;
 - the application project, runtime, state, secrets, data, and release remain application-owned;
-- the application implements the Version 2 integration, attachment, registration-intent, and
-  Verified Identity Context contracts; and
+- the application implements the Version 3 integration, complete attachment-set, and
+  registration-intent contracts plus the Version 2 Verified Identity Context contract; and
 - the platform's Cloud Run target readback accepts the selected real environment rather than the
-  currently hardcoded `environment=qualification` fixture label.
+  currently hardcoded `environment=qualification` fixture label; and
+- the platform has implemented and deterministically verified the ADR-017 Version 3 schemas,
+  compatibility loading, complete-set relationship validation, every-target provider readback, and
+  atomic Version 2 registration projection; and
+- the separate `fixture-multi-attachment` qualification passes against the exact readable
+  Accepted Source platform qualification, complete fourth-fixture handoff, two target references,
+  and active Registration Generation without replacing platform qualification status.
 
-The last condition is the first Apps Platform implementation boundary in W12. Stop before a real
-deployment until a reviewed functional slice replaces it with an environment-derived, validated
-staging value and the repository gate passes.
+These are the platform implementation and fixture-qualification prerequisites in W12. Stop before
+a real deployment until the ordered slices merge, the complete repository gate passes, and the
+separate fixture result is readable. The current operator accepts only the qualified single-target
+Version 2 handoff and must reject the planned Version 3 filenames shown below until those slices
+are complete.
 
 ## Ownership through the handoff
 
@@ -39,7 +48,7 @@ staging value and the repository gate passes.
 | --- | --- |
 | Platform Environment deployment and qualification | Application adoption decision and release |
 | Application-project Shared VPC connection | Application project, runtime, image, state, and data |
-| Platform Integration Bundle | Bundle consumption and Application Attachment Bundle |
+| Platform Integration Bundle | Bundle consumption and complete Application Attachment Bundle |
 | Shared Edge, route admission, Platform Sessions, and assertion signing | Assertion verification and Application Principal mapping |
 | Registration validation and complete-generation activation | Application users, roles, permissions, and Feature Entitlements |
 | Platform detachment and terminal retirement | Runtime replacement, rollback, and destruction |
@@ -142,11 +151,16 @@ Inspect the generated Platform Integration Bundle. Give its exact file content a
 Application Owner through an application-approved private handoff. It is non-secret, but it is
 environment-, generation-, application-, and source-bound and must not be edited.
 
-## Deploy the application-owned Cloud Run service
+After the W12 contract slice, this command writes a Version 3 bundle that declares one required
+root attachment and at most fifteen optional additional attachments. The platform bundle remains
+application-scoped; it does not prescribe service names, attachment IDs, optional mount paths, or
+an application architecture.
 
-The application repository consumes the bundle and deploys its own runtime through its own exact
-plan, state, approval, and readback. The resulting Cloud Run service must satisfy all of these
-conditions:
+## Deploy the application-owned Cloud Run services
+
+The application repository consumes the bundle and deploys one or more runtimes through its own
+exact plan, state, approval, and readback. Every resulting Cloud Run service must satisfy all of
+these conditions independently:
 
 - use the application project ID and provider-assigned project number from the bundle;
 - run in the bundle's exact region;
@@ -155,13 +169,13 @@ conditions:
 - allow internal ingress only and keep Cloud Run's Invoker IAM check enabled;
 - have no `allUsers` or `allAuthenticatedUsers` Invoker grant;
 - grant the bundle's exact edge-caller service account unconditional `roles/run.viewer` and
-  `roles/run.invoker` on only the selected service;
+  `roles/run.invoker` on only that selected service;
 - carry `state_owner=application` and `application_id=<application-id>` labels;
 - become provider-ready with a serving revision; and
 - retain application-owned deletion protection, scaling, runtime identity, secrets, data, and
   release controls.
 
-When Identity Delivery is `optional` or `required`, the service must also carry the exact bundle
+When Identity Delivery is `optional` or `required`, every service must also carry the exact bundle
 audience in both places checked by platform readback:
 
 - annotation `comfforts.com/identity-audience`; and
@@ -170,17 +184,55 @@ audience in both places checked by platform readback:
 For public Identity Delivery `none`, both values are absent. Do not invent an audience, use another
 application's audience, or use the Cloud Run invocation-token audience as Visitor identity.
 
-The application returns a Version 2 Application Attachment Bundle containing the exact integration
-bundle digest, application source revision, and target posture. Its canonical Cloud Run target is:
+The application returns one Version 3 Application Attachment Bundle containing the exact
+integration-bundle digest, application source revision, and required singular `target` for the
+application root. It may also contain an `additional_attachments` array sorted by stable unique
+`attachment_id`; each additional entry carries one target posture. A canonical Cloud Run target
+is:
 
 ```text
 urn:comfforts:app-platform:gcp:cloud-run:<project-number>:<region>:<service-name>
 ```
 
-The Application Owner also returns a Version 2 registration intent containing the application ID,
-Admission Mode, Identity Delivery, catalogue visibility/title/summary, attachment ID, mount path,
-and forwarding mode. These documents contain no credential, secret, Terraform state, application
-data, provider token, or member record.
+The Application Owner also returns one Version 3 registration intent containing the application
+ID, Admission Mode, Identity Delivery, catalogue visibility, title, summary, and the required root
+`attachment_id`, `mount_path`, and `forwarding_mode`. The root mount must be `/`. The intent may
+also contain `additional_attachment_bindings`, sorted by `attachment_id`, for the optional targets.
+The two optional attributes must both be absent or contain the exact same additional IDs, cannot
+reuse the root ID, and may contain at most fifteen entries. Duplicate or ambiguous mounts are
+invalid. Omitting both optional attributes is a valid root-only handoff.
+
+A separately deployed frontend and backend remain one Registered Application. A representative
+shape is:
+
+| Attachment ID | Application-owned target | Application-relative mount |
+| --- | --- | --- |
+| required `web` root | frontend Cloud Run service | `/` |
+| optional additional `api` | backend Cloud Run service | `/api` |
+
+The application chooses these identifiers. Longest segment-bounded mount selection sends `/api`
+and its subpaths to `api` while `/apix` remains on the required root `web` attachment. Do not
+create a second application merely to represent the backend, and do not require the frontend to
+proxy it unless the application's own architecture deliberately chooses that pattern.
+
+The required root and all optional additional attachments in the initial Version 3 family share
+the application project, region, Shared VPC connection, owner, edge caller, Admission Mode,
+Identity Delivery, and assertion audience. A need for per-attachment values is a stop condition and
+new design work. These documents contain no credential, secret, Terraform state, application data,
+provider token, or member record.
+
+Before the first real adoption, add `fixture-multi-attachment` as a fourth platform-owned fixture
+without changing `fixture-public`, `fixture-authenticated`, or `fixture-restricted`. The fourth
+fixture is authenticated with required Identity Delivery and unlisted catalogue visibility. Its
+single independent Application State root owns the required `web` frontend Cloud Run target at
+`/` and a distinct dummy `api` backend target at `/api`.
+
+Run its planned `fixture-qualify` interface separately from `platform-qualify`. The qualifier binds
+the exact readable platform result, fixture source, Version 3 handoff, both targets, and active
+Registration Generation; it records separate least-data fixture evidence and status. It does not
+rerun the three-fixture platform suite, change platform qualification status, exercise member
+lifecycle, or qualify Finance Assistant. Real-application adoption requires both exact results and
+cannot use either as a substitute for the other.
 
 ## Build application identity and permissions
 
@@ -204,7 +256,8 @@ request reaches the application with the short-lived platform assertion. The cor
 platform logout link is `/_platform/logout?return_to=/<application-route-or-subpath>`; it removes
 the Platform Session but does not promise to sign the Visitor out of Google.
 
-The application must treat that header as untrusted input until it independently verifies:
+Every attachment that consumes identity must treat that header as untrusted input until it
+independently verifies:
 
 1. the Version 2 contract shape;
 2. the ES256 signature using the bundle's HTTPS JWKS URI;
@@ -250,30 +303,35 @@ The Platform Operator inspects the exact three-document family without editing i
 ```bash
 make platform-register \
   ENVIRONMENT=<staging-or-production> \
-  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v2.json \
-  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v2.json \
-  REGISTRATION_INTENT=/private/path/registration-intent.v2.json
+  INTEGRATION_BUNDLE=/private/path/platform-integration-bundle.v3.json \
+  ATTACHMENT_BUNDLE=/private/path/application-attachment-bundle.v3.json \
+  REGISTRATION_INTENT=/private/path/registration-intent.v3.json
 ```
 
-Registration must verify the current platform generation, every bundle relationship, the connected
-project, provider-ready service, ownership labels, internal ingress, Shared VPC posture, edge-caller
-IAM, and exact identity audience before publishing and activating one complete immutable
-Registration Generation. A prepared bundle or successful application deployment alone does not
-make a route active.
+Registration must verify the current platform generation, the required root and its `/` binding,
+the exact equality of optional additional target and binding IDs, the connected project, and every service's environment label, project, region,
+ownership labels, internal ingress, Shared VPC posture, all-traffic egress, edge-caller IAM,
+identity audience, and readiness before projecting the set into the existing Version 2
+Application Registration and publishing one complete immutable Registration Generation. One
+failed target activates no subset. A prepared bundle or successful application deployment alone
+does not make a route active.
 
-After activation, inspect platform status and the application route. Verify anonymous, login,
-restricted membership, and application permission behavior applicable to the selected policy.
-Direct `run.app` invocation must remain unavailable to ordinary Visitors.
+After activation, inspect platform status and every application mount. Verify longest-match
+selection, anonymous, login, restricted membership, and application permission behavior applicable
+to the selected policy. Direct `run.app` invocation of every target must remain unavailable to
+ordinary Visitors.
 
 ## Update, detach, destroy, or retire
 
-- An application release remains application-owned. Produce a new attachment bundle when its source
-  revision, target, or integration binding changes, then register the replacement.
+- An application release remains application-owned. Produce a new complete attachment bundle and
+  registration intent when its source revision, any target, attachment membership, mount, or
+  integration binding changes. Always include the root. When optional attachments exist, include
+  every unchanged optional entry and register root plus optionals atomically.
 - Run `platform-detach` before destroying or replacing a currently registered target. Detachment
   suspends routing while preserving the application ID and route.
 - Destroy application assets only through the application repository after detachment is read back.
-- Redeploy through a current Platform Integration Bundle and register the replacement attachment to
-  reactivate the suspended application.
+- Redeploy through a current Platform Integration Bundle and register the complete replacement set
+  to reactivate the suspended application.
 - Use `platform-retire` only for permanent removal. Retirement is terminal and retains an ID and
   route tombstone.
 
@@ -284,14 +342,19 @@ be detached, and its Application Owner must complete the separately governed app
 
 - The application repository owns and records its adoption approval, plans, state, and rollback.
 - `application_id` is stable and matches every contract and Cloud Run ownership label.
-- The project connection, network, subnet, ingress, egress, IAM, service readiness, and audience pass
-  platform readback.
-- The application independently verifies platform assertions before constructing a principal.
+- The required root attachment is present and bound to `/`; the optional additional attributes are
+  both absent or contain the exact same unique IDs and complete desired additional set.
+- Every target's project connection, network, subnet, environment label, ingress, egress, IAM,
+  service readiness, and audience pass platform readback.
+- Every identity-consuming target independently verifies platform assertions before constructing a
+  principal.
 - Application permissions are tested independently from platform admission and membership.
 - The bundle family is canonical, current, relationship-valid, inspected, and secret-free.
-- Registration activates one complete generation without changing another application's ownership.
-- Route, admission, identity, direct-origin denial, detachment, rollback, and application destruction
-  have evidence required by the application's adoption authority.
+- Registration activates one complete generation only after all targets pass and without changing
+  another application's ownership.
+- Every mount, longest-match selection, admission, identity, direct-origin denial, target failure,
+  detachment, rollback, and application destruction has the evidence required by the application's
+  adoption authority.
 
 Until the readiness boundary at the beginning of this runbook is closed, this checklist is a
 design and review aid rather than proof that a real application may be deployed.

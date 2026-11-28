@@ -16,10 +16,11 @@ evaluation gates. Every external mutation still requires the approval named by i
   production environment.
 - [Real application adoption](application_adoption.md) is the AP-M9-W12 operator handoff for the
   first separately governed staging application. It describes the cross-owner handoff, stable
-  application identifier, Cloud Run target posture, verified identity consumption, and
-  application-owned permission boundary. It does not authorize an application operation until a
-  named application completes matching authority in its own repository and the platform blocker
-  closes.
+  application identifier, Version 3 complete attachment set, per-target Cloud Run posture,
+  verified identity consumption, and application-owned permission boundary. It does not authorize
+  an application operation until a named application completes matching authority in its own
+  repository, the environment-label, contract, and atomic multi-target platform blockers close,
+  and the separate fourth-fixture qualification passes without replacing platform qualification.
 - [Historical AP-M8 qualification deployment](qualification_deployment.md) preserves the
   superseded manifest-driven procedure. It is excluded from the active reading order and provides
   no current action authority.

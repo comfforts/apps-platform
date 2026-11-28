@@ -1,9 +1,10 @@
 # <u>App Platform threat model</u>
 
-Version 1.23 | Status: ADR-015 controls are implemented and Candidate-qualified by AP-M9-W10;
+Version 1.24 | Status: ADR-015 controls are implemented and Candidate-qualified by AP-M9-W10;
 AP-M9-W11 Accepted Source staging platform and fixture qualification completed at
-`b43333756b509d0f35cb82938a13f6abc459f7c4`; real-application adoption, destructive recovery, and
-production readiness remain separate W12, W13, and W14 evidence boundaries
+`b43333756b509d0f35cb82938a13f6abc459f7c4`; ADR-017 multi-attachment controls are accepted but
+unimplemented; real-application adoption, destructive recovery, and production readiness remain
+separate W12, W13, and W14 evidence boundaries
 
 This document defines the security and privacy threats created by the logical App Platform design,
 assigns control ownership, and names the evidence required before a control may be called
@@ -13,7 +14,7 @@ consuming application's security model.
 
 Requirements: AP-PR-001 through AP-PR-012; AP-QR-001 through AP-QR-009
 
-Decisions: ADR-001 through ADR-015
+Decisions: ADR-001 through ADR-015; ADR-017
 
 System design: [App Platform system design](03_system_design.md)
 
@@ -965,6 +966,51 @@ IAM boundary, runtime Identity Delivery, owner/member lifecycle, complete applic
   Accepted Source at `b43333756b509d0f35cb82938a13f6abc459f7c4`. No current result proves a
   real Application Adoption, platform destruction/redeployment, or production readiness.
 
+### AP-M9-W12 complete attachment-set control refinement
+
+ADR-017 adds no new trust zone, but it allows optional targets beside one required root target.
+AP-TM-001 through AP-TM-003 therefore require closed Version 3 schemas, a required root attachment
+bound to mount `/`, canonical ordering of optional additional entries by attachment ID, exact
+equality between the optional target and binding identifier sets, exclusion of the root ID from
+those arrays, unique segment-bounded mounts, and rejection of mixed handoff versions before
+provider work. Absence of both optional attributes is a valid root-only handoff; presence of only
+one is an invalid partial handoff.
+
+AP-TM-007 and AP-TM-009 require the registration module to validate and read back every target
+before producing one complete candidate. No per-target publication or activation path may exist.
+A stale, missing, extra, unready, wrongly owned, directly public, incorrectly connected, wrongly
+granted, or audience-mismatched target preserves the preceding complete Registration Generation
+and cannot affect another application. Updates must always repeat the root and, when additional
+attachments are desired, repeat every unchanged optional entry so an omission inside a supplied
+optional set is never interpreted as permission for a partial document.
+
+AP-TM-010 requires ordered least-data violations keyed only by approved application and attachment
+identifiers plus stable outcome codes; provider payloads, service configuration, identities,
+credentials, state, and application data remain prohibited. AP-TM-012 retains one required root
+plus at most fifteen additional attachments so provider reads and validation stay finite.
+AP-TM-013 requires one attachment's
+dependency failure to fail only that application change closed, never reroute its mount to another
+attachment, and never activate a subset. AP-TM-014 requires deterministic multi-target fixtures and
+the selected application's Live evidence; the existing single-target fixture qualification does
+not qualify Version 3 or a frontend/backend adoption. The provider-backed control fixture is a
+fourth authenticated application with a required frontend root and additional dummy API target,
+both owned by one independent Application State root. The three already qualified fixtures remain
+unchanged so a plural-handoff test cannot silently rewrite their established policy or evidence.
+
+Fixture qualification uses a result and status namespace distinct from platform-wide
+qualification. It must bind the exact readable Accepted Source platform result, fixture source,
+complete handoff, both targets, and active Registration Generation without copying prohibited
+provider or identity data. A missing, stale, failed, or mismatched fixture result cannot be hidden
+by the platform result, and the fixture result cannot refresh or broaden platform qualification.
+The fixture qualifier may submit an invalid candidate update to prove refusal, but it may not
+activate a subset, reroute a failed mount to the other target, exercise unrelated member state, or
+claim a platform-wide rollback.
+
+The initial Version 3 family deliberately keeps project, region, network, owner, caller, Admission
+Mode, Identity Delivery, and audience at application scope. Allowing an attachment to override any
+of them would create a new trust boundary and is unavailable without a later accepted decision,
+design, threat update, and evidence gate.
+
 ## <u>Remaining implementation and security decisions</u>
 
 The following decisions must be approved by their owning later slice before the named evidence can
@@ -979,7 +1025,8 @@ pass:
 | Provider ingress, IAM, identity, session, signing, logging, evidence, budget, and retention realization | AP-M9 staging deployment and qualification |
 | Integration- and attachment-bundle schemas, application target posture, registration activation, detachment, and retirement | AP-M9-W7 acceptance before fixture deployment |
 | Qualification fixtures, evidence schema, failure injection, rollback, and safe destroy behavior | AP-M9-W8 acceptance before fixture-deployment implementation |
-| First real-application route, identity, isolation, and state-ownership evidence | AP-M9-W12 application adoption |
+| Version 3 complete attachment-set schemas, exact-ID relationship, atomic multi-target validation, and Version 2 registration projection | AP-M9-W12 contract and registration slices |
+| First real-application route, identity, isolation, and state-ownership evidence, including its complete attachment set | AP-M9-W12 application adoption |
 | Platform destruction, retained real-application resources, recovery, reattachment, and requalification evidence | AP-M9-W13 destructive rehearsal |
 | Existing `apps.comfforts.com` resource/state ownership and Finance script changes | Production preparation and separate Finance Application Adoption |
 | Production profile values, OAuth client, DNS transaction, cutover, rollback, and destructive authority | Separately approved production cutover after ownership transfer |
